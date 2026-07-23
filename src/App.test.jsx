@@ -239,20 +239,21 @@ describe('Signal product UI', () => {
     expect(screen.queryByText('입력 필요')).not.toBeInTheDocument();
   });
 
-  test('rebuilds Competition as official cards and a searchable filtered list', async () => {
+  test('separates the official season from the searchable Competition list', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
     await user.click(screen.getByRole('button', { name: 'Competition' }));
 
     expect(screen.getByRole('heading', { name: 'Competition' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '공식 Competition' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2026 Q3 공식 대회 보러가기' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'OFFICAL' })).not.toBeInTheDocument();
     const search = screen.getByRole('searchbox', { name: 'Competition 검색' });
     await user.type(search, 'ETF');
     expect(screen.getByText('ETF Discipline')).toBeInTheDocument();
     expect(screen.queryByText('Momentum Lab')).not.toBeInTheDocument();
 
     await user.clear(search);
-    await user.click(screen.getByRole('button', { name: 'Momentum Lab 순위 펼치기' }));
+    await user.click(screen.getByRole('button', { name: 'Momentum Lab 열기' }));
     expect(screen.getByText('Room Beta')).toBeInTheDocument();
   });
 });
