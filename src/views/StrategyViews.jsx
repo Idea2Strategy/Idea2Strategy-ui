@@ -321,15 +321,84 @@ const BlockRuleNote = ({ side, step, children }) => <aside role="note" aria-labe
 
 const NumericBlockValue = ({ label, value, onChange }) => {
   const numeric = getNumericValue(value);
+  const valueRef = useRef(numeric.number);
+  const repeatTimerRef = useRef(null);
+  const repeatStartedAtRef = useRef(0);
+  const repeatedRef = useRef(false);
+  valueRef.current = numeric.number;
+
   const update = (next) => {
     const bounded = Math.max(0, Math.min(numeric.suffix === '%' || label === 'RSI' ? 100 : 9999, Number(next)));
+    valueRef.current = Number.isFinite(bounded) ? bounded : 0;
     onChange(`${Number.isFinite(bounded) ? bounded : 0}${numeric.suffix}`);
   };
+
+  const stopRepeating = () => {
+    if (repeatTimerRef.current !== null) window.clearTimeout(repeatTimerRef.current);
+    repeatTimerRef.current = null;
+  };
+
+  const cancelRepeating = () => {
+    stopRepeating();
+    repeatedRef.current = false;
+  };
+
+  const repeatChange = (delta, delay) => {
+    repeatTimerRef.current = window.setTimeout(() => {
+      repeatedRef.current = true;
+      update(valueRef.current + delta);
+      const elapsed = Date.now() - repeatStartedAtRef.current;
+      repeatChange(delta, elapsed > 1400 ? 45 : elapsed > 750 ? 75 : 110);
+    }, delay);
+  };
+
+  const beginRepeating = (event, delta) => {
+    if (event.button !== 0) return;
+    stopRepeating();
+    repeatedRef.current = false;
+    repeatStartedAtRef.current = Date.now();
+    repeatChange(delta, 360);
+  };
+
+  const clickOnce = (delta) => {
+    if (repeatedRef.current) {
+      repeatedRef.current = false;
+      return;
+    }
+    update(valueRef.current + delta);
+  };
+
+  useEffect(() => {
+    window.addEventListener('blur', cancelRepeating);
+    return () => {
+      window.removeEventListener('blur', cancelRepeating);
+      cancelRepeating();
+    };
+  }, []);
+
   return <span className="block-number-stepper" aria-label={`${label} 숫자 설정`} onPointerDown={(event) => event.stopPropagation()}>
-    <button type="button" aria-label={`${label} 값 감소`} onClick={() => update(numeric.number - 1)}><Minus size={11} aria-hidden="true" /></button>
+    <button
+      type="button"
+      aria-label={`${label} 값 감소`}
+      title="길게 눌러 빠르게 조정"
+      onPointerDown={(event) => beginRepeating(event, -1)}
+      onPointerUp={stopRepeating}
+      onPointerCancel={cancelRepeating}
+      onPointerLeave={cancelRepeating}
+      onClick={() => clickOnce(-1)}
+    ><Minus size={11} aria-hidden="true" /></button>
     <label><span className="sr-only">{label} 값</span><input type="number" min="0" max={numeric.suffix === '%' || label === 'RSI' ? 100 : 9999} value={numeric.number} onChange={(event) => update(event.target.value)} /></label>
     <b aria-hidden="true">{numeric.suffix}</b>
-    <button type="button" aria-label={`${label} 값 증가`} onClick={() => update(numeric.number + 1)}><Plus size={11} aria-hidden="true" /></button>
+    <button
+      type="button"
+      aria-label={`${label} 값 증가`}
+      title="길게 눌러 빠르게 조정"
+      onPointerDown={(event) => beginRepeating(event, 1)}
+      onPointerUp={stopRepeating}
+      onPointerCancel={cancelRepeating}
+      onPointerLeave={cancelRepeating}
+      onClick={() => clickOnce(1)}
+    ><Plus size={11} aria-hidden="true" /></button>
   </span>;
 };
 

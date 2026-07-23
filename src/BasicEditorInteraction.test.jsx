@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { BasicEditor } from './views/StrategyViews.jsx';
@@ -130,7 +130,8 @@ describe('Basic editor strategy explanations', () => {
 
     const buyRsi = screen.getByTestId('buy-rsi-block');
     const valueInput = within(buyRsi).getByLabelText('RSI 값');
-    await user.click(within(buyRsi).getByRole('button', { name: 'RSI 값 증가' }));
+    const increaseButton = within(buyRsi).getByRole('button', { name: 'RSI 값 증가' });
+    await user.click(increaseButton);
     expect(valueInput).toHaveValue(31);
 
     await user.clear(valueInput);
@@ -142,6 +143,25 @@ describe('Basic editor strategy explanations', () => {
     await user.click(screen.getByRole('button', { name: '매수 전략 자연어 설명' }));
     expect(screen.getByRole('note', { name: '2단계 규칙 설명' })).toHaveTextContent('42 초과');
     expect(screen.getByRole('status')).toHaveTextContent('블록 설정을 변경했습니다.');
+  });
+
+  test('repeats numeric changes while a stepper button is held', () => {
+    vi.useFakeTimers();
+    try {
+      render(<BasicEditor goBack={() => {}} />);
+
+      const buyRsi = screen.getByTestId('buy-rsi-block');
+      const valueInput = buyRsi.querySelector('.block-number-stepper input');
+      const increaseButton = buyRsi.querySelector('.block-number-stepper button:last-child');
+
+      fireEvent.pointerDown(increaseButton, { button: 0, pointerId: 1 });
+      act(() => vi.advanceTimersByTime(900));
+      fireEvent.pointerUp(increaseButton, { pointerId: 1 });
+
+      expect(valueInput.valueAsNumber).toBeGreaterThan(31);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test('changes state-based block values with a real dropdown', async () => {

@@ -1623,11 +1623,11 @@
   box-shadow: 0 0 0 2px rgba(235, 245, 213, .62);
 }
 .variant-balanced[data-design="signal-studio"] .block-number-stepper {
-  width: 76px;
+  width: 68px;
   height: 24px;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) 9px 18px;
-  flex: 0 0 76px;
+  grid-template-columns: 18px minmax(0, 1fr) 8px 18px;
+  flex: 0 0 68px;
   align-items: center;
   margin-left: auto;
   overflow: hidden;
@@ -1674,7 +1674,7 @@
 .variant-balanced[data-design="signal-studio"] .block-number-stepper input {
   width: 100%;
   min-width: 0;
-  padding: 0 2px;
+  padding: 0 1px;
   border: 0;
   outline: 0;
   color: #17221b;
