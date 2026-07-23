@@ -139,20 +139,22 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('button', { name: '균형형 보기' })).not.toBeInTheDocument();
   });
 
-  test('shows the complete buy rule when the Basic buy group is clicked', async () => {
+  test('shows the buy rule as one natural-language note per block', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
     await user.click(screen.getByRole('button', { name: '전략' }));
     await user.click(screen.getByRole('button', { name: '새 전략' }));
     await user.click(screen.getByRole('button', { name: 'Basic으로 시작' }));
     await user.hover(screen.getByTestId('buy-rsi-block'));
-    expect(screen.queryByText(/새로운 1분봉/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '매수 전략 자연어 설명' }));
-    const explanation = screen.getByRole('tooltip');
-    expect(explanation).toHaveTextContent('새로운 1분봉');
-    expect(explanation).toHaveTextContent('RSI가 30 아래');
-    expect(explanation).toHaveTextContent('25%');
-    expect(explanation).toHaveTextContent('시장가 매수 후보');
+    const explanations = screen.getAllByRole('note');
+    expect(explanations).toHaveLength(4);
+    expect(explanations[0]).toHaveTextContent('1분봉');
+    expect(explanations[1]).toHaveTextContent('RSI(14)');
+    expect(explanations[1]).toHaveTextContent('30 미만');
+    expect(explanations[2]).toHaveTextContent('25%');
+    expect(explanations[3]).toHaveTextContent('시장가 매수');
   });
 
   test('opens a categorized compatible-node picker where a Pro connection is released', async () => {
@@ -249,7 +251,9 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('heading', { name: 'OFFICAL' })).not.toBeInTheDocument();
     const search = screen.getByRole('searchbox', { name: 'Competition 검색' });
     await user.type(search, 'ETF');
-    expect(screen.getByText('ETF Discipline')).toBeInTheDocument();
+    expect(
+      screen.getByRole('complementary', { name: 'ETF Discipline 선택 정보' }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Momentum Lab')).not.toBeInTheDocument();
 
     await user.clear(search);

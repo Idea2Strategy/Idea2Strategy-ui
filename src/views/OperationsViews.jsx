@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Activity, ArrowLeft, ArrowUpRight, Bot, CalendarDays, CheckCircle2, ChevronDown, ChevronUp, ClipboardList, Clock3, Coins, Play, Plus, RefreshCw, Search, SlidersHorizontal, TrendingUp, Trophy, Users } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowUpRight, Bot, CalendarDays, CheckCircle2, Clock3, Coins, Play, Plus, RefreshCw, Search, Trophy, Users } from 'lucide-react';
 import { AreaChart, BarList, MiniSpark } from '../components/charts.jsx';
 import { Button, DataTable, HelpNote, PageHeading, Panel, StatCard, Status } from '../components/common.jsx';
 import { bots, botSeries, equitySeries, leaderboard, monthlyFailures, positions, trades } from '../data/mockData.js';
@@ -140,16 +140,16 @@ export function RoomsView() {
   const [query, setQuery] = useState('');
   const [scoreFilter, setScoreFilter] = useState('all');
   const [sizeFilter, setSizeFilter] = useState('all');
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [officialSeasonOpen, setOfficialSeasonOpen] = useState(false);
+  const [focusedRoom, setFocusedRoom] = useState(competitionRooms[0]);
   const visibleRooms = useMemo(() => competitionRooms.filter((room) => {
     const matchesQuery = room.name.toLowerCase().includes(query.trim().toLowerCase());
     const matchesScore = scoreFilter === 'all' || room.score === scoreFilter;
     const matchesSize = sizeFilter === 'all' || (sizeFilter === 'small' ? room.people <= 10 : room.people > 10);
     return matchesQuery && matchesScore && matchesSize;
   }), [query, scoreFilter, sizeFilter]);
-  const activeFilterCount = Number(scoreFilter !== 'all') + Number(sizeFilter !== 'all');
+  const displayedRoom = visibleRooms.find((room) => room.name === focusedRoom?.name) ?? visibleRooms[0] ?? null;
 
   if (selectedRoom) return <Localized><div className="page competition-page competition-detail-page">
     <section aria-label={`${selectedRoom.name} 상세 페이지`}>
@@ -179,104 +179,68 @@ export function RoomsView() {
         <div><p>OFFICIAL SEASON</p><h1>2026 Q3 공식 대회</h1></div>
         <span>2026.07.01 – 2026.09.30 <strong>D-73</strong></span>
       </header>
-      <div className="official-season-page-summary">
-        <span><i data-summary-tone="standard"><Trophy size={18} /></i><small>공식 대회</small><strong>{officialCompetitions.length}개</strong></span>
-        <span><i data-summary-tone="risk"><Bot size={18} /></i><small>참여 봇</small><strong>{officialBotsTotal}개</strong></span>
-        <span><i data-summary-tone="return"><ClipboardList size={18} /></i><small>총 제출</small><strong>18,742건</strong></span>
-        <span><i data-summary-tone="sharpe"><TrendingUp size={18} /></i><small>평균 수익률</small><strong className="positive">+8.73%</strong></span>
-      </div>
-      <div className="official-season-insights">
-        <OfficialPerformanceChart />
-        <OfficialLeaderboard />
-      </div>
       <section className="official-season-rooms" aria-labelledby="official-season-rooms-title">
         <header><h2 id="official-season-rooms-title">공식 대회</h2><span>{officialCompetitions.length}개</span></header>
         <OfficialCompetitionGrid onSelect={setSelectedRoom} />
       </section>
+      <div className="official-season-insights">
+        <OfficialPerformanceChart />
+        <OfficialLeaderboard />
+      </div>
     </section>
   </div></Localized>;
 
-  return <Localized><div className="page competition-page">
-    <PageHeading eyebrow="BOT COMPETITION" title="Competition" />
+  return <Localized><div className="page competition-page competition-lobby-page">
+    <PageHeading eyebrow="BOT COMPETITION" title="Competition" description="같은 규칙에서 봇을 비교하고, 참여할 대회를 빠르게 선택하세요." actions={<Button kind="primary" icon={Plus}>Competition 만들기</Button>} />
 
-    <section className="competition-season" role="button" tabIndex="0" aria-label="2026 Q3 공식 대회 보러가기" onClick={() => setOfficialSeasonOpen(true)} onKeyDown={(event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        setOfficialSeasonOpen(true);
-      }
-    }}>
-      <div className="competition-season-title">
-        <div className="competition-season-eyebrow"><span>CURRENT SEASON</span></div>
-        <h2>2026 Q3 공식 시즌</h2>
-        <p><CalendarDays size={14} /> 2026.07.01 – 2026.09.30</p>
-      </div>
-      <div className="competition-season-progress">
-        <div><span>시즌 진행률</span><strong>21%</strong></div>
-        <span role="progressbar" aria-label="2026 Q3 시즌 진행률" aria-valuemin="0" aria-valuenow="21" aria-valuemax="100"><i style={{ width: '21%' }} /></span>
-        <div className="competition-season-scale"><span>시작</span><span>종료</span></div>
-      </div>
-      <div className="competition-season-stats">
-        <div><small>전체 참여</small><strong>{officialBotsTotal}</strong><span>{officialCompetitions.length}개 공식 방</span></div>
-        <div><small>시즌 종료</small><strong>D-73</strong><span>성과 확정까지</span></div>
-      </div>
-      <span className="competition-season-detail">공식 대회 보러가기 <ArrowUpRight size={16} /></span>
-    </section>
+    <button className="competition-season-command" aria-label="2026 Q3 공식 대회 보러가기" onClick={() => setOfficialSeasonOpen(true)}>
+      <span className="season-command-icon"><Trophy size={18} /></span>
+      <span className="season-command-title"><small>OFFICIAL SEASON · LIVE</small><strong>2026 Q3 공식 시즌</strong><em><CalendarDays size={12} /> 07.01–09.30</em></span>
+      <span className="season-command-progress"><small>시즌 진행률 <b>21%</b></small><i role="progressbar" aria-label="2026 Q3 시즌 진행률" aria-valuemin="0" aria-valuenow="21" aria-valuemax="100"><b style={{ width: '21%' }} /></i></span>
+      <span className="season-command-stat"><small>참여 봇</small><strong>{officialBotsTotal}</strong></span>
+      <span className="season-command-stat"><small>종료까지</small><strong>D-73</strong></span>
+      <span className="season-command-link">공식 시즌 보기 <ArrowUpRight size={15} /></span>
+    </button>
 
-    <section className="competition-browser panel">
-      <header className="competition-browser-head">
-        <div><h2>내 봇에 맞는 Competition 찾기</h2></div>
-        <Button kind="primary" icon={Plus}>Competition 만들기</Button>
-      </header>
-      <div className="competition-toolbar">
-        <label><Search size={15} /><input type="search" aria-label="Competition 검색" placeholder="이름으로 검색" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
-        <div className="competition-filter">
-          <button className={activeFilterCount ? 'competition-filter-trigger is-active' : 'competition-filter-trigger'} aria-label="Competition 필터" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>
-            <SlidersHorizontal size={15} /><span>필터</span>{activeFilterCount > 0 && <b>{activeFilterCount}</b>}{filtersOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-          </button>
-          {filtersOpen && <section className="competition-filter-panel" role="dialog" aria-label="Competition 필터 설정">
-            <div className="competition-filter-group">
-              <strong>점수 방식</strong>
-              <div role="group" aria-label="점수 방식 선택">
-                {[['all', '전체'], ['복합 점수', '복합 점수'], ['최대 낙폭', '최대 낙폭'], ['수익률', '수익률'], ['샤프 지수', '샤프 지수']].map(([value, label]) =>
-                  <button key={value} className={scoreFilter === value ? 'active' : ''} aria-label={`${label} 점수 방식 선택`} aria-pressed={scoreFilter === value} onClick={() => setScoreFilter(value)}>{label}</button>
-                )}
-              </div>
-            </div>
-            <div className="competition-filter-group">
-              <strong>참여 인원</strong>
-              <div role="group" aria-label="참여 인원 선택">
-                {[['all', '전체'], ['small', '10명 이하'], ['large', '11명 이상']].map(([value, label]) =>
-                  <button key={value} className={sizeFilter === value ? 'active' : ''} aria-label={`${label} 참여 인원 선택`} aria-pressed={sizeFilter === value} onClick={() => setSizeFilter(value)}>{label}</button>
-                )}
-              </div>
-            </div>
-            <footer>
-              <button onClick={() => { setScoreFilter('all'); setSizeFilter('all'); }}>필터 초기화</button>
-              <button className="primary" onClick={() => setFiltersOpen(false)}>필터 적용</button>
-            </footer>
-          </section>}
+    <div className="competition-lobby-grid">
+      <section className="competition-screener" aria-labelledby="competition-screener-title">
+        <header><div><small>DISCOVER</small><h2 id="competition-screener-title">Competition 찾기</h2></div><span>{visibleRooms.length}개 결과</span></header>
+        <div className="competition-screener-tools">
+          <label><Search size={15} /><input type="search" aria-label="Competition 검색" placeholder="Competition 이름 검색" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+          <select aria-label="점수 방식 필터" value={scoreFilter} onChange={(event) => setScoreFilter(event.target.value)}>
+            <option value="all">모든 점수 방식</option><option value="복합 점수">복합 점수</option><option value="최대 낙폭">최대 낙폭</option><option value="수익률">수익률</option><option value="샤프 지수">샤프 지수</option>
+          </select>
+          <select aria-label="참여 인원 필터" value={sizeFilter} onChange={(event) => setSizeFilter(event.target.value)}>
+            <option value="all">모든 참여 인원</option><option value="small">10명 이하</option><option value="large">11명 이상</option>
+          </select>
         </div>
-      </div>
-      <div className="competition-result-summary"><strong>{visibleRooms.length}개의 Competition</strong></div>
-      <div className="competition-list competition-card-grid" role="list" aria-label="Competition 목록">
-        {visibleRooms.map((room) => <div role="listitem" key={room.name}>
-          <article className="competition-discovery-card competition-room-card" role="button" tabIndex="0" aria-label={`${room.name} 열기`} onClick={() => setSelectedRoom(room)} onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              setSelectedRoom(room);
-            }
-          }}>
-            <header><h3>{room.name}</h3><CompetitionRankingMethod ranking={room.ranking} /></header>
-            <div className="competition-card-counts">
-              <span><small>참여 봇</small><strong>{room.joined}개</strong></span>
-              <span><small>참여 인원</small><strong>{room.people}명</strong></span>
-              <span><small>봇당 평균 제출</small><strong>{room.averageSubmissions}</strong></span>
-              <span><small>총 제출</small><strong>{room.submissions}</strong></span>
-            </div>
-          </article>
-        </div>)}
-        {visibleRooms.length === 0 && <div className="competition-empty"><Search size={20} /><strong>조건에 맞는 Competition이 없습니다.</strong><button onClick={() => { setQuery(''); setScoreFilter('all'); setSizeFilter('all'); }}>필터 초기화</button></div>}
-      </div>
-    </section>
+        <div className="competition-screener-head" aria-hidden="true"><span>Competition</span><span>산정 방식</span><span>참여</span><span>제출</span></div>
+        <div className="competition-screener-list" role="list" aria-label="Competition 탐색 결과">
+          {visibleRooms.map((room) => <button role="listitem" className={displayedRoom?.name === room.name ? 'active' : ''} aria-label={`${room.name} 선택`} key={room.name} onClick={() => setFocusedRoom(room)}>
+            <span className="screener-room-name"><i /><strong>{room.name}</strong><small>{room.score}</small></span>
+            <span><small>산정 방식</small><strong>{room.ranking}</strong></span>
+            <span className="screener-capacity"><small>참여</small><strong>{room.joined} / {room.people}</strong><i><b style={{ width: `${Math.round((room.joined / room.people) * 100)}%` }} /></i></span>
+            <span><small>총 제출</small><strong>{room.submissions}</strong></span>
+            <ArrowUpRight size={14} />
+          </button>)}
+          {visibleRooms.length === 0 && <div className="competition-empty"><Search size={20} /><strong>조건에 맞는 Competition이 없습니다.</strong><button onClick={() => { setQuery(''); setScoreFilter('all'); setSizeFilter('all'); }}>필터 초기화</button></div>}
+        </div>
+      </section>
+
+      <aside className="competition-room-inspector" aria-label={displayedRoom ? `${displayedRoom.name} 선택 정보` : '선택된 Competition 없음'}>
+        {displayedRoom ? <>
+          <header><small>SELECTED</small><h2>{displayedRoom.name}</h2><p>{displayedRoom.score} 기준으로 익명 봇의 결과를 비교합니다.</p></header>
+          <CompetitionRankingMethod ranking={displayedRoom.ranking} />
+          <dl>
+            <div><dt>참여 봇</dt><dd>{displayedRoom.joined}개</dd></div>
+            <div><dt>정원</dt><dd>{displayedRoom.people}명</dd></div>
+            <div><dt>평균 제출</dt><dd>{displayedRoom.averageSubmissions}</dd></div>
+            <div><dt>총 제출</dt><dd>{displayedRoom.submissions}</dd></div>
+          </dl>
+          <div className="competition-inspector-note"><Bot size={16} /><span><strong>봇만 순위에 표시됩니다.</strong><small>사용자 이름과 개인 전략은 공개되지 않습니다.</small></span></div>
+          <button className="competition-inspector-action" aria-label={`${displayedRoom.name} 열기`} onClick={() => setSelectedRoom(displayedRoom)}>상세 정보 보기 <ArrowUpRight size={15} /></button>
+        </> : <div className="competition-inspector-empty"><Search size={20} /><strong>표시할 Competition이 없습니다.</strong></div>}
+      </aside>
+    </div>
   </div></Localized>;
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Boxes, Check, ChevronDown, ChevronRight, CircleDollarSign, GitBranch, GripVertical, Import, Layers3, LockKeyhole, Play, Plus, Save, Search, ShieldCheck, Sparkles, Split, Timer, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ArrowLeft, Boxes, Check, ChevronDown, ChevronRight, CircleDollarSign, GitBranch, GripVertical, Import, Layers3, LockKeyhole, Minus, Play, Plus, Save, Search, ShieldCheck, Sparkles, Split, Timer, Trash2, X } from 'lucide-react';
 import { strategies } from '../data/mockData.js';
 import { Button, DataTable, FilterButton, HelpNote, PageHeading, Panel, SearchBar, StatCard, Status } from '../components/common.jsx';
 import { Localized } from '../lib/i18n.jsx';
@@ -154,11 +155,24 @@ const INITIAL_STRATEGY_SECTIONS = [{
   allocation: 40,
   x: 290,
   y: 108,
-  width: 650,
-  minHeight: 390,
   cards: { buy: ['primary-buy'], sell: ['primary-sell'] },
   cardOrder: ['primary-buy', 'primary-sell'],
+  cardPositions: {
+    'primary-buy': { x: 24, y: 112 },
+    'primary-sell': { x: 310, y: 112 },
+  },
 }];
+
+const SECTION_HEADER_HEIGHT = 96;
+const SECTION_MIN_WIDTH = 600;
+const SECTION_PADDING = 24;
+const STRATEGY_CARD_WIDTH = 260;
+const STRATEGY_CARD_FALLBACK_HEIGHT = 286;
+
+const getDefaultCardPosition = (index) => ({
+  x: SECTION_PADDING + (index % 3) * (STRATEGY_CARD_WIDTH + 26),
+  y: 112 + Math.floor(index / 3) * (STRATEGY_CARD_FALLBACK_HEIGHT + 24),
+});
 
 const INITIAL_CARD_BLOCKS = {
   'primary-buy': INITIAL_BASIC_BLOCKS.buy,
@@ -241,8 +255,194 @@ const createLibraryBlock = (label, tone, id) => {
   };
 };
 
-const Block = ({ icon: Icon, label, value, op, tone = 'neutral', locked = false }) => <div className={`scratch-block block-${tone}`}>{Icon && <Icon size={15} />}<span>{label}</span>{op && <b className="block-op">{op}</b>}{value && (locked ? <span className="block-value is-locked">{value}</span> : <button className="block-value" tabIndex="-1">{value}<ChevronDown size={12} /></button>)}</div>;
-const StrategyBlock = ({ id, fixed = false, dragging = false, dragProps = {}, ...blockProps }) => <div
+const blockOperatorCopy = {
+  '<': '미만',
+  '>': '초과',
+  '=': '같은지',
+  '↑': '상향 돌파하는지',
+  '↓': '하향 돌파하는지',
+};
+
+const BLOCK_OPERATORS = ['<', '>', '=', '↑', '↓'];
+
+const getBlockValueOptions = (block) => {
+  const normalizedLabel = block.label.toUpperCase();
+  if (normalizedLabel.includes('POSITION') || block.label.includes('포지션')) return ['OPEN', 'CLOSED', 'ANY'];
+  if (block.tone === 'data') return ['현재', '이전 봉', '2봉 전'];
+  if (block.tone === 'condition') return ['설정', 'TRUE', 'FALSE', 'OPEN', 'CLOSED'];
+  if (block.tone === 'time') return ['설정', '1분', '5분', '15분', '60분'];
+  if (block.tone === 'order') return ['기본', '시장가', '지정가', '다음 봉 체결'];
+  if (block.tone === 'risk') return ['설정', '1%', '2%', '5%', '10%', '25%'];
+  if (block.value === 'SIGNAL') return ['SIGNAL', 'ZERO', 'HISTOGRAM'];
+  if (block.value === 'UP' || block.value === 'DOWN') return ['UP', 'DOWN'];
+  if (block.value === 'LOWER' || block.value === 'UPPER') return ['LOWER', 'MIDDLE', 'UPPER'];
+  if (String(block.value).includes(' / ')) return ['5 / 20', '10 / 30', '20 / 60', '50 / 200'];
+  if (String(block.value).includes('HIGH') || String(block.value).includes('LOW')) return ['HIGH 20', 'LOW 20', 'HIGH 60', 'LOW 60'];
+  return [String(block.value)];
+};
+
+const getNumericValue = (value) => {
+  const match = String(value ?? '').trim().match(/^(-?\d+(?:\.\d+)?)(%)?$/);
+  return match ? { number: Number(match[1]), suffix: match[2] ?? '' } : null;
+};
+
+const positionValueCopy = {
+  OPEN: '포지션을 보유 중',
+  CLOSED: '포지션을 보유하지 않음',
+  ANY: '포지션 상태와 무관',
+};
+
+const getBlockRule = (block, side) => {
+  if (block.id === 'buy-trigger-block') return <><b>1분봉</b> 하나가 새로 완성될 때마다</>;
+  if (block.id === 'buy-rsi-block') return <><b>RSI(14)</b>가 <b>{block.value} {blockOperatorCopy[block.op] ?? block.op}</b>인지 확인하고</>;
+  if (block.id === 'buy-budget-block') return <>조건을 만족하면 전략 예산의 <b>{block.value}</b>를 사용해</>;
+  if (block.id === 'sell-position-block') return <>먼저 현재 <b>{positionValueCopy[block.value] ?? block.value}</b>인지 확인하고</>;
+  if (block.id === 'sell-rsi-block') return <><b>RSI(14)</b>가 <b>{block.value} {blockOperatorCopy[block.op] ?? block.op}</b>인지 확인한 뒤</>;
+
+  const operatorCopy = blockOperatorCopy[block.op] ?? block.op;
+  if (block.tone === 'time') return <><b>{block.label}</b> 이벤트가 발생하면</>;
+  if (block.tone === 'data') return <><b>{block.label}</b> 데이터를 읽고</>;
+  if (block.tone === 'indicator') return <><b>{block.label}</b>{block.value && <>의 기준값 <b>{block.value}</b></>}{operatorCopy && <>으로 <b>{operatorCopy}</b></>} 확인한 뒤</>;
+  if (block.tone === 'condition') return <><b>{block.label}</b>{block.value && <>이 <b>{block.value}</b> 상태인지</>} 확인하고</>;
+  if (block.tone === 'logic') return <><b>{block.label}</b> 논리로 앞의 조건을 연결하고</>;
+  if (block.tone === 'risk') return <>위험 한도를 <b>{block.value ?? '설정값'}</b>으로 제한한 뒤</>;
+  if (block.tone === 'order') return <><b>{block.label}</b> 주문 조건을 적용하고</>;
+  return <><b>{block.label}</b> 블록의 설정값을 확인하고</>;
+};
+
+const getTerminalRule = (side) => side === 'buy'
+  ? <>다음 봉에서 <b>시장가 매수</b> 후보를 만듭니다.</>
+  : <>보유 수량의 <b>100%</b>를 <b>시장가 매도</b> 후보로 만듭니다.</>;
+
+const BlockRuleNote = ({ side, step, children }) => <aside role="note" aria-label={`${step}단계 규칙 설명`} className={`strategy-rule-note is-${side}`}>
+  <span>{String(step).padStart(2, '0')}</span>
+  <p>{children}</p>
+</aside>;
+
+const NumericBlockValue = ({ label, value, onChange }) => {
+  const numeric = getNumericValue(value);
+  const update = (next) => {
+    const bounded = Math.max(0, Math.min(numeric.suffix === '%' || label === 'RSI' ? 100 : 9999, Number(next)));
+    onChange(`${Number.isFinite(bounded) ? bounded : 0}${numeric.suffix}`);
+  };
+  return <span className="block-number-stepper" aria-label={`${label} 숫자 설정`} onPointerDown={(event) => event.stopPropagation()}>
+    <button type="button" aria-label={`${label} 값 감소`} onClick={() => update(numeric.number - 1)}><Minus size={11} aria-hidden="true" /></button>
+    <label><span className="sr-only">{label} 값</span><input type="number" min="0" max={numeric.suffix === '%' || label === 'RSI' ? 100 : 9999} value={numeric.number} onChange={(event) => update(event.target.value)} /></label>
+    <b aria-hidden="true">{numeric.suffix}</b>
+    <button type="button" aria-label={`${label} 값 증가`} onClick={() => update(numeric.number + 1)}><Plus size={11} aria-hidden="true" /></button>
+  </span>;
+};
+
+const CustomBlockSelect = ({ label, value, options, onChange, compact = false }) => {
+  const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState(null);
+  const rootRef = useRef(null);
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const closeFromOutside = (event) => {
+      if (!rootRef.current?.contains(event.target) && !menuRef.current?.contains(event.target)) setOpen(false);
+    };
+    const closeWithEscape = (event) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    const closeFromViewportChange = () => setOpen(false);
+    document.addEventListener('pointerdown', closeFromOutside);
+    document.addEventListener('keydown', closeWithEscape);
+    window.addEventListener('resize', closeFromViewportChange);
+    window.addEventListener('scroll', closeFromViewportChange, true);
+    return () => {
+      document.removeEventListener('pointerdown', closeFromOutside);
+      document.removeEventListener('keydown', closeWithEscape);
+      window.removeEventListener('resize', closeFromViewportChange);
+      window.removeEventListener('scroll', closeFromViewportChange, true);
+    };
+  }, [open]);
+
+  const showMenu = () => {
+    const bounds = triggerRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+    const width = compact ? 62 : Math.max(112, bounds.width);
+    const estimatedHeight = Math.min(164, options.length * 29 + 8);
+    const opensUpward = window.innerHeight - bounds.bottom < estimatedHeight + 8;
+    setMenuPosition({
+      left: Math.max(8, Math.min(window.innerWidth - width - 8, bounds.right - width)),
+      top: opensUpward ? Math.max(8, bounds.top - estimatedHeight - 4) : bounds.bottom + 4,
+      width,
+    });
+    setOpen(true);
+  };
+
+  const moveSelection = (direction) => {
+    const currentIndex = Math.max(0, options.indexOf(value));
+    const nextIndex = (currentIndex + direction + options.length) % options.length;
+    onChange(options[nextIndex]);
+    showMenu();
+  };
+
+  return <span
+    className={`block-custom-select ${compact ? 'is-compact' : ''} ${open ? 'is-open' : ''}`}
+    ref={rootRef}
+    onPointerDown={(event) => event.stopPropagation()}
+  >
+    <button
+      ref={triggerRef}
+      type="button"
+      className="block-custom-select-trigger"
+      role="combobox"
+      aria-label={label}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      data-value={value}
+      onClick={() => open ? setOpen(false) : showMenu()}
+      onKeyDown={(event) => {
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          moveSelection(event.key === 'ArrowDown' ? 1 : -1);
+        }
+      }}
+    ><span>{value}</span><ChevronDown size={11} aria-hidden="true" /></button>
+    {open && menuPosition && createPortal(<span
+      ref={menuRef}
+      className={`block-custom-select-menu ${compact ? 'is-compact' : ''}`}
+      role="listbox"
+      aria-label={`${label} 옵션`}
+      style={menuPosition}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      {options.map((option) => <button
+        key={option}
+        type="button"
+        role="option"
+        aria-selected={option === value}
+        onClick={() => {
+          onChange(option);
+          setOpen(false);
+        }}
+      ><span>{option}</span>{option === value && <Check size={11} aria-hidden="true" />}</button>)}
+    </span>, document.body)}
+  </span>;
+};
+
+const Block = ({ icon: Icon, label, value, op, tone = 'neutral', locked = false, onChange }) => {
+  const numeric = getNumericValue(value);
+  const block = { label, value, op, tone };
+  return <div className={`scratch-block block-${tone}`}>
+    {Icon && <Icon size={15} />}
+    <span>{label}</span>
+    {op && (locked
+      ? <b className="block-op">{op}</b>
+      : <CustomBlockSelect compact label={`${label} 연산자`} value={op} options={BLOCK_OPERATORS} onChange={(nextOp) => onChange({ op: nextOp })} />)}
+    {value && (locked
+      ? <span className="block-value is-locked">{value}</span>
+      : numeric
+        ? <NumericBlockValue label={label} value={value} onChange={(nextValue) => onChange({ value: nextValue })} />
+        : <CustomBlockSelect label={`${label} 값 선택`} value={value} options={getBlockValueOptions(block)} onChange={(nextValue) => onChange({ value: nextValue })} />)}
+  </div>;
+};
+const StrategyBlock = ({ id, fixed = false, dragging = false, dragProps = {}, showRule = false, rule, ruleSide = 'right', ruleStep = 1, ...blockProps }) => <div
   className={`block-with-copy ${fixed ? 'fixed-terminal-block' : 'draggable-strategy-block'} ${dragging ? 'is-dragging' : ''}`}
   data-testid={id}
   aria-disabled={fixed ? 'true' : undefined}
@@ -250,12 +450,7 @@ const StrategyBlock = ({ id, fixed = false, dragging = false, dragProps = {}, ..
   draggable={fixed ? undefined : true}
   tabIndex={fixed ? undefined : 0}
   {...dragProps}
->{!fixed && <GripVertical className="block-drag-handle" size={14} aria-hidden="true" />}<Block {...blockProps} locked={fixed} /></div>;
-
-const GroupTranslation = ({ id, side, title, children }) => <aside id={id} role="tooltip" className={`strategy-group-translation is-${side}`}>
-  <span>{title}</span>
-  <p>{children}</p>
-</aside>;
+>{!fixed && <GripVertical className="block-drag-handle" size={14} aria-hidden="true" />}<Block {...blockProps} locked={fixed} />{showRule && <BlockRuleNote side={ruleSide} step={ruleStep}>{rule}</BlockRuleNote>}</div>;
 
 export function BasicEditor({ goBack, openEditor }) {
   const [activeGroup, setActiveGroup] = useState(null);
@@ -266,6 +461,7 @@ export function BasicEditor({ goBack, openEditor }) {
   const [cardMeta, setCardMeta] = useState(INITIAL_CARD_META);
   const [draggedBlock, setDraggedBlock] = useState(null);
   const [draggedCard, setDraggedCard] = useState(null);
+  const [libraryDrag, setLibraryDrag] = useState(null);
   const [dragTarget, setDragTarget] = useState(null);
   const [customBlockCount, setCustomBlockCount] = useState(0);
   const [cardCount, setCardCount] = useState(2);
@@ -279,7 +475,11 @@ export function BasicEditor({ goBack, openEditor }) {
   const spacePanningRef = useRef(false);
   const pointerPositionRef = useRef(null);
   const [sectionMove, setSectionMove] = useState(null);
-  const [sectionResize, setSectionResize] = useState(null);
+  const [cardMove, setCardMove] = useState(null);
+  const trashZoneRef = useRef(null);
+  const [trashReady, setTrashReady] = useState(false);
+  const cardElementsRef = useRef(new Map());
+  const [cardSizes, setCardSizes] = useState({});
   const [announcement, setAnnouncement] = useState('');
   const [templateQuery, setTemplateQuery] = useState('');
   const [blockQuery, setBlockQuery] = useState('');
@@ -293,7 +493,29 @@ export function BasicEditor({ goBack, openEditor }) {
   })).filter((category) => category.items.length > 0), [blockQuery]);
 
   useEffect(() => {
-    const isTypingTarget = (target) => target?.closest?.('input, textarea, select, [contenteditable="true"]');
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver((entries) => {
+      setCardSizes((current) => {
+        let changed = false;
+        const next = { ...current };
+        entries.forEach((entry) => {
+          const cardId = entry.target.dataset.strategyCard;
+          if (!cardId) return;
+          const width = Math.ceil(entry.borderBoxSize?.[0]?.inlineSize ?? entry.contentRect.width);
+          const height = Math.ceil(entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height);
+          if (next[cardId]?.width === width && next[cardId]?.height === height) return;
+          next[cardId] = { width, height };
+          changed = true;
+        });
+        return changed ? next : current;
+      });
+    });
+    cardElementsRef.current.forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [activeGroup, cardBlocks, sections]);
+
+  useEffect(() => {
+    const isTypingTarget = (target) => target?.closest?.('input, textarea, select, button, [role="combobox"], [contenteditable="true"]');
     const stopSpacePanning = () => {
       spacePanningRef.current = false;
       setSpacePanning(false);
@@ -340,6 +562,10 @@ export function BasicEditor({ goBack, openEditor }) {
 
   const startDragging = (event, cardId, blockId) => {
     event.stopPropagation();
+    if (event.target.closest?.('button, input, select')) {
+      event.preventDefault();
+      return;
+    }
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', blockId);
     setDraggedBlock({ cardId, blockId });
@@ -389,8 +615,8 @@ export function BasicEditor({ goBack, openEditor }) {
     setAnnouncement(`${side === 'buy' ? '매수' : '매도'} 전략에 이동평균 조건을 추가했습니다.`);
   };
 
-  const applyTemplate = (template) => {
-    const targetSection = sections.find((section) => section.id === activeSectionId) ?? sections[0];
+  const applyTemplate = (template, targetSectionId = activeSectionId) => {
+    const targetSection = sections.find((section) => section.id === targetSectionId) ?? sections[0];
     if (!targetSection) return;
     const nextCardCount = cardCount + 1;
     const buyCardId = `${targetSection.id}-${template.id}-buy-${nextCardCount}`;
@@ -422,43 +648,176 @@ export function BasicEditor({ goBack, openEditor }) {
           sell: [...section.cards.sell, sellCardId],
         },
         cardOrder: [...section.cardOrder, buyCardId, sellCardId],
+        cardPositions: {
+          ...section.cardPositions,
+          [buyCardId]: getDefaultCardPosition(section.cardOrder.length),
+          [sellCardId]: getDefaultCardPosition(section.cardOrder.length + 1),
+        },
       }
       : section));
     setSelectedCardId(buyCardId);
+    setActiveSectionId(targetSection.id);
     setAnnouncement(`${template.name} 템플릿의 매수·매도 블록을 ${targetSection.id.replace('section-', 'SECTION ')}에 추가했습니다.`);
   };
 
-  const addLibraryBlock = (label, tone) => {
-    if (!selectedCardId || !cardBlocks[selectedCardId]) {
+  const addLibraryBlock = (label, tone, targetCardId = selectedCardId, targetIndex) => {
+    if (!targetCardId || !cardBlocks[targetCardId]) {
       setAnnouncement('먼저 블록을 넣을 매수 또는 매도 전략을 선택해 주세요.');
       return;
     }
     const nextCount = customBlockCount + 1;
     setCustomBlockCount(nextCount);
-    setCardBlocks((current) => ({
-      ...current,
-      [selectedCardId]: [
-        ...current[selectedCardId],
-        createLibraryBlock(label, tone, `${selectedCardId}-library-${nextCount}`),
-      ],
-    }));
-    setAnnouncement(`${label} 블록을 선택한 전략에 추가했습니다.`);
+    setCardBlocks((current) => {
+      const nextBlocks = [...current[targetCardId]];
+      const insertionIndex = targetIndex == null
+        ? nextBlocks.length
+        : Math.max(0, Math.min(targetIndex, nextBlocks.length));
+      nextBlocks.splice(insertionIndex, 0, createLibraryBlock(label, tone, `${targetCardId}-library-${nextCount}`));
+      return { ...current, [targetCardId]: nextBlocks };
+    });
+    setSelectedCardId(targetCardId);
+    setAnnouncement(`${label} 블록을 대상 전략에 추가했습니다.`);
   };
 
-  const renderEditableBlocks = (cardId) => cardBlocks[cardId].map((block, index) => <StrategyBlock
+  const startLibraryDrag = (event, payload) => {
+    event.stopPropagation();
+    event.dataTransfer.effectAllowed = 'copy';
+    event.dataTransfer.setData('text/plain', payload.type === 'template' ? payload.template.name : payload.label);
+    setLibraryDrag(payload);
+  };
+
+  const finishLibraryDrag = () => {
+    setLibraryDrag(null);
+    setDragTarget(null);
+  };
+
+  const deleteBlock = (cardId, blockId) => {
+    const blockLabel = cardBlocks[cardId]?.find((block) => block.id === blockId)?.label ?? '선택한';
+    setCardBlocks((current) => ({
+      ...current,
+      [cardId]: (current[cardId] ?? []).filter((block) => block.id !== blockId),
+    }));
+    setDraggedBlock(null);
+    setDragTarget(null);
+    setTrashReady(false);
+    setAnnouncement(`${blockLabel} 블록을 삭제했습니다.`);
+  };
+
+  const deleteStrategyCard = (sectionId, cardId) => {
+    setSections((current) => current.map((section) => {
+      if (section.id !== sectionId) return section;
+      const cardPositions = { ...section.cardPositions };
+      delete cardPositions[cardId];
+      return {
+        ...section,
+        cards: {
+          buy: section.cards.buy.filter((id) => id !== cardId),
+          sell: section.cards.sell.filter((id) => id !== cardId),
+        },
+        cardOrder: section.cardOrder.filter((id) => id !== cardId),
+        cardPositions,
+      };
+    }));
+    setCardBlocks((current) => {
+      const next = { ...current };
+      delete next[cardId];
+      return next;
+    });
+    setCardMeta((current) => {
+      const next = { ...current };
+      delete next[cardId];
+      return next;
+    });
+    setSelectedCardId((current) => current === cardId ? null : current);
+    setActiveGroup((current) => current === cardId ? null : current);
+    setDraggedCard(null);
+    setCardMove(null);
+    setTrashReady(false);
+    setAnnouncement('전략을 삭제했습니다.');
+  };
+
+  const deleteSection = (sectionId) => {
+    const targetSection = sections.find((section) => section.id === sectionId);
+    const deletedCardIds = new Set(targetSection?.cardOrder ?? []);
+    const remainingSections = sections.filter((section) => section.id !== sectionId);
+    setSections(remainingSections);
+    setCardBlocks((current) => Object.fromEntries(
+      Object.entries(current).filter(([cardId]) => !deletedCardIds.has(cardId))
+    ));
+    setCardMeta((current) => Object.fromEntries(
+      Object.entries(current).filter(([cardId]) => !deletedCardIds.has(cardId))
+    ));
+    setActiveSectionId((current) => current === sectionId ? (remainingSections[0]?.id ?? '') : current);
+    setSelectedCardId((current) => deletedCardIds.has(current) ? null : current);
+    setActiveGroup((current) => deletedCardIds.has(current) ? null : current);
+    setSectionMove(null);
+    setTrashReady(false);
+    setAnnouncement('파티션을 삭제했습니다.');
+  };
+
+  const isPointerOverTrash = (event) => {
+    const bounds = trashZoneRef.current?.getBoundingClientRect();
+    if (!bounds) return false;
+    return event.clientX >= bounds.left
+      && event.clientX <= bounds.right
+      && event.clientY >= bounds.top
+      && event.clientY <= bounds.bottom;
+  };
+
+  const dropOnTrash = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (draggedBlock) {
+      deleteBlock(draggedBlock.cardId, draggedBlock.blockId);
+    } else if (draggedCard) {
+      deleteStrategyCard(draggedCard.sectionId, draggedCard.cardId);
+    }
+  };
+
+  const dropLibraryBlock = (event, targetCardId, targetIndex) => {
+    if (libraryDrag?.type !== 'block') return false;
+    event.preventDefault();
+    event.stopPropagation();
+    addLibraryBlock(libraryDrag.label, libraryDrag.tone, targetCardId, targetIndex);
+    finishLibraryDrag();
+    return true;
+  };
+
+  const updateStrategyBlock = (cardId, blockId, patch) => {
+    setCardBlocks((current) => ({
+      ...current,
+      [cardId]: current[cardId].map((block) => block.id === blockId ? { ...block, ...patch } : block),
+    }));
+    setAnnouncement('블록 설정을 변경했습니다.');
+  };
+
+  const renderEditableBlocks = (cardId, side, showRules) => cardBlocks[cardId].map((block, index) => <StrategyBlock
     key={block.id}
     {...block}
+    showRule={showRules}
+    rule={getBlockRule(block, side)}
+    ruleSide={side === 'buy' ? 'right' : 'left'}
+    ruleStep={index + 1}
+    onChange={(patch) => updateStrategyBlock(cardId, block.id, patch)}
     dragging={draggedBlock?.blockId === block.id}
     dragProps={{
       onDragStart: (event) => startDragging(event, cardId, block.id),
-      onDragEnd: () => { setDraggedBlock(null); setDragTarget(null); },
+      onDragEnd: () => { setDraggedBlock(null); setDragTarget(null); setTrashReady(false); },
       onDragOver: (event) => {
+        if (libraryDrag?.type === 'block') {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'copy';
+          setDragTarget({ cardId, index });
+          return;
+        }
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';
         setDragTarget({ cardId, index });
       },
       onDragLeave: () => setDragTarget(null),
-      onDrop: (event) => dropBlock(event, cardId, index),
+      onDrop: (event) => {
+        if (!dropLibraryBlock(event, cardId, index)) dropBlock(event, cardId, index);
+      },
       onKeyDown: (event) => moveWithKeyboard(event, cardId, block.id, index),
       'data-drop-target': dragTarget?.cardId === cardId && dragTarget?.index === index ? 'true' : undefined,
     }}
@@ -467,6 +826,34 @@ export function BasicEditor({ goBack, openEditor }) {
   const updateSection = (sectionId, patch) => setSections((current) => current.map((section) => (
     section.id === sectionId ? { ...section, ...patch } : section
   )));
+
+  const updateCardPosition = (sectionId, cardId, position) => {
+    setSections((current) => current.map((section) => section.id === sectionId
+      ? {
+        ...section,
+        cardPositions: {
+          ...section.cardPositions,
+          [cardId]: position,
+        },
+      }
+      : section));
+  };
+
+  const getSectionLayout = (section) => {
+    const bounds = section.cardOrder.reduce((current, cardId, index) => {
+      const position = section.cardPositions?.[cardId] ?? getDefaultCardPosition(index);
+      const size = cardSizes[cardId] ?? { width: STRATEGY_CARD_WIDTH, height: STRATEGY_CARD_FALLBACK_HEIGHT };
+      return {
+        right: Math.max(current.right, position.x + size.width),
+        bottom: Math.max(current.bottom, position.y + size.height),
+      };
+    }, { right: 0, bottom: SECTION_HEADER_HEIGHT });
+
+    return {
+      width: Math.max(SECTION_MIN_WIDTH, Math.ceil(bounds.right + SECTION_PADDING)),
+      height: Math.max(SECTION_HEADER_HEIGHT + 120, Math.ceil(bounds.bottom + SECTION_PADDING)),
+    };
+  };
 
   const addStrategyCard = (sectionId, side) => {
     const section = sections.find((item) => item.id === sectionId);
@@ -483,7 +870,15 @@ export function BasicEditor({ goBack, openEditor }) {
       },
     }));
     setSections((current) => current.map((item) => item.id === sectionId
-      ? { ...item, cards: { ...item.cards, [side]: [...item.cards[side], cardId] }, cardOrder: [...item.cardOrder, cardId] }
+      ? {
+        ...item,
+        cards: { ...item.cards, [side]: [...item.cards[side], cardId] },
+        cardOrder: [...item.cardOrder, cardId],
+        cardPositions: {
+          ...item.cardPositions,
+          [cardId]: getDefaultCardPosition(item.cardOrder.length),
+        },
+      }
       : item));
     setActiveSectionId(sectionId);
     setSelectedCardId(cardId);
@@ -492,6 +887,10 @@ export function BasicEditor({ goBack, openEditor }) {
 
   const startCardDrag = (event, sectionId, side, cardId) => {
     if (draggedBlock) return;
+    if (event.target.closest?.('.strategy-card-move-handle')) {
+      event.preventDefault();
+      return;
+    }
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', cardId);
     setDraggedCard({ sectionId, side, cardId });
@@ -517,10 +916,13 @@ export function BasicEditor({ goBack, openEditor }) {
         return { ...section, cardOrder };
       }
       if (section.id === draggedCard.sectionId) {
+        const cardPositions = { ...section.cardPositions };
+        delete cardPositions[draggedCard.cardId];
         return {
           ...section,
           cards: { ...section.cards, [side]: section.cards[side].filter((id) => id !== draggedCard.cardId) },
           cardOrder: section.cardOrder.filter((id) => id !== draggedCard.cardId),
+          cardPositions,
         };
       }
       if (section.id === targetSectionId && !section.cards[side].includes(draggedCard.cardId)) {
@@ -528,7 +930,15 @@ export function BasicEditor({ goBack, openEditor }) {
         cards.push(draggedCard.cardId);
         const cardOrder = [...section.cardOrder];
         cardOrder.splice(Math.max(0, Math.min(targetIndex, cardOrder.length)), 0, draggedCard.cardId);
-        return { ...section, cards: { ...section.cards, [side]: cards }, cardOrder };
+        return {
+          ...section,
+          cards: { ...section.cards, [side]: cards },
+          cardOrder,
+          cardPositions: {
+            ...section.cardPositions,
+            [draggedCard.cardId]: getDefaultCardPosition(section.cardOrder.length),
+          },
+        };
       }
       return section;
     }));
@@ -541,6 +951,17 @@ export function BasicEditor({ goBack, openEditor }) {
     if (!draggedCard) return;
     const targetSection = sections.find((section) => section.id === targetSectionId);
     moveStrategyCard(targetSectionId, targetSection.cardOrder.length);
+  };
+
+  const dropOnSection = (event, targetSectionId) => {
+    if (libraryDrag?.type === 'template') {
+      event.preventDefault();
+      event.stopPropagation();
+      applyTemplate(libraryDrag.template, targetSectionId);
+      finishLibraryDrag();
+      return;
+    }
+    dropCardOnSection(event, targetSectionId);
   };
 
   const dropCardBefore = (event, targetSectionId, targetIndex) => {
@@ -570,6 +991,25 @@ export function BasicEditor({ goBack, openEditor }) {
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
+  const zoomCanvasWithWheel = (event) => {
+    event.preventDefault();
+    if (drawMode || sectionMove || cardMove) return;
+    const direction = event.deltaY < 0 ? 1 : -1;
+    const nextZoom = Math.max(.5, Math.min(2, Number((zoom + direction * .1).toFixed(1))));
+    if (nextZoom === zoom) return;
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const cursorX = event.clientX - bounds.left;
+    const cursorY = event.clientY - bounds.top;
+    const worldX = (cursorX - pan.x) / zoom;
+    const worldY = (cursorY - pan.y) / zoom;
+    setZoom(nextZoom);
+    setPan({
+      x: Number((cursorX - worldX * nextZoom).toFixed(2)),
+      y: Number((cursorY - worldY * nextZoom).toFixed(2)),
+    });
+  };
+
   const updateCursorSpotlight = (event) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const canvas = event.currentTarget.closest('.basic-canvas');
@@ -588,17 +1028,19 @@ export function BasicEditor({ goBack, openEditor }) {
     updateCursorSpotlight(event);
     const previousPointer = pointerPositionRef.current;
     pointerPositionRef.current = { x: event.clientX, y: event.clientY };
-    if (sectionMove) {
-      updateSection(sectionMove.sectionId, {
-        x: sectionMove.originX + (event.clientX - sectionMove.startX) / zoom,
-        y: sectionMove.originY + (event.clientY - sectionMove.startY) / zoom,
+    if (cardMove) {
+      setTrashReady(isPointerOverTrash(event));
+      updateCardPosition(cardMove.sectionId, cardMove.cardId, {
+        x: Math.max(0, cardMove.originX + (event.clientX - cardMove.startX) / zoom),
+        y: Math.max(SECTION_HEADER_HEIGHT, cardMove.originY + (event.clientY - cardMove.startY) / zoom),
       });
       return;
     }
-    if (sectionResize) {
-      updateSection(sectionResize.sectionId, {
-        width: Math.max(560, sectionResize.originWidth + (event.clientX - sectionResize.startX) / zoom),
-        minHeight: Math.max(320, sectionResize.originHeight + (event.clientY - sectionResize.startY) / zoom),
+    if (sectionMove) {
+      setTrashReady(isPointerOverTrash(event));
+      updateSection(sectionMove.sectionId, {
+        x: sectionMove.originX + (event.clientX - sectionMove.startX) / zoom,
+        y: sectionMove.originY + (event.clientY - sectionMove.startY) / zoom,
       });
       return;
     }
@@ -629,7 +1071,22 @@ export function BasicEditor({ goBack, openEditor }) {
     }
   };
 
-  const finishCanvasGesture = () => {
+  const finishCanvasGesture = (event) => {
+    const shouldDelete = event?.type !== 'pointercancel' && isPointerOverTrash(event);
+    if (shouldDelete && cardMove) {
+      deleteStrategyCard(cardMove.sectionId, cardMove.cardId);
+      setDrawStart(null);
+      setDraftRect(null);
+      setPanGesture(null);
+      return;
+    }
+    if (shouldDelete && sectionMove) {
+      deleteSection(sectionMove.sectionId);
+      setDrawStart(null);
+      setDraftRect(null);
+      setPanGesture(null);
+      return;
+    }
     if (drawStart && draftRect && draftRect.width >= 120 && draftRect.height >= 100) {
       const sectionNumber = sections.length + 1;
       const sectionId = `section-${sectionNumber}`;
@@ -653,6 +1110,7 @@ export function BasicEditor({ goBack, openEditor }) {
         minHeight: Math.max(340, draftRect.height),
         cards: { buy: [buyCardId], sell: [] },
         cardOrder: [buyCardId],
+        cardPositions: { [buyCardId]: getDefaultCardPosition(0) },
       }]);
       setActiveSectionId(sectionId);
       setSelectedCardId(buyCardId);
@@ -663,19 +1121,39 @@ export function BasicEditor({ goBack, openEditor }) {
     setDraftRect(null);
     setPanGesture(null);
     setSectionMove(null);
-    setSectionResize(null);
+    setCardMove(null);
+    setTrashReady(false);
   };
 
   const beginSectionMove = (event, section) => {
     event.preventDefault();
     event.stopPropagation();
+    setActiveSectionId(section.id);
     setSectionMove({ sectionId: section.id, startX: event.clientX, startY: event.clientY, originX: section.x, originY: section.y });
+    event.currentTarget.closest('.section-workspace')?.setPointerCapture?.(event.pointerId);
   };
 
-  const beginSectionResize = (event, section) => {
+  const beginSectionAreaMove = (event, section) => {
+    if (event.button !== 0) return;
+    if (event.target.closest?.('button, input, select, label, .strategy-card')) return;
+    beginSectionMove(event, section);
+  };
+
+  const beginCardMove = (event, section, cardId) => {
     event.preventDefault();
     event.stopPropagation();
-    setSectionResize({ sectionId: section.id, startX: event.clientX, startY: event.clientY, originWidth: section.width, originHeight: section.minHeight });
+    const position = section.cardPositions?.[cardId] ?? getDefaultCardPosition(section.cardOrder.indexOf(cardId));
+    setActiveSectionId(section.id);
+    setSelectedCardId(cardId);
+    setCardMove({
+      sectionId: section.id,
+      cardId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: position.x,
+      originY: position.y,
+    });
+    event.currentTarget.closest('.section-workspace')?.setPointerCapture?.(event.pointerId);
   };
 
   const renderStrategyCard = (section, side, cardId, cardIndex) => {
@@ -692,23 +1170,43 @@ export function BasicEditor({ goBack, openEditor }) {
       detail: '직접 구성 · 블록을 추가해 보세요',
       explanation: `오른쪽 BLOCKS에서 조건을 골라 ${sideLabel} 규칙을 구성합니다.`,
     };
+    const position = section.cardPositions?.[cardId] ?? getDefaultCardPosition(cardIndex);
     return <div
       key={cardId}
-      className={`strategy-container content-sized-strategy ${side}-container strategy-card ${isExplained ? 'is-explained' : ''} ${isSelected ? 'is-selected' : ''} ${draggedCard?.cardId === cardId ? 'is-card-dragging' : ''}`}
+      className={`strategy-container content-sized-strategy ${side}-container strategy-card ${isExplained ? 'is-explained' : ''} ${isSelected ? 'is-selected' : ''} ${draggedCard?.cardId === cardId ? 'is-card-dragging' : ''} ${cardMove?.cardId === cardId ? 'is-free-moving' : ''} ${libraryDrag?.type === 'block' ? 'is-library-drop-ready' : ''}`}
       data-testid={testId}
       data-strategy-card={cardId}
       data-selected={isSelected ? 'true' : undefined}
+      ref={(element) => {
+        if (element) cardElementsRef.current.set(cardId, element);
+        else cardElementsRef.current.delete(cardId);
+      }}
+      style={{ left: position.x, top: position.y }}
       draggable
       onDragStart={(event) => startCardDrag(event, section.id, side, cardId)}
-      onDragEnd={() => setDraggedCard(null)}
+      onDragEnd={() => { setDraggedCard(null); setTrashReady(false); }}
       onDragOver={(event) => {
+        if (libraryDrag?.type === 'block') {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'copy';
+          return;
+        }
         if (draggedCard) {
           event.preventDefault();
           event.dataTransfer.dropEffect = 'move';
         }
       }}
-      onDrop={(event) => dropCardBefore(event, section.id, cardIndex)}
+      onDrop={(event) => {
+        if (!dropLibraryBlock(event, cardId, cardBlocks[cardId].length)) dropCardBefore(event, section.id, cardIndex);
+      }}
     >
+      <button
+        className="strategy-card-move-handle"
+        type="button"
+        draggable="false"
+        aria-label={`${sideLabel} 전략 자유 이동${isPrimary ? '' : ` ${cardIndex + 1}`}`}
+        onPointerDown={(event) => beginCardMove(event, section, cardId)}
+      ><GripVertical size={14} /><span>MOVE</span></button>
       <button
         className="strategy-container-header"
         aria-label={`${sideLabel} 전략 자연어 설명${isPrimary ? '' : ` ${cardIndex + 1}`}`}
@@ -720,18 +1218,26 @@ export function BasicEditor({ goBack, openEditor }) {
           toggleGroup(cardId);
         }}
       ><span className="container-symbol">{side === 'buy' ? 'B' : 'S'}</span><div><strong>{meta.title}</strong><small>{meta.detail}</small>{isSelected && <em className="strategy-target-badge">블록 대상</em>}</div><span>{cardBlocks[cardId].length + 1} BLOCKS</span></button>
-      {isExplained && <GroupTranslation id={explanationId} side={side === 'buy' ? 'right' : 'left'} title={meta.title}>{isPrimary
-        ? (side === 'buy'
-          ? <><b>새로운 1분봉</b>이 완성되고, <b>RSI가 30 아래</b>로 내려오면 전략 예산의 <b>25%</b>로 시장가 매수 후보를 만듭니다.</>
-          : <>포지션을 보유한 상태에서 <b>RSI가 70 위</b>로 올라가면 보유 수량 <b>100%</b>의 매도 후보를 만듭니다.</>)
-        : meta.explanation}</GroupTranslation>}
-      <div className="block-stack" data-testid={stackTestId} onDragOver={(event) => event.preventDefault()} onDrop={(event) => dropBlock(event, cardId, cardBlocks[cardId].length)}>
-        {renderEditableBlocks(cardId)}
+      <div id={explanationId} className="block-stack" data-testid={stackTestId} aria-label={`${sideLabel} 전략 규칙 흐름`} onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = libraryDrag?.type === 'block' ? 'copy' : 'move';
+      }} onDrop={(event) => {
+        if (!dropLibraryBlock(event, cardId, cardBlocks[cardId].length)) dropBlock(event, cardId, cardBlocks[cardId].length);
+      }}>
+        {renderEditableBlocks(cardId, side, isExplained)}
         <button className="block-add" onClick={() => addBlock(cardId, side)}><Plus size={14} /> 블록 추가</button>
       </div>
-      <footer className="strategy-container-footer" aria-label={`고정 ${sideLabel} 출력`}><StrategyBlock id={isPrimary ? `${side}-order-block` : `${cardId}-order-block`} fixed icon={Check} label={side.toUpperCase()} value={terminalValue} tone={side} /></footer>
+      <footer className="strategy-container-footer" aria-label={`고정 ${sideLabel} 출력`}><StrategyBlock id={isPrimary ? `${side}-order-block` : `${cardId}-order-block`} fixed icon={Check} label={side.toUpperCase()} value={terminalValue} tone={side} showRule={isExplained} rule={getTerminalRule(side)} ruleSide={side === 'buy' ? 'right' : 'left'} ruleStep={cardBlocks[cardId].length + 1} /></footer>
     </div>;
   };
+
+  const trashItemLabel = draggedBlock
+    ? '블록'
+    : (draggedCard || cardMove)
+      ? '전략'
+      : sectionMove
+        ? '파티션'
+        : null;
 
   return <Localized><div className="page editor-page basic-editor-page">
     <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
@@ -747,8 +1253,11 @@ export function BasicEditor({ goBack, openEditor }) {
         <div className="template-list">
           {filteredTemplates.map((template) => <button
             key={template.id}
-            className="template-card"
+            className={`template-card ${libraryDrag?.type === 'template' && libraryDrag.template.id === template.id ? 'is-library-dragging' : ''}`}
             aria-label={`${template.name} 템플릿 적용`}
+            draggable
+            onDragStart={(event) => startLibraryDrag(event, { type: 'template', template })}
+            onDragEnd={finishLibraryDrag}
             onClick={() => applyTemplate(template)}
           >
             <span className={`template-icon tone-${template.category}`}><Sparkles size={14} /></span>
@@ -759,7 +1268,7 @@ export function BasicEditor({ goBack, openEditor }) {
         <div className="library-target">
           <span>추가 위치</span>
           <strong>SECTION {activeSectionId.replace('section-', '').padStart(2, '0')}</strong>
-          <small>캔버스에서 다른 섹션을 누르면 대상이 바뀝니다.</small>
+          <small>클릭하거나 원하는 파티션으로 드래그하세요.</small>
         </div>
       </aside>
       <section
@@ -774,7 +1283,7 @@ export function BasicEditor({ goBack, openEditor }) {
         <div className="cursor-dot-spotlight" data-testid="cursor-dot-spotlight" aria-hidden="true" />
         <div className="section-draw-controls" role="group" aria-label="섹션 도구">
           <button className={`floating-editor-button ${drawMode ? 'active' : ''}`} aria-label="섹션 그리기" aria-pressed={drawMode} onClick={() => setDrawMode((current) => !current)}><Plus size={14} /> 섹션 그리기</button>
-          <span>{drawMode ? '빈 공간을 드래그해 섹션을 만드세요' : `${sections.length}개 섹션 · 빈 공간 드래그: 이동`}</span>
+          <span>{drawMode ? '빈 공간을 드래그해 섹션을 만드세요' : `${sections.length}개 섹션 · 휠: 확대/축소 · 파티션 드래그: 이동`}</span>
         </div>
         <div className="floating-zoom-controls" role="group" aria-label="캔버스 확대/축소">
           <button className="floating-editor-button" aria-label="축소" disabled={zoom <= .5} onClick={() => setZoom((current) => Math.max(.5, Number((current - .1).toFixed(1))))}>−</button>
@@ -783,32 +1292,40 @@ export function BasicEditor({ goBack, openEditor }) {
         </div>
         <div className="mobile-editor-notice"><Boxes size={24} /><strong>전략 편집은 데스크톱에서 사용할 수 있습니다</strong><span>현재 화면에서는 구성만 조회할 수 있습니다.</span></div>
         <div
-          className={`section-workspace ${drawMode ? 'is-drawing-mode' : ''} ${panGesture || spacePanning ? 'is-panning' : ''} ${spacePanning ? 'is-space-panning' : ''}`}
+          className={`section-workspace ${drawMode ? 'is-drawing-mode' : ''} ${panGesture || spacePanning ? 'is-panning' : ''} ${spacePanning ? 'is-space-panning' : ''} ${cardMove ? 'is-moving-card' : ''}`}
           data-testid="section-drawing-surface"
           onPointerDown={beginCanvasGesture}
           onPointerMove={updateCanvasGesture}
           onPointerUp={finishCanvasGesture}
           onPointerCancel={finishCanvasGesture}
           onPointerLeave={hideCursorSpotlight}
+          onWheel={zoomCanvasWithWheel}
         >
           <div className="section-world" data-testid="section-world" style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})` }}>
           {draftRect && <div className="section-draft-rectangle" aria-hidden="true" style={{ left: draftRect.x, top: draftRect.y, width: draftRect.width, height: draftRect.height }} />}
           {sections.map((section, sectionIndex) => {
             const sectionNumber = String(sectionIndex + 1).padStart(2, '0');
+            const sectionLayout = getSectionLayout(section);
             return <article
               key={section.id}
-              className={`strategy-section-frame ${activeSectionId === section.id ? 'is-selected' : ''} ${draggedCard ? 'is-card-drop-ready' : ''}`}
+              className={`strategy-section-frame ${activeSectionId === section.id ? 'is-selected' : ''} ${draggedCard ? 'is-card-drop-ready' : ''} ${sectionMove?.sectionId === section.id ? 'is-section-moving' : ''} ${libraryDrag?.type === 'template' ? 'is-template-drop-ready' : ''}`}
               data-testid={`strategy-${section.id}`}
               aria-label={`SECTION ${sectionNumber}`}
-              style={{ left: section.x, top: section.y, width: section.width, minHeight: section.minHeight }}
+              style={{ left: section.x, top: section.y, width: sectionLayout.width, height: sectionLayout.height }}
               onClick={() => setActiveSectionId(section.id)}
+              onPointerDown={(event) => beginSectionAreaMove(event, section)}
               onDragOver={(event) => {
+                if (libraryDrag?.type === 'template') {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'copy';
+                  return;
+                }
                 if (draggedCard) {
                   event.preventDefault();
                   event.dataTransfer.dropEffect = 'move';
                 }
               }}
-              onDrop={(event) => dropCardOnSection(event, section.id)}
+              onDrop={(event) => dropOnSection(event, section.id)}
             >
               <i className="section-corner corner-top-left" aria-hidden="true" />
               <i className="section-corner corner-top-right" aria-hidden="true" />
@@ -825,7 +1342,6 @@ export function BasicEditor({ goBack, openEditor }) {
                 {section.cardOrder.map((cardId, cardIndex) => renderStrategyCard(section, section.cards.buy.includes(cardId) ? 'buy' : 'sell', cardId, cardIndex))}
                 {section.cards.sell.length === 0 && <button className="optional-sell-slot" onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={18} /><strong>매도 블록 추가</strong><span>선택 사항 · 없어도 저장할 수 있어요</span></button>}
               </div>
-              <button className="section-resize-handle" data-testid={`${section.id}-resize-handle`} aria-label={`SECTION ${sectionNumber} 크기 변경`} onPointerDown={(event) => beginSectionResize(event, section)}><span aria-hidden="true">⌟</span></button>
             </article>;
           })}
           </div>
@@ -836,19 +1352,50 @@ export function BasicEditor({ goBack, openEditor }) {
         <div className="block-library-target">
           <span>블록을 넣을 곳</span>
           <strong>{cardMeta[selectedCardId]?.title ?? '전략을 선택해 주세요'}</strong>
-          <small>캔버스의 매수·매도 카드를 누르면 대상이 바뀝니다.</small>
+          <small>클릭하거나 원하는 전략 카드로 드래그하세요.</small>
         </div>
         <label className="palette-search"><Search size={14} /><input aria-label="블록 검색" placeholder="MACD, 조건, 손절" value={blockQuery} onChange={(event) => setBlockQuery(event.target.value)} /></label>
         <div className="block-category-list">
           {filteredBlockLibrary.map((category) => <details className={`block-category tone-${category.tone}`} open key={category.name}>
             <summary><ChevronDown size={14} /><span>{category.name}</span><b>{category.items.length}</b></summary>
             <div className="block-chip-list">
-              {category.items.map((item) => <button key={`${category.name}-${item}`} aria-label={`${item} 블록 추가`} onClick={() => addLibraryBlock(item, category.tone)}>{item}<Plus size={11} /></button>)}
+              {category.items.map((item) => <button
+                key={`${category.name}-${item}`}
+                className={libraryDrag?.type === 'block' && libraryDrag.label === item && libraryDrag.tone === category.tone ? 'is-library-dragging' : ''}
+                aria-label={`${item} 블록 추가`}
+                draggable
+                onDragStart={(event) => startLibraryDrag(event, { type: 'block', label: item, tone: category.tone })}
+                onDragEnd={finishLibraryDrag}
+                onClick={() => addLibraryBlock(item, category.tone)}
+              >{item}<Plus size={11} /></button>)}
             </div>
           </details>)}
         </div>
       </aside>
     </div>
+    {trashItemLabel && <div
+      ref={(element) => { trashZoneRef.current = element; }}
+      className={`editor-trash-zone ${cardMove || sectionMove ? 'is-pointer-trash' : ''} ${trashReady ? 'is-ready' : ''}`}
+      role="region"
+      aria-label={`${trashItemLabel} 삭제 영역`}
+      data-testid="editor-trash-zone"
+      onDragEnter={(event) => {
+        event.preventDefault();
+        setTrashReady(true);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        setTrashReady(true);
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setTrashReady(false);
+      }}
+      onDrop={dropOnTrash}
+    >
+      <span className="editor-trash-icon"><Trash2 size={18} aria-hidden="true" /></span>
+      <span className="editor-trash-copy"><strong>{trashItemLabel} 버리기</strong><small>여기에 놓으면 삭제됩니다</small></span>
+    </div>}
   </div></Localized>;
 }
 
