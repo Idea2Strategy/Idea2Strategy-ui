@@ -4,7 +4,45 @@ import { beforeEach, describe, expect, test } from 'vitest';
 import { App } from './App.jsx';
 
 describe('Signal product UI', () => {
-  beforeEach(() => window.localStorage.clear());
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.history.replaceState({}, '', '/');
+  });
+
+  test('keeps primary navigation and direct entry in sync with the browser URL', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '전략' }));
+    expect(window.location.pathname).toBe('/strategies');
+
+    await user.click(screen.getByRole('button', { name: '봇' }));
+    expect(window.location.pathname).toBe('/bots');
+
+    unmount();
+    window.history.replaceState({}, '', '/backtests');
+    render(<App />);
+    expect(screen.getByRole('heading', { name: '자동 백테스트' })).toBeInTheDocument();
+  });
+
+  test('gives Basic and Pro editors stable direct URLs', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '전략' }));
+    await user.click(screen.getByRole('button', { name: '새 전략' }));
+    await user.click(screen.getByRole('button', { name: 'Basic으로 시작' }));
+    expect(window.location.pathname).toBe('/strategies/new/basic');
+    const editorSurface = screen.getByTestId('strategy-editor-surface');
+    expect(editorSurface).toContainElement(screen.getByRole('region', { name: 'Basic 전략 캔버스' }));
+    expect(screen.queryByTestId('strategy-editor-subnav')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Basic 편집기' })).toHaveClass('active');
+
+    unmount();
+    window.history.replaceState({}, '', '/strategies/new/pro');
+    render(<App />);
+    expect(screen.getByRole('heading', { name: 'Pro 전략 편집기' })).toBeInTheDocument();
+  });
 
   test('opens on the home dashboard and returns home when the brand is clicked', async () => {
     const user = userEvent.setup();
@@ -41,11 +79,12 @@ describe('Signal product UI', () => {
     expect(document.documentElement).toHaveAttribute('lang', 'en');
     await user.click(screen.getByRole('button', { name: 'Bots' }));
     expect(screen.getByRole('heading', { name: 'Bot operations' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/bots');
 
     unmount();
     render(<App />);
     expect(screen.getByRole('combobox', { name: 'Language' })).toHaveValue('en');
-    expect(screen.getByRole('heading', { name: "Today's operations" })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Bot operations' })).toBeInTheDocument();
   });
 
   test('uses one heading composition and one active navigation rule on every primary page', async () => {
@@ -169,7 +208,7 @@ describe('Signal product UI', () => {
     await user.click(screen.getByRole('button', { name: '기존 전략 가져오기' }));
     expect(screen.getByRole('button', { name: 'Opening Range Flow 가져오기' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Opening Range Flow 가져오기' }));
-    expect(screen.getByRole('heading', { name: 'Basic 전략 편집기' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Basic 전략 캔버스' })).toBeInTheDocument();
   });
 
   test('uses compact strategy counts without a secondary block panel', () => {

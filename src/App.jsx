@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Moon, Search, Sun, X } from 'lucide-react';
 import i2sLogo from './assets/i2s-logo.svg';
 import { notifications } from './data/mockData.js';
-import { navItems } from './lib/navigation.js';
+import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation.js';
 import { LanguageProvider, Localized, useLanguage } from './lib/i18n.jsx';
 import { BasicEditor, ProEditor, StrategyHome } from './views/StrategyViews.jsx';
 import { BacktestView, BotsView, RoomsView } from './views/OperationsViews.jsx';
@@ -59,40 +60,35 @@ function Topbar({ theme, setTheme, page, setPage }) {
 }
 
 function StrategySubnav({ openEditor, mode }) {
-  return <Localized><div className="strategy-subnav"><span>EDITOR</span><button className={mode === 'basic' ? 'active' : ''} onClick={() => openEditor('basic')}>Basic 편집기</button><button className={mode === 'pro' ? 'active' : ''} onClick={() => openEditor('pro')}>Pro 편집기</button></div></Localized>;
+  return <Localized><div className="strategy-subnav" data-testid="strategy-editor-subnav"><span>EDITOR</span><button className={mode === 'basic' ? 'active' : ''} onClick={() => openEditor('basic')}>Basic 편집기</button><button className={mode === 'pro' ? 'active' : ''} onClick={() => openEditor('pro')}>Pro 편집기</button></div></Localized>;
 }
 
 function ProductApp() {
-  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/concepts')) {
-    return <DesignConceptLab />;
-  }
-
+  const location = useLocation();
+  const navigate = useNavigate();
   const [theme, setTheme] = useState('dark');
-  const [page, setPageState] = useState('home');
-  const [strategyMode, setStrategyMode] = useState('home');
+  const page = pageFromPathname(location.pathname);
+  const strategyMode = strategyModeFromPathname(location.pathname);
+  const isStrategyEditor = page === 'strategy' && strategyMode !== 'home';
 
   const setPage = (next) => {
-    setPageState(next);
-    if (next !== 'strategy') setStrategyMode('home');
+    navigate(pagePaths[next] ?? pagePaths.home);
   };
   const openEditor = (mode) => {
-    setPageState('strategy');
-    setStrategyMode(mode);
+    navigate(`/strategies/new/${mode}`);
   };
 
-  const content = useMemo(() => {
-    if (page === 'home') return <DashboardView setPage={setPage} openEditor={openEditor} />;
-    if (page === 'strategy') {
-      if (strategyMode === 'basic') return <BasicEditor goBack={() => setStrategyMode('home')} />;
-      if (strategyMode === 'pro') return <ProEditor goBack={() => setStrategyMode('home')} />;
-      return <StrategyHome openEditor={openEditor} />;
-    }
-    if (page === 'bots') return <BotsView />;
-    if (page === 'backtest') return <BacktestView />;
-    if (page === 'rooms') return <RoomsView />;
-    if (page === 'account') return <AccountView />;
-    return <DashboardView setPage={setPage} openEditor={openEditor} />;
-  }, [page, strategyMode]);
+  const content = <Routes>
+    <Route path="/" element={<DashboardView setPage={setPage} openEditor={openEditor} />} />
+    <Route path="/strategies" element={<StrategyHome openEditor={openEditor} />} />
+    <Route path="/strategies/new/basic" element={<BasicEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} />} />
+    <Route path="/strategies/new/pro" element={<ProEditor goBack={() => navigate(pagePaths.strategy)} />} />
+    <Route path="/bots" element={<BotsView />} />
+    <Route path="/backtests" element={<BacktestView />} />
+    <Route path="/competition" element={<RoomsView />} />
+    <Route path="/account" element={<AccountView />} />
+    <Route path="*" element={<Navigate to="/" replace />} />
+  </Routes>;
 
   return <main
     data-testid="app-shell"
@@ -103,12 +99,19 @@ function ProductApp() {
   >
     <div className="app-main">
       <Topbar theme={theme} setTheme={setTheme} page={page} setPage={setPage} />
-      {page === 'strategy' && strategyMode !== 'home' && <StrategySubnav openEditor={openEditor} mode={strategyMode} />}
-      <div className="page-scroll">{content}</div>
+      {isStrategyEditor
+        ? <div className="strategy-editor-surface" data-testid="strategy-editor-surface">
+          {strategyMode === 'pro' && <StrategySubnav openEditor={openEditor} mode={strategyMode} />}
+          <div className="page-scroll">{content}</div>
+        </div>
+        : <div className="page-scroll">{content}</div>}
     </div>
   </main>;
 }
 
 export function App() {
-  return <LanguageProvider><ProductApp /></LanguageProvider>;
+  return <LanguageProvider><BrowserRouter><Routes>
+    <Route path="/concepts/*" element={<DesignConceptLab />} />
+    <Route path="*" element={<ProductApp />} />
+  </Routes></BrowserRouter></LanguageProvider>;
 }
