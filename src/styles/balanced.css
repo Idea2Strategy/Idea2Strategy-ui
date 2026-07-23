@@ -286,7 +286,7 @@
   --negative-soft: #351a20;
   --buy-block-color: rgb(240, 66, 81);
   --sell-block-color: rgb(67, 145, 255);
-  --block-tone-ink: #111512;
+  --block-tone-ink: #fff;
   --block-data-color: #72bff1;
   --block-data-surface: var(--block-data-color);
   --block-indicator-color: #b594ff;
@@ -315,10 +315,6 @@
     linear-gradient(90deg, rgba(175,200,120,.009) 1px, transparent 1px),
     var(--bg);
   background-size: 32px 32px;
-}
-
-.variant-balanced.theme-dark[data-design="signal-studio"] {
-  --block-tone-ink: #fff;
 }
 
 .variant-balanced[data-design="signal-studio"] .signal-product-nav {
