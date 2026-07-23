@@ -317,6 +317,10 @@
   background-size: 32px 32px;
 }
 
+.variant-balanced.theme-dark[data-design="signal-studio"] {
+  --block-tone-ink: #fff;
+}
+
 .variant-balanced[data-design="signal-studio"] .signal-product-nav {
   position: sticky;
   z-index: 40;
