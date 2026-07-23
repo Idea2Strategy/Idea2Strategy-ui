@@ -286,20 +286,21 @@
   --negative-soft: #351a20;
   --buy-block-color: rgb(240, 66, 81);
   --sell-block-color: rgb(67, 145, 255);
+  --block-tone-ink: #111512;
   --block-data-color: #72bff1;
-  --block-data-surface: color-mix(in srgb, var(--block-data-color) 30%, var(--surface-2));
+  --block-data-surface: var(--block-data-color);
   --block-indicator-color: #b594ff;
-  --block-indicator-surface: color-mix(in srgb, var(--block-indicator-color) 32%, var(--surface-2));
+  --block-indicator-surface: var(--block-indicator-color);
   --block-condition-color: #e8bb3e;
-  --block-condition-surface: color-mix(in srgb, var(--block-condition-color) 30%, var(--surface-2));
+  --block-condition-surface: var(--block-condition-color);
   --block-logic-color: #96b6ff;
-  --block-logic-surface: color-mix(in srgb, var(--block-logic-color) 30%, var(--surface-2));
+  --block-logic-surface: var(--block-logic-color);
   --block-time-color: #5fd5d1;
-  --block-time-surface: color-mix(in srgb, var(--block-time-color) 30%, var(--surface-2));
+  --block-time-surface: var(--block-time-color);
   --block-order-color: #6edb95;
-  --block-order-surface: color-mix(in srgb, var(--block-order-color) 30%, var(--surface-2));
+  --block-order-surface: var(--block-order-color);
   --block-risk-color: #ff746e;
-  --block-risk-surface: color-mix(in srgb, var(--block-risk-color) 32%, var(--surface-2));
+  --block-risk-surface: var(--block-risk-color);
   --warning: #e5ad59;
   --warning-soft: #382b18;
   --shadow: 0 18px 44px rgba(0, 0, 0, .22);
@@ -697,7 +698,7 @@
   padding: 0 8px;
   border: 1px solid transparent;
   border-radius: 999px;
-  color: var(--block-tone-color);
+  color: var(--block-tone-ink);
   background: var(--block-tone-surface);
   cursor: pointer;
   font-size: 9px;
@@ -747,7 +748,7 @@
 .variant-balanced[data-design="signal-studio"] .scratch-block.block-order,
 .variant-balanced[data-design="signal-studio"] .scratch-block.block-risk {
   border-color: color-mix(in srgb, var(--block-tone-color) 58%, transparent);
-  color: var(--block-tone-color);
+  color: var(--block-tone-ink);
   background: var(--block-tone-surface);
 }
 
