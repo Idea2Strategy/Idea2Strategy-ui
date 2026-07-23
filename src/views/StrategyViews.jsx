@@ -138,13 +138,13 @@ function TerminalStrategyHome({ openEditor }) {
 
 const INITIAL_BASIC_BLOCKS = {
   buy: [
-    { id: 'buy-trigger-block', icon: Play, label: '1m BAR', tone: 'trigger' },
-    { id: 'buy-rsi-block', icon: Timer, label: 'RSI', op: '<', value: '30', tone: 'condition' },
-    { id: 'buy-budget-block', icon: CircleDollarSign, label: 'BUDGET', value: '25%', tone: 'budget' },
+    { id: 'buy-trigger-block', icon: Play, label: '1m BAR', tone: 'time' },
+    { id: 'buy-rsi-block', icon: Timer, label: 'RSI', op: '<', value: '30', tone: 'indicator' },
+    { id: 'buy-budget-block', icon: CircleDollarSign, label: 'BUDGET', value: '25%', tone: 'risk' },
   ],
   sell: [
-    { id: 'sell-position-block', icon: Play, label: 'POSITION', value: 'OPEN', tone: 'trigger' },
-    { id: 'sell-rsi-block', icon: Timer, label: 'RSI', op: '>', value: '70', tone: 'condition' },
+    { id: 'sell-position-block', icon: Play, label: 'POSITION', value: 'OPEN', tone: 'condition' },
+    { id: 'sell-rsi-block', icon: Timer, label: 'RSI', op: '>', value: '70', tone: 'indicator' },
   ],
 };
 
@@ -166,8 +166,8 @@ const INITIAL_CARD_BLOCKS = {
 };
 
 const createDefaultCardBlocks = (cardId, side) => side === 'buy'
-  ? [{ id: `${cardId}-trigger-block`, icon: Play, label: 'PRICE BAR', tone: 'trigger' }]
-  : [{ id: `${cardId}-position-block`, icon: Play, label: 'POSITION', value: 'OPEN', tone: 'trigger' }];
+  ? [{ id: `${cardId}-trigger-block`, icon: Play, label: 'PRICE BAR', tone: 'data' }]
+  : [{ id: `${cardId}-position-block`, icon: Play, label: 'POSITION', value: 'OPEN', tone: 'condition' }];
 
 const TEMPLATE_LIBRARY = [
   { id: 'rsi', name: 'RSI 반등', category: '모멘텀', indicator: 'RSI', buyTitle: 'RSI 반등 매수', sellTitle: 'RSI 과열 매도', buyOp: '<', buyValue: '30', sellOp: '>', sellValue: '70', description: '과매도에서 사고 과매수에서 정리해요' },
@@ -209,12 +209,12 @@ const INITIAL_CARD_META = {
 const createTemplateBlocks = (template, cardId, side) => side === 'buy'
   ? [
     { id: `${cardId}-event`, icon: Play, label: '다음 봉 체결', tone: 'time' },
-    { id: `${cardId}-indicator`, icon: Timer, label: template.indicator, op: template.buyOp, value: template.buyValue, tone: 'condition' },
-    { id: `${cardId}-budget`, icon: CircleDollarSign, label: 'BUDGET', value: '25%', tone: 'budget' },
+    { id: `${cardId}-indicator`, icon: Timer, label: template.indicator, op: template.buyOp, value: template.buyValue, tone: 'indicator' },
+    { id: `${cardId}-budget`, icon: CircleDollarSign, label: 'BUDGET', value: '25%', tone: 'risk' },
   ]
   : [
-    { id: `${cardId}-position`, icon: Play, label: '포지션 상태', value: 'OPEN', tone: 'trigger' },
-    { id: `${cardId}-indicator`, icon: Timer, label: template.indicator, op: template.sellOp, value: template.sellValue, tone: 'condition' },
+    { id: `${cardId}-position`, icon: Play, label: '포지션 상태', value: 'OPEN', tone: 'condition' },
+    { id: `${cardId}-indicator`, icon: Timer, label: template.indicator, op: template.sellOp, value: template.sellValue, tone: 'indicator' },
   ];
 
 const createLibraryBlock = (label, tone, id) => {
@@ -383,7 +383,7 @@ export function BasicEditor({ goBack, openEditor }) {
         label: '이동평균',
         op: side === 'buy' ? '>' : '<',
         value: '20',
-        tone: 'condition',
+        tone: 'indicator',
       }],
     }));
     setAnnouncement(`${side === 'buy' ? '매수' : '매도'} 전략에 이동평균 조건을 추가했습니다.`);

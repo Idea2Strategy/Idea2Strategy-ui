@@ -69,6 +69,19 @@ describe('Basic editor strategy explanations', () => {
     expect(within(screen.getByTestId('basic-sell-stack')).getByText('손절')).toBeInTheDocument();
   });
 
+  test('uses the same block category themes in the canvas and the block library', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    expect(screen.getByTestId('buy-trigger-block').querySelector('.scratch-block')).toHaveClass('block-time');
+    expect(screen.getByTestId('buy-rsi-block').querySelector('.scratch-block')).toHaveClass('block-indicator');
+    expect(screen.getByTestId('buy-budget-block').querySelector('.scratch-block')).toHaveClass('block-risk');
+    expect(screen.getByTestId('sell-position-block').querySelector('.scratch-block')).toHaveClass('block-condition');
+
+    await user.click(screen.getByRole('button', { name: 'MACD 블록 추가' }));
+    expect(within(screen.getByTestId('basic-buy-stack')).getByText('MACD').closest('.scratch-block')).toHaveClass('block-indicator');
+  });
+
   test('opens one natural-language explanation for the whole buy or sell group', async () => {
     const user = userEvent.setup();
     render(<BasicEditor goBack={() => {}} />);

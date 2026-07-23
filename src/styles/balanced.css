@@ -286,6 +286,21 @@
   --negative-soft: #351a20;
   --buy-block-color: rgb(240, 66, 81);
   --sell-block-color: rgb(67, 145, 255);
+  --block-tone-ink: #fff;
+  --block-data-color: #72bff1;
+  --block-data-surface: var(--block-data-color);
+  --block-indicator-color: #b594ff;
+  --block-indicator-surface: var(--block-indicator-color);
+  --block-condition-color: #e8bb3e;
+  --block-condition-surface: var(--block-condition-color);
+  --block-logic-color: #96b6ff;
+  --block-logic-surface: var(--block-logic-color);
+  --block-time-color: #5fd5d1;
+  --block-time-surface: var(--block-time-color);
+  --block-order-color: #6edb95;
+  --block-order-surface: var(--block-order-color);
+  --block-risk-color: #ff746e;
+  --block-risk-surface: var(--block-risk-color);
   --warning: #e5ad59;
   --warning-soft: #382b18;
   --shadow: 0 18px 44px rgba(0, 0, 0, .22);
@@ -498,35 +513,10 @@
 .variant-balanced[data-design="signal-studio"] .sell-container .strategy-container-header {
   background:var(--sell-block-color);
 }
-.variant-balanced[data-design="signal-studio"] .buy-container .scratch-block {
-  border-color:#df9b9b;
-  color:#5f2929;
-  background:#f2c7c7;
-}
-.variant-balanced[data-design="signal-studio"] .buy-container .block-condition {
-  border-color:#db8585;
-  color:#562323;
-  background:#eeaaaa;
-}
-.variant-balanced[data-design="signal-studio"] .buy-container .block-budget {
-  border-color:#cf6c6c;
-  color:#4d2020;
-  background:#e78383;
-}
 .variant-balanced[data-design="signal-studio"] .buy-container .block-buy {
   border-color:color-mix(in srgb, var(--buy-block-color) 78%, #000);
   color:#fff;
   background:var(--buy-block-color);
-}
-.variant-balanced[data-design="signal-studio"] .sell-container .scratch-block {
-  border-color:#b7c6f0;
-  color:#2d478f;
-  background:#dce5ff;
-}
-.variant-balanced[data-design="signal-studio"] .sell-container .block-condition {
-  border-color:#8fa8ec;
-  color:#243c80;
-  background:#afc2f8;
 }
 .variant-balanced[data-design="signal-studio"] .sell-container .block-sell {
   border-color:color-mix(in srgb, var(--sell-block-color) 78%, #000);
@@ -708,8 +698,8 @@
   padding: 0 8px;
   border: 1px solid transparent;
   border-radius: 999px;
-  color: #72bff1;
-  background: rgba(52, 135, 184, .17);
+  color: var(--block-tone-ink);
+  background: var(--block-tone-surface);
   cursor: pointer;
   font-size: 9px;
   font-weight: 750;
@@ -720,12 +710,20 @@
   outline: none;
   border-color: currentColor;
 }
-.variant-balanced[data-design="signal-studio"] .block-category.tone-indicator .block-chip-list button { color: #b594ff; background: rgba(141, 99, 205, .2); }
-.variant-balanced[data-design="signal-studio"] .block-category.tone-condition .block-chip-list button { color: #e8bb3e; background: rgba(187, 137, 30, .18); }
-.variant-balanced[data-design="signal-studio"] .block-category.tone-logic .block-chip-list button { color: #96b6ff; background: rgba(83, 111, 170, .2); }
-.variant-balanced[data-design="signal-studio"] .block-category.tone-time .block-chip-list button { color: #5fd5d1; background: rgba(52, 151, 148, .18); }
-.variant-balanced[data-design="signal-studio"] .block-category.tone-order .block-chip-list button { color: #6edb95; background: rgba(52, 148, 87, .18); }
-.variant-balanced[data-design="signal-studio"] .block-category.tone-risk .block-chip-list button { color: #ff746e; background: rgba(183, 67, 63, .2); }
+.variant-balanced[data-design="signal-studio"] .tone-data,
+.variant-balanced[data-design="signal-studio"] .block-data { --block-tone-color: var(--block-data-color); --block-tone-surface: var(--block-data-surface); }
+.variant-balanced[data-design="signal-studio"] .tone-indicator,
+.variant-balanced[data-design="signal-studio"] .block-indicator { --block-tone-color: var(--block-indicator-color); --block-tone-surface: var(--block-indicator-surface); }
+.variant-balanced[data-design="signal-studio"] .tone-condition,
+.variant-balanced[data-design="signal-studio"] .block-condition { --block-tone-color: var(--block-condition-color); --block-tone-surface: var(--block-condition-surface); }
+.variant-balanced[data-design="signal-studio"] .tone-logic,
+.variant-balanced[data-design="signal-studio"] .block-logic { --block-tone-color: var(--block-logic-color); --block-tone-surface: var(--block-logic-surface); }
+.variant-balanced[data-design="signal-studio"] .tone-time,
+.variant-balanced[data-design="signal-studio"] .block-time { --block-tone-color: var(--block-time-color); --block-tone-surface: var(--block-time-surface); }
+.variant-balanced[data-design="signal-studio"] .tone-order,
+.variant-balanced[data-design="signal-studio"] .block-order { --block-tone-color: var(--block-order-color); --block-tone-surface: var(--block-order-surface); }
+.variant-balanced[data-design="signal-studio"] .tone-risk,
+.variant-balanced[data-design="signal-studio"] .block-risk { --block-tone-color: var(--block-risk-color); --block-tone-surface: var(--block-risk-surface); }
 .variant-balanced[data-design="signal-studio"] .strategy-section-frame.is-selected {
   border-color: color-mix(in srgb, var(--accent) 62%, var(--line-strong));
 }
@@ -742,12 +740,17 @@
   font: 700 7px var(--font-mono);
   font-style: normal;
 }
-.variant-balanced[data-design="signal-studio"] .scratch-block.block-data { border-color: #377ca8; color: #163044; background: #72bff1; }
-.variant-balanced[data-design="signal-studio"] .scratch-block.block-indicator { border-color: #7457ad; color: #24183c; background: #b594ff; }
-.variant-balanced[data-design="signal-studio"] .scratch-block.block-logic { border-color: #5675bb; color: #17254b; background: #96b6ff; }
-.variant-balanced[data-design="signal-studio"] .scratch-block.block-time { border-color: #3b9794; color: #123d3c; background: #65d5d1; }
-.variant-balanced[data-design="signal-studio"] .scratch-block.block-order { border-color: #368c56; color: #143621; background: #6edb95; }
-.variant-balanced[data-design="signal-studio"] .scratch-block.block-risk { border-color: #a74743; color: #481a18; background: #ff746e; }
+.variant-balanced[data-design="signal-studio"] .scratch-block.block-data,
+.variant-balanced[data-design="signal-studio"] .scratch-block.block-indicator,
+.variant-balanced[data-design="signal-studio"] .scratch-block.block-condition,
+.variant-balanced[data-design="signal-studio"] .scratch-block.block-logic,
+.variant-balanced[data-design="signal-studio"] .scratch-block.block-time,
+.variant-balanced[data-design="signal-studio"] .scratch-block.block-order,
+.variant-balanced[data-design="signal-studio"] .scratch-block.block-risk {
+  border-color: color-mix(in srgb, var(--block-tone-color) 58%, transparent);
+  color: var(--block-tone-ink);
+  background: var(--block-tone-surface);
+}
 
 .variant-balanced[data-design="signal-studio"] .section-draw-controls {
   position: absolute;
