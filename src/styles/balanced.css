@@ -2538,7 +2538,7 @@
   overflow: visible;
 }
 .variant-balanced[data-design="signal-studio"] .market-price-axis-surface {
-  fill: color-mix(in srgb, var(--surface-raised) 32%, transparent);
+  fill: color-mix(in srgb, var(--surface-2) 32%, transparent);
   cursor: ns-resize;
   pointer-events: all;
 }

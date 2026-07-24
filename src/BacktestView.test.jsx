@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { BacktestView } from './views/OperationsViews.jsx';
+
+const balancedStyles = readFileSync('src/styles/balanced.css', 'utf8');
 
 describe('BacktestView', () => {
   test('compares the selected trading bot with the S&P 500 benchmark', async () => {
@@ -87,6 +90,11 @@ describe('BacktestView', () => {
 });
 
 describe('BacktestView chart interactions', () => {
+  test('uses a defined theme surface color for the price axis background', () => {
+    expect(balancedStyles).toMatch(/\.market-price-axis-surface\s*\{[^}]*fill:\s*color-mix\(in srgb,\s*var\(--surface-2\)/s);
+    expect(balancedStyles).not.toMatch(/\.market-price-axis-surface\s*\{[^}]*--surface-raised/s);
+  });
+
   test('pans the time viewport and scales candles from the right price axis', () => {
     render(<BacktestView />);
 
