@@ -22,7 +22,7 @@ describe('Signal product UI', () => {
     unmount();
     window.history.replaceState({}, '', '/backtests');
     render(<App />);
-    expect(screen.getByRole('heading', { name: '자동 백테스트' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '봇 백테스트' })).toBeInTheDocument();
   });
 
   test('gives Basic and Pro editors stable direct URLs', async () => {
@@ -95,7 +95,7 @@ describe('Signal product UI', () => {
       ['홈', '오늘의 운용 현황'],
       ['전략', '전략'],
       ['봇', '봇 운영 센터'],
-      ['백테스트', '자동 백테스트'],
+      ['백테스트', '봇 백테스트'],
       ['Competition', 'Competition'],
     ]) {
       await user.click(screen.getByRole('button', { name: navigation }));
@@ -139,20 +139,22 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('button', { name: '균형형 보기' })).not.toBeInTheDocument();
   });
 
-  test('shows the complete buy rule when the Basic buy group is clicked', async () => {
+  test('shows the buy rule as one natural-language note per block', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
     await user.click(screen.getByRole('button', { name: '전략' }));
     await user.click(screen.getByRole('button', { name: '새 전략' }));
     await user.click(screen.getByRole('button', { name: 'Basic으로 시작' }));
     await user.hover(screen.getByTestId('buy-rsi-block'));
-    expect(screen.queryByText(/새로운 1분봉/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '매수 전략 자연어 설명' }));
-    const explanation = screen.getByRole('tooltip');
-    expect(explanation).toHaveTextContent('새로운 1분봉');
-    expect(explanation).toHaveTextContent('RSI가 30 아래');
-    expect(explanation).toHaveTextContent('25%');
-    expect(explanation).toHaveTextContent('시장가 매수 후보');
+    const explanations = screen.getAllByRole('note');
+    expect(explanations).toHaveLength(4);
+    expect(explanations[0]).toHaveTextContent('1분봉');
+    expect(explanations[1]).toHaveTextContent('RSI(14)');
+    expect(explanations[1]).toHaveTextContent('30 미만');
+    expect(explanations[2]).toHaveTextContent('25%');
+    expect(explanations[3]).toHaveTextContent('시장가 매수');
   });
 
   test('opens a categorized compatible-node picker where a Pro connection is released', async () => {
@@ -239,20 +241,23 @@ describe('Signal product UI', () => {
     expect(screen.queryByText('입력 필요')).not.toBeInTheDocument();
   });
 
-  test('rebuilds Competition as official cards and a searchable filtered list', async () => {
+  test('separates the official season from the searchable Competition list', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
     await user.click(screen.getByRole('button', { name: 'Competition' }));
 
     expect(screen.getByRole('heading', { name: 'Competition' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '공식 Competition' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2026 Q3 공식 대회 보러가기' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'OFFICAL' })).not.toBeInTheDocument();
     const search = screen.getByRole('searchbox', { name: 'Competition 검색' });
     await user.type(search, 'ETF');
-    expect(screen.getByText('ETF Discipline')).toBeInTheDocument();
+    expect(
+      screen.getByRole('complementary', { name: 'ETF Discipline 선택 정보' }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Momentum Lab')).not.toBeInTheDocument();
 
     await user.clear(search);
-    await user.click(screen.getByRole('button', { name: 'Momentum Lab 순위 펼치기' }));
+    await user.click(screen.getByRole('button', { name: 'Momentum Lab 열기' }));
     expect(screen.getByText('Room Beta')).toBeInTheDocument();
   });
 });

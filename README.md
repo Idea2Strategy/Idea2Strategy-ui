@@ -9,22 +9,6 @@ pnpm install
 pnpm dev
 ```
 
-기본 개발 주소는 `http://localhost:5173`입니다.
-
-## 라우팅
-
-React Router가 브라우저 주소와 화면을 동기화합니다.
-
-- `/`: 홈
-- `/strategies`: 전략 목록
-- `/strategies/new/basic`: Basic 전략 편집기
-- `/strategies/new/pro`: Pro 전략 편집기
-- `/bots`: 봇 운영
-- `/backtests`: 자동 백테스트
-- `/competition`: Competition
-- `/account`: 내 계정
-- `/concepts`: 디자인 콘셉트 실험실
-
 ## 검증
 
 ```powershell

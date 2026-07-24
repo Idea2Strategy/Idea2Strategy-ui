@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { BasicEditor } from './views/StrategyViews.jsx';
@@ -57,6 +57,27 @@ describe('Basic editor strategy explanations', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/RSI 반등 템플릿/);
   });
 
+  test('drags a template from the library onto a target partition', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    const section = screen.getByTestId('strategy-section-1');
+    const template = screen.getByRole('button', { name: 'SMA 교차 템플릿 적용' });
+    const dataTransfer = { effectAllowed: '', dropEffect: '', setData: vi.fn(), getData: vi.fn() };
+
+    expect(template).toHaveAttribute('draggable', 'true');
+    fireEvent.dragStart(template, { dataTransfer });
+    expect(section).toHaveClass('is-template-drop-ready');
+    fireEvent.dragOver(section, { dataTransfer });
+    expect(dataTransfer.dropEffect).toBe('copy');
+    fireEvent.drop(section, { dataTransfer });
+
+    expect(section.querySelectorAll('.buy-container')).toHaveLength(2);
+    expect(section.querySelectorAll('.sell-container')).toHaveLength(2);
+    expect(within(section).getByText('SMA 교차 매수')).toBeInTheDocument();
+    expect(within(section).getByText('SMA 교차 매도')).toBeInTheDocument();
+    expect(section).not.toHaveClass('is-template-drop-ready');
+  });
+
   test('adds a library block to the currently selected strategy card', async () => {
     const user = userEvent.setup();
     render(<BasicEditor goBack={() => {}} />);
@@ -67,6 +88,27 @@ describe('Basic editor strategy explanations', () => {
     await user.click(screen.getByRole('button', { name: '매도 전략 자연어 설명' }));
     await user.click(screen.getByRole('button', { name: '손절 블록 추가' }));
     expect(within(screen.getByTestId('basic-sell-stack')).getByText('손절')).toBeInTheDocument();
+  });
+
+  test('drags a library block onto the chosen strategy card', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    const block = screen.getByRole('button', { name: 'MACD 블록 추가' });
+    const sellRsi = screen.getByTestId('sell-rsi-block');
+    const sellStack = screen.getByTestId('basic-sell-stack');
+    const dataTransfer = { effectAllowed: '', dropEffect: '', setData: vi.fn(), getData: vi.fn() };
+
+    expect(block).toHaveAttribute('draggable', 'true');
+    fireEvent.dragStart(block, { dataTransfer });
+    expect(screen.getByTestId('basic-sell-group')).toHaveClass('is-library-drop-ready');
+    fireEvent.dragOver(sellRsi, { dataTransfer });
+    expect(dataTransfer.dropEffect).toBe('copy');
+    fireEvent.drop(sellRsi, { dataTransfer });
+
+    expect(within(sellStack).getByText('MACD')).toBeInTheDocument();
+    expect(within(screen.getByTestId('basic-buy-stack')).queryByText('MACD')).not.toBeInTheDocument();
+    expect(screen.getByTestId('basic-sell-group')).not.toHaveClass('is-library-drop-ready');
+    expect(screen.getByRole('status')).toHaveTextContent(/MACD 블록을 대상 전략에 추가/);
   });
 
   test('uses the same block category themes in the canvas and the block library', async () => {
@@ -82,29 +124,88 @@ describe('Basic editor strategy explanations', () => {
     expect(within(screen.getByTestId('basic-buy-stack')).getByText('MACD').closest('.scratch-block')).toHaveClass('block-indicator');
   });
 
-  test('opens one natural-language explanation for the whole buy or sell group', async () => {
+  test('edits numeric block values with stepper buttons, direct input, and an operator dropdown', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    const buyRsi = screen.getByTestId('buy-rsi-block');
+    const valueInput = within(buyRsi).getByLabelText('RSI 값');
+    const increaseButton = within(buyRsi).getByRole('button', { name: 'RSI 값 증가' });
+    await user.click(increaseButton);
+    expect(valueInput).toHaveValue(31);
+
+    await user.clear(valueInput);
+    await user.type(valueInput, '42');
+    expect(valueInput).toHaveValue(42);
+    await user.click(within(buyRsi).getByRole('combobox', { name: 'RSI 연산자' }));
+    await user.click(screen.getByRole('option', { name: '>' }));
+
+    await user.click(screen.getByRole('button', { name: '매수 전략 자연어 설명' }));
+    expect(screen.getByRole('note', { name: '2단계 규칙 설명' })).toHaveTextContent('42 초과');
+    expect(screen.getByRole('status')).toHaveTextContent('블록 설정을 변경했습니다.');
+  });
+
+  test('repeats numeric changes while a stepper button is held', () => {
+    vi.useFakeTimers();
+    try {
+      render(<BasicEditor goBack={() => {}} />);
+
+      const buyRsi = screen.getByTestId('buy-rsi-block');
+      const valueInput = buyRsi.querySelector('.block-number-stepper input');
+      const increaseButton = buyRsi.querySelector('.block-number-stepper button:last-child');
+
+      fireEvent.pointerDown(increaseButton, { button: 0, pointerId: 1 });
+      act(() => vi.advanceTimersByTime(900));
+      fireEvent.pointerUp(increaseButton, { pointerId: 1 });
+
+      expect(valueInput.valueAsNumber).toBeGreaterThan(31);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('changes state-based block values with a real dropdown', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    const position = screen.getByTestId('sell-position-block');
+    const select = within(position).getByRole('combobox', { name: 'POSITION 값 선택' });
+    await user.click(select);
+    await user.click(screen.getByRole('option', { name: 'CLOSED' }));
+    expect(select).toHaveAttribute('data-value', 'CLOSED');
+
+    await user.click(screen.getByRole('button', { name: '매도 전략 자연어 설명' }));
+    expect(screen.getByRole('note', { name: '1단계 규칙 설명' })).toHaveTextContent('포지션을 보유하지 않음');
+  });
+
+  test('aligns one rule-based natural-language note with every block', async () => {
     const user = userEvent.setup();
     render(<BasicEditor goBack={() => {}} />);
 
     await user.hover(screen.getByTestId('buy-rsi-block'));
-    expect(screen.queryByText(/새로운 1분봉/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
 
     const buyExplanation = screen.getByRole('button', { name: '매수 전략 자연어 설명' });
     await user.click(buyExplanation);
-    const buyTooltip = screen.getByRole('tooltip');
-    expect(buyTooltip).toHaveTextContent('새로운 1분봉');
-    expect(buyTooltip).toHaveTextContent('RSI가 30 아래');
-    expect(buyTooltip).toHaveTextContent('25%');
+    expect(screen.getAllByRole('note')).toHaveLength(4);
+    expect(screen.getByRole('note', { name: '1단계 규칙 설명' })).toHaveTextContent('1분봉');
+    const indicatorRule = screen.getByRole('note', { name: '2단계 규칙 설명' });
+    expect(within(indicatorRule).getByText('RSI(14)')).toHaveProperty('tagName', 'B');
+    expect(within(indicatorRule).getByText('30 미만')).toHaveProperty('tagName', 'B');
+    expect(within(screen.getByRole('note', { name: '3단계 규칙 설명' })).getByText('25%')).toHaveProperty('tagName', 'B');
+    expect(screen.getByRole('note', { name: '4단계 규칙 설명' })).toHaveTextContent('시장가 매수');
     expect(buyExplanation).toHaveAttribute('aria-expanded', 'true');
 
     const sellExplanation = screen.getByRole('button', { name: '매도 전략 자연어 설명' });
     await user.click(sellExplanation);
-    expect(screen.queryByText(/새로운 1분봉/)).not.toBeInTheDocument();
-    expect(screen.getByRole('tooltip')).toHaveTextContent('포지션을 보유한 상태');
-    expect(screen.getByRole('tooltip')).toHaveTextContent('RSI가 70 위');
+    expect(screen.getAllByRole('note')).toHaveLength(3);
+    expect(screen.getByRole('note', { name: '1단계 규칙 설명' })).toHaveTextContent('포지션을 보유 중');
+    expect(screen.getByRole('note', { name: '2단계 규칙 설명' })).toHaveTextContent('RSI(14)');
+    expect(screen.getByRole('note', { name: '2단계 규칙 설명' })).toHaveTextContent('70 초과');
+    expect(screen.getByRole('note', { name: '3단계 규칙 설명' })).toHaveTextContent('100%');
 
     await user.click(sellExplanation);
-    expect(screen.queryByText(/포지션을 보유한 상태/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 
   test('keeps the final buy and sell outputs attached and non-interactive', () => {
@@ -282,6 +383,20 @@ describe('Basic editor strategy explanations', () => {
     expect(world).toHaveStyle('transform: translate3d(0px, 0px, 0) scale(1)');
   });
 
+  test('zooms with the mouse wheel around the cursor position', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    const surface = screen.getByTestId('section-drawing-surface');
+    const world = screen.getByTestId('section-world');
+
+    fireEvent.wheel(surface, { deltaY: -100, clientX: 400, clientY: 300 });
+    expect(world).toHaveStyle('transform: translate3d(-40px, -30px, 0) scale(1.1)');
+    expect(screen.getByRole('button', { name: '배율 초기화' })).toHaveTextContent('110%');
+
+    fireEvent.wheel(surface, { deltaY: 100, clientX: 400, clientY: 300 });
+    expect(world).toHaveStyle('transform: translate3d(0px, 0px, 0) scale(1)');
+  });
+
   test('pans the infinite canvas by dragging empty space', () => {
     render(<BasicEditor goBack={() => {}} />);
 
@@ -327,7 +442,7 @@ describe('Basic editor strategy explanations', () => {
     expect(screen.getByTestId('section-world')).toHaveStyle('transform: translate3d(0px, 0px, 0) scale(1)');
   });
 
-  test('moves and resizes a section with dedicated drag handles', () => {
+  test('moves a section and lets strategy cards overlap anywhere inside it', () => {
     render(<BasicEditor goBack={() => {}} />);
 
     const surface = screen.getByTestId('section-drawing-surface');
@@ -337,10 +452,51 @@ describe('Basic editor strategy explanations', () => {
     fireEvent.pointerUp(surface, { clientX: 360, clientY: 160, pointerId: 2 });
     expect(section).toHaveStyle({ left: '350px', top: '148px' });
 
-    fireEvent.pointerDown(screen.getByTestId('section-1-resize-handle'), { clientX: 0, clientY: 0, pointerId: 3 });
-    fireEvent.pointerMove(surface, { clientX: 100, clientY: 80, pointerId: 3 });
-    fireEvent.pointerUp(surface, { clientX: 100, clientY: 80, pointerId: 3 });
-    expect(section).toHaveStyle({ width: '750px', minHeight: '470px' });
+    const buyCard = screen.getByTestId('basic-buy-group');
+    const sellCard = screen.getByTestId('basic-sell-group');
+    const sellMoveHandle = screen.getByRole('button', { name: '매도 전략 자유 이동' });
+
+    fireEvent.pointerDown(sellMoveHandle, { clientX: 310, clientY: 112, pointerId: 3 });
+    fireEvent.pointerMove(surface, { clientX: 24, clientY: 112, pointerId: 3 });
+    fireEvent.pointerUp(surface, { clientX: 24, clientY: 112, pointerId: 3 });
+
+    expect(buyCard).toHaveStyle({ left: '24px', top: '112px' });
+    expect(sellCard).toHaveStyle({ left: '24px', top: '112px' });
+    expect(section).toHaveStyle({ width: '600px' });
+    expect(screen.queryByTestId('section-1-resize-handle')).not.toBeInTheDocument();
+  });
+
+  test('moves a partition by dragging its empty boundary area', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    const surface = screen.getByTestId('section-drawing-surface');
+    const section = screen.getByTestId('strategy-section-1');
+    fireEvent.pointerDown(section, { clientX: 900, clientY: 500, pointerId: 6, button: 0 });
+    fireEvent.pointerMove(surface, { clientX: 950, clientY: 530, pointerId: 6 });
+    expect(section).toHaveClass('is-section-moving');
+    fireEvent.pointerUp(surface, { clientX: 950, clientY: 530, pointerId: 6 });
+
+    expect(section).toHaveStyle({ left: '340px', top: '138px' });
+    expect(section).not.toHaveClass('is-section-moving');
+  });
+
+  test('automatically expands and shrinks a section boundary around moved strategies', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    const surface = screen.getByTestId('section-drawing-surface');
+    const section = screen.getByTestId('strategy-section-1');
+    const sellMoveHandle = screen.getByRole('button', { name: '매도 전략 자유 이동' });
+
+    expect(section).toHaveStyle({ width: '600px' });
+    fireEvent.pointerDown(sellMoveHandle, { clientX: 310, clientY: 112, pointerId: 4 });
+    fireEvent.pointerMove(surface, { clientX: 700, clientY: 400, pointerId: 4 });
+    fireEvent.pointerUp(surface, { clientX: 700, clientY: 400, pointerId: 4 });
+    expect(section).toHaveStyle({ width: '984px', height: '710px' });
+
+    fireEvent.pointerDown(sellMoveHandle, { clientX: 700, clientY: 400, pointerId: 5 });
+    fireEvent.pointerMove(surface, { clientX: 310, clientY: 112, pointerId: 5 });
+    fireEvent.pointerUp(surface, { clientX: 310, clientY: 112, pointerId: 5 });
+    expect(section).toHaveStyle({ width: '600px', height: '422px' });
   });
 
   test('reorders strategy cards inside a section with drag and drop', async () => {
@@ -372,5 +528,69 @@ describe('Basic editor strategy explanations', () => {
     fireEvent.drop(trigger, { dataTransfer });
 
     expect(stack.querySelectorAll('.draggable-strategy-block')[0]).toBe(budget);
+  });
+
+  test('deletes a condition block by dropping it into the bottom trash zone', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    const block = screen.getByTestId('buy-rsi-block');
+    const dataTransfer = { effectAllowed: '', dropEffect: '', setData: vi.fn(), getData: vi.fn() };
+    fireEvent.dragStart(block, { dataTransfer });
+
+    const trash = screen.getByTestId('editor-trash-zone');
+    expect(trash).toHaveAttribute('aria-label', '블록 삭제 영역');
+    fireEvent.dragOver(trash, { dataTransfer });
+    expect(trash).toHaveClass('is-ready');
+    fireEvent.drop(trash, { dataTransfer });
+
+    expect(screen.queryByTestId('buy-rsi-block')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('editor-trash-zone')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('블록을 삭제했습니다.');
+  });
+
+  test('deletes a strategy card by dropping it into the bottom trash zone', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    const card = screen.getByTestId('basic-sell-group');
+    const dataTransfer = { effectAllowed: '', dropEffect: '', setData: vi.fn(), getData: vi.fn() };
+    fireEvent.dragStart(card, { dataTransfer });
+
+    const trash = screen.getByTestId('editor-trash-zone');
+    expect(trash).toHaveAttribute('aria-label', '전략 삭제 영역');
+    fireEvent.drop(trash, { dataTransfer });
+
+    expect(screen.queryByTestId('basic-sell-group')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('전략을 삭제했습니다.');
+  });
+
+  test('deletes a partition when its pointer drag ends over the trash zone', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    const surface = screen.getByTestId('section-drawing-surface');
+    fireEvent.pointerDown(screen.getByTestId('section-1-move-handle'), {
+      clientX: 300,
+      clientY: 120,
+      pointerId: 8,
+    });
+    const trash = screen.getByTestId('editor-trash-zone');
+    vi.spyOn(trash, 'getBoundingClientRect').mockReturnValue({
+      left: 400,
+      right: 620,
+      top: 700,
+      bottom: 760,
+      width: 220,
+      height: 60,
+      x: 400,
+      y: 700,
+      toJSON: () => {},
+    });
+
+    fireEvent.pointerMove(surface, { clientX: 500, clientY: 730, pointerId: 8 });
+    expect(trash).toHaveClass('is-ready');
+    fireEvent.pointerUp(surface, { clientX: 500, clientY: 730, pointerId: 8 });
+
+    expect(screen.queryByTestId('strategy-section-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('editor-trash-zone')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('파티션을 삭제했습니다.');
   });
 });
