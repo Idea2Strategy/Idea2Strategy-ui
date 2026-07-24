@@ -2099,7 +2099,7 @@
   padding: 13px 16px;
   border-bottom: 1px solid var(--line);
 }
-.variant-balanced[data-design="signal-studio"] .backtest-bot-selector > header div {
+.variant-balanced[data-design="signal-studio"] .backtest-bot-selector > header > div:first-child {
   display: grid;
   gap: 4px;
 }
@@ -2116,13 +2116,58 @@
   color: var(--text-faint);
   font: 9px var(--font-mono);
 }
+.variant-balanced[data-design="signal-studio"] .backtest-bot-selector-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-selector-meta > span {
+  padding-right: 12px;
+  border-right: 1px solid var(--line);
+  color: var(--text-faint);
+  font: 700 9px var(--font-mono);
+  letter-spacing: 0;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-scroll-controls {
+  display: flex;
+  gap: 4px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-scroll-controls button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-scroll-controls button:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+  background: var(--accent-soft);
+}
 .variant-balanced[data-design="signal-studio"] .backtest-bot-options {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(270px, calc((100% - 2px) / 3));
   gap: 1px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
   background: var(--line);
 }
-.variant-balanced[data-design="signal-studio"] .backtest-bot-options > button {
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options > div {
+  min-width: 0;
+  scroll-snap-align: start;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options > div > button {
+  width: 100%;
   min-width: 0;
   min-height: 72px;
   display: grid;
@@ -2137,10 +2182,10 @@
   text-align: left;
   transition: background 150ms ease-out, box-shadow 150ms ease-out;
 }
-.variant-balanced[data-design="signal-studio"] .backtest-bot-options > button:hover {
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options > div > button:hover {
   background: color-mix(in srgb, var(--accent-soft) 35%, var(--surface));
 }
-.variant-balanced[data-design="signal-studio"] .backtest-bot-options > button.active {
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options > div > button.active {
   position: relative;
   z-index: 1;
   background: color-mix(in srgb, var(--accent-soft) 65%, var(--surface));
@@ -2156,12 +2201,12 @@
   color: var(--text-faint);
   background: var(--surface-2);
 }
-.variant-balanced[data-design="signal-studio"] .backtest-bot-options > button.active .backtest-bot-icon {
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options > div > button.active .backtest-bot-icon {
   border-color: color-mix(in srgb, var(--accent) 52%, var(--line));
   color: var(--accent);
   background: var(--accent-soft);
 }
-.variant-balanced[data-design="signal-studio"] .backtest-bot-options > button > span:nth-child(2) {
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options > div > button > span:nth-child(2) {
   min-width: 0;
   display: grid;
   gap: 4px;
@@ -2230,8 +2275,14 @@
   background: var(--text-faint);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-comparison-chart {
+  position: relative;
   height: 330px;
   padding: 18px 18px 10px;
+  cursor: crosshair;
+  outline: none;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-comparison-chart:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-comparison-chart svg {
   width: 100%;
@@ -2271,6 +2322,65 @@
 .variant-balanced[data-design="signal-studio"] .backtest-chart-end.benchmark {
   stroke: var(--text-faint);
   stroke-width: 2;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-hover-line {
+  stroke: color-mix(in srgb, var(--text) 35%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-hover-point {
+  fill: var(--surface);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-hover-point.bot {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-hover-point.benchmark {
+  stroke: var(--text-faint);
+  stroke-width: 2;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip {
+  position: absolute;
+  z-index: 4;
+  top: 26px;
+  min-width: 164px;
+  display: grid;
+  gap: 8px;
+  padding: 10px 11px;
+  transform: translateX(-50%);
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: 0 12px 32px rgba(0,0,0,.2);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip.edge-left { transform: translateX(0); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip.edge-right { transform: translateX(-100%); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip > strong {
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--line);
+  font: 800 10px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip > span {
+  display: grid;
+  grid-template-columns: 7px minmax(0,1fr) auto;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip .benchmark i { background: var(--text-faint); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip b {
+  color: var(--text);
+  font: 800 10px var(--font-mono);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-axis {
   display: flex;
@@ -4283,7 +4393,7 @@
     align-items:flex-start;
   }
   .variant-balanced[data-design="signal-studio"] .backtest-bot-options {
-    grid-template-columns: 1fr;
+    grid-auto-columns: min(84vw, 300px);
   }
   .variant-balanced[data-design="signal-studio"] .backtest-bot-selector > header,
   .variant-balanced[data-design="signal-studio"] .backtest-comparison-summary {
@@ -4292,6 +4402,13 @@
   }
   .variant-balanced[data-design="signal-studio"] .backtest-chart-legend {
     margin-left: 0;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-bot-selector-meta {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-bot-scroll-controls {
+    margin-left: auto;
   }
   .variant-balanced[data-design="signal-studio"] .backtest-comparison-chart {
     height: 280px;

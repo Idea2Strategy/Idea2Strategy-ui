@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Activity, ArrowLeft, ArrowUpRight, Bot, CalendarDays, CheckCircle2, Clock3, Coins, Play, Plus, RefreshCw, Search, Trophy, Users } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { Activity, ArrowLeft, ArrowUpRight, Bot, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Coins, Play, Plus, RefreshCw, Search, Trophy, Users } from 'lucide-react';
 import { AreaChart, BarList, MiniSpark } from '../components/charts.jsx';
 import { Button, DataTable, HelpNote, PageHeading, Panel, StatCard, Status } from '../components/common.jsx';
 import { bots, botSeries, leaderboard, monthlyFailures, positions, trades } from '../data/mockData.js';
@@ -29,8 +29,10 @@ export function BotsView() {
 const backtestBenchmark = {
   name: 'S&P 500',
   return: '+10.8%',
-  values: [0, 0.7, -0.4, 1.2, 2.4, 1.8, 3.7, 4.5, 3.9, 6.1, 7.4, 6.8, 8.3, 9.5, 10.8],
+  values: [0, 0.7, -0.4, 1.2, 2.4, 1.8, 3.7, 4.5, 6.1, 7.4, 8.3, 10.8],
 };
+
+const backtestPeriods = ['2023 Q3', '2023 Q4', '2024 Q1', '2024 Q2', '2024 Q3', '2024 Q4', '2025 Q1', '2025 Q2', '2025 Q3', '2025 Q4', '2026 Q1', '2026 Q2'];
 
 const backtestBots = [
   {
@@ -40,7 +42,7 @@ const backtestBots = [
     alpha: '+7.6%',
     drawdown: '−4.2%',
     trades: 42,
-    values: [0, 1.1, -0.8, 2.2, 4.1, 3.2, 6.4, 5.7, 9.1, 8.3, 12.4, 11.7, 14.2, 16.1, 18.4],
+    values: [0, 1.1, -0.8, 2.2, 4.1, 3.2, 6.4, 5.7, 9.1, 12.4, 14.2, 18.4],
   },
   {
     name: 'Room Beta',
@@ -49,7 +51,7 @@ const backtestBots = [
     alpha: '+2.9%',
     drawdown: '−3.1%',
     trades: 31,
-    values: [0, 0.4, -0.2, 1.7, 3.2, 2.8, 4.9, 5.8, 5.1, 7.6, 9.3, 8.9, 10.4, 12.2, 13.7],
+    values: [0, 0.4, -0.2, 1.7, 3.2, 2.8, 4.9, 5.8, 7.6, 9.3, 10.4, 13.7],
   },
   {
     name: 'Pair Lab',
@@ -58,7 +60,7 @@ const backtestBots = [
     alpha: '-13.4%',
     drawdown: '−8.7%',
     trades: 18,
-    values: [0, -0.5, 0.2, -1.4, -2.8, -1.9, -3.7, -4.6, -3.1, -5.4, -4.8, -6.2, -4.1, -3.5, -2.6],
+    values: [0, -0.5, 0.2, -1.4, -2.8, -1.9, -3.7, -4.6, -5.4, -4.8, -4.1, -2.6],
   },
 ];
 
@@ -71,6 +73,7 @@ function comparisonPoints(values, width, height, min, max, padX = 18, padY = 18)
 }
 
 function BacktestComparisonChart({ bot }) {
+  const [hoveredIndex, setHoveredIndex] = useState(null);
   const width = 820;
   const height = 280;
   const combined = [...bot.values, ...backtestBenchmark.values];
@@ -80,9 +83,32 @@ function BacktestComparisonChart({ bot }) {
   const benchmarkPoints = comparisonPoints(backtestBenchmark.values, width, height, min, max);
   const toPolyline = (points) => points.map(([x, y]) => `${x},${y}`).join(' ');
   const zeroY = height - 18 - ((0 - min) / (max - min)) * (height - 36);
+  const activeBotPoint = hoveredIndex === null ? null : botPoints[hoveredIndex];
+  const activeBenchmarkPoint = hoveredIndex === null ? null : benchmarkPoints[hoveredIndex];
+  const setIndexFromPointer = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const normalizedX = Math.min(Math.max((event.clientX - bounds.left) / (bounds.width || 1), 18 / width), 1 - (18 / width));
+    const ratio = (normalizedX - (18 / width)) / (1 - (36 / width));
+    setHoveredIndex(Math.round(ratio * (bot.values.length - 1)));
+  };
+  const moveIndexWithKeyboard = (event) => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    event.preventDefault();
+    const direction = event.key === 'ArrowRight' ? 1 : -1;
+    setHoveredIndex((current) => Math.min(Math.max((current ?? 0) + direction, 0), bot.values.length - 1));
+  };
 
-  return <div className="backtest-comparison-chart" role="img" aria-label={`${bot.name}와 S&P 500 누적 수익률 비교`}>
-    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+  return <div
+    className="backtest-comparison-chart"
+    data-testid="backtest-comparison-chart"
+    tabIndex="0"
+    onMouseMove={setIndexFromPointer}
+    onMouseLeave={() => setHoveredIndex(null)}
+    onFocus={() => setHoveredIndex((current) => current ?? bot.values.length - 1)}
+    onBlur={() => setHoveredIndex(null)}
+    onKeyDown={moveIndexWithKeyboard}
+  >
+    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`${bot.name}와 S&P 500 누적 수익률 비교`}>
       {[0.2, 0.4, 0.6, 0.8].map((ratio) => <line key={ratio} className="backtest-chart-gridline" x1="18" x2={width - 18} y1={height * ratio} y2={height * ratio} />)}
       <line className="backtest-chart-zero" x1="18" x2={width - 18} y1={zeroY} y2={zeroY} />
       <polyline
@@ -101,21 +127,39 @@ function BacktestComparisonChart({ bot }) {
       />
       <circle className="backtest-chart-end benchmark" cx={benchmarkPoints.at(-1)[0]} cy={benchmarkPoints.at(-1)[1]} r="4" vectorEffect="non-scaling-stroke" />
       <circle className="backtest-chart-end bot" cx={botPoints.at(-1)[0]} cy={botPoints.at(-1)[1]} r="5" vectorEffect="non-scaling-stroke" />
+      {hoveredIndex !== null && <>
+        <line className="backtest-chart-hover-line" x1={activeBotPoint[0]} x2={activeBotPoint[0]} y1="18" y2={height - 18} vectorEffect="non-scaling-stroke" />
+        <circle className="backtest-chart-hover-point benchmark" cx={activeBenchmarkPoint[0]} cy={activeBenchmarkPoint[1]} r="5" vectorEffect="non-scaling-stroke" />
+        <circle className="backtest-chart-hover-point bot" cx={activeBotPoint[0]} cy={activeBotPoint[1]} r="6" vectorEffect="non-scaling-stroke" />
+      </>}
     </svg>
+    {hoveredIndex !== null && <div
+      className={`backtest-chart-tooltip ${hoveredIndex < 2 ? 'edge-left' : hoveredIndex > bot.values.length - 3 ? 'edge-right' : ''}`}
+      role="tooltip"
+      style={{ left: `${(activeBotPoint[0] / width) * 100}%` }}
+    >
+      <strong>{backtestPeriods[hoveredIndex]}</strong>
+      <span className="bot"><i />{bot.name}<b>{bot.values[hoveredIndex] > 0 ? '+' : ''}{bot.values[hoveredIndex].toFixed(1)}%</b></span>
+      <span className="benchmark"><i />S&amp;P 500<b>{backtestBenchmark.values[hoveredIndex] > 0 ? '+' : ''}{backtestBenchmark.values[hoveredIndex].toFixed(1)}%</b></span>
+    </div>}
     <div className="backtest-chart-axis"><span>2023 Q3</span><span>2024 Q2</span><span>2025 Q2</span><span>2026 Q2</span></div>
   </div>;
 }
 
 export function BacktestView() {
   const [selectedBotName, setSelectedBotName] = useState(backtestBots[0].name);
+  const botRailRef = useRef(null);
   const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
+  const scrollBotRail = (direction) => botRailRef.current?.scrollBy({ left: direction * 320, behavior: 'smooth' });
   const columns = [{ key: 'time', label: '시각 (ET)' }, { key: 'symbol', label: '종목' }, { key: 'side', label: '행동', render: (r) => <span className={r.side === '매수' ? 'buy-text' : 'sell-text'}>{r.side}</span> }, { key: 'order', label: '요청액' }, { key: 'fill', label: '체결액' }, { key: 'fee', label: '수수료' }, { key: 'result', label: '결과' }];
   return <Localized><div className="page backtest-page"><PageHeading eyebrow="BOT PERFORMANCE" title="봇 백테스트" description="트레이딩 봇별 누적 수익률을 같은 기간의 S&P 500과 직접 비교합니다." meta={<Status tone="positive">완료 · 2026 Q3</Status>} actions={<Button icon={CalendarDays}>2023 Q3–2026 Q2</Button>} />
     <section className="backtest-bot-selector" aria-labelledby="backtest-bot-selector-title">
-      <header><div><span>TRADING BOTS</span><h2 id="backtest-bot-selector-title">비교할 봇을 선택하세요</h2></div><small>동일 기간 · 동일 초기 자본</small></header>
-      <div className="backtest-bot-options">
-        {backtestBots.map((bot) => <button
-          key={bot.name}
+      <header>
+        <div><span>TRADING BOTS</span><h2 id="backtest-bot-selector-title">비교할 봇을 선택하세요</h2></div>
+        <div className="backtest-bot-selector-meta"><span>{backtestBots.length}개 봇</span><small>동일 기간 · 동일 초기 자본</small><div className="backtest-bot-scroll-controls"><button type="button" aria-label="이전 봇 보기" onClick={() => scrollBotRail(-1)}><ChevronLeft size={15} /></button><button type="button" aria-label="다음 봇 보기" onClick={() => scrollBotRail(1)}><ChevronRight size={15} /></button></div></div>
+      </header>
+      <div className="backtest-bot-options" role="list" aria-label="백테스트 봇 목록" ref={(node) => { botRailRef.current = node; }}>
+        {backtestBots.map((bot) => <div role="listitem" key={bot.name}><button
           className={bot.name === selectedBot.name ? 'active' : ''}
           type="button"
           aria-label={`${bot.name} 백테스트 보기`}
@@ -125,7 +169,7 @@ export function BacktestView() {
           <span className="backtest-bot-icon"><Bot size={17} /></span>
           <span><strong>{bot.name}</strong><small>{bot.strategy}</small></span>
           <b className={bot.return.startsWith('+') ? 'positive' : 'negative'}>{bot.return}</b>
-        </button>)}
+        </button></div>)}
       </div>
     </section>
     <div className="stats-grid four"><StatCard label="봇 수익률" value={selectedBot.return} detail={selectedBot.strategy} icon={ArrowUpRight} /><StatCard label="S&P 500 대비" value={selectedBot.alpha} detail={`S&P 500 ${backtestBenchmark.return}`} icon={Activity} /><StatCard label="최대 낙폭" value={selectedBot.drawdown} detail="기간 내 고점 대비" icon={CheckCircle2} /><StatCard label="개별 체결" value={String(selectedBot.trades)} detail="부분 체결 각각 집계" icon={Coins} /></div>

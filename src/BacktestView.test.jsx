@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { BacktestView } from './views/OperationsViews.jsx';
 
 describe('BacktestView', () => {
@@ -24,5 +24,28 @@ describe('BacktestView', () => {
     expect(screen.getByTestId('backtest-bot-series')).toHaveAttribute('data-bot', 'Pair Lab');
     expect(screen.getByText('S&P 500 대비')).toBeInTheDocument();
     expect(screen.getAllByText('-13.4%').length).toBeGreaterThan(0);
+  });
+
+  test('keeps a growing bot list navigable and reveals values at the hovered point', async () => {
+    const user = userEvent.setup();
+    render(<BacktestView />);
+
+    const botRail = screen.getByRole('list', { name: '백테스트 봇 목록' });
+    botRail.scrollBy = vi.fn();
+
+    await user.click(screen.getByRole('button', { name: '다음 봇 보기' }));
+    expect(botRail.scrollBy).toHaveBeenCalledWith({ left: 320, behavior: 'smooth' });
+
+    const chart = screen.getByTestId('backtest-comparison-chart');
+    chart.getBoundingClientRect = () => ({ left: 0, width: 820 });
+    fireEvent.mouseMove(chart, { clientX: 410 });
+
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip).toHaveTextContent('Atlas 07');
+    expect(tooltip).toHaveTextContent('S&P 500');
+    expect(tooltip).toHaveTextContent('2025 Q1');
+
+    fireEvent.mouseLeave(chart);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
 });
