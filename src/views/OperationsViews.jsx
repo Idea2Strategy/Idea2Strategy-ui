@@ -257,13 +257,14 @@ function BacktestComparisonChart({ bot }) {
 }
 
 function BacktestCandlestickChart({ instrument, timeframe }) {
+  const displayCandles = candlesForTimeframe(instrument.candles, timeframe);
+  const defaultVisibleCount = Math.min(timeframeVisibleCandleCounts[timeframe], displayCandles.length);
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const [viewStart, setViewStart] = useState(() => Math.max(0, timeframeCandleCounts[timeframe] - timeframeVisibleCandleCounts[timeframe]));
+  const [visibleCount, setVisibleCount] = useState(defaultVisibleCount);
   const [priceScale, setPriceScale] = useState(1);
   const [dragMode, setDragMode] = useState(null);
   const interactionRef = useRef(null);
-  const displayCandles = candlesForTimeframe(instrument.candles, timeframe);
-  const visibleCount = Math.min(timeframeVisibleCandleCounts[timeframe], displayCandles.length);
   const maxViewStart = Math.max(0, displayCandles.length - visibleCount);
   const safeViewStart = Math.min(viewStart, maxViewStart);
   const visibleCandles = displayCandles.slice(safeViewStart, safeViewStart + visibleCount);
@@ -347,8 +348,24 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
     interactionRef.current = null;
     setDragMode(null);
   };
+  const zoomTimeline = (event) => {
+    event.preventDefault();
+    const point = getChartPoint(event);
+    const pointerRatio = Math.min(1, Math.max(0, (point.x - left) / plotWidth));
+    const zoomStep = Math.max(4, Math.round(visibleCount * .15));
+    const maxVisibleCount = Math.min(120, displayCandles.length);
+    const nextVisibleCount = Math.min(maxVisibleCount, Math.max(12, visibleCount + (event.deltaY > 0 ? zoomStep : -zoomStep)));
+    if (nextVisibleCount === visibleCount) return;
+    const anchorIndex = safeViewStart + pointerRatio * (visibleCount - 1);
+    const nextMaxViewStart = Math.max(0, displayCandles.length - nextVisibleCount);
+    const nextViewStart = Math.round(anchorIndex - pointerRatio * (nextVisibleCount - 1));
+    setVisibleCount(nextVisibleCount);
+    setViewStart(Math.min(nextMaxViewStart, Math.max(0, nextViewStart)));
+    setHoveredIndex(null);
+  };
   const resetChartView = () => {
-    setViewStart(maxViewStart);
+    setVisibleCount(defaultVisibleCount);
+    setViewStart(Math.max(0, displayCandles.length - defaultVisibleCount));
     setPriceScale(1);
   };
 
@@ -361,18 +378,20 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
       <span>L <b>{activeCandle.low.toFixed(2)}</b></span>
       <span>C <b className={activeUp ? 'positive' : 'negative'}>{activeCandle.close.toFixed(2)}</b></span>
       <span>VOL <b>{(activeCandle.volume / 1000000).toFixed(2)}M</b></span>
-      <span className="market-chart-gesture-hint">좌우 드래그 · 가격축 상하 드래그 · 더블클릭 초기화</span>
+      <span className="market-chart-gesture-hint">휠 확대·축소 · 좌우 드래그 · 가격축 상하 드래그 · 더블클릭 초기화</span>
     </div>
     <div
       className={`backtest-candle-canvas ${dragMode ? `is-${dragMode}` : ''}`}
       data-testid="backtest-candle-canvas"
       data-total-candles={displayCandles.length}
+      data-visible-candles={visibleCandles.length}
       data-view-start={safeViewStart}
       data-price-scale={priceScale.toFixed(3)}
       onPointerDown={startInteraction}
       onPointerMove={continueInteraction}
       onPointerUp={stopInteraction}
       onPointerCancel={stopInteraction}
+      onWheel={zoomTimeline}
       onDoubleClick={resetChartView}
       onMouseLeave={() => setHoveredIndex(null)}
     >

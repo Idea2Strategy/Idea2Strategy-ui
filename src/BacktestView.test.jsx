@@ -114,4 +114,18 @@ describe('BacktestView chart interactions', () => {
     expect(Number(canvas.dataset.viewStart)).toBe(initialViewStart);
     expect(screen.getByText(/가격축 상하 드래그/)).toBeInTheDocument();
   });
+
+  test('zooms the candle timeline around the pointer with the mouse wheel', () => {
+    render(<BacktestView />);
+
+    const canvas = screen.getByTestId('backtest-candle-canvas');
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 });
+    expect(canvas).toHaveAttribute('data-visible-candles', '60');
+
+    fireEvent.wheel(canvas, { clientX: 520, clientY: 210, deltaY: -120 });
+
+    expect(Number(canvas.dataset.visibleCandles)).toBeLessThan(60);
+    expect(screen.getAllByTestId('market-candle')).toHaveLength(Number(canvas.dataset.visibleCandles));
+    expect(screen.getByText(/휠 확대·축소/)).toBeInTheDocument();
+  });
 });
