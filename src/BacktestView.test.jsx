@@ -84,3 +84,32 @@ describe('BacktestView', () => {
     expect(screen.getByRole('img', { name: 'KO 캔들 차트와 매수 매도 기록' })).toBeInTheDocument();
   });
 });
+
+describe('BacktestView chart interactions', () => {
+  test('pans the time viewport and scales candles from the right price axis', () => {
+    render(<BacktestView />);
+
+    const canvas = screen.getByTestId('backtest-candle-canvas');
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 });
+    const initialViewStart = Number(canvas.dataset.viewStart);
+    const initialPriceScale = Number(canvas.dataset.priceScale);
+
+    fireEvent.pointerDown(canvas, { clientX: 500, clientY: 210, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 700, clientY: 210, pointerId: 1 });
+    fireEvent.pointerUp(canvas, { clientX: 700, clientY: 210, pointerId: 1 });
+
+    expect(Number(canvas.dataset.viewStart)).toBeLessThan(initialViewStart);
+
+    fireEvent.pointerDown(canvas, { clientX: 1000, clientY: 250, pointerId: 2 });
+    fireEvent.pointerMove(canvas, { clientX: 1000, clientY: 100, pointerId: 2 });
+    fireEvent.pointerUp(canvas, { clientX: 1000, clientY: 100, pointerId: 2 });
+
+    expect(Number(canvas.dataset.priceScale)).toBeLessThan(initialPriceScale);
+
+    fireEvent.doubleClick(canvas);
+
+    expect(canvas).toHaveAttribute('data-price-scale', '1.000');
+    expect(Number(canvas.dataset.viewStart)).toBe(initialViewStart);
+    expect(screen.getByText(/가격축 상하 드래그/)).toBeInTheDocument();
+  });
+});

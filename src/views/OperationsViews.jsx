@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Activity, ArrowLeft, ArrowUpRight, Bot, CalendarDays, CheckCircle2, Clock3, Coins, Play, Plus, RefreshCw, Search, Trophy, Users } from 'lucide-react';
 import { AreaChart, MiniSpark } from '../components/charts.jsx';
 import { Button, DataTable, PageHeading, Panel, StatCard, Status } from '../components/common.jsx';
@@ -122,6 +122,7 @@ const botInstruments = {
 
 const chartTimeframes = ['1시간', '4시간', '1일', '주봉', '달봉', '년봉'];
 const timeframeCandleCounts = { '1시간': 48, '4시간': 38, '1일': 30, '주봉': 24, '달봉': 18, '년봉': 12 };
+const timeframeVisibleCandleCounts = { '1시간': 32, '4시간': 28, '1일': 24, '주봉': 20, '달봉': 16, '년봉': 12 };
 
 function timeframeLabel(timeframe, index) {
   if (timeframe === '1시간') return `07.${String(15 + Math.floor(index / 7)).padStart(2, '0')} ${String(9 + (index % 7)).padStart(2, '0')}:30`;
@@ -246,7 +247,15 @@ function BacktestComparisonChart({ bot }) {
 
 function BacktestCandlestickChart({ instrument, timeframe }) {
   const [hoveredIndex, setHoveredIndex] = useState(null);
+  const [viewStart, setViewStart] = useState(() => Math.max(0, timeframeCandleCounts[timeframe] - timeframeVisibleCandleCounts[timeframe]));
+  const [priceScale, setPriceScale] = useState(1);
+  const [dragMode, setDragMode] = useState(null);
+  const interactionRef = useRef(null);
   const displayCandles = candlesForTimeframe(instrument.candles, timeframe);
+  const visibleCount = Math.min(timeframeVisibleCandleCounts[timeframe], displayCandles.length);
+  const maxViewStart = Math.max(0, displayCandles.length - visibleCount);
+  const safeViewStart = Math.min(viewStart, maxViewStart);
+  const visibleCandles = displayCandles.slice(safeViewStart, safeViewStart + visibleCount);
   const width = 1040;
   const height = 420;
   const left = 18;
@@ -256,23 +265,80 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
   const volumeTop = 332;
   const volumeBottom = 390;
   const plotWidth = width - left - right;
-  const candleStep = plotWidth / displayCandles.length;
+  const candleStep = plotWidth / visibleCandles.length;
   const candleWidth = Math.min(22, Math.max(7, candleStep * .58));
-  const priceMin = Math.min(...displayCandles.map((candle) => candle.low));
-  const priceMax = Math.max(...displayCandles.map((candle) => candle.high));
+  const priceMin = Math.min(...visibleCandles.map((candle) => candle.low));
+  const priceMax = Math.max(...visibleCandles.map((candle) => candle.high));
   const pricePadding = (priceMax - priceMin) * .12 || 1;
-  const domainMin = priceMin - pricePadding;
-  const domainMax = priceMax + pricePadding;
-  const maxVolume = Math.max(...displayCandles.map((candle) => candle.volume));
+  const baseDomainMin = priceMin - pricePadding;
+  const baseDomainMax = priceMax + pricePadding;
+  const domainMiddle = (baseDomainMin + baseDomainMax) / 2;
+  const domainHalfRange = ((baseDomainMax - baseDomainMin) / 2) * priceScale;
+  const domainMin = domainMiddle - domainHalfRange;
+  const domainMax = domainMiddle + domainHalfRange;
+  const maxVolume = Math.max(...visibleCandles.map((candle) => candle.volume));
   const priceToY = (price) => chartBottom - ((price - domainMin) / (domainMax - domainMin)) * (chartBottom - chartTop);
   const xForIndex = (index) => left + candleStep * index + candleStep / 2;
-  const activeIndex = Math.min(hoveredIndex ?? displayCandles.length - 1, displayCandles.length - 1);
-  const activeCandle = displayCandles[activeIndex];
+  const activeIndex = Math.min(hoveredIndex ?? visibleCandles.length - 1, visibleCandles.length - 1);
+  const activeCandle = visibleCandles[activeIndex];
   const activeUp = activeCandle.close >= activeCandle.open;
   const setIndexFromPointer = (event) => {
+    if (interactionRef.current) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - bounds.left) / (bounds.width || 1)) * width;
-    setHoveredIndex(Math.min(Math.max(Math.floor((x - left) / candleStep), 0), displayCandles.length - 1));
+    if (x >= width - right) {
+      setHoveredIndex(null);
+      return;
+    }
+    setHoveredIndex(Math.min(Math.max(Math.floor((x - left) / candleStep), 0), visibleCandles.length - 1));
+  };
+  const getChartPoint = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    return {
+      x: ((event.clientX - bounds.left) / (bounds.width || 1)) * width,
+      y: ((event.clientY - bounds.top) / (bounds.height || 1)) * height,
+    };
+  };
+  const startInteraction = (event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+    const point = getChartPoint(event);
+    const mode = point.x >= width - right ? 'scaling' : 'panning';
+    interactionRef.current = {
+      mode,
+      pointerId: event.pointerId,
+      startX: point.x,
+      startY: point.y,
+      startView: safeViewStart,
+      startScale: priceScale,
+    };
+    setDragMode(mode);
+    setHoveredIndex(null);
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const continueInteraction = (event) => {
+    const interaction = interactionRef.current;
+    if (!interaction || interaction.pointerId !== event.pointerId) {
+      setIndexFromPointer(event);
+      return;
+    }
+    const point = getChartPoint(event);
+    if (interaction.mode === 'panning') {
+      const candleDelta = Math.round((point.x - interaction.startX) / candleStep);
+      setViewStart(Math.min(maxViewStart, Math.max(0, interaction.startView - candleDelta)));
+    } else {
+      const nextScale = interaction.startScale * Math.exp((point.y - interaction.startY) / 150);
+      setPriceScale(Math.min(3, Math.max(.4, nextScale)));
+    }
+  };
+  const stopInteraction = (event) => {
+    if (!interactionRef.current) return;
+    event.currentTarget.releasePointerCapture?.(interactionRef.current.pointerId);
+    interactionRef.current = null;
+    setDragMode(null);
+  };
+  const resetChartView = () => {
+    setViewStart(maxViewStart);
+    setPriceScale(1);
   };
 
   return <div className="backtest-market-chart">
@@ -284,24 +350,34 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
       <span>L <b>{activeCandle.low.toFixed(2)}</b></span>
       <span>C <b className={activeUp ? 'positive' : 'negative'}>{activeCandle.close.toFixed(2)}</b></span>
       <span>VOL <b>{(activeCandle.volume / 1000000).toFixed(2)}M</b></span>
+      <span className="market-chart-gesture-hint">좌우 드래그 · 가격축 상하 드래그 · 더블클릭 초기화</span>
     </div>
     <div
-      className="backtest-candle-canvas"
-      onMouseMove={setIndexFromPointer}
+      className={`backtest-candle-canvas ${dragMode ? `is-${dragMode}` : ''}`}
+      data-testid="backtest-candle-canvas"
+      data-view-start={safeViewStart}
+      data-price-scale={priceScale.toFixed(3)}
+      onPointerDown={startInteraction}
+      onPointerMove={continueInteraction}
+      onPointerUp={stopInteraction}
+      onPointerCancel={stopInteraction}
+      onDoubleClick={resetChartView}
       onMouseLeave={() => setHoveredIndex(null)}
     >
       <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`${instrument.symbol} 캔들 차트와 매수 매도 기록`} data-timeframe={timeframe}>
+        <rect className="market-price-axis-surface" x={width - right} y="0" width={right} height={height} />
+        <line className="market-price-axis-separator" x1={width - right} x2={width - right} y1="0" y2={height} />
         {[0, .25, .5, .75, 1].map((ratio) => {
           const y = chartTop + (chartBottom - chartTop) * ratio;
           const price = domainMax - (domainMax - domainMin) * ratio;
           return <g key={`price-${ratio}`}><line className="market-chart-gridline" x1={left} x2={width - right} y1={y} y2={y} /><text className="market-chart-price" x={width - right + 10} y={y + 3}>{price.toFixed(2)}</text></g>;
         })}
         {[0, .25, .5, .75, 1].map((ratio) => {
-          const index = Math.round((displayCandles.length - 1) * ratio);
+          const index = Math.round((visibleCandles.length - 1) * ratio);
           return <line key={`time-${ratio}`} className="market-chart-gridline vertical" x1={xForIndex(index)} x2={xForIndex(index)} y1={chartTop} y2={volumeBottom} />;
         })}
         <line className="market-chart-volume-divider" x1={left} x2={width - right} y1={volumeTop - 12} y2={volumeTop - 12} />
-        {displayCandles.map((candle, index) => {
+        {visibleCandles.map((candle, index) => {
           const x = xForIndex(index);
           const up = candle.close >= candle.open;
           const bodyTop = priceToY(Math.max(candle.open, candle.close));
@@ -315,8 +391,10 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
         })}
         {instrument.executions.map((execution) => {
           const displayIndex = Math.round((execution.index / (instrument.candles.length - 1)) * (displayCandles.length - 1));
-          const candle = displayCandles[displayIndex];
-          const x = xForIndex(displayIndex);
+          if (displayIndex < safeViewStart || displayIndex >= safeViewStart + visibleCandles.length) return null;
+          const visibleIndex = displayIndex - safeViewStart;
+          const candle = visibleCandles[visibleIndex];
+          const x = xForIndex(visibleIndex);
           const isBuy = execution.side === '매수';
           const candleY = isBuy ? priceToY(candle.low) : priceToY(candle.high);
           const y = isBuy ? Math.min(candleY + 28, chartBottom - 13) : Math.max(candleY - 28, chartTop + 13);
@@ -332,8 +410,8 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
           <line className="market-chart-crosshair" x1={left} x2={width - right} y1={priceToY(activeCandle.close)} y2={priceToY(activeCandle.close)} vectorEffect="non-scaling-stroke" />
         </>}
         {[0, .25, .5, .75, 1].map((ratio) => {
-          const index = Math.round((displayCandles.length - 1) * ratio);
-          return <text key={`label-${ratio}`} className="market-chart-time" x={xForIndex(index)} y={height - 8} textAnchor={ratio === 0 ? 'start' : ratio === 1 ? 'end' : 'middle'}>{displayCandles[index].time.replace('07.', '')}</text>;
+          const index = Math.round((visibleCandles.length - 1) * ratio);
+          return <text key={`label-${ratio}`} className="market-chart-time" x={xForIndex(index)} y={height - 8} textAnchor={ratio === 0 ? 'start' : ratio === 1 ? 'end' : 'middle'}>{visibleCandles[index].time.replace('07.', '')}</text>;
         })}
       </svg>
     </div>

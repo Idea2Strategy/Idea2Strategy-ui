@@ -2513,15 +2513,39 @@
 }
 .variant-balanced[data-design="signal-studio"] .backtest-market-ohlc b.positive { color: #36c58d; }
 .variant-balanced[data-design="signal-studio"] .backtest-market-ohlc b.negative { color: #ef6570; }
+.variant-balanced[data-design="signal-studio"] .market-chart-gesture-hint {
+  margin-left: auto;
+  color: var(--text-faint);
+  letter-spacing: .01em;
+  white-space: nowrap;
+}
 .variant-balanced[data-design="signal-studio"] .backtest-candle-canvas {
   height: 440px;
   padding: 0 10px 8px;
-  cursor: crosshair;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-candle-canvas.is-panning {
+  cursor: grabbing;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-candle-canvas.is-scaling {
+  cursor: ns-resize;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-candle-canvas svg {
   width: 100%;
   height: 100%;
   overflow: visible;
+}
+.variant-balanced[data-design="signal-studio"] .market-price-axis-surface {
+  fill: color-mix(in srgb, var(--surface-raised) 32%, transparent);
+  cursor: ns-resize;
+  pointer-events: all;
+}
+.variant-balanced[data-design="signal-studio"] .market-price-axis-separator {
+  stroke: color-mix(in srgb, var(--line) 86%, transparent);
+  stroke-width: 1;
+  pointer-events: none;
 }
 .variant-balanced[data-design="signal-studio"] .market-chart-gridline {
   stroke: color-mix(in srgb, var(--line) 82%, transparent);
