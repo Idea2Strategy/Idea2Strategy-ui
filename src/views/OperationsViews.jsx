@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Activity, ArrowLeft, ArrowUpRight, Bot, CalendarDays, CheckCircle2, Clock3, Coins, Play, Plus, RefreshCw, Search, Trophy, Users } from 'lucide-react';
 import { AreaChart, BarList, MiniSpark } from '../components/charts.jsx';
 import { Button, DataTable, HelpNote, PageHeading, Panel, StatCard, Status } from '../components/common.jsx';
-import { bots, botSeries, equitySeries, leaderboard, monthlyFailures, positions, trades } from '../data/mockData.js';
+import { bots, botSeries, leaderboard, monthlyFailures, positions, trades } from '../data/mockData.js';
 import { Localized } from '../lib/i18n.jsx';
 
 const botTone = (state) => state === '실행 중' || state === '평가 중' ? 'positive' : 'warning';
@@ -26,11 +26,117 @@ export function BotsView() {
   </div></Localized>;
 }
 
+const backtestBenchmark = {
+  name: 'S&P 500',
+  return: '+10.8%',
+  values: [0, 0.7, -0.4, 1.2, 2.4, 1.8, 3.7, 4.5, 3.9, 6.1, 7.4, 6.8, 8.3, 9.5, 10.8],
+};
+
+const backtestBots = [
+  {
+    name: 'Atlas 07',
+    strategy: 'Opening Range Flow',
+    return: '+18.4%',
+    alpha: '+7.6%',
+    drawdown: '−4.2%',
+    trades: 42,
+    values: [0, 1.1, -0.8, 2.2, 4.1, 3.2, 6.4, 5.7, 9.1, 8.3, 12.4, 11.7, 14.2, 16.1, 18.4],
+  },
+  {
+    name: 'Room Beta',
+    strategy: 'Momentum Rotation',
+    return: '+13.7%',
+    alpha: '+2.9%',
+    drawdown: '−3.1%',
+    trades: 31,
+    values: [0, 0.4, -0.2, 1.7, 3.2, 2.8, 4.9, 5.8, 5.1, 7.6, 9.3, 8.9, 10.4, 12.2, 13.7],
+  },
+  {
+    name: 'Pair Lab',
+    strategy: 'Pair Spread Monitor',
+    return: '−2.6%',
+    alpha: '-13.4%',
+    drawdown: '−8.7%',
+    trades: 18,
+    values: [0, -0.5, 0.2, -1.4, -2.8, -1.9, -3.7, -4.6, -3.1, -5.4, -4.8, -6.2, -4.1, -3.5, -2.6],
+  },
+];
+
+function comparisonPoints(values, width, height, min, max, padX = 18, padY = 18) {
+  const range = max - min || 1;
+  return values.map((value, index) => [
+    padX + (index / (values.length - 1)) * (width - padX * 2),
+    height - padY - ((value - min) / range) * (height - padY * 2),
+  ]);
+}
+
+function BacktestComparisonChart({ bot }) {
+  const width = 820;
+  const height = 280;
+  const combined = [...bot.values, ...backtestBenchmark.values];
+  const min = Math.min(...combined, 0) - 2;
+  const max = Math.max(...combined, 0) + 2;
+  const botPoints = comparisonPoints(bot.values, width, height, min, max);
+  const benchmarkPoints = comparisonPoints(backtestBenchmark.values, width, height, min, max);
+  const toPolyline = (points) => points.map(([x, y]) => `${x},${y}`).join(' ');
+  const zeroY = height - 18 - ((0 - min) / (max - min)) * (height - 36);
+
+  return <div className="backtest-comparison-chart" role="img" aria-label={`${bot.name}와 S&P 500 누적 수익률 비교`}>
+    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+      {[0.2, 0.4, 0.6, 0.8].map((ratio) => <line key={ratio} className="backtest-chart-gridline" x1="18" x2={width - 18} y1={height * ratio} y2={height * ratio} />)}
+      <line className="backtest-chart-zero" x1="18" x2={width - 18} y1={zeroY} y2={zeroY} />
+      <polyline
+        className="backtest-chart-line benchmark"
+        points={toPolyline(benchmarkPoints)}
+        data-testid="backtest-benchmark-series"
+        data-benchmark={backtestBenchmark.name}
+        vectorEffect="non-scaling-stroke"
+      />
+      <polyline
+        className="backtest-chart-line bot"
+        points={toPolyline(botPoints)}
+        data-testid="backtest-bot-series"
+        data-bot={bot.name}
+        vectorEffect="non-scaling-stroke"
+      />
+      <circle className="backtest-chart-end benchmark" cx={benchmarkPoints.at(-1)[0]} cy={benchmarkPoints.at(-1)[1]} r="4" vectorEffect="non-scaling-stroke" />
+      <circle className="backtest-chart-end bot" cx={botPoints.at(-1)[0]} cy={botPoints.at(-1)[1]} r="5" vectorEffect="non-scaling-stroke" />
+    </svg>
+    <div className="backtest-chart-axis"><span>2023 Q3</span><span>2024 Q2</span><span>2025 Q2</span><span>2026 Q2</span></div>
+  </div>;
+}
+
 export function BacktestView() {
+  const [selectedBotName, setSelectedBotName] = useState(backtestBots[0].name);
+  const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
   const columns = [{ key: 'time', label: '시각 (ET)' }, { key: 'symbol', label: '종목' }, { key: 'side', label: '행동', render: (r) => <span className={r.side === '매수' ? 'buy-text' : 'sell-text'}>{r.side}</span> }, { key: 'order', label: '요청액' }, { key: 'fill', label: '체결액' }, { key: 'fee', label: '수수료' }, { key: 'result', label: '결과' }];
-  return <Localized><div className="page"><PageHeading eyebrow="AUTOMATED REVIEW" title="자동 백테스트" description="출시된 전략을 같은 분기의 고정 구간과 공식 데이터 스냅샷으로 평가합니다." meta={<Status tone="positive">완료 · 2026 Q3</Status>} actions={<Button icon={CalendarDays}>2026년 7월</Button>} />
-    <div className="stats-grid four"><StatCard label="기간 수익률" value="+3.58%" detail="초기 $10,000" icon={ArrowUpRight} /><StatCard label="최대 낙폭" value="−2.14%" detail="기간 내 고점 대비" icon={Activity} /><StatCard label="개별 체결" value="42" detail="부분 체결 각각 집계" icon={CheckCircle2} /><StatCard label="비용 모델" value="0.25%" detail="수수료 0.2 + 슬리피지 0.05" icon={Coins} /></div>
-    <div className="content-grid backtest-grid"><Panel className="span-2" title="자산 곡선" subtitle="2023 Q3–2026 Q2 · 조정 가격 데이터"><div className="chart-summary"><strong>$10,358.00</strong><span className="positive">+$358.00</span></div><AreaChart values={equitySeries} label="백테스트 자산 곡선" /></Panel><Panel title="조건 미충족 요약" subtitle="최초 실패 조건별 월간 횟수"><BarList items={monthlyFailures} /><HelpNote>거래가 없었던 개별 평가 로그는 보존하거나 표시하지 않습니다.</HelpNote></Panel><Panel className="span-3" title="2026년 7월 거래 상세" subtitle="주문·개별 체결·취소·거절과 거래 후 상태"><DataTable columns={columns} rows={trades} rowKey="time" /></Panel></div>
+  return <Localized><div className="page backtest-page"><PageHeading eyebrow="BOT PERFORMANCE" title="봇 백테스트" description="트레이딩 봇별 누적 수익률을 같은 기간의 S&P 500과 직접 비교합니다." meta={<Status tone="positive">완료 · 2026 Q3</Status>} actions={<Button icon={CalendarDays}>2023 Q3–2026 Q2</Button>} />
+    <section className="backtest-bot-selector" aria-labelledby="backtest-bot-selector-title">
+      <header><div><span>TRADING BOTS</span><h2 id="backtest-bot-selector-title">비교할 봇을 선택하세요</h2></div><small>동일 기간 · 동일 초기 자본</small></header>
+      <div className="backtest-bot-options">
+        {backtestBots.map((bot) => <button
+          key={bot.name}
+          className={bot.name === selectedBot.name ? 'active' : ''}
+          type="button"
+          aria-label={`${bot.name} 백테스트 보기`}
+          aria-pressed={bot.name === selectedBot.name}
+          onClick={() => setSelectedBotName(bot.name)}
+        >
+          <span className="backtest-bot-icon"><Bot size={17} /></span>
+          <span><strong>{bot.name}</strong><small>{bot.strategy}</small></span>
+          <b className={bot.return.startsWith('+') ? 'positive' : 'negative'}>{bot.return}</b>
+        </button>)}
+      </div>
+    </section>
+    <div className="stats-grid four"><StatCard label="봇 수익률" value={selectedBot.return} detail={selectedBot.strategy} icon={ArrowUpRight} /><StatCard label="S&P 500 대비" value={selectedBot.alpha} detail={`S&P 500 ${backtestBenchmark.return}`} icon={Activity} /><StatCard label="최대 낙폭" value={selectedBot.drawdown} detail="기간 내 고점 대비" icon={CheckCircle2} /><StatCard label="개별 체결" value={String(selectedBot.trades)} detail="부분 체결 각각 집계" icon={Coins} /></div>
+    <div className="content-grid backtest-grid"><Panel className="span-2 backtest-performance-panel" title={`${selectedBot.name} vs S&P 500`} subtitle="2023 Q3–2026 Q2 · 누적 수익률 (%)">
+      <div className="backtest-comparison-summary">
+        <div className="is-bot"><span>{selectedBot.name}</span><strong>{selectedBot.return}</strong><small>{selectedBot.strategy}</small></div>
+        <div className="is-benchmark"><span>S&P 500</span><strong>{backtestBenchmark.return}</strong><small>시장 기준선</small></div>
+        <div className="backtest-chart-legend"><span className="bot"><i />선택한 봇</span><span className="benchmark"><i />S&P 500</span></div>
+      </div>
+      <BacktestComparisonChart bot={selectedBot} />
+    </Panel><Panel title="조건 미충족 요약" subtitle={`${selectedBot.name} · 최초 실패 조건별 월간 횟수`}><BarList items={monthlyFailures} /><HelpNote>거래가 없었던 개별 평가 로그는 보존하거나 표시하지 않습니다.</HelpNote></Panel><Panel className="span-3" title={`${selectedBot.name} 거래 상세`} subtitle="주문·개별 체결·취소·거절과 거래 후 상태"><DataTable columns={columns} rows={trades} rowKey="time" /></Panel></div>
   </div></Localized>;
 }
 

@@ -2078,6 +2078,208 @@
 .variant-balanced[data-design="signal-studio"] .competition-list-item.is-expanded,
 .variant-balanced[data-design="signal-studio"] .notification-row.unread { background: color-mix(in srgb,var(--accent-soft) 28%,var(--surface)); }
 
+/* Backtest: select one bot and compare its cumulative return with the market benchmark. */
+.variant-balanced[data-design="signal-studio"] .backtest-page {
+  max-width: 1380px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-selector {
+  margin-bottom: var(--space-4);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-selector > header {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-selector > header div {
+  display: grid;
+  gap: 4px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-selector > header span {
+  color: var(--accent);
+  font: 700 8px var(--font-mono);
+  letter-spacing: .12em;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-selector h2 {
+  margin: 0;
+  font-size: 14px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-selector > header small {
+  color: var(--text-faint);
+  font: 9px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options > button {
+  min-width: 0;
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 15px;
+  border: 0;
+  color: var(--text);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+  transition: background 150ms ease-out, box-shadow 150ms ease-out;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options > button:hover {
+  background: color-mix(in srgb, var(--accent-soft) 35%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options > button.active {
+  position: relative;
+  z-index: 1;
+  background: color-mix(in srgb, var(--accent-soft) 65%, var(--surface));
+  box-shadow: inset 0 -2px var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options > button.active .backtest-bot-icon {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line));
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options > button > span:nth-child(2) {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options strong,
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options strong { font-size: 11px; }
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options small {
+  color: var(--text-faint);
+  font-size: 8px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-options b {
+  font: 800 12px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-performance-panel {
+  overflow: hidden;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-comparison-summary {
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 74%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-comparison-summary > div:not(.backtest-chart-legend) {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  gap: 3px 10px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-comparison-summary span,
+.variant-balanced[data-design="signal-studio"] .backtest-comparison-summary small {
+  color: var(--text-faint);
+  font-size: 8px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-comparison-summary strong {
+  font: 800 20px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-comparison-summary .is-bot strong { color: var(--accent); }
+.variant-balanced[data-design="signal-studio"] .backtest-comparison-summary small { grid-column: 1 / -1; }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: auto;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend i {
+  width: 18px;
+  height: 2px;
+  display: block;
+  background: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .benchmark i {
+  height: 1px;
+  background: var(--text-faint);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-comparison-chart {
+  height: 330px;
+  padding: 18px 18px 10px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-comparison-chart svg {
+  width: 100%;
+  height: calc(100% - 24px);
+  overflow: visible;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-gridline {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-zero {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-line.bot {
+  stroke: var(--accent);
+  stroke-width: 3;
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--accent) 32%, transparent));
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark {
+  stroke: var(--text-faint);
+  stroke-width: 2;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-end {
+  fill: var(--surface);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-end.bot {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-end.benchmark {
+  stroke: var(--text-faint);
+  stroke-width: 2;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 2px 0;
+  color: var(--text-faint);
+  font: 8px var(--font-mono);
+}
+
 /* Competition: concise discovery, clear capacity and explicit actions. */
 .variant-balanced[data-design="signal-studio"] .competition-page {
   max-width:1320px;
@@ -4079,5 +4281,19 @@
   .variant-balanced[data-design="signal-studio"] .page-heading {
     min-height:0;
     align-items:flex-start;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-bot-options {
+    grid-template-columns: 1fr;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-bot-selector > header,
+  .variant-balanced[data-design="signal-studio"] .backtest-comparison-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-chart-legend {
+    margin-left: 0;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-comparison-chart {
+    height: 280px;
   }
 }

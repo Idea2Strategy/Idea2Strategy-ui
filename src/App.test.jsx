@@ -22,7 +22,7 @@ describe('Signal product UI', () => {
     unmount();
     window.history.replaceState({}, '', '/backtests');
     render(<App />);
-    expect(screen.getByRole('heading', { name: '자동 백테스트' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '봇 백테스트' })).toBeInTheDocument();
   });
 
   test('gives Basic and Pro editors stable direct URLs', async () => {
@@ -95,7 +95,7 @@ describe('Signal product UI', () => {
       ['홈', '오늘의 운용 현황'],
       ['전략', '전략'],
       ['봇', '봇 운영 센터'],
-      ['백테스트', '자동 백테스트'],
+      ['백테스트', '봇 백테스트'],
       ['Competition', 'Competition'],
     ]) {
       await user.click(screen.getByRole('button', { name: navigation }));
