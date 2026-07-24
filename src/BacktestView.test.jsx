@@ -64,7 +64,7 @@ describe('BacktestView', () => {
 
     expect(screen.getByRole('button', { name: '1시간 차트 보기' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('img', { name: 'SPY 캔들 차트와 매수 매도 기록' })).toHaveAttribute('data-timeframe', '1시간');
-    expect(screen.getAllByTestId('market-candle').length).toBeLessThan(dailyCandleCount);
+    expect(screen.getAllByTestId('market-candle')).toHaveLength(48);
 
     const symbolSearch = screen.getByRole('searchbox', { name: '종목 검색' });
     await user.type(symbolSearch, 'AAPL');
