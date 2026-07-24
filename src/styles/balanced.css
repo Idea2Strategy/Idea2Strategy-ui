@@ -2365,6 +2365,194 @@
   color: var(--text-faint);
   font: 8px var(--font-mono);
 }
+.variant-balanced[data-design="signal-studio"] .backtest-trade-chart-panel {
+  overflow: hidden;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-toolbar {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-search {
+  width: min(260px, 28%);
+  min-width: 190px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--text-faint);
+  background: var(--surface);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-search:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--line));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  background: transparent;
+  font: 10px var(--font-sans);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-options {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-options::-webkit-scrollbar { display: none; }
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-options > button {
+  min-width: 118px;
+  height: 40px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--text);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-options > button:hover {
+  border-color: var(--line-strong);
+  background: var(--accent-soft);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-options > button.active {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line));
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 58%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-options strong {
+  font: 800 10px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-options span,
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-options > small {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-options > small {
+  align-self: center;
+  padding: 0 8px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-timeframe {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-left: 1px solid var(--line);
+  color: var(--text-faint);
+  font: 8px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-timeframe span {
+  padding: 5px 7px;
+  border-radius: 2px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 800;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-market-chart {
+  background:
+    linear-gradient(color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface) 96%, transparent)),
+    radial-gradient(circle at 50% 20%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 46%);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-market-ohlc {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 18px 0;
+  color: var(--text-faint);
+  font: 8px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-market-ohlc > strong {
+  color: var(--text);
+  font-size: 12px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-market-ohlc b {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-market-ohlc b.positive { color: #36c58d; }
+.variant-balanced[data-design="signal-studio"] .backtest-market-ohlc b.negative { color: #ef6570; }
+.variant-balanced[data-design="signal-studio"] .backtest-candle-canvas {
+  height: 440px;
+  padding: 0 10px 8px;
+  cursor: crosshair;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-candle-canvas svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.variant-balanced[data-design="signal-studio"] .market-chart-gridline {
+  stroke: color-mix(in srgb, var(--line) 82%, transparent);
+  stroke-width: 1;
+}
+.variant-balanced[data-design="signal-studio"] .market-chart-gridline.vertical {
+  stroke-dasharray: 2 5;
+}
+.variant-balanced[data-design="signal-studio"] .market-chart-volume-divider {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.variant-balanced[data-design="signal-studio"] .market-chart-price,
+.variant-balanced[data-design="signal-studio"] .market-chart-time {
+  fill: var(--text-faint);
+  font: 8px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .market-candle.up .market-candle-wick { stroke: #36c58d; }
+.variant-balanced[data-design="signal-studio"] .market-candle.up .market-candle-body { fill: #36c58d; }
+.variant-balanced[data-design="signal-studio"] .market-candle.up .market-volume-bar { fill: color-mix(in srgb, #36c58d 32%, transparent); }
+.variant-balanced[data-design="signal-studio"] .market-candle.down .market-candle-wick { stroke: #ef6570; }
+.variant-balanced[data-design="signal-studio"] .market-candle.down .market-candle-body { fill: #ef6570; }
+.variant-balanced[data-design="signal-studio"] .market-candle.down .market-volume-bar { fill: color-mix(in srgb, #ef6570 28%, transparent); }
+.variant-balanced[data-design="signal-studio"] .market-candle-wick { stroke-width: 1.2; }
+.variant-balanced[data-design="signal-studio"] .market-trade-marker circle {
+  stroke-width: 2;
+  fill: var(--surface);
+}
+.variant-balanced[data-design="signal-studio"] .market-trade-marker text {
+  font: 900 8px var(--font-mono);
+  text-anchor: middle;
+}
+.variant-balanced[data-design="signal-studio"] .market-trade-marker line {
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+.variant-balanced[data-design="signal-studio"] .market-trade-marker.buy circle,
+.variant-balanced[data-design="signal-studio"] .market-trade-marker.buy line { stroke: rgb(240, 66, 81); }
+.variant-balanced[data-design="signal-studio"] .market-trade-marker.buy text { fill: rgb(240, 66, 81); }
+.variant-balanced[data-design="signal-studio"] .market-trade-marker.sell circle,
+.variant-balanced[data-design="signal-studio"] .market-trade-marker.sell line { stroke: rgb(67, 145, 255); }
+.variant-balanced[data-design="signal-studio"] .market-trade-marker.sell text { fill: rgb(67, 145, 255); }
+.variant-balanced[data-design="signal-studio"] .market-chart-crosshair {
+  stroke: color-mix(in srgb, var(--text) 34%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-grid > [role="region"] {
+  min-width: 0;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-grid > [role="region"] > .panel {
+  height: 100%;
+}
 
 /* Competition: concise discovery, clear capacity and explicit actions. */
 .variant-balanced[data-design="signal-studio"] .competition-page {
@@ -4384,5 +4572,24 @@
   }
   .variant-balanced[data-design="signal-studio"] .backtest-comparison-chart {
     height: 280px;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-symbol-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-symbol-search {
+    width: 100%;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-timeframe {
+    display: none;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-market-ohlc {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 7px 12px;
+    padding-bottom: 7px;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-candle-canvas {
+    height: 340px;
   }
 }

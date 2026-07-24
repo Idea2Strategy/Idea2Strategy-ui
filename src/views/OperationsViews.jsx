@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Activity, ArrowLeft, ArrowUpRight, Bot, CalendarDays, CheckCircle2, Clock3, Coins, Play, Plus, RefreshCw, Search, Trophy, Users } from 'lucide-react';
 import { AreaChart, MiniSpark } from '../components/charts.jsx';
 import { Button, DataTable, PageHeading, Panel, StatCard, Status } from '../components/common.jsx';
-import { bots, botSeries, leaderboard, positions, trades } from '../data/mockData.js';
+import { bots, botSeries, leaderboard, positions } from '../data/mockData.js';
 import { Localized } from '../lib/i18n.jsx';
 
 const botTone = (state) => state === '실행 중' || state === '평가 중' ? 'positive' : 'warning';
@@ -63,6 +63,62 @@ const backtestBots = [
     values: [0, -0.5, 0.2, -1.4, -2.8, -1.9, -3.7, -4.6, -5.4, -4.8, -4.1, -2.6],
   },
 ];
+
+const candleTimes = ['09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '09:30', '10:00', '10:30', '11:00'];
+
+function makeInstrument(symbol, name, basePrice, changes, executionSpecs) {
+  let previousClose = basePrice;
+  const candles = changes.map((change, index) => {
+    const open = previousClose;
+    const close = open + change;
+    const swing = Math.max(Math.abs(change) * .58, basePrice * .0028) + (index % 3) * basePrice * .0007;
+    const candle = {
+      time: `${index < 14 ? '07.18' : '07.19'} ${candleTimes[index]}`,
+      open: Number(open.toFixed(2)),
+      high: Number((Math.max(open, close) + swing).toFixed(2)),
+      low: Number((Math.min(open, close) - swing * .82).toFixed(2)),
+      close: Number(close.toFixed(2)),
+      volume: 420000 + ((index * 173000 + symbol.charCodeAt(0) * 11000) % 1280000),
+    };
+    previousClose = close;
+    return candle;
+  });
+  const executions = executionSpecs.map((execution, order) => {
+    const candle = candles[execution.index];
+    const price = candle.close;
+    return {
+      id: `${symbol}-${execution.index}-${execution.side}`,
+      index: execution.index,
+      time: candle.time,
+      symbol,
+      side: execution.side,
+      quantity: `${execution.quantity}주`,
+      price: `$${price.toFixed(2)}`,
+      value: `$${(price * execution.quantity).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      fee: `$${(price * execution.quantity * .002).toFixed(2)}`,
+      result: order === executionSpecs.length - 1 && execution.partial ? '부분 체결' : '체결',
+    };
+  });
+  return { symbol, name, candles, executions };
+}
+
+const botInstruments = {
+  'Atlas 07': [
+    makeInstrument('SPY', 'SPDR S&P 500 ETF', 549.2, [1.6, -2.2, 3.1, 1.4, -1.1, 2.8, 1.2, -2.4, 3.8, 2.1, -1.5, 2.7, 1.8, .9, -2.1, 3.4, 1.2, 2.5], [{ index: 2, side: '매수', quantity: 12 }, { index: 10, side: '매도', quantity: 5 }, { index: 15, side: '매수', quantity: 8 }]),
+    makeInstrument('AAPL', 'Apple Inc.', 224.8, [-.8, 1.4, 2.1, -1.2, .9, 1.8, -.7, 2.4, -1.6, .8, 1.3, -2.1, 2.8, 1.1, -.9, 1.7, .6, 1.2], [{ index: 1, side: '매수', quantity: 10 }, { index: 8, side: '매도', quantity: 6 }, { index: 13, side: '매수', quantity: 4 }]),
+    makeInstrument('QQQ', 'Invesco QQQ Trust', 486.4, [1.1, 2.2, -1.7, .8, 2.6, -2.1, 1.4, 1.9, -.6, 2.8, -1.4, .7, 2.1, 1.6, -2.2, 1.9, .8, 2.3], [{ index: 3, side: '매수', quantity: 7 }, { index: 11, side: '매도', quantity: 7 }]),
+  ],
+  'Room Beta': [
+    makeInstrument('MSFT', 'Microsoft Corp.', 441.6, [1.2, -.7, 2.4, 1.1, -1.8, 2.2, .7, 1.8, -1.1, 2.7, .8, -1.6, 2.1, 1.4, -.6, 1.9, 1.2, .9], [{ index: 2, side: '매수', quantity: 9 }, { index: 12, side: '매도', quantity: 4 }]),
+    makeInstrument('NVDA', 'NVIDIA Corp.', 118.4, [2.1, 1.8, -2.7, 3.2, 1.4, -1.9, 2.8, -3.1, 1.7, 2.6, -1.3, 3.4, -2.2, 1.8, 2.1, -1.6, 2.9, 1.1], [{ index: 3, side: '매수', quantity: 18 }, { index: 7, side: '매도', quantity: 8 }, { index: 14, side: '매수', quantity: 10 }]),
+    makeInstrument('TSLA', 'Tesla Inc.', 248.9, [-2.8, 3.6, 1.4, -4.1, 2.7, 3.1, -2.2, 1.8, -3.4, 4.2, 2.1, -1.7, 3.8, -2.9, 1.6, 2.4, -1.2, 3.1], [{ index: 1, side: '매수', quantity: 6 }, { index: 9, side: '매도', quantity: 6 }]),
+  ],
+  'Pair Lab': [
+    makeInstrument('KO', 'Coca-Cola Co.', 63.4, [.3, -.2, .4, .2, -.5, .3, .1, -.4, .5, -.2, .3, -.1, .4, .2, -.3, .5, -.2, .3], [{ index: 2, side: '매수', quantity: 24 }, { index: 12, side: '매도', quantity: 12 }]),
+    makeInstrument('PEP', 'PepsiCo Inc.', 169.8, [-.4, .7, .3, -.6, .8, -.2, .5, .4, -.7, .6, .2, -.4, .9, -.3, .4, .5, -.2, .6], [{ index: 3, side: '매도', quantity: 9 }, { index: 9, side: '매수', quantity: 9 }]),
+    makeInstrument('XOM', 'Exxon Mobil Corp.', 115.2, [.6, -.3, .8, -.5, .4, .7, -.6, .9, -.2, .5, -.4, .8, .3, -.7, .6, .4, -.2, .7], [{ index: 1, side: '매수', quantity: 14 }, { index: 7, side: '매도', quantity: 7 }, { index: 15, side: '매수', quantity: 7, partial: true }]),
+  ],
+};
 
 function comparisonPoints(values, width, height, min, max, padX = 18, padY = 18) {
   const range = max - min || 1;
@@ -146,10 +202,106 @@ function BacktestComparisonChart({ bot }) {
   </div>;
 }
 
+function BacktestCandlestickChart({ instrument }) {
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const width = 1040;
+  const height = 420;
+  const left = 18;
+  const right = 76;
+  const chartTop = 30;
+  const chartBottom = 304;
+  const volumeTop = 332;
+  const volumeBottom = 390;
+  const plotWidth = width - left - right;
+  const candleStep = plotWidth / instrument.candles.length;
+  const candleWidth = Math.max(7, candleStep * .58);
+  const priceMin = Math.min(...instrument.candles.map((candle) => candle.low));
+  const priceMax = Math.max(...instrument.candles.map((candle) => candle.high));
+  const pricePadding = (priceMax - priceMin) * .12 || 1;
+  const domainMin = priceMin - pricePadding;
+  const domainMax = priceMax + pricePadding;
+  const maxVolume = Math.max(...instrument.candles.map((candle) => candle.volume));
+  const priceToY = (price) => chartBottom - ((price - domainMin) / (domainMax - domainMin)) * (chartBottom - chartTop);
+  const xForIndex = (index) => left + candleStep * index + candleStep / 2;
+  const activeIndex = hoveredIndex ?? instrument.candles.length - 1;
+  const activeCandle = instrument.candles[activeIndex];
+  const activeUp = activeCandle.close >= activeCandle.open;
+  const setIndexFromPointer = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = ((event.clientX - bounds.left) / (bounds.width || 1)) * width;
+    setHoveredIndex(Math.min(Math.max(Math.floor((x - left) / candleStep), 0), instrument.candles.length - 1));
+  };
+
+  return <div className="backtest-market-chart">
+    <div className="backtest-market-ohlc">
+      <strong>{instrument.symbol}</strong>
+      <span>{activeCandle.time} ET</span>
+      <span>O <b>{activeCandle.open.toFixed(2)}</b></span>
+      <span>H <b>{activeCandle.high.toFixed(2)}</b></span>
+      <span>L <b>{activeCandle.low.toFixed(2)}</b></span>
+      <span>C <b className={activeUp ? 'positive' : 'negative'}>{activeCandle.close.toFixed(2)}</b></span>
+      <span>VOL <b>{(activeCandle.volume / 1000000).toFixed(2)}M</b></span>
+    </div>
+    <div
+      className="backtest-candle-canvas"
+      onMouseMove={setIndexFromPointer}
+      onMouseLeave={() => setHoveredIndex(null)}
+    >
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`${instrument.symbol} 캔들 차트와 매수 매도 기록`}>
+        {[0, .25, .5, .75, 1].map((ratio) => {
+          const y = chartTop + (chartBottom - chartTop) * ratio;
+          const price = domainMax - (domainMax - domainMin) * ratio;
+          return <g key={`price-${ratio}`}><line className="market-chart-gridline" x1={left} x2={width - right} y1={y} y2={y} /><text className="market-chart-price" x={width - right + 10} y={y + 3}>{price.toFixed(2)}</text></g>;
+        })}
+        {[0, 4, 8, 12, 17].map((index) => <line key={`time-${index}`} className="market-chart-gridline vertical" x1={xForIndex(index)} x2={xForIndex(index)} y1={chartTop} y2={volumeBottom} />)}
+        <line className="market-chart-volume-divider" x1={left} x2={width - right} y1={volumeTop - 12} y2={volumeTop - 12} />
+        {instrument.candles.map((candle, index) => {
+          const x = xForIndex(index);
+          const up = candle.close >= candle.open;
+          const bodyTop = priceToY(Math.max(candle.open, candle.close));
+          const bodyBottom = priceToY(Math.min(candle.open, candle.close));
+          const volumeHeight = (candle.volume / maxVolume) * (volumeBottom - volumeTop);
+          return <g key={`${candle.time}-${index}`} className={`market-candle ${up ? 'up' : 'down'}`}>
+            <line className="market-candle-wick" x1={x} x2={x} y1={priceToY(candle.high)} y2={priceToY(candle.low)} vectorEffect="non-scaling-stroke" />
+            <rect className="market-candle-body" x={x - candleWidth / 2} y={bodyTop} width={candleWidth} height={Math.max(bodyBottom - bodyTop, 2)} />
+            <rect className="market-volume-bar" x={x - candleWidth / 2} y={volumeBottom - volumeHeight} width={candleWidth} height={volumeHeight} />
+          </g>;
+        })}
+        {instrument.executions.map((execution) => {
+          const candle = instrument.candles[execution.index];
+          const x = xForIndex(execution.index);
+          const isBuy = execution.side === '매수';
+          const y = isBuy ? Math.min(priceToY(candle.low) + 17, chartBottom - 2) : Math.max(priceToY(candle.high) - 17, chartTop + 2);
+          return <g key={execution.id} className={`market-trade-marker ${isBuy ? 'buy' : 'sell'}`} data-testid="trade-marker" data-side={isBuy ? 'buy' : 'sell'}>
+            <circle cx={x} cy={y} r="9" />
+            <text x={x} y={y + 3}>{isBuy ? 'B' : 'S'}</text>
+            <line x1={x} x2={x} y1={isBuy ? y - 9 : y + 9} y2={isBuy ? priceToY(candle.low) : priceToY(candle.high)} vectorEffect="non-scaling-stroke" />
+          </g>;
+        })}
+        {hoveredIndex !== null && <>
+          <line className="market-chart-crosshair" x1={xForIndex(hoveredIndex)} x2={xForIndex(hoveredIndex)} y1={chartTop} y2={volumeBottom} vectorEffect="non-scaling-stroke" />
+          <line className="market-chart-crosshair" x1={left} x2={width - right} y1={priceToY(activeCandle.close)} y2={priceToY(activeCandle.close)} vectorEffect="non-scaling-stroke" />
+        </>}
+        {[0, 4, 8, 12, 17].map((index) => <text key={`label-${index}`} className="market-chart-time" x={xForIndex(index)} y={height - 8} textAnchor={index === 0 ? 'start' : index === 17 ? 'end' : 'middle'}>{instrument.candles[index].time.replace('07.', '')}</text>)}
+      </svg>
+    </div>
+  </div>;
+}
+
 export function BacktestView() {
   const [selectedBotName, setSelectedBotName] = useState(backtestBots[0].name);
+  const [selectedSymbol, setSelectedSymbol] = useState(botInstruments[backtestBots[0].name][0].symbol);
+  const [symbolQuery, setSymbolQuery] = useState('');
   const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
-  const columns = [{ key: 'time', label: '시각 (ET)' }, { key: 'symbol', label: '종목' }, { key: 'side', label: '행동', render: (r) => <span className={r.side === '매수' ? 'buy-text' : 'sell-text'}>{r.side}</span> }, { key: 'order', label: '요청액' }, { key: 'fill', label: '체결액' }, { key: 'fee', label: '수수료' }, { key: 'result', label: '결과' }];
+  const selectedBotInstruments = botInstruments[selectedBot.name];
+  const selectedInstrument = selectedBotInstruments.find((instrument) => instrument.symbol === selectedSymbol) ?? selectedBotInstruments[0];
+  const filteredInstruments = selectedBotInstruments.filter((instrument) => `${instrument.symbol} ${instrument.name}`.toLowerCase().includes(symbolQuery.trim().toLowerCase()));
+  const selectBot = (bot) => {
+    setSelectedBotName(bot.name);
+    setSelectedSymbol(botInstruments[bot.name][0].symbol);
+    setSymbolQuery('');
+  };
+  const columns = [{ key: 'time', label: '시각 (ET)' }, { key: 'symbol', label: '종목' }, { key: 'side', label: '행동', render: (row) => <span className={row.side === '매수' ? 'buy-text' : 'sell-text'}>{row.side}</span> }, { key: 'quantity', label: '수량' }, { key: 'price', label: '체결가' }, { key: 'value', label: '체결 금액' }, { key: 'fee', label: '수수료' }, { key: 'result', label: '결과' }];
   return <Localized><div className="page backtest-page"><PageHeading eyebrow="BOT PERFORMANCE" title="봇 백테스트" description="트레이딩 봇별 누적 수익률을 같은 기간의 S&P 500과 직접 비교합니다." meta={<Status tone="positive">완료 · 2026 Q3</Status>} actions={<Button icon={CalendarDays}>2023 Q3–2026 Q2</Button>} />
     <div className="backtest-comparison-workspace" data-testid="backtest-comparison-workspace">
       <Panel className="backtest-performance-panel" title={`${selectedBot.name} vs S&P 500`} subtitle="2023 Q3–2026 Q2 · 누적 수익률 (%)">
@@ -171,7 +323,7 @@ export function BacktestView() {
             type="button"
             aria-label={`${bot.name} 백테스트 보기`}
             aria-pressed={bot.name === selectedBot.name}
-            onClick={() => setSelectedBotName(bot.name)}
+            onClick={() => selectBot(bot)}
           >
             <span className="backtest-bot-icon"><Bot size={17} /></span>
             <span><strong>{bot.name}</strong><small>{bot.strategy}</small></span>
@@ -181,7 +333,31 @@ export function BacktestView() {
       </aside>
     </div>
     <div className="stats-grid four"><StatCard label="봇 수익률" value={selectedBot.return} detail={selectedBot.strategy} icon={ArrowUpRight} /><StatCard label="S&P 500 대비" value={selectedBot.alpha} detail={`S&P 500 ${backtestBenchmark.return}`} icon={Activity} /><StatCard label="최대 낙폭" value={selectedBot.drawdown} detail="기간 내 고점 대비" icon={CheckCircle2} /><StatCard label="개별 체결" value={String(selectedBot.trades)} detail="부분 체결 각각 집계" icon={Coins} /></div>
-    <div className="content-grid backtest-grid"><Panel className="span-3" title={`${selectedBot.name} 거래 상세`} subtitle="주문·개별 체결·취소·거절과 거래 후 상태"><DataTable columns={columns} rows={trades} rowKey="time" /></Panel></div>
+    <div className="content-grid backtest-grid">
+      <Panel className="span-3 backtest-trade-chart-panel" title="종목별 체결 차트" subtitle={`${selectedBot.name} · 조정 가격 · 미국 동부 시각`}>
+        <div className="backtest-symbol-toolbar">
+          <label className="backtest-symbol-search"><Search size={15} /><input type="search" aria-label="종목 검색" placeholder="티커 또는 종목명 검색" value={symbolQuery} onChange={(event) => setSymbolQuery(event.target.value)} /></label>
+          <div className="backtest-symbol-options" role="list" aria-label={`${selectedBot.name} 거래 종목`}>
+            {filteredInstruments.map((instrument) => <button
+              key={instrument.symbol}
+              type="button"
+              aria-label={`${instrument.symbol} 종목 선택`}
+              aria-pressed={instrument.symbol === selectedInstrument.symbol}
+              className={instrument.symbol === selectedInstrument.symbol ? 'active' : ''}
+              onClick={() => setSelectedSymbol(instrument.symbol)}
+            ><strong>{instrument.symbol}</strong><span>{instrument.name}</span></button>)}
+            {filteredInstruments.length === 0 && <small>검색 결과가 없습니다.</small>}
+          </div>
+          <div className="backtest-timeframe"><span>1D</span><small>USD</small></div>
+        </div>
+        <BacktestCandlestickChart instrument={selectedInstrument} />
+      </Panel>
+      <section className="span-3" role="region" aria-label={`${selectedInstrument.symbol} 체결 로그`}>
+        <Panel title={`${selectedInstrument.symbol} 매수·매도 로그`} subtitle={`${selectedInstrument.name} · 차트에 표시된 개별 체결`}>
+          <DataTable columns={columns} rows={selectedInstrument.executions} rowKey="id" />
+        </Panel>
+      </section>
+    </div>
   </div></Localized>;
 }
 

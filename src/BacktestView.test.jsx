@@ -47,4 +47,30 @@ describe('BacktestView', () => {
     fireEvent.mouseLeave(chart);
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
+
+  test('filters a bot’s traded symbols and keeps the candle chart and execution log in sync', async () => {
+    const user = userEvent.setup();
+    render(<BacktestView />);
+
+    expect(screen.getByRole('img', { name: 'SPY 캔들 차트와 매수 매도 기록' })).toBeInTheDocument();
+    expect(screen.getAllByTestId('trade-marker').length).toBeGreaterThan(0);
+
+    const symbolSearch = screen.getByRole('searchbox', { name: '종목 검색' });
+    await user.type(symbolSearch, 'AAPL');
+
+    expect(screen.getByRole('button', { name: 'AAPL 종목 선택' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'SPY 종목 선택' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'AAPL 종목 선택' }));
+
+    expect(screen.getByRole('img', { name: 'AAPL 캔들 차트와 매수 매도 기록' })).toBeInTheDocument();
+    const executionLog = screen.getByRole('region', { name: 'AAPL 체결 로그' });
+    expect(within(executionLog).getAllByText('AAPL').length).toBeGreaterThan(0);
+    expect(within(executionLog).queryByText('SPY')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Pair Lab 백테스트 보기/ }));
+
+    expect(screen.getByRole('button', { name: 'KO 종목 선택' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'KO 캔들 차트와 매수 매도 기록' })).toBeInTheDocument();
+  });
 });
