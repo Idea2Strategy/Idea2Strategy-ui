@@ -9,8 +9,6 @@ pnpm install
 pnpm dev
 ```
 
-기본 개발 주소는 `http://localhost:5173`입니다.
-
 ## 검증
 
 ```powershell
