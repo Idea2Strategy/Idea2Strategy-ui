@@ -2450,22 +2450,44 @@
   align-self: center;
   padding: 0 8px;
 }
-.variant-balanced[data-design="signal-studio"] .backtest-timeframe {
-  height: 36px;
+.variant-balanced[data-design="signal-studio"] .backtest-chart-controls {
+  min-height: 46px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 10px;
-  border-left: 1px solid var(--line);
+  justify-content: space-between;
+  gap: 14px;
+  padding: 6px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-controls > span {
   color: var(--text-faint);
   font: 8px var(--font-mono);
 }
-.variant-balanced[data-design="signal-studio"] .backtest-timeframe span {
-  padding: 5px 7px;
+.variant-balanced[data-design="signal-studio"] .backtest-timeframe {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-timeframe button {
+  min-width: 42px;
+  height: 28px;
+  padding: 0 9px;
+  border: 0;
   border-radius: 2px;
-  color: var(--accent);
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+  font: 700 9px var(--font-sans);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-timeframe button:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-timeframe button.active {
+  color: var(--text);
   background: var(--accent-soft);
-  font-weight: 800;
+  box-shadow: inset 0 -2px var(--accent);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-market-chart {
   background:
@@ -2524,24 +2546,29 @@
 .variant-balanced[data-design="signal-studio"] .market-candle.down .market-candle-body { fill: #ef6570; }
 .variant-balanced[data-design="signal-studio"] .market-candle.down .market-volume-bar { fill: color-mix(in srgb, #ef6570 28%, transparent); }
 .variant-balanced[data-design="signal-studio"] .market-candle-wick { stroke-width: 1.2; }
-.variant-balanced[data-design="signal-studio"] .market-trade-marker circle {
-  stroke-width: 2;
-  fill: var(--surface);
+.variant-balanced[data-design="signal-studio"] .market-trade-marker rect,
+.variant-balanced[data-design="signal-studio"] .market-trade-marker path {
+  stroke: none;
 }
 .variant-balanced[data-design="signal-studio"] .market-trade-marker text {
-  font: 900 8px var(--font-mono);
+  fill: #fff;
+  font: 800 8px var(--font-sans);
   text-anchor: middle;
 }
 .variant-balanced[data-design="signal-studio"] .market-trade-marker line {
   stroke-width: 1;
   stroke-dasharray: 2 2;
 }
-.variant-balanced[data-design="signal-studio"] .market-trade-marker.buy circle,
+.variant-balanced[data-design="signal-studio"] .market-trade-marker.buy rect,
+.variant-balanced[data-design="signal-studio"] .market-trade-marker.buy path {
+  fill: rgb(240, 66, 81);
+}
 .variant-balanced[data-design="signal-studio"] .market-trade-marker.buy line { stroke: rgb(240, 66, 81); }
-.variant-balanced[data-design="signal-studio"] .market-trade-marker.buy text { fill: rgb(240, 66, 81); }
-.variant-balanced[data-design="signal-studio"] .market-trade-marker.sell circle,
+.variant-balanced[data-design="signal-studio"] .market-trade-marker.sell rect,
+.variant-balanced[data-design="signal-studio"] .market-trade-marker.sell path {
+  fill: rgb(67, 145, 255);
+}
 .variant-balanced[data-design="signal-studio"] .market-trade-marker.sell line { stroke: rgb(67, 145, 255); }
-.variant-balanced[data-design="signal-studio"] .market-trade-marker.sell text { fill: rgb(67, 145, 255); }
 .variant-balanced[data-design="signal-studio"] .market-chart-crosshair {
   stroke: color-mix(in srgb, var(--text) 34%, transparent);
   stroke-width: 1;
@@ -4581,6 +4608,14 @@
     width: 100%;
   }
   .variant-balanced[data-design="signal-studio"] .backtest-timeframe {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-chart-controls {
+    overflow: hidden;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-chart-controls > span {
     display: none;
   }
   .variant-balanced[data-design="signal-studio"] .backtest-market-ohlc {

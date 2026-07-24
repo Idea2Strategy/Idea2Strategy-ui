@@ -120,6 +120,48 @@ const botInstruments = {
   ],
 };
 
+const chartTimeframes = ['1시간', '4시간', '1일', '주봉', '달봉', '년봉'];
+const timeframeCandleCounts = { '1시간': 48, '4시간': 38, '1일': 30, '주봉': 24, '달봉': 18, '년봉': 12 };
+
+function timeframeLabel(timeframe, index) {
+  if (timeframe === '1시간') return `07.${String(15 + Math.floor(index / 7)).padStart(2, '0')} ${String(9 + (index % 7)).padStart(2, '0')}:30`;
+  if (timeframe === '4시간') return `07.${String(2 + index).padStart(2, '0')} ${index % 2 ? '13:00' : '09:00'}`;
+  if (timeframe === '1일') return `07.${String(1 + index).padStart(2, '0')}`;
+  if (timeframe === '주봉') return `2026 ${String(index + 1).padStart(2, '0')}주`;
+  if (timeframe === '달봉') return `${2025 + Math.floor(index / 12)}.${String((index % 12) + 1).padStart(2, '0')}`;
+  return String(2015 + index);
+}
+
+function candlesForTimeframe(candles, timeframe) {
+  const count = timeframeCandleCounts[timeframe];
+  const sourceLastIndex = candles.length - 1;
+  const sourceRange = Math.max(...candles.map((candle) => candle.high)) - Math.min(...candles.map((candle) => candle.low));
+  let previousClose = candles[0].open;
+  return Array.from({ length: count }, (_, index) => {
+    const sourcePosition = (index / (count - 1)) * sourceLastIndex;
+    const sourceIndex = Math.floor(sourcePosition);
+    const nextIndex = Math.min(sourceIndex + 1, sourceLastIndex);
+    const progress = sourcePosition - sourceIndex;
+    const source = candles[sourceIndex];
+    const next = candles[nextIndex];
+    const interpolatedClose = source.close + (next.close - source.close) * progress;
+    const texture = Math.sin((index + 1) * 1.73) * sourceRange * .018;
+    const close = interpolatedClose + texture;
+    const open = previousClose;
+    const swing = Math.max(Math.abs(close - open) * .62, sourceRange * .018) + (index % 3) * sourceRange * .004;
+    const candle = {
+      time: timeframeLabel(timeframe, index),
+      open: Number(open.toFixed(2)),
+      high: Number((Math.max(open, close) + swing).toFixed(2)),
+      low: Number((Math.min(open, close) - swing * .82).toFixed(2)),
+      close: Number(close.toFixed(2)),
+      volume: Math.round((source.volume + (next.volume - source.volume) * progress) * (.86 + (index % 5) * .055)),
+    };
+    previousClose = close;
+    return candle;
+  });
+}
+
 function comparisonPoints(values, width, height, min, max, padX = 18, padY = 18) {
   const range = max - min || 1;
   return values.map((value, index) => [
@@ -202,8 +244,9 @@ function BacktestComparisonChart({ bot }) {
   </div>;
 }
 
-function BacktestCandlestickChart({ instrument }) {
+function BacktestCandlestickChart({ instrument, timeframe }) {
   const [hoveredIndex, setHoveredIndex] = useState(null);
+  const displayCandles = candlesForTimeframe(instrument.candles, timeframe);
   const width = 1040;
   const height = 420;
   const left = 18;
@@ -213,23 +256,23 @@ function BacktestCandlestickChart({ instrument }) {
   const volumeTop = 332;
   const volumeBottom = 390;
   const plotWidth = width - left - right;
-  const candleStep = plotWidth / instrument.candles.length;
-  const candleWidth = Math.max(7, candleStep * .58);
-  const priceMin = Math.min(...instrument.candles.map((candle) => candle.low));
-  const priceMax = Math.max(...instrument.candles.map((candle) => candle.high));
+  const candleStep = plotWidth / displayCandles.length;
+  const candleWidth = Math.min(22, Math.max(7, candleStep * .58));
+  const priceMin = Math.min(...displayCandles.map((candle) => candle.low));
+  const priceMax = Math.max(...displayCandles.map((candle) => candle.high));
   const pricePadding = (priceMax - priceMin) * .12 || 1;
   const domainMin = priceMin - pricePadding;
   const domainMax = priceMax + pricePadding;
-  const maxVolume = Math.max(...instrument.candles.map((candle) => candle.volume));
+  const maxVolume = Math.max(...displayCandles.map((candle) => candle.volume));
   const priceToY = (price) => chartBottom - ((price - domainMin) / (domainMax - domainMin)) * (chartBottom - chartTop);
   const xForIndex = (index) => left + candleStep * index + candleStep / 2;
-  const activeIndex = hoveredIndex ?? instrument.candles.length - 1;
-  const activeCandle = instrument.candles[activeIndex];
+  const activeIndex = Math.min(hoveredIndex ?? displayCandles.length - 1, displayCandles.length - 1);
+  const activeCandle = displayCandles[activeIndex];
   const activeUp = activeCandle.close >= activeCandle.open;
   const setIndexFromPointer = (event) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - bounds.left) / (bounds.width || 1)) * width;
-    setHoveredIndex(Math.min(Math.max(Math.floor((x - left) / candleStep), 0), instrument.candles.length - 1));
+    setHoveredIndex(Math.min(Math.max(Math.floor((x - left) / candleStep), 0), displayCandles.length - 1));
   };
 
   return <div className="backtest-market-chart">
@@ -247,42 +290,51 @@ function BacktestCandlestickChart({ instrument }) {
       onMouseMove={setIndexFromPointer}
       onMouseLeave={() => setHoveredIndex(null)}
     >
-      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`${instrument.symbol} 캔들 차트와 매수 매도 기록`}>
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`${instrument.symbol} 캔들 차트와 매수 매도 기록`} data-timeframe={timeframe}>
         {[0, .25, .5, .75, 1].map((ratio) => {
           const y = chartTop + (chartBottom - chartTop) * ratio;
           const price = domainMax - (domainMax - domainMin) * ratio;
           return <g key={`price-${ratio}`}><line className="market-chart-gridline" x1={left} x2={width - right} y1={y} y2={y} /><text className="market-chart-price" x={width - right + 10} y={y + 3}>{price.toFixed(2)}</text></g>;
         })}
-        {[0, 4, 8, 12, 17].map((index) => <line key={`time-${index}`} className="market-chart-gridline vertical" x1={xForIndex(index)} x2={xForIndex(index)} y1={chartTop} y2={volumeBottom} />)}
+        {[0, .25, .5, .75, 1].map((ratio) => {
+          const index = Math.round((displayCandles.length - 1) * ratio);
+          return <line key={`time-${ratio}`} className="market-chart-gridline vertical" x1={xForIndex(index)} x2={xForIndex(index)} y1={chartTop} y2={volumeBottom} />;
+        })}
         <line className="market-chart-volume-divider" x1={left} x2={width - right} y1={volumeTop - 12} y2={volumeTop - 12} />
-        {instrument.candles.map((candle, index) => {
+        {displayCandles.map((candle, index) => {
           const x = xForIndex(index);
           const up = candle.close >= candle.open;
           const bodyTop = priceToY(Math.max(candle.open, candle.close));
           const bodyBottom = priceToY(Math.min(candle.open, candle.close));
           const volumeHeight = (candle.volume / maxVolume) * (volumeBottom - volumeTop);
-          return <g key={`${candle.time}-${index}`} className={`market-candle ${up ? 'up' : 'down'}`}>
+          return <g key={`${candle.time}-${index}`} className={`market-candle ${up ? 'up' : 'down'}`} data-testid="market-candle">
             <line className="market-candle-wick" x1={x} x2={x} y1={priceToY(candle.high)} y2={priceToY(candle.low)} vectorEffect="non-scaling-stroke" />
             <rect className="market-candle-body" x={x - candleWidth / 2} y={bodyTop} width={candleWidth} height={Math.max(bodyBottom - bodyTop, 2)} />
             <rect className="market-volume-bar" x={x - candleWidth / 2} y={volumeBottom - volumeHeight} width={candleWidth} height={volumeHeight} />
           </g>;
         })}
         {instrument.executions.map((execution) => {
-          const candle = instrument.candles[execution.index];
-          const x = xForIndex(execution.index);
+          const displayIndex = Math.round((execution.index / (instrument.candles.length - 1)) * (displayCandles.length - 1));
+          const candle = displayCandles[displayIndex];
+          const x = xForIndex(displayIndex);
           const isBuy = execution.side === '매수';
-          const y = isBuy ? Math.min(priceToY(candle.low) + 17, chartBottom - 2) : Math.max(priceToY(candle.high) - 17, chartTop + 2);
+          const candleY = isBuy ? priceToY(candle.low) : priceToY(candle.high);
+          const y = isBuy ? Math.min(candleY + 28, chartBottom - 13) : Math.max(candleY - 28, chartTop + 13);
           return <g key={execution.id} className={`market-trade-marker ${isBuy ? 'buy' : 'sell'}`} data-testid="trade-marker" data-side={isBuy ? 'buy' : 'sell'}>
-            <circle cx={x} cy={y} r="9" />
-            <text x={x} y={y + 3}>{isBuy ? 'B' : 'S'}</text>
-            <line x1={x} x2={x} y1={isBuy ? y - 9 : y + 9} y2={isBuy ? priceToY(candle.low) : priceToY(candle.high)} vectorEffect="non-scaling-stroke" />
+            <line x1={x} x2={x} y1={isBuy ? y - 13 : y + 13} y2={candleY} vectorEffect="non-scaling-stroke" />
+            <rect x={x - 21} y={y - 11} width="42" height="22" rx="11" />
+            <path d={isBuy ? `M ${x - 4} ${y - 10} L ${x} ${y - 15} L ${x + 4} ${y - 10} Z` : `M ${x - 4} ${y + 10} L ${x} ${y + 15} L ${x + 4} ${y + 10} Z`} />
+            <text x={x} y={y + 3}>{execution.side}</text>
           </g>;
         })}
         {hoveredIndex !== null && <>
           <line className="market-chart-crosshair" x1={xForIndex(hoveredIndex)} x2={xForIndex(hoveredIndex)} y1={chartTop} y2={volumeBottom} vectorEffect="non-scaling-stroke" />
           <line className="market-chart-crosshair" x1={left} x2={width - right} y1={priceToY(activeCandle.close)} y2={priceToY(activeCandle.close)} vectorEffect="non-scaling-stroke" />
         </>}
-        {[0, 4, 8, 12, 17].map((index) => <text key={`label-${index}`} className="market-chart-time" x={xForIndex(index)} y={height - 8} textAnchor={index === 0 ? 'start' : index === 17 ? 'end' : 'middle'}>{instrument.candles[index].time.replace('07.', '')}</text>)}
+        {[0, .25, .5, .75, 1].map((ratio) => {
+          const index = Math.round((displayCandles.length - 1) * ratio);
+          return <text key={`label-${ratio}`} className="market-chart-time" x={xForIndex(index)} y={height - 8} textAnchor={ratio === 0 ? 'start' : ratio === 1 ? 'end' : 'middle'}>{displayCandles[index].time.replace('07.', '')}</text>;
+        })}
       </svg>
     </div>
   </div>;
@@ -292,6 +344,7 @@ export function BacktestView() {
   const [selectedBotName, setSelectedBotName] = useState(backtestBots[0].name);
   const [selectedSymbol, setSelectedSymbol] = useState(botInstruments[backtestBots[0].name][0].symbol);
   const [symbolQuery, setSymbolQuery] = useState('');
+  const [timeframe, setTimeframe] = useState('1일');
   const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
   const selectedBotInstruments = botInstruments[selectedBot.name];
   const selectedInstrument = selectedBotInstruments.find((instrument) => instrument.symbol === selectedSymbol) ?? selectedBotInstruments[0];
@@ -348,9 +401,21 @@ export function BacktestView() {
             ><strong>{instrument.symbol}</strong><span>{instrument.name}</span></button>)}
             {filteredInstruments.length === 0 && <small>검색 결과가 없습니다.</small>}
           </div>
-          <div className="backtest-timeframe"><span>1D</span><small>USD</small></div>
         </div>
-        <BacktestCandlestickChart instrument={selectedInstrument} />
+        <div className="backtest-chart-controls">
+          <div className="backtest-timeframe" role="group" aria-label="차트 기간">
+            {chartTimeframes.map((option) => <button
+              key={option}
+              type="button"
+              aria-label={`${option} 차트 보기`}
+              aria-pressed={timeframe === option}
+              className={timeframe === option ? 'active' : ''}
+              onClick={() => setTimeframe(option)}
+            >{option}</button>)}
+          </div>
+          <span>조정주가 · USD</span>
+        </div>
+        <BacktestCandlestickChart key={`${selectedInstrument.symbol}-${timeframe}`} instrument={selectedInstrument} timeframe={timeframe} />
       </Panel>
       <section className="span-3" role="region" aria-label={`${selectedInstrument.symbol} 체결 로그`}>
         <Panel title={`${selectedInstrument.symbol} 매수·매도 로그`} subtitle={`${selectedInstrument.name} · 차트에 표시된 개별 체결`}>
