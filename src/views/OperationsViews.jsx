@@ -122,7 +122,7 @@ const botInstruments = {
 
 const chartTimeframes = ['1시간', '4시간', '1일', '주봉', '달봉', '년봉'];
 const timeframeCandleCounts = { '1시간': 48, '4시간': 38, '1일': 200, '주봉': 24, '달봉': 18, '년봉': 12 };
-const timeframeVisibleCandleCounts = { '1시간': 32, '4시간': 28, '1일': 24, '주봉': 20, '달봉': 16, '년봉': 12 };
+const timeframeVisibleCandleCounts = { '1시간': 32, '4시간': 28, '1일': 60, '주봉': 20, '달봉': 16, '년봉': 12 };
 
 function tradingDayLabel(index) {
   const date = new Date(Date.UTC(2025, 9, 24));

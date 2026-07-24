@@ -57,13 +57,14 @@ describe('BacktestView', () => {
     expect(screen.getAllByTestId('trade-marker')[0]).toHaveTextContent(/매수|매도/);
 
     const dailyCandleCount = screen.getAllByTestId('market-candle').length;
+    expect(dailyCandleCount).toBe(60);
     expect(screen.getByRole('button', { name: '1일 차트 보기' })).toHaveAttribute('aria-pressed', 'true');
 
     await user.click(screen.getByRole('button', { name: '1시간 차트 보기' }));
 
     expect(screen.getByRole('button', { name: '1시간 차트 보기' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('img', { name: 'SPY 캔들 차트와 매수 매도 기록' })).toHaveAttribute('data-timeframe', '1시간');
-    expect(screen.getAllByTestId('market-candle').length).toBeGreaterThan(dailyCandleCount);
+    expect(screen.getAllByTestId('market-candle').length).toBeLessThan(dailyCandleCount);
 
     const symbolSearch = screen.getByRole('searchbox', { name: '종목 검색' });
     await user.type(symbolSearch, 'AAPL');
