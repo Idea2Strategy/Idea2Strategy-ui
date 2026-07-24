@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { BacktestView } from './views/OperationsViews.jsx';
 
 describe('BacktestView', () => {
@@ -116,7 +116,8 @@ describe('BacktestView chart interactions', () => {
   });
 
   test('zooms the candle timeline around the pointer with the mouse wheel', () => {
-    render(<BacktestView />);
+    const parentWheelHandler = vi.fn();
+    render(<div onWheel={parentWheelHandler}><BacktestView /></div>);
 
     const canvas = screen.getByTestId('backtest-candle-canvas');
     canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 });
@@ -124,6 +125,7 @@ describe('BacktestView chart interactions', () => {
 
     fireEvent.wheel(canvas, { clientX: 520, clientY: 210, deltaY: -120 });
 
+    expect(parentWheelHandler).not.toHaveBeenCalled();
     expect(Number(canvas.dataset.visibleCandles)).toBeLessThan(60);
     expect(screen.getAllByTestId('market-candle')).toHaveLength(Number(canvas.dataset.visibleCandles));
     expect(screen.getByText(/휠 확대·축소/)).toBeInTheDocument();

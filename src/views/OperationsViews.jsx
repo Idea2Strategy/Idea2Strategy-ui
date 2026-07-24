@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, ArrowLeft, ArrowUpRight, Bot, CalendarDays, CheckCircle2, Clock3, Coins, Play, Plus, RefreshCw, Search, Trophy, Users } from 'lucide-react';
 import { AreaChart, MiniSpark } from '../components/charts.jsx';
 import { Button, DataTable, PageHeading, Panel, StatCard, Status } from '../components/common.jsx';
@@ -264,6 +264,7 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
   const [visibleCount, setVisibleCount] = useState(defaultVisibleCount);
   const [priceScale, setPriceScale] = useState(1);
   const [dragMode, setDragMode] = useState(null);
+  const canvasRef = useRef(null);
   const interactionRef = useRef(null);
   const maxViewStart = Math.max(0, displayCandles.length - visibleCount);
   const safeViewStart = Math.min(viewStart, maxViewStart);
@@ -350,6 +351,7 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
   };
   const zoomTimeline = (event) => {
     event.preventDefault();
+    event.stopPropagation();
     const point = getChartPoint(event);
     const pointerRatio = Math.min(1, Math.max(0, (point.x - left) / plotWidth));
     const zoomStep = Math.max(4, Math.round(visibleCount * .15));
@@ -363,6 +365,12 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
     setViewStart(Math.min(nextMaxViewStart, Math.max(0, nextViewStart)));
     setHoveredIndex(null);
   };
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+    canvas.addEventListener('wheel', zoomTimeline, { passive: false });
+    return () => canvas.removeEventListener('wheel', zoomTimeline);
+  }, [zoomTimeline]);
   const resetChartView = () => {
     setVisibleCount(defaultVisibleCount);
     setViewStart(Math.max(0, displayCandles.length - defaultVisibleCount));
@@ -381,6 +389,7 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
       <span className="market-chart-gesture-hint">휠 확대·축소 · 좌우 드래그 · 가격축 상하 드래그 · 더블클릭 초기화</span>
     </div>
     <div
+      ref={canvasRef}
       className={`backtest-candle-canvas ${dragMode ? `is-${dragMode}` : ''}`}
       data-testid="backtest-candle-canvas"
       data-total-candles={displayCandles.length}
@@ -391,7 +400,6 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
       onPointerMove={continueInteraction}
       onPointerUp={stopInteraction}
       onPointerCancel={stopInteraction}
-      onWheel={zoomTimeline}
       onDoubleClick={resetChartView}
       onMouseLeave={() => setHoveredIndex(null)}
     >
