@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState } from 'react';
-import { Activity, ArrowLeft, ArrowUpRight, Bot, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Coins, Play, Plus, RefreshCw, Search, Trophy, Users } from 'lucide-react';
-import { AreaChart, BarList, MiniSpark } from '../components/charts.jsx';
-import { Button, DataTable, HelpNote, PageHeading, Panel, StatCard, Status } from '../components/common.jsx';
-import { bots, botSeries, leaderboard, monthlyFailures, positions, trades } from '../data/mockData.js';
+import { useMemo, useState } from 'react';
+import { Activity, ArrowLeft, ArrowUpRight, Bot, CalendarDays, CheckCircle2, Clock3, Coins, Play, Plus, RefreshCw, Search, Trophy, Users } from 'lucide-react';
+import { AreaChart, MiniSpark } from '../components/charts.jsx';
+import { Button, DataTable, PageHeading, Panel, StatCard, Status } from '../components/common.jsx';
+import { bots, botSeries, leaderboard, positions, trades } from '../data/mockData.js';
 import { Localized } from '../lib/i18n.jsx';
 
 const botTone = (state) => state === '실행 중' || state === '평가 중' ? 'positive' : 'warning';
@@ -148,39 +148,40 @@ function BacktestComparisonChart({ bot }) {
 
 export function BacktestView() {
   const [selectedBotName, setSelectedBotName] = useState(backtestBots[0].name);
-  const botRailRef = useRef(null);
   const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
-  const scrollBotRail = (direction) => botRailRef.current?.scrollBy({ left: direction * 320, behavior: 'smooth' });
   const columns = [{ key: 'time', label: '시각 (ET)' }, { key: 'symbol', label: '종목' }, { key: 'side', label: '행동', render: (r) => <span className={r.side === '매수' ? 'buy-text' : 'sell-text'}>{r.side}</span> }, { key: 'order', label: '요청액' }, { key: 'fill', label: '체결액' }, { key: 'fee', label: '수수료' }, { key: 'result', label: '결과' }];
   return <Localized><div className="page backtest-page"><PageHeading eyebrow="BOT PERFORMANCE" title="봇 백테스트" description="트레이딩 봇별 누적 수익률을 같은 기간의 S&P 500과 직접 비교합니다." meta={<Status tone="positive">완료 · 2026 Q3</Status>} actions={<Button icon={CalendarDays}>2023 Q3–2026 Q2</Button>} />
-    <section className="backtest-bot-selector" aria-labelledby="backtest-bot-selector-title">
-      <header>
-        <div><span>TRADING BOTS</span><h2 id="backtest-bot-selector-title">비교할 봇을 선택하세요</h2></div>
-        <div className="backtest-bot-selector-meta"><span>{backtestBots.length}개 봇</span><small>동일 기간 · 동일 초기 자본</small><div className="backtest-bot-scroll-controls"><button type="button" aria-label="이전 봇 보기" onClick={() => scrollBotRail(-1)}><ChevronLeft size={15} /></button><button type="button" aria-label="다음 봇 보기" onClick={() => scrollBotRail(1)}><ChevronRight size={15} /></button></div></div>
-      </header>
-      <div className="backtest-bot-options" role="list" aria-label="백테스트 봇 목록" ref={(node) => { botRailRef.current = node; }}>
-        {backtestBots.map((bot) => <div role="listitem" key={bot.name}><button
-          className={bot.name === selectedBot.name ? 'active' : ''}
-          type="button"
-          aria-label={`${bot.name} 백테스트 보기`}
-          aria-pressed={bot.name === selectedBot.name}
-          onClick={() => setSelectedBotName(bot.name)}
-        >
-          <span className="backtest-bot-icon"><Bot size={17} /></span>
-          <span><strong>{bot.name}</strong><small>{bot.strategy}</small></span>
-          <b className={bot.return.startsWith('+') ? 'positive' : 'negative'}>{bot.return}</b>
-        </button></div>)}
-      </div>
-    </section>
+    <div className="backtest-comparison-workspace" data-testid="backtest-comparison-workspace">
+      <Panel className="backtest-performance-panel" title={`${selectedBot.name} vs S&P 500`} subtitle="2023 Q3–2026 Q2 · 누적 수익률 (%)">
+        <div className="backtest-comparison-summary">
+          <div className="is-bot"><span>{selectedBot.name}</span><strong>{selectedBot.return}</strong><small>{selectedBot.strategy}</small></div>
+          <div className="is-benchmark"><span>S&P 500</span><strong>{backtestBenchmark.return}</strong><small>시장 기준선</small></div>
+          <div className="backtest-chart-legend"><span className="bot"><i />선택한 봇</span><span className="benchmark"><i />S&P 500</span></div>
+        </div>
+        <BacktestComparisonChart bot={selectedBot} />
+      </Panel>
+      <aside className="backtest-bot-selector" aria-labelledby="backtest-bot-selector-title">
+        <header>
+          <div><span>TRADING BOTS</span><h2 id="backtest-bot-selector-title">봇 선택</h2></div>
+          <small>{backtestBots.length}개 봇 · 동일 기간</small>
+        </header>
+        <div className="backtest-bot-options" role="list" aria-label="백테스트 봇 목록">
+          {backtestBots.map((bot) => <div role="listitem" key={bot.name}><button
+            className={bot.name === selectedBot.name ? 'active' : ''}
+            type="button"
+            aria-label={`${bot.name} 백테스트 보기`}
+            aria-pressed={bot.name === selectedBot.name}
+            onClick={() => setSelectedBotName(bot.name)}
+          >
+            <span className="backtest-bot-icon"><Bot size={17} /></span>
+            <span><strong>{bot.name}</strong><small>{bot.strategy}</small></span>
+            <b className={bot.return.startsWith('+') ? 'positive' : 'negative'}>{bot.return}</b>
+          </button></div>)}
+        </div>
+      </aside>
+    </div>
     <div className="stats-grid four"><StatCard label="봇 수익률" value={selectedBot.return} detail={selectedBot.strategy} icon={ArrowUpRight} /><StatCard label="S&P 500 대비" value={selectedBot.alpha} detail={`S&P 500 ${backtestBenchmark.return}`} icon={Activity} /><StatCard label="최대 낙폭" value={selectedBot.drawdown} detail="기간 내 고점 대비" icon={CheckCircle2} /><StatCard label="개별 체결" value={String(selectedBot.trades)} detail="부분 체결 각각 집계" icon={Coins} /></div>
-    <div className="content-grid backtest-grid"><Panel className="span-2 backtest-performance-panel" title={`${selectedBot.name} vs S&P 500`} subtitle="2023 Q3–2026 Q2 · 누적 수익률 (%)">
-      <div className="backtest-comparison-summary">
-        <div className="is-bot"><span>{selectedBot.name}</span><strong>{selectedBot.return}</strong><small>{selectedBot.strategy}</small></div>
-        <div className="is-benchmark"><span>S&P 500</span><strong>{backtestBenchmark.return}</strong><small>시장 기준선</small></div>
-        <div className="backtest-chart-legend"><span className="bot"><i />선택한 봇</span><span className="benchmark"><i />S&P 500</span></div>
-      </div>
-      <BacktestComparisonChart bot={selectedBot} />
-    </Panel><Panel title="조건 미충족 요약" subtitle={`${selectedBot.name} · 최초 실패 조건별 월간 횟수`}><BarList items={monthlyFailures} /><HelpNote>거래가 없었던 개별 평가 로그는 보존하거나 표시하지 않습니다.</HelpNote></Panel><Panel className="span-3" title={`${selectedBot.name} 거래 상세`} subtitle="주문·개별 체결·취소·거절과 거래 후 상태"><DataTable columns={columns} rows={trades} rowKey="time" /></Panel></div>
+    <div className="content-grid backtest-grid"><Panel className="span-3" title={`${selectedBot.name} 거래 상세`} subtitle="주문·개별 체결·취소·거절과 거래 후 상태"><DataTable columns={columns} rows={trades} rowKey="time" /></Panel></div>
   </div></Localized>;
 }
 

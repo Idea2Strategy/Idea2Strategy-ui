@@ -2082,8 +2082,17 @@
 .variant-balanced[data-design="signal-studio"] .backtest-page {
   max-width: 1380px;
 }
-.variant-balanced[data-design="signal-studio"] .backtest-bot-selector {
+.variant-balanced[data-design="signal-studio"] .backtest-comparison-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 2.15fr) minmax(280px, .85fr);
+  align-items: stretch;
+  gap: var(--space-4);
   margin-bottom: var(--space-4);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-bot-selector {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 3px;
@@ -2091,7 +2100,7 @@
   box-shadow: var(--shadow);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-bot-selector > header {
-  min-height: 64px;
+  min-height: 68px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2116,60 +2125,27 @@
   color: var(--text-faint);
   font: 9px var(--font-mono);
 }
-.variant-balanced[data-design="signal-studio"] .backtest-bot-selector-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.variant-balanced[data-design="signal-studio"] .backtest-bot-selector-meta > span {
-  padding-right: 12px;
-  border-right: 1px solid var(--line);
-  color: var(--text-faint);
-  font: 700 9px var(--font-mono);
-  letter-spacing: 0;
-}
-.variant-balanced[data-design="signal-studio"] .backtest-bot-scroll-controls {
-  display: flex;
-  gap: 4px;
-}
-.variant-balanced[data-design="signal-studio"] .backtest-bot-scroll-controls button {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 2px;
-  color: var(--text-faint);
-  background: var(--surface-2);
-  cursor: pointer;
-}
-.variant-balanced[data-design="signal-studio"] .backtest-bot-scroll-controls button:hover {
-  border-color: var(--line-strong);
-  color: var(--text);
-  background: var(--accent-soft);
-}
 .variant-balanced[data-design="signal-studio"] .backtest-bot-options {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(270px, calc((100% - 2px) / 3));
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   gap: 1px;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  scroll-behavior: smooth;
-  scroll-snap-type: x proximity;
+  overflow-y: auto;
+  overscroll-behavior-block: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
   background: var(--line);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-bot-options > div {
   min-width: 0;
-  scroll-snap-align: start;
+  flex: 1 0 82px;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-bot-options > div > button {
   width: 100%;
+  height: 100%;
   min-width: 0;
-  min-height: 72px;
+  min-height: 82px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -4392,8 +4368,8 @@
     min-height:0;
     align-items:flex-start;
   }
-  .variant-balanced[data-design="signal-studio"] .backtest-bot-options {
-    grid-auto-columns: min(84vw, 300px);
+  .variant-balanced[data-design="signal-studio"] .backtest-comparison-workspace {
+    grid-template-columns: 1fr;
   }
   .variant-balanced[data-design="signal-studio"] .backtest-bot-selector > header,
   .variant-balanced[data-design="signal-studio"] .backtest-comparison-summary {
@@ -4403,12 +4379,8 @@
   .variant-balanced[data-design="signal-studio"] .backtest-chart-legend {
     margin-left: 0;
   }
-  .variant-balanced[data-design="signal-studio"] .backtest-bot-selector-meta {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-  .variant-balanced[data-design="signal-studio"] .backtest-bot-scroll-controls {
-    margin-left: auto;
+  .variant-balanced[data-design="signal-studio"] .backtest-bot-options {
+    max-height: 330px;
   }
   .variant-balanced[data-design="signal-studio"] .backtest-comparison-chart {
     height: 280px;

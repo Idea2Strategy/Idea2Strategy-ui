@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, test, vi } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import { BacktestView } from './views/OperationsViews.jsx';
 
 describe('BacktestView', () => {
@@ -26,15 +26,14 @@ describe('BacktestView', () => {
     expect(screen.getAllByText('-13.4%').length).toBeGreaterThan(0);
   });
 
-  test('keeps a growing bot list navigable and reveals values at the hovered point', async () => {
-    const user = userEvent.setup();
+  test('places a vertical bot selector beside the chart and reveals values at the hovered point', () => {
     render(<BacktestView />);
 
-    const botRail = screen.getByRole('list', { name: '백테스트 봇 목록' });
-    botRail.scrollBy = vi.fn();
-
-    await user.click(screen.getByRole('button', { name: '다음 봇 보기' }));
-    expect(botRail.scrollBy).toHaveBeenCalledWith({ left: 320, behavior: 'smooth' });
+    const comparisonWorkspace = screen.getByTestId('backtest-comparison-workspace');
+    expect(within(comparisonWorkspace).getByRole('list', { name: '백테스트 봇 목록' })).toBeInTheDocument();
+    expect(within(comparisonWorkspace).getByRole('heading', { name: '봇 선택' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '조건 미충족 요약' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '다음 봇 보기' })).not.toBeInTheDocument();
 
     const chart = screen.getByTestId('backtest-comparison-chart');
     chart.getBoundingClientRect = () => ({ left: 0, width: 820 });
