@@ -91,6 +91,7 @@ describe('BacktestView chart interactions', () => {
 
     const canvas = screen.getByTestId('backtest-candle-canvas');
     canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 });
+    expect(canvas).toHaveAttribute('data-total-candles', '200');
     const initialViewStart = Number(canvas.dataset.viewStart);
     const initialPriceScale = Number(canvas.dataset.priceScale);
 

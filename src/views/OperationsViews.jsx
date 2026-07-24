@@ -121,13 +121,24 @@ const botInstruments = {
 };
 
 const chartTimeframes = ['1시간', '4시간', '1일', '주봉', '달봉', '년봉'];
-const timeframeCandleCounts = { '1시간': 48, '4시간': 38, '1일': 30, '주봉': 24, '달봉': 18, '년봉': 12 };
+const timeframeCandleCounts = { '1시간': 48, '4시간': 38, '1일': 200, '주봉': 24, '달봉': 18, '년봉': 12 };
 const timeframeVisibleCandleCounts = { '1시간': 32, '4시간': 28, '1일': 24, '주봉': 20, '달봉': 16, '년봉': 12 };
+
+function tradingDayLabel(index) {
+  const date = new Date(Date.UTC(2025, 9, 24));
+  let remainingDays = index;
+  while (remainingDays > 0) {
+    date.setUTCDate(date.getUTCDate() + 1);
+    const weekday = date.getUTCDay();
+    if (weekday !== 0 && weekday !== 6) remainingDays -= 1;
+  }
+  return `${date.getUTCFullYear()}.${String(date.getUTCMonth() + 1).padStart(2, '0')}.${String(date.getUTCDate()).padStart(2, '0')}`;
+}
 
 function timeframeLabel(timeframe, index) {
   if (timeframe === '1시간') return `07.${String(15 + Math.floor(index / 7)).padStart(2, '0')} ${String(9 + (index % 7)).padStart(2, '0')}:30`;
   if (timeframe === '4시간') return `07.${String(2 + index).padStart(2, '0')} ${index % 2 ? '13:00' : '09:00'}`;
-  if (timeframe === '1일') return `07.${String(1 + index).padStart(2, '0')}`;
+  if (timeframe === '1일') return tradingDayLabel(index);
   if (timeframe === '주봉') return `2026 ${String(index + 1).padStart(2, '0')}주`;
   if (timeframe === '달봉') return `${2025 + Math.floor(index / 12)}.${String((index % 12) + 1).padStart(2, '0')}`;
   return String(2015 + index);
@@ -355,6 +366,7 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
     <div
       className={`backtest-candle-canvas ${dragMode ? `is-${dragMode}` : ''}`}
       data-testid="backtest-candle-canvas"
+      data-total-candles={displayCandles.length}
       data-view-start={safeViewStart}
       data-price-scale={priceScale.toFixed(3)}
       onPointerDown={startInteraction}
