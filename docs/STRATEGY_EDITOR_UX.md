@@ -173,16 +173,50 @@
 
 ## 10. 코드 위치
 
+이 표는 2026-07-25 기준 실제 파일 구조다. 이전 판의 `src/data.ts`, `src/types.ts`,
+`src/features/strategy/*.tsx`, `src/styles.css` 경로와 React Flow 전제는 더 이상
+저장소와 맞지 않으므로 사용하지 않는다. 현재 저장소는 TypeScript가 아닌 JSX이며
+React Flow 의존성도 없다.
+
 | 파일 | 역할 |
 |---|---|
-| `src/data.ts` | Basic·Pro 블록 정의, 포트와 파라미터 스키마 |
-| `src/types.ts` | 타입 언어, 노드, 검증 이슈 타입 |
-| `src/features/strategy/StrategyControls.tsx` | 공통 포트·입력 컴포넌트 |
-| `src/features/strategy/BasicStrategyEditor.tsx` | 강제 순서 퍼즐과 완료 검사 |
-| `src/features/strategy/ProStrategyEditor.tsx` | 자유 그래프, 연결 검사, 그룹, 린터, 미리보기 |
-| `src/features/StrategyPage.tsx` | 기존 전략 화면 셸과 튜토리얼 |
-| `src/tutorialStorage.ts` | Basic·Pro 튜토리얼 확인 완료 상태 |
-| `src/styles.css` | 기존 디자인 토큰과 전략 편집기 시각 규칙 |
+| `src/views/StrategyViews.jsx` | 전략 목록, Basic 편집기, Pro 편집기와 노드·포트 정의 |
+| `src/lib/i18n.jsx` | 한국어 원문을 영어로 치환하는 로케일 사전과 `Localized` |
+| `src/components/common.jsx` | `PageHeading`, `Button`, `Panel` 등 공통 컴포넌트 |
+| `src/styles/base.css` | 편집기 셸(`.editor-shell-page`)과 노드·포트 기본 규칙 |
+| `src/styles/balanced.css` | Signal Studio 편집기 시각 규칙과 Pro 그래프 스타일 |
+| `src/BasicEditorInteraction.test.jsx` | Basic 편집기 상호작용 테스트 |
+| `src/ProEditorInteraction.test.jsx` | Pro 편집기 상호작용 테스트 |
+
+Basic 편집기와 Pro 편집기는 `.editor-shell-page` 하나로 같은 무한 캔버스 셸을
+공유한다. 떠 있는 상단 도구 모음, 좌우 부유 패널, 커서 점 배경, 휠 확대/축소,
+빈 공간 드래그 이동, 스페이스바 이동, 하단 삭제 박스는 두 편집기가 같은 규칙과
+같은 CSS를 사용한다. 두 편집기의 차이는 캔버스 위에 놓이는 형태뿐이다. Basic은
+퍼즐 블록, Pro는 좌우 연결 노드를 사용한다.
+
+### 10.1 현재 Pro 편집기 구현 범위
+
+구현됨:
+
+- 노드 자유 배치, 휠 확대/축소, 빈 공간·스페이스바 화면 이동
+- 출력에서 입력으로 선을 끌어 만드는 실제 연결과 연결선 클릭·키보드 삭제
+- 하나의 출력이 여러 노드로 갈라지는 병렬 분기와 `합류` 노드로의 재결합
+- 타입·자기연결·중복 입력·순환 검사와 `문제 → 영향 → 해결` 안내
+- 연결 중 호환 포트 강조와 연결 불가 노드 흐리기
+- 왼쪽 노드 라이브러리에서 클릭 또는 드래그로 노드 추가
+- 연결을 빈 공간에 놓으면 열리는 호환 노드 선택창과 자동 연결
+- 선택 노드 설정(이름·기준값·시간축)과 연결부 타입 목록
+- `Delete`·`Backspace` 삭제, 하단 삭제 박스 드롭 삭제, 알림의 `실행 취소` 복원
+- 구조 검사와 데스크톱 전용 안내
+
+아직 구현되지 않음:
+
+- 그룹 묶기·접기와 그룹 대표 포트
+- 개인 블루프린트 저장과 재사용
+- 40단계 실행 취소·다시 실행 기록과 자동 정렬
+- 하단 시장 차트·신호 미리보기·데이터 품질 패널
+- Pro 튜토리얼 5단계 실습과 접근성 순서 목록
+- 브라우저 저장. 현재 그래프는 화면을 벗어나면 유지되지 않는다.
 
 ## 11. 브라우저 검증 항목
 
