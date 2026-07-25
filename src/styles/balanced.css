@@ -760,7 +760,8 @@
   background: var(--block-tone-surface);
 }
 
-.variant-balanced[data-design="signal-studio"] .section-draw-controls {
+.variant-balanced[data-design="signal-studio"] .section-draw-controls,
+.variant-balanced[data-design="signal-studio"] .pro-graph-controls {
   position: absolute;
   z-index: 11;
   top: 15px;
@@ -770,7 +771,8 @@
   gap: 9px;
   transform: translateX(-50%);
 }
-.variant-balanced[data-design="signal-studio"] .section-draw-controls > button {
+.variant-balanced[data-design="signal-studio"] .section-draw-controls > button,
+.variant-balanced[data-design="signal-studio"] .pro-graph-controls > button {
   min-height: 34px;
   display: flex;
   align-items: center;
@@ -785,7 +787,8 @@
   border-color: color-mix(in srgb, var(--accent) 58%, var(--line-strong));
   background: color-mix(in srgb, var(--accent-soft) 76%, var(--surface));
 }
-.variant-balanced[data-design="signal-studio"] .section-draw-controls > span {
+.variant-balanced[data-design="signal-studio"] .section-draw-controls > span,
+.variant-balanced[data-design="signal-studio"] .pro-graph-controls > span {
   padding: 7px 9px;
   border: 1px solid color-mix(in srgb, var(--line-strong) 70%, transparent);
   border-radius: 8px;
@@ -811,7 +814,8 @@
 .variant-balanced[data-design="signal-studio"].theme-light .cursor-dot-spotlight {
   background-image: radial-gradient(circle, rgba(20, 42, 28, .48) 1px, transparent 1.15px);
 }
-.variant-balanced[data-design="signal-studio"] .section-workspace {
+.variant-balanced[data-design="signal-studio"] .section-workspace,
+.variant-balanced[data-design="signal-studio"] .graph-workspace {
   position: absolute;
   z-index: 1;
   inset: 0;
@@ -819,8 +823,12 @@
   cursor: grab;
   touch-action: none;
 }
-.variant-balanced[data-design="signal-studio"] .section-workspace.is-panning {
+.variant-balanced[data-design="signal-studio"] .section-workspace.is-panning,
+.variant-balanced[data-design="signal-studio"] .graph-workspace.is-panning {
   cursor: grabbing;
+}
+.variant-balanced[data-design="signal-studio"] .graph-workspace.is-linking {
+  cursor: crosshair;
 }
 .variant-balanced[data-design="signal-studio"] .section-workspace.is-drawing-mode {
   cursor: crosshair;
@@ -894,7 +902,8 @@
   from { opacity: 0; transform: translate(-50%, 18px) scale(.96); }
   to { opacity: 1; transform: translate(-50%, 8px) scale(1); }
 }
-.variant-balanced[data-design="signal-studio"] .section-world {
+.variant-balanced[data-design="signal-studio"] .section-world,
+.variant-balanced[data-design="signal-studio"] .graph-world {
   position: absolute;
   inset: 0;
   transform-origin: 0 0;
@@ -4651,4 +4660,291 @@
   .variant-balanced[data-design="signal-studio"] .backtest-candle-canvas {
     height: 340px;
   }
+}
+
+/* Pro strategy editor — shares the Basic infinite-canvas shell, node geometry only. */
+.variant-balanced[data-design="signal-studio"] .pro-editor-title {
+  margin: 0 0 0 4px;
+  color: var(--text);
+  font: 700 12px/1.2 var(--font-sans);
+  letter-spacing: -.01em;
+}
+.variant-balanced[data-design="signal-studio"] .pro-editor-meta {
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 70%, transparent);
+  border-radius: 8px;
+  color: var(--text-faint);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  font: 8px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .pro-editor-page .library-intro {
+  margin: 0 12px 4px;
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.variant-balanced[data-design="signal-studio"] .node-chip-list {
+  display: grid;
+  gap: 5px;
+  padding: 0 10px 11px;
+}
+.variant-balanced[data-design="signal-studio"] .node-chip-list > button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-soft);
+  background: var(--surface-2);
+  text-align: left;
+  cursor: grab;
+  transition: border-color 130ms ease-out, background-color 130ms ease-out, transform 130ms ease-out;
+}
+.variant-balanced[data-design="signal-studio"] .node-chip-list > button:hover,
+.variant-balanced[data-design="signal-studio"] .node-chip-list > button:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--line-strong));
+  background: color-mix(in srgb, var(--accent-soft) 40%, var(--surface-2));
+}
+.variant-balanced[data-design="signal-studio"] .node-chip-list > button.is-library-dragging {
+  opacity: .5;
+  cursor: grabbing;
+}
+.variant-balanced[data-design="signal-studio"] .node-chip-list > button > span {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.variant-balanced[data-design="signal-studio"] .node-chip-list strong { color: var(--text); font-size: 10px; }
+.variant-balanced[data-design="signal-studio"] .node-chip-list small { color: var(--text-faint); font-size: 8px; }
+
+/* Links */
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-links {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .graph-link {
+  fill: none;
+  stroke: color-mix(in srgb, var(--accent) 72%, var(--line-strong));
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.variant-balanced[data-design="signal-studio"] .graph-link.is-draft {
+  stroke: var(--accent);
+  stroke-dasharray: 6 5;
+}
+.variant-balanced[data-design="signal-studio"] .graph-link-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.variant-balanced[data-design="signal-studio"] .graph-links g:hover .graph-link {
+  stroke: var(--negative);
+}
+.variant-balanced[data-design="signal-studio"] .graph-link-hit:focus-visible {
+  outline: 0;
+  stroke: color-mix(in srgb, var(--negative) 26%, transparent);
+}
+
+/* Nodes */
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-node {
+  --node-tone: var(--accent);
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--node-tone);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 14px 34px rgba(9, 18, 28, .18), inset 0 1px rgba(255, 255, 255, .04);
+  pointer-events: auto;
+  cursor: move;
+  transition: border-color 140ms ease-out, box-shadow 140ms ease-out, opacity 140ms ease-out;
+}
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-node.tone-universe { --node-tone: #2dd4bf; }
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-node.tone-data { --node-tone: #38bdf8; }
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-node.tone-indicator { --node-tone: #a78bfa; }
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-node.tone-condition { --node-tone: #fb923c; }
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-node.tone-logic { --node-tone: #fbbf24; }
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-node.tone-order { --node-tone: #94a3b8; }
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-node.tone-risk { --node-tone: #f87171; }
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-node header { margin-bottom: 10px; color: var(--node-tone); }
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-node > strong { color: var(--text); font-size: 11px; }
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-node.is-selected {
+  z-index: 6;
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--line-strong));
+  box-shadow: 0 20px 44px rgba(9, 18, 28, .26), 0 0 0 2px color-mix(in srgb, var(--accent) 26%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-node.is-node-moving {
+  z-index: 8;
+  cursor: grabbing;
+}
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-node.is-link-ready {
+  border-color: var(--accent);
+  box-shadow: 0 20px 44px rgba(9, 18, 28, .26), 0 0 0 2px color-mix(in srgb, var(--accent) 34%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .pro-canvas .graph-node.is-link-blocked { opacity: .38; }
+.variant-balanced[data-design="signal-studio"] .graph-node-handle {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  padding: 2px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text-faint);
+  background: transparent;
+  cursor: grab;
+}
+.variant-balanced[data-design="signal-studio"] .graph-node-handle:hover { color: var(--text); background: var(--surface-2); }
+
+/* Typed ports — shape carries the meaning, colour only reinforces it. */
+.variant-balanced[data-design="signal-studio"] .graph-port {
+  position: absolute;
+  z-index: 3;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  color: var(--text-faint);
+  background: transparent;
+  font: 7px var(--font-mono);
+  cursor: crosshair;
+}
+.variant-balanced[data-design="signal-studio"] .graph-port--in { left: -9px; }
+.variant-balanced[data-design="signal-studio"] .graph-port--out { right: -9px; flex-direction: row-reverse; }
+.variant-balanced[data-design="signal-studio"] .graph-port > span { white-space: nowrap; }
+.variant-balanced[data-design="signal-studio"] .graph-port:hover,
+.variant-balanced[data-design="signal-studio"] .graph-port:focus-visible { color: var(--text); }
+.variant-balanced[data-design="signal-studio"] .graph-port.is-compatible .port-shape {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .port-shape {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border: 2px solid var(--text-faint);
+  background: var(--surface);
+  transition: border-color 130ms ease-out, background-color 130ms ease-out, box-shadow 130ms ease-out;
+}
+.variant-balanced[data-design="signal-studio"] .graph-port.is-linked .port-shape { border-color: var(--accent); }
+.variant-balanced[data-design="signal-studio"] .port-shape--universe {
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--surface), inset 0 0 0 4px currentColor;
+}
+.variant-balanced[data-design="signal-studio"] .port-shape--series { border-radius: 2px; }
+.variant-balanced[data-design="signal-studio"] .port-shape--scalar { border-radius: 2px; transform: rotate(45deg); }
+.variant-balanced[data-design="signal-studio"] .port-shape--signal {
+  border: 0;
+  background: var(--text-faint);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.variant-balanced[data-design="signal-studio"] .graph-port.is-linked .port-shape--signal,
+.variant-balanced[data-design="signal-studio"] .graph-port.is-compatible .port-shape--signal { background: var(--accent); }
+.variant-balanced[data-design="signal-studio"] .port-shape--order {
+  border: 0;
+  background: var(--text-faint);
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+}
+.variant-balanced[data-design="signal-studio"] .graph-port.is-linked .port-shape--order,
+.variant-balanced[data-design="signal-studio"] .graph-port.is-compatible .port-shape--order { background: var(--accent); }
+
+/* Compatible-node picker */
+.variant-balanced[data-design="signal-studio"] .node-picker div > button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.variant-balanced[data-design="signal-studio"] .node-picker div > button:hover,
+.variant-balanced[data-design="signal-studio"] .node-picker div > button:focus-visible { background: var(--accent-soft); }
+.variant-balanced[data-design="signal-studio"] .node-picker div > button > span { display: grid; flex: 1; gap: 2px; }
+.variant-balanced[data-design="signal-studio"] .node-picker div > button strong { font-size: 10px; }
+.variant-balanced[data-design="signal-studio"] .node-picker div > button small { color: var(--text-faint); font-size: 8px; }
+.variant-balanced[data-design="signal-studio"] .node-picker-empty { padding: 4px 12px 14px; color: var(--text-faint); font-size: 10px; }
+
+/* Inspector */
+.variant-balanced[data-design="signal-studio"] .pro-editor-page .empty-input { gap: 8px; padding-right: 8px; }
+.variant-balanced[data-design="signal-studio"] .pro-editor-page .empty-input input {
+  min-height: 33px;
+  flex: 1;
+  border: 0;
+  background: transparent;
+}
+.variant-balanced[data-design="signal-studio"] .inspector-ports {
+  display: grid;
+  gap: 9px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .inspector-ports > p {
+  color: var(--text-faint);
+  font: 8px var(--font-mono);
+  letter-spacing: .6px;
+}
+.variant-balanced[data-design="signal-studio"] .inspector-ports > span {
+  display: grid;
+  grid-template-columns: 14px auto;
+  align-items: center;
+  gap: 2px 9px;
+}
+.variant-balanced[data-design="signal-studio"] .inspector-ports b { color: var(--text); font-size: 10px; }
+.variant-balanced[data-design="signal-studio"] .inspector-ports small { grid-column: 2; color: var(--text-faint); font: 8px var(--font-mono); }
+.variant-balanced[data-design="signal-studio"] .inspector-actions { display: flex; padding: 12px 14px; }
+.variant-balanced[data-design="signal-studio"] .inspector-empty { padding: 16px 14px; color: var(--text-faint); font-size: 10px; line-height: 1.6; }
+
+/* Problem, impact and resolution notice */
+.variant-balanced[data-design="signal-studio"] .pro-editor-notice {
+  position: absolute;
+  z-index: 40;
+  right: 336px;
+  bottom: 22px;
+  left: 286px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 82%, transparent);
+  border-left: 3px solid var(--accent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: 0 22px 54px rgba(11, 20, 31, .22);
+  backdrop-filter: blur(18px);
+}
+.variant-balanced[data-design="signal-studio"] .pro-editor-notice[data-tone="error"] { border-left-color: var(--negative); }
+.variant-balanced[data-design="signal-studio"] .pro-editor-notice > div { display: grid; gap: 4px; }
+.variant-balanced[data-design="signal-studio"] .pro-editor-notice strong { color: var(--text); font-size: 11px; line-height: 1.5; }
+.variant-balanced[data-design="signal-studio"] .pro-editor-notice span { color: var(--text-soft); font-size: 10px; line-height: 1.5; }
+.variant-balanced[data-design="signal-studio"] .pro-editor-notice small { color: var(--text-faint); font: 8px var(--font-mono); }
+.variant-balanced[data-design="signal-studio"] .pro-editor-notice-actions { display: flex; align-items: center; gap: 6px; }
+.variant-balanced[data-design="signal-studio"] .pro-editor-notice-actions > button:last-child {
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+}
+@media (max-width: 1180px) {
+  .variant-balanced[data-design="signal-studio"] .pro-editor-notice { right: 22px; }
 }

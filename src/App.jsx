@@ -59,10 +59,6 @@ function Topbar({ theme, setTheme, page, setPage }) {
   </header></Localized>;
 }
 
-function StrategySubnav({ openEditor, mode }) {
-  return <Localized><div className="strategy-subnav" data-testid="strategy-editor-subnav"><span>EDITOR</span><button className={mode === 'basic' ? 'active' : ''} onClick={() => openEditor('basic')}>Basic 편집기</button><button className={mode === 'pro' ? 'active' : ''} onClick={() => openEditor('pro')}>Pro 편집기</button></div></Localized>;
-}
-
 function ProductApp() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -82,7 +78,7 @@ function ProductApp() {
     <Route path="/" element={<DashboardView setPage={setPage} openEditor={openEditor} />} />
     <Route path="/strategies" element={<StrategyHome openEditor={openEditor} />} />
     <Route path="/strategies/new/basic" element={<BasicEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} />} />
-    <Route path="/strategies/new/pro" element={<ProEditor goBack={() => navigate(pagePaths.strategy)} />} />
+    <Route path="/strategies/new/pro" element={<ProEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} />} />
     <Route path="/bots" element={<BotsView />} />
     <Route path="/backtests" element={<BacktestView />} />
     <Route path="/competition" element={<RoomsView />} />
@@ -101,7 +97,6 @@ function ProductApp() {
       <Topbar theme={theme} setTheme={setTheme} page={page} setPage={setPage} />
       {isStrategyEditor
         ? <div className="strategy-editor-surface" data-testid="strategy-editor-surface">
-          {strategyMode === 'pro' && <StrategySubnav openEditor={openEditor} mode={strategyMode} />}
           <div className="page-scroll">{content}</div>
         </div>
         : <div className="page-scroll">{content}</div>}

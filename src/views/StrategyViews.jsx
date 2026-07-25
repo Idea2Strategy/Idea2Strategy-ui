@@ -1308,7 +1308,7 @@ export function BasicEditor({ goBack, openEditor }) {
         ? '파티션'
         : null;
 
-  return <Localized><div className="page editor-page basic-editor-page">
+  return <Localized><div className="page editor-page basic-editor-page editor-shell-page">
     <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
     <div className="basic-editor-commandbar floating-editor-controls" role="toolbar" aria-label="Basic 편집 작업">
       <div className="basic-editor-context"><Button className="floating-editor-button" kind="ghost" icon={ArrowLeft} onClick={goBack}>목록</Button><div className="floating-editor-mode-controls" role="group" aria-label="편집기 전환"><Button className="floating-editor-button active" onClick={() => openEditor?.('basic')}>Basic 편집기</Button><Button className="floating-editor-button" onClick={() => openEditor?.('pro')}>Pro 편집기</Button></div></div>
@@ -1468,20 +1468,902 @@ export function BasicEditor({ goBack, openEditor }) {
   </div></Localized>;
 }
 
-const GraphNode = ({ className = '', icon: Icon, kicker, title, detail, outputs = [], x, y, children }) => <article className={`graph-node ${className}`} style={{ left: x, top: y }}><header>{Icon && <Icon size={15} />}<span>{kicker}</span><button aria-label={`${title} 메뉴`}>•••</button></header><strong>{title}</strong><small>{detail}</small>{children}{outputs.length > 0 && <div className="node-outputs">{outputs.map((output) => <span key={output.label} className={`node-output output-${output.tone}`}><small>{output.label}</small><i /></span>)}</div>}</article>;
+const PRO_NODE_WIDTH = 196;
+const PRO_PORT_START = 88;
+const PRO_PORT_GAP = 26;
 
-export function ProEditor({ goBack }) {
+const PRO_PORT_TYPES = {
+  universe: { name: '종목 집합', shape: '이중 원' },
+  series: { name: '시세 계열', shape: '정사각형' },
+  scalar: { name: '지표 값', shape: '마름모' },
+  signal: { name: '판단 신호', shape: '삼각형' },
+  order: { name: '주문 후보', shape: '육각형' },
+};
+
+const describePortType = (type) => PRO_PORT_TYPES[type] ?? { name: type, shape: '기본 모양' };
+
+const PRO_NODE_LIBRARY = [
+  {
+    category: '유니버스',
+    tone: 'universe',
+    items: [{
+      id: 'basket',
+      kicker: 'UNIVERSE',
+      title: '직접 선택 바스켓',
+      detail: '사용자가 직접 고른 종목 집합',
+      icon: Boxes,
+      inputs: [],
+      outputs: [{ id: 'out', type: 'universe', label: '종목 집합' }],
+    }],
+  },
+  {
+    category: '시장 데이터',
+    tone: 'data',
+    items: [{
+      id: 'quotes',
+      kicker: 'DATA',
+      title: '가격·거래량',
+      detail: '시간축을 직접 선택합니다',
+      icon: Layers3,
+      inputs: [{ id: 'in', type: 'universe', label: '종목 집합' }],
+      outputs: [{ id: 'out', type: 'series', label: '시세 계열' }],
+    }],
+  },
+  {
+    category: '특징 · 지표',
+    tone: 'indicator',
+    items: [{
+      id: 'feature',
+      kicker: 'FEATURE',
+      title: '지표 계산',
+      detail: '기간을 직접 입력합니다',
+      icon: Sparkles,
+      inputs: [{ id: 'in', type: 'series', label: '시세 계열' }],
+      outputs: [{ id: 'out', type: 'scalar', label: '지표 값' }],
+    }],
+  },
+  {
+    category: '조건 · 신호',
+    tone: 'condition',
+    items: [{
+      id: 'compare',
+      kicker: 'CONDITION',
+      title: '값 비교',
+      detail: '같은 타입의 두 값 비교',
+      icon: GitBranch,
+      group: '조건 · 비교',
+      inputs: [{ id: 'in', type: 'scalar', label: '지표 값' }],
+      outputs: [{ id: 'true', type: 'signal', label: '참 신호' }, { id: 'false', type: 'signal', label: '거짓 신호' }],
+    }, {
+      id: 'position',
+      kicker: 'CONDITION',
+      title: '포지션 확인',
+      detail: '보유 수량과 상태 비교',
+      icon: ShieldCheck,
+      group: '조건 · 비교',
+      inputs: [{ id: 'in', type: 'signal', label: '판단 신호' }],
+      outputs: [{ id: 'true', type: 'signal', label: '참 신호' }, { id: 'false', type: 'signal', label: '거짓 신호' }],
+    }],
+  },
+  {
+    category: '일정 · 제어',
+    tone: 'logic',
+    items: [{
+      id: 'branch',
+      kicker: 'CONTROL',
+      title: '분기',
+      detail: '같은 신호를 여러 갈래로 보냅니다',
+      icon: Split,
+      inputs: [{ id: 'in', type: 'signal', label: '판단 신호' }],
+      outputs: [{ id: 'a', type: 'signal', label: '갈래 1' }, { id: 'b', type: 'signal', label: '갈래 2' }],
+    }, {
+      id: 'merge',
+      kicker: 'CONTROL',
+      title: '합류',
+      detail: '여러 갈래를 하나로 모읍니다',
+      icon: Import,
+      inputs: [{ id: 'a', type: 'signal', label: '갈래 1' }, { id: 'b', type: 'signal', label: '갈래 2' }],
+      outputs: [{ id: 'out', type: 'signal', label: '판단 신호' }],
+    }],
+  },
+  {
+    category: '주문 실행',
+    tone: 'order',
+    items: [{
+      id: 'buy-candidate',
+      kicker: 'CANDIDATE',
+      title: '매수 후보',
+      detail: '시장 주문 후보를 만듭니다',
+      icon: CircleDollarSign,
+      group: '주문 후보',
+      inputs: [{ id: 'in', type: 'signal', label: '판단 신호' }],
+      outputs: [{ id: 'out', type: 'order', label: '주문 후보' }],
+    }, {
+      id: 'sell-candidate',
+      kicker: 'CANDIDATE',
+      title: '매도 후보',
+      detail: '보유 포지션 청산 후보를 만듭니다',
+      icon: CircleDollarSign,
+      group: '주문 후보',
+      inputs: [{ id: 'in', type: 'signal', label: '판단 신호' }],
+      outputs: [{ id: 'out', type: 'order', label: '주문 후보' }],
+    }],
+  },
+  {
+    category: '위험관리',
+    tone: 'risk',
+    items: [{
+      id: 'processor',
+      kicker: 'FINALIZE',
+      title: '주문 처리기',
+      detail: '중복 제거 · 예산 · 위험 검사',
+      icon: ShieldCheck,
+      inputs: [{ id: 'in', type: 'order', label: '주문 후보' }],
+      outputs: [{ id: 'out', type: 'order', label: '모의 주문' }],
+    }],
+  },
+];
+
+const PRO_BLUEPRINTS = Object.fromEntries(PRO_NODE_LIBRARY.flatMap((category) => category.items.map((item) => [
+  item.id,
+  { ...item, category: category.category, tone: category.tone },
+])));
+
+const proNodeHeight = (node) => PRO_PORT_START + Math.max(node.inputs.length, node.outputs.length, 1) * PRO_PORT_GAP + 12;
+
+const proPortPoint = (node, direction, index) => ({
+  x: node.x + (direction === 'out' ? PRO_NODE_WIDTH : 0),
+  y: node.y + PRO_PORT_START + index * PRO_PORT_GAP,
+});
+
+const proLinkPath = (from, to) => {
+  const curve = Math.max(46, Math.min(150, Math.abs(to.x - from.x) * .55));
+  return `M ${from.x} ${from.y} C ${from.x + curve} ${from.y}, ${to.x - curve} ${to.y}, ${to.x} ${to.y}`;
+};
+
+const createProNode = (blueprintId, id, x, y, overrides = {}) => {
+  const blueprint = PRO_BLUEPRINTS[blueprintId];
+  return {
+    id,
+    blueprintId,
+    kicker: blueprint.kicker,
+    title: blueprint.title,
+    detail: blueprint.detail,
+    tone: blueprint.tone,
+    icon: blueprint.icon,
+    inputs: blueprint.inputs.map((port) => ({ ...port })),
+    outputs: blueprint.outputs.map((port) => ({ ...port })),
+    params: { threshold: '', timeframe: '' },
+    x,
+    y,
+    ...overrides,
+  };
+};
+
+const INITIAL_PRO_NODES = [
+  createProNode('basket', 'node-basket', 24, 176),
+  createProNode('quotes', 'node-quotes', 256, 176),
+  createProNode('feature', 'node-feature-a', 488, 40, { title: '지표 계산 A' }),
+  createProNode('feature', 'node-feature-b', 488, 312, { title: '지표 계산 B' }),
+  createProNode('compare', 'node-compare-a', 720, 40, {
+    title: '값 비교 A',
+    outputs: [{ id: 'true', type: 'signal', label: '참 신호', testId: 'true-output' }, { id: 'false', type: 'signal', label: '거짓 신호' }],
+  }),
+  createProNode('compare', 'node-compare-b', 720, 312, { title: '값 비교 B' }),
+  createProNode('merge', 'node-merge', 952, 172),
+  createProNode('buy-candidate', 'node-buy', 1184, 176),
+  createProNode('processor', 'node-processor', 1416, 176),
+];
+
+const INITIAL_PRO_LINKS = [
+  { id: 'link-1', from: { nodeId: 'node-basket', portId: 'out' }, to: { nodeId: 'node-quotes', portId: 'in' } },
+  { id: 'link-2', from: { nodeId: 'node-quotes', portId: 'out' }, to: { nodeId: 'node-feature-a', portId: 'in' } },
+  { id: 'link-3', from: { nodeId: 'node-quotes', portId: 'out' }, to: { nodeId: 'node-feature-b', portId: 'in' } },
+  { id: 'link-4', from: { nodeId: 'node-feature-a', portId: 'out' }, to: { nodeId: 'node-compare-a', portId: 'in' } },
+  { id: 'link-5', from: { nodeId: 'node-feature-b', portId: 'out' }, to: { nodeId: 'node-compare-b', portId: 'in' } },
+  { id: 'link-6', from: { nodeId: 'node-compare-a', portId: 'true' }, to: { nodeId: 'node-merge', portId: 'a' } },
+  { id: 'link-7', from: { nodeId: 'node-compare-b', portId: 'true' }, to: { nodeId: 'node-merge', portId: 'b' } },
+  { id: 'link-8', from: { nodeId: 'node-merge', portId: 'out' }, to: { nodeId: 'node-buy', portId: 'in' } },
+  { id: 'link-9', from: { nodeId: 'node-buy', portId: 'out' }, to: { nodeId: 'node-processor', portId: 'in' } },
+];
+
+const PRO_TIMEFRAMES = ['1분', '5분', '15분', '1시간', '1일'];
+
+export function ProEditor({ goBack, openEditor }) {
+  const [nodes, setNodes] = useState(INITIAL_PRO_NODES);
+  const [links, setLinks] = useState(INITIAL_PRO_LINKS);
+  const [selectedNodeId, setSelectedNodeId] = useState('node-compare-a');
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [panGesture, setPanGesture] = useState(null);
+  const [spacePanning, setSpacePanning] = useState(false);
+  const [nodeMove, setNodeMove] = useState(null);
+  const [linkDraft, setLinkDraft] = useState(null);
   const [picker, setPicker] = useState(null);
-  const [addedNode, setAddedNode] = useState(false);
-  const releaseConnection = (event) => setPicker({ x: event.clientX, y: event.clientY });
-  return <Localized><div className="page editor-page pro-page"><PageHeading eyebrow="PRO · DRAFT" title="Pro 전략 편집기" description="타입이 맞는 노드를 좌우로 연결해 분기·다종목·자금 정책을 명시합니다." meta={<Status tone="warning">필수 정책 2개 남음</Status>} actions={<><Button kind="ghost" icon={ArrowLeft} onClick={goBack}>목록</Button><Button icon={Save}>저장</Button><Button kind="primary" icon={ShieldCheck}>검증</Button></>} />
-    <div className="pro-editor-shell"><aside className="pro-rail panel"><Search size={17} />{[['TRG', Play], ['VAL', Layers3], ['LOG', GitBranch], ['ORD', CircleDollarSign], ['POL', ShieldCheck]].map(([label, Icon], index) => <button key={label} className={index === 1 ? 'active' : ''}><Icon size={17} /><span>{label}</span></button>)}</aside>
-      <section className="editor-canvas pro-canvas" onClick={() => picker && setPicker(null)}><div className="canvas-toolbar"><span>Pair Spread Monitor · v0.8</span><span className="canvas-zoom">GRID 16 &nbsp; · &nbsp; 82%</span></div><div className="mobile-editor-notice"><Split size={24} /><strong>Pro 그래프 편집은 데스크톱 전용입니다</strong><span>넓은 화면에서 연결과 노드 배치를 편집하세요.</span></div><svg className="graph-links" viewBox="0 0 1120 600" aria-hidden="true"><path d="M210 208 C280 208 270 154 340 154" /><path d="M505 154 C560 154 550 122 615 122" /><path d="M505 168 C560 168 550 305 615 305" className="link-false" /><path d="M780 122 C840 122 820 228 890 228" /><path d="M780 305 C840 305 820 246 890 246" className="link-false" /></svg>
-        <GraphNode icon={Play} kicker="TRIGGER" title="Bar closed" detail="1 minute · regular session" x={48} y={150} outputs={[{ label: 'event', tone: 'event' }]} />
-        <GraphNode icon={GitBranch} kicker="CONDITION" title="Spread threshold" detail="z-score · user input" x={340} y={98} outputs={[{ label: 'true', tone: 'true' }, { label: 'false', tone: 'false' }]}><button data-testid="true-output" className="connection-handle true-handle" aria-label="true 출력 연결" onPointerUp={releaseConnection}><span>TRUE</span><i /></button></GraphNode>
-        <GraphNode icon={CircleDollarSign} kicker="CANDIDATE" title="Open pair" detail="two order intents" x={615} y={66} outputs={[{ label: 'candidate', tone: 'event' }]} /><GraphNode icon={Timer} kicker="STATE" title="Wait next event" detail="no order candidate" x={615} y={249} outputs={[{ label: 'state', tone: 'false' }]} /><GraphNode icon={ShieldCheck} kicker="FINALIZE" title="Order processor" detail="deduplicate · budget · risk" x={890} y={172} outputs={[{ label: 'orders', tone: 'true' }]} />{addedNode && <GraphNode className="new-node" icon={ShieldCheck} kicker="CONDITION" title="Position check" detail="explicit state condition" x={545} y={410} outputs={[{ label: 'true', tone: 'true' }, { label: 'false', tone: 'false' }]} />}
-        {picker && <div role="dialog" aria-label="호환 노드 선택" className="node-picker" style={{ left: `${picker.x}px`, top: `${picker.y}px` }} onClick={(event) => event.stopPropagation()}><header><div><span>TRUE OUTPUT</span><strong>호환 노드 선택</strong></div><button aria-label="호환 노드 선택 닫기" onClick={() => setPicker(null)}><X size={15} /></button></header><label><Search size={14} /><input autoFocus aria-label="호환 노드 검색" placeholder="노드 검색" /></label><p>조건 · 비교</p><button aria-label="포지션 확인" onClick={() => { setAddedNode(true); setPicker(null); }}><ShieldCheck size={16} /><span><strong>포지션 확인</strong><small>보유 수량과 상태 비교</small></span><kbd>↵</kbd></button><button aria-label="값 비교"><GitBranch size={16} /><span><strong>값 비교</strong><small>같은 타입의 두 값 비교</small></span></button><p>주문 후보</p><button aria-label="매수 후보"><CircleDollarSign size={16} /><span><strong>매수 후보</strong><small>시장 주문 후보 생성</small></span></button></div>}<div className="graph-minimap"><span /><i /><b /></div>
-      </section><aside className="node-inspector panel"><div className="inspector-title"><span>NODE SETTINGS</span><button aria-label="설정 닫기"><X size={15} /></button></div><div className="node-id">CONDITION · 04</div><h3>Spread threshold</h3><div className="inspector-section"><label>Left value</label><button className="select-field">Pair z-score <ChevronDown size={14} /></button></div><div className="inspector-section"><label>Operator</label><button className="select-field">Greater than <ChevronDown size={14} /></button></div><div className="inspector-section"><label>User input</label><div className="empty-input"><span>값을 입력하세요</span><b>required</b></div></div><div className="port-legend"><span><i className="port true" /> TRUE · compatible 8</span><span><i className="port false" /> FALSE · compatible 6</span></div></aside>
+  const [pickerQuery, setPickerQuery] = useState('');
+  const [libraryDrag, setLibraryDrag] = useState(null);
+  const [nodeQuery, setNodeQuery] = useState('');
+  const [announcement, setAnnouncement] = useState('');
+  const [notice, setNotice] = useState(null);
+  const [trashReady, setTrashReady] = useState(false);
+  const spacePanningRef = useRef(false);
+  const pointerPositionRef = useRef(null);
+  const workspaceRef = useRef(null);
+  const trashZoneRef = useRef(null);
+  const sequenceRef = useRef(INITIAL_PRO_LINKS.length);
+
+  const nodeById = useMemo(() => Object.fromEntries(nodes.map((node) => [node.id, node])), [nodes]);
+  const filteredLibrary = useMemo(() => PRO_NODE_LIBRARY.map((category) => ({
+    ...category,
+    items: category.items.filter((item) => `${item.title} ${item.detail}`.toLowerCase().includes(nodeQuery.trim().toLowerCase())),
+  })).filter((category) => category.items.length > 0), [nodeQuery]);
+
+  const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
+  const isInputLinked = (nodeId, portId) => links.some((link) => link.to.nodeId === nodeId && link.to.portId === portId);
+
+  useEffect(() => {
+    const isTypingTarget = (target) => target?.closest?.('input, textarea, select, [contenteditable="true"]');
+    const stopSpacePanning = () => {
+      spacePanningRef.current = false;
+      setSpacePanning(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.code === 'Space' && !isTypingTarget(event.target)) {
+        event.preventDefault();
+        if (spacePanningRef.current) return;
+        spacePanningRef.current = true;
+        setSpacePanning(true);
+      }
+    };
+    const handleKeyUp = (event) => {
+      if (event.code === 'Space') stopSpacePanning();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', stopSpacePanning);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', stopSpacePanning);
+    };
+  }, []);
+
+  const nextId = (prefix) => {
+    sequenceRef.current += 1;
+    return `${prefix}-${sequenceRef.current}`;
+  };
+
+  const worldPoint = (clientX, clientY) => {
+    const bounds = workspaceRef.current?.getBoundingClientRect();
+    if (!bounds) return { x: 0, y: 0 };
+    return {
+      x: (clientX - bounds.left - pan.x) / zoom,
+      y: (clientY - bounds.top - pan.y) / zoom,
+    };
+  };
+
+  const reachesNode = (startNodeId, targetNodeId) => {
+    const visited = new Set();
+    const walk = (nodeId) => {
+      if (nodeId === targetNodeId) return true;
+      if (visited.has(nodeId)) return false;
+      visited.add(nodeId);
+      return links.filter((link) => link.from.nodeId === nodeId).some((link) => walk(link.to.nodeId));
+    };
+    return walk(startNodeId);
+  };
+
+  const rejectConnection = (problem, impact, fix) => {
+    setNotice({ kind: 'error', problem, impact, fix });
+    setAnnouncement(`연결하지 못했습니다. ${problem} ${impact} ${fix}`);
+  };
+
+  const connectPorts = (source, target) => {
+    const fromNode = nodeById[source.nodeId];
+    const toNode = nodeById[target.nodeId];
+    const fromPort = fromNode?.outputs.find((port) => port.id === source.portId);
+    const toPort = toNode?.inputs.find((port) => port.id === target.portId);
+    if (!fromNode || !toNode || !fromPort || !toPort) return;
+
+    if (fromNode.id === toNode.id) {
+      rejectConnection('같은 노드의 출력과 입력을 연결했습니다.', '실행 순서를 정할 수 없어 연결을 저장하지 않았습니다.', '다른 노드의 입력 연결부에 놓아 주세요.');
+      return;
+    }
+    if (fromPort.type !== toPort.type) {
+      const from = describePortType(fromPort.type);
+      const to = describePortType(toPort.type);
+      rejectConnection(`${from.name} 출력을 ${to.name} 입력에 연결했습니다.`, '타입이 달라 값을 전달할 수 없어 연결을 저장하지 않았습니다.', `같은 모양(${from.shape})의 연결부끼리 이어 주세요.`);
+      return;
+    }
+    if (isInputLinked(target.nodeId, target.portId)) {
+      rejectConnection('이 입력 연결부에는 이미 연결이 있습니다.', '입력 하나는 값 하나만 받을 수 있어 연결을 저장하지 않았습니다.', '기존 연결을 지우거나 합류 노드로 여러 갈래를 모아 주세요.');
+      return;
+    }
+    if (reachesNode(target.nodeId, source.nodeId)) {
+      rejectConnection('연결이 실행 순서를 되돌리는 순환을 만듭니다.', '순환이 있으면 실행 순서를 정할 수 없어 연결을 저장하지 않았습니다.', '앞 단계로 돌아가지 않는 방향으로 연결해 주세요.');
+      return;
+    }
+
+    setLinks((current) => [...current, { id: nextId('link'), from: source, to: target }]);
+    setNotice(null);
+    setAnnouncement(`${fromNode.title}의 ${fromPort.label} 출력을 ${toNode.title}의 ${toPort.label} 입력에 연결했습니다.`);
+  };
+
+  const deleteNode = (nodeId) => {
+    const node = nodeById[nodeId];
+    if (!node) return;
+    const removedLinks = links.filter((link) => link.from.nodeId === nodeId || link.to.nodeId === nodeId);
+    setNodes((current) => current.filter((item) => item.id !== nodeId));
+    setLinks((current) => current.filter((link) => link.from.nodeId !== nodeId && link.to.nodeId !== nodeId));
+    setSelectedNodeId((current) => current === nodeId ? null : current);
+    setNodeMove(null);
+    setTrashReady(false);
+    setNotice({ kind: 'undo', message: `${node.title} 노드와 연결 ${removedLinks.length}개를 삭제했습니다.`, restore: { node, links: removedLinks } });
+    setAnnouncement(`${node.title} 노드를 삭제했습니다. 실행 취소로 되돌릴 수 있습니다.`);
+  };
+
+  const undoDelete = () => {
+    if (notice?.kind !== 'undo') return;
+    const { node, links: removedLinks } = notice.restore;
+    setNodes((current) => [...current, node]);
+    setLinks((current) => [...current, ...removedLinks]);
+    setSelectedNodeId(node.id);
+    setNotice(null);
+    setAnnouncement(`${node.title} 노드와 연결을 복원했습니다.`);
+  };
+
+  const deleteLink = (linkId) => {
+    setLinks((current) => current.filter((link) => link.id !== linkId));
+    setAnnouncement('연결을 삭제했습니다.');
+  };
+
+  useEffect(() => {
+    const isTypingTarget = (target) => target?.closest?.('input, textarea, select, [contenteditable="true"]');
+    const handleDelete = (event) => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+      if (!selectedNodeId || isTypingTarget(event.target)) return;
+      event.preventDefault();
+      deleteNode(selectedNodeId);
+    };
+    window.addEventListener('keydown', handleDelete);
+    return () => window.removeEventListener('keydown', handleDelete);
+  });
+
+  const addNode = (blueprintId, position) => {
+    const node = createProNode(blueprintId, nextId(`node-${blueprintId}`), Math.round(position.x), Math.round(position.y));
+    setNodes((current) => [...current, node]);
+    setSelectedNodeId(node.id);
+    setNotice(null);
+    setAnnouncement(`${node.title} 노드를 캔버스에 추가했습니다.`);
+    return node;
+  };
+
+  const addNodeAtViewportCenter = (blueprintId) => {
+    const bounds = workspaceRef.current?.getBoundingClientRect();
+    const center = bounds && bounds.width
+      ? worldPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2)
+      : { x: 260, y: 220 };
+    addNode(blueprintId, { x: center.x - PRO_NODE_WIDTH / 2, y: center.y - PRO_PORT_START / 2 });
+  };
+
+  const addNodeFromPicker = (item) => {
+    if (!picker) return;
+    const point = worldPoint(picker.x, picker.y);
+    const node = createProNode(item.id, nextId(`node-${item.id}`), Math.round(point.x), Math.round(point.y - PRO_PORT_START));
+    const targetPort = node.inputs.find((port) => port.type === picker.type);
+    setNodes((current) => [...current, node]);
+    if (picker.source && targetPort) {
+      setLinks((current) => [...current, { id: nextId('link'), from: picker.source, to: { nodeId: node.id, portId: targetPort.id } }]);
+    }
+    setSelectedNodeId(node.id);
+    setPicker(null);
+    setPickerQuery('');
+    setNotice(null);
+    setAnnouncement(`${node.title} 노드를 추가하고 연결했습니다.`);
+  };
+
+  const pickerGroups = useMemo(() => {
+    if (!picker) return [];
+    const query = pickerQuery.trim().toLowerCase();
+    const groups = new Map();
+    PRO_NODE_LIBRARY.forEach((category) => category.items.forEach((item) => {
+      if (!item.inputs.some((port) => port.type === picker.type)) return;
+      if (query && !`${item.title} ${item.detail}`.toLowerCase().includes(query)) return;
+      const name = item.group ?? category.category;
+      if (!groups.has(name)) groups.set(name, []);
+      groups.get(name).push({ ...item, tone: category.tone });
+    }));
+    return [...groups.entries()].map(([name, items]) => ({ name, items }));
+  }, [picker, pickerQuery]);
+
+  const isPointerOverTrash = (event) => {
+    const bounds = trashZoneRef.current?.getBoundingClientRect();
+    if (!bounds) return false;
+    return event.clientX >= bounds.left && event.clientX <= bounds.right
+      && event.clientY >= bounds.top && event.clientY <= bounds.bottom;
+  };
+
+  const beginNodeMove = (event, node, fromHandle = false) => {
+    if (event.button !== 0) return;
+    if (!fromHandle && event.target.closest?.('button, input, select, .graph-port')) return;
+    event.stopPropagation();
+    setSelectedNodeId(node.id);
+    setNodeMove({ nodeId: node.id, startX: event.clientX, startY: event.clientY, originX: node.x, originY: node.y });
+    workspaceRef.current?.setPointerCapture?.(event.pointerId);
+  };
+
+  const beginLink = (event, node, portId, type) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const index = node.outputs.findIndex((port) => port.id === portId);
+    const origin = proPortPoint(node, 'out', index);
+    setSelectedNodeId(node.id);
+    setLinkDraft({ source: { nodeId: node.id, portId }, type, origin, point: origin });
+  };
+
+  const releaseOnOutput = (event, node, portId, type) => {
+    event.stopPropagation();
+    if (linkDraft && linkDraft.source.nodeId !== node.id) {
+      setLinkDraft(null);
+      rejectConnection('출력 연결부끼리 연결했습니다.', '출력은 다른 노드의 입력으로만 이어질 수 있어 연결을 저장하지 않았습니다.', '왼쪽 방향의 입력 연결부에 놓아 주세요.');
+      return;
+    }
+    setLinkDraft(null);
+    setPicker({ x: event.clientX, y: event.clientY, type, source: { nodeId: node.id, portId } });
+    setPickerQuery('');
+  };
+
+  const releaseOnInput = (event, node, portId) => {
+    if (!linkDraft) return;
+    event.stopPropagation();
+    connectPorts(linkDraft.source, { nodeId: node.id, portId });
+    setLinkDraft(null);
+  };
+
+  const beginCanvasGesture = (event) => {
+    if (event.target !== event.currentTarget) return;
+    setPicker(null);
+    setPanGesture({ startX: event.clientX, startY: event.clientY, originX: pan.x, originY: pan.y });
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const updateCursorSpotlight = (event) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const canvas = event.currentTarget.closest('.pro-canvas');
+    if (!canvas) return;
+    canvas.style.setProperty('--spotlight-x', `${event.clientX - bounds.left}px`);
+    canvas.style.setProperty('--spotlight-y', `${event.clientY - bounds.top}px`);
+    canvas.style.setProperty('--spotlight-opacity', '1');
+  };
+
+  const hideCursorSpotlight = (event) => {
+    event.currentTarget.closest('.pro-canvas')?.style.setProperty('--spotlight-opacity', '0');
+    pointerPositionRef.current = null;
+  };
+
+  const updateCanvasGesture = (event) => {
+    updateCursorSpotlight(event);
+    const previousPointer = pointerPositionRef.current;
+    pointerPositionRef.current = { x: event.clientX, y: event.clientY };
+    if (nodeMove) {
+      setTrashReady(isPointerOverTrash(event));
+      setNodes((current) => current.map((node) => node.id === nodeMove.nodeId
+        ? {
+          ...node,
+          x: Math.round(nodeMove.originX + (event.clientX - nodeMove.startX) / zoom),
+          y: Math.round(nodeMove.originY + (event.clientY - nodeMove.startY) / zoom),
+        }
+        : node));
+      return;
+    }
+    if (linkDraft) {
+      const point = worldPoint(event.clientX, event.clientY);
+      setLinkDraft((current) => current ? { ...current, point } : current);
+      return;
+    }
+    if (panGesture) {
+      setPan({
+        x: panGesture.originX + event.clientX - panGesture.startX,
+        y: panGesture.originY + event.clientY - panGesture.startY,
+      });
+      return;
+    }
+    if (spacePanningRef.current && previousPointer) {
+      setPan((current) => ({
+        x: current.x + event.clientX - previousPointer.x,
+        y: current.y + event.clientY - previousPointer.y,
+      }));
+    }
+  };
+
+  const finishCanvasGesture = (event) => {
+    const cancelled = event?.type === 'pointercancel';
+    if (nodeMove && !cancelled && isPointerOverTrash(event)) {
+      deleteNode(nodeMove.nodeId);
+    } else if (linkDraft && !cancelled) {
+      setPicker({ x: event.clientX, y: event.clientY, type: linkDraft.type, source: linkDraft.source });
+      setPickerQuery('');
+    }
+    setLinkDraft(null);
+    setNodeMove(null);
+    setPanGesture(null);
+    setTrashReady(false);
+  };
+
+  const zoomCanvasWithWheel = (event) => {
+    event.preventDefault();
+    if (nodeMove || linkDraft) return;
+    const direction = event.deltaY < 0 ? 1 : -1;
+    const nextZoom = Math.max(.5, Math.min(2, Number((zoom + direction * .1).toFixed(1))));
+    if (nextZoom === zoom) return;
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const cursorX = event.clientX - bounds.left;
+    const cursorY = event.clientY - bounds.top;
+    const worldX = (cursorX - pan.x) / zoom;
+    const worldY = (cursorY - pan.y) / zoom;
+    setZoom(nextZoom);
+    setPan({
+      x: Number((cursorX - worldX * nextZoom).toFixed(2)),
+      y: Number((cursorY - worldY * nextZoom).toFixed(2)),
+    });
+  };
+
+  const fitGraphToView = () => {
+    const bounds = workspaceRef.current?.getBoundingClientRect();
+    if (!bounds || !bounds.width || nodes.length === 0) return;
+    const graph = nodes.reduce((current, node) => ({
+      left: Math.min(current.left, node.x),
+      top: Math.min(current.top, node.y),
+      right: Math.max(current.right, node.x + PRO_NODE_WIDTH),
+      bottom: Math.max(current.bottom, node.y + proNodeHeight(node)),
+    }), { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity });
+    const margin = 64;
+    const nextZoom = Math.max(.5, Math.min(1, Number(Math.min(
+      (bounds.width - margin * 2) / (graph.right - graph.left),
+      (bounds.height - margin * 2) / (graph.bottom - graph.top),
+    ).toFixed(2))));
+    setZoom(nextZoom);
+    setPan({
+      x: Number((bounds.width / 2 - (graph.left + graph.right) / 2 * nextZoom).toFixed(2)),
+      y: Number((bounds.height / 2 - (graph.top + graph.bottom) / 2 * nextZoom).toFixed(2)),
+    });
+    setAnnouncement('그래프 전체가 보이도록 배율을 맞췄습니다.');
+  };
+
+  const startLibraryDrag = (event, item) => {
+    event.stopPropagation();
+    event.dataTransfer.effectAllowed = 'copy';
+    event.dataTransfer.setData('text/plain', item.id);
+    setLibraryDrag(item);
+  };
+
+  const dropLibraryNode = (event) => {
+    if (!libraryDrag) return;
+    event.preventDefault();
+    const point = worldPoint(event.clientX, event.clientY);
+    addNode(libraryDrag.id, { x: point.x - PRO_NODE_WIDTH / 2, y: point.y - PRO_PORT_START / 2 });
+    setLibraryDrag(null);
+  };
+
+  const updateSelectedParam = (key, value) => {
+    setNodes((current) => current.map((node) => node.id === selectedNodeId
+      ? { ...node, params: { ...node.params, [key]: value } }
+      : node));
+  };
+
+  const renameSelectedNode = (title) => {
+    setNodes((current) => current.map((node) => node.id === selectedNodeId ? { ...node, title } : node));
+  };
+
+  const runValidation = () => {
+    const issues = [];
+    if (nodes.length === 0) {
+      issues.push({
+        nodeId: null,
+        problem: '전략 그래프가 비어 있습니다.',
+        impact: '실행할 노드가 없어 봇 생성 단계로 넘어갈 수 없습니다.',
+        fix: '왼쪽 NODES에서 노드를 캔버스로 끌어와 시작해 주세요.',
+      });
+    }
+    nodes.forEach((node) => {
+      const missing = node.inputs.filter((port) => !isInputLinked(node.id, port.id));
+      if (missing.length > 0) {
+        issues.push({
+          nodeId: node.id,
+          problem: `${node.title} 노드의 ${missing.map((port) => port.label).join(', ')} 입력이 연결되지 않았습니다.`,
+          impact: '입력값이 없으면 이 노드를 실행할 수 없습니다.',
+          fix: '앞 단계 노드의 같은 모양 출력과 연결해 주세요.',
+        });
+      }
+      if (node.blueprintId === 'compare' && !node.params.threshold.trim()) {
+        issues.push({
+          nodeId: node.id,
+          problem: `${node.title} 노드의 기준값이 비어 있습니다.`,
+          impact: '비교 기준이 없으면 참·거짓을 판단할 수 없습니다.',
+          fix: '오른쪽 설정에서 기준값을 직접 입력해 주세요.',
+        });
+      }
+      if (node.blueprintId === 'quotes' && !node.params.timeframe) {
+        issues.push({
+          nodeId: node.id,
+          problem: `${node.title} 노드의 시간축이 선택되지 않았습니다.`,
+          impact: '시간축이 없으면 어떤 주기의 데이터를 읽을지 정할 수 없습니다.',
+          fix: '오른쪽 설정에서 시간축을 직접 선택해 주세요.',
+        });
+      }
+    });
+
+    if (issues.length === 0) {
+      setNotice({ kind: 'info', message: '구조 검사에서 문제를 찾지 못했습니다. 구조 검사 통과는 수익성이나 안전성을 보장하지 않습니다.' });
+      setAnnouncement('구조 검사에서 문제를 찾지 못했습니다.');
+      return;
+    }
+    const [first] = issues;
+    if (first.nodeId) setSelectedNodeId(first.nodeId);
+    setNotice({ kind: 'error', problem: first.problem, impact: first.impact, fix: first.fix, count: issues.length });
+    setAnnouncement(`구조 검사에서 ${issues.length}개 문제를 찾았습니다. ${first.problem}`);
+  };
+
+  const saveDraft = () => {
+    setNotice({ kind: 'info', message: '샘플 편집기에서는 서버에 저장하지 않습니다. 지금 구성한 그래프는 이 화면에서만 유지됩니다.' });
+    setAnnouncement('샘플 편집기에서는 서버에 저장하지 않습니다.');
+  };
+
+  const renderPort = (node, port, index, direction) => {
+    const meta = describePortType(port.type);
+    const linked = direction === 'in'
+      ? isInputLinked(node.id, port.id)
+      : links.some((link) => link.from.nodeId === node.id && link.from.portId === port.id);
+    const compatible = Boolean(linkDraft)
+      && direction === 'in'
+      && linkDraft.type === port.type
+      && linkDraft.source.nodeId !== node.id
+      && !linked;
+    return <button
+      key={port.id}
+      type="button"
+      data-testid={port.testId}
+      className={`graph-port graph-port--${direction} ${linked ? 'is-linked' : ''} ${compatible ? 'is-compatible' : ''}`}
+      style={{ top: PRO_PORT_START + index * PRO_PORT_GAP - 11 }}
+      aria-label={`${node.title} ${port.label} ${direction === 'in' ? '입력 연결부' : '출력 연결부'} · ${meta.name} ${meta.shape}`}
+      onPointerDown={direction === 'out' ? (event) => beginLink(event, node, port.id, port.type) : undefined}
+      onPointerUp={direction === 'out'
+        ? (event) => releaseOnOutput(event, node, port.id, port.type)
+        : (event) => releaseOnInput(event, node, port.id)}
+    >
+      <i className={`port-shape port-shape--${port.type}`} aria-hidden="true" />
+      <span>{port.label}</span>
+    </button>;
+  };
+
+  const linkTargetReady = (node) => Boolean(linkDraft)
+    && linkDraft.source.nodeId !== node.id
+    && node.inputs.some((port) => port.type === linkDraft.type && !isInputLinked(node.id, port.id));
+
+  const trashItemLabel = nodeMove ? '노드' : null;
+
+  return <Localized><div className="page editor-page pro-editor-page editor-shell-page">
+    <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
+    <div className="pro-editor-commandbar floating-editor-controls" role="toolbar" aria-label="Pro 편집 작업">
+      <div className="pro-editor-context">
+        <Button className="floating-editor-button" kind="ghost" icon={ArrowLeft} onClick={goBack}>목록</Button>
+        <div className="floating-editor-mode-controls" role="group" aria-label="편집기 전환">
+          <Button className="floating-editor-button" onClick={() => openEditor?.('basic')}>Basic 편집기</Button>
+          <Button className="floating-editor-button active" onClick={() => openEditor?.('pro')}>Pro 편집기</Button>
+        </div>
+        <h1 className="pro-editor-title">Pro 전략 편집기</h1>
+        <span className="pro-editor-meta">Pair Spread Monitor · v0.8 · 샘플 데이터</span>
+      </div>
+      <div className="pro-editor-actions">
+        <Button className="floating-editor-button" icon={Save} onClick={saveDraft}>저장</Button>
+        <Button className="floating-editor-button" kind="primary" icon={ShieldCheck} onClick={runValidation}>검증</Button>
+      </div>
     </div>
+    <div className="editor-layout pro-layout full-editor-workspace" data-testid="pro-editor-workspace">
+      <aside className="editor-palette node-library-panel panel floating-editor-panel" data-testid="pro-node-library">
+        <div className="palette-title"><span>NODES</span><Boxes size={15} /></div>
+        <p className="library-intro">노드를 캔버스로 끌어다 놓고 같은 모양의 연결부끼리 이으세요. 하나의 출력은 여러 노드로 갈라질 수 있습니다.</p>
+        <label className="palette-search"><Search size={14} /><input aria-label="노드 검색" placeholder="지표, 조건, 주문" value={nodeQuery} onChange={(event) => setNodeQuery(event.target.value)} /></label>
+        <div className="block-category-list">
+          {filteredLibrary.map((category) => <details className={`block-category tone-${category.tone}`} open key={category.category}>
+            <summary><ChevronDown size={14} /><span>{category.category}</span><b>{category.items.length}</b></summary>
+            <div className="node-chip-list">
+              {category.items.map((item) => <button
+                key={item.id}
+                type="button"
+                className={libraryDrag?.id === item.id ? 'is-library-dragging' : ''}
+                aria-label={`${item.title} 노드 추가`}
+                draggable
+                onDragStart={(event) => startLibraryDrag(event, item)}
+                onDragEnd={() => setLibraryDrag(null)}
+                onClick={() => addNodeAtViewportCenter(item.id)}
+              >
+                <item.icon size={14} aria-hidden="true" />
+                <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+                <Plus size={12} />
+              </button>)}
+            </div>
+          </details>)}
+        </div>
+      </aside>
+      <section
+        className="editor-canvas pro-canvas"
+        aria-label="Pro 전략 캔버스"
+        style={{
+          backgroundPosition: `${pan.x}px ${pan.y}px`,
+          '--canvas-pan-x': `${pan.x}px`,
+          '--canvas-pan-y': `${pan.y}px`,
+        }}
+      >
+        <div className="cursor-dot-spotlight" data-testid="cursor-dot-spotlight" aria-hidden="true" />
+        <div className="pro-graph-controls" role="group" aria-label="그래프 도구">
+          <button type="button" className="floating-editor-button" aria-label="전체 보기" onClick={fitGraphToView}><Split size={14} /> 전체 보기</button>
+          <span>{`노드 ${nodes.length} · 연결 ${links.length} · 휠: 확대/축소 · 빈 공간 드래그: 이동`}</span>
+        </div>
+        <div className="floating-zoom-controls" role="group" aria-label="캔버스 확대/축소">
+          <button type="button" className="floating-editor-button" aria-label="축소" disabled={zoom <= .5} onClick={() => setZoom((current) => Math.max(.5, Number((current - .1).toFixed(1))))}>−</button>
+          <button type="button" className="floating-editor-button zoom-level" aria-label="배율 초기화" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>{Math.round(zoom * 100)}%</button>
+          <button type="button" className="floating-editor-button" aria-label="확대" disabled={zoom >= 2} onClick={() => setZoom((current) => Math.min(2, Number((current + .1).toFixed(1))))}>+</button>
+        </div>
+        <div className="mobile-editor-notice"><Split size={24} /><strong>Pro 그래프 편집은 데스크톱에서 사용할 수 있습니다</strong><span>현재 화면에서는 구성만 조회할 수 있습니다.</span></div>
+        <div
+          ref={(element) => { workspaceRef.current = element; }}
+          className={`graph-workspace ${panGesture || spacePanning ? 'is-panning' : ''} ${spacePanning ? 'is-space-panning' : ''} ${nodeMove ? 'is-moving-node' : ''} ${linkDraft ? 'is-linking' : ''}`}
+          data-testid="pro-graph-surface"
+          onPointerDown={beginCanvasGesture}
+          onPointerMove={updateCanvasGesture}
+          onPointerUp={finishCanvasGesture}
+          onPointerCancel={finishCanvasGesture}
+          onPointerLeave={hideCursorSpotlight}
+          onWheel={zoomCanvasWithWheel}
+          onDragOver={(event) => { if (libraryDrag) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }}
+          onDrop={dropLibraryNode}
+        >
+          <div className="graph-world" data-testid="pro-graph-world" style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})` }}>
+            <svg className="graph-links" aria-label="전략 연결선">
+              {links.map((link) => {
+                const fromNode = nodeById[link.from.nodeId];
+                const toNode = nodeById[link.to.nodeId];
+                if (!fromNode || !toNode) return null;
+                const fromIndex = fromNode.outputs.findIndex((port) => port.id === link.from.portId);
+                const toIndex = toNode.inputs.findIndex((port) => port.id === link.to.portId);
+                if (fromIndex < 0 || toIndex < 0) return null;
+                const path = proLinkPath(proPortPoint(fromNode, 'out', fromIndex), proPortPoint(toNode, 'in', toIndex));
+                const label = `${fromNode.title} ${fromNode.outputs[fromIndex].label} 출력과 ${toNode.title} ${toNode.inputs[toIndex].label} 입력 연결 삭제`;
+                return <g key={link.id}>
+                  <path className="graph-link" d={path} />
+                  <path
+                    className="graph-link-hit"
+                    d={path}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={label}
+                    onClick={() => deleteLink(link.id)}
+                    onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); deleteLink(link.id); } }}
+                  />
+                </g>;
+              })}
+              {linkDraft && <path className="graph-link is-draft" d={proLinkPath(linkDraft.origin, linkDraft.point)} />}
+            </svg>
+            {nodes.map((node) => {
+              const Icon = node.icon;
+              return <article
+                key={node.id}
+                className={`graph-node tone-${node.tone} ${selectedNodeId === node.id ? 'is-selected' : ''} ${nodeMove?.nodeId === node.id ? 'is-node-moving' : ''} ${linkDraft ? (linkDraft.source.nodeId === node.id ? 'is-link-source' : linkTargetReady(node) ? 'is-link-ready' : 'is-link-blocked') : ''}`}
+                data-testid={`pro-node-${node.id}`}
+                style={{ left: node.x, top: node.y, width: PRO_NODE_WIDTH, height: proNodeHeight(node) }}
+                onPointerDown={(event) => beginNodeMove(event, node)}
+                onClick={() => setSelectedNodeId(node.id)}
+              >
+                <header>
+                  {Icon && <Icon size={14} aria-hidden="true" />}
+                  <span>{node.kicker}</span>
+                  <button
+                    type="button"
+                    className="graph-node-handle"
+                    aria-label={`${node.title} 노드 자유 이동`}
+                    onPointerDown={(event) => beginNodeMove(event, node, true)}
+                  ><GripVertical size={13} /></button>
+                </header>
+                <strong>{node.title}</strong>
+                <small>{node.detail}</small>
+                {node.inputs.map((port, index) => renderPort(node, port, index, 'in'))}
+                {node.outputs.map((port, index) => renderPort(node, port, index, 'out'))}
+              </article>;
+            })}
+          </div>
+        </div>
+        {picker && <div
+          role="dialog"
+          aria-label="호환 노드 선택"
+          className="node-picker"
+          style={{ left: `${picker.x}px`, top: `${picker.y}px` }}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <header>
+            <div><span>{describePortType(picker.type).name} 출력</span><strong>호환 노드 선택</strong></div>
+            <button type="button" aria-label="호환 노드 선택 닫기" onClick={() => setPicker(null)}><X size={15} /></button>
+          </header>
+          <label><Search size={14} /><input autoFocus aria-label="호환 노드 검색" placeholder="노드 검색" value={pickerQuery} onChange={(event) => setPickerQuery(event.target.value)} /></label>
+          {pickerGroups.length === 0 && <p className="node-picker-empty">검색어와 맞는 호환 노드가 없습니다.</p>}
+          {pickerGroups.map((group) => <div key={group.name}>
+            <p>{group.name}</p>
+            {group.items.map((item) => <button
+              key={item.id}
+              type="button"
+              aria-label={item.title}
+              onClick={() => addNodeFromPicker(item)}
+            >
+              <item.icon size={16} aria-hidden="true" />
+              <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+            </button>)}
+          </div>)}
+        </div>}
+      </section>
+      <aside className="editor-inspector node-inspector panel floating-editor-panel" data-testid="pro-node-inspector">
+        <div className="inspector-title"><span>NODE SETTINGS</span>{selectedNode && <button type="button" aria-label="노드 설정 닫기" onClick={() => setSelectedNodeId(null)}><X size={15} /></button>}</div>
+        {selectedNode ? <>
+          <div className="node-id">{selectedNode.kicker} · {selectedNode.id}</div>
+          <div className="inspector-section">
+            <label htmlFor="pro-node-title">노드 이름</label>
+            <input id="pro-node-title" value={selectedNode.title} onChange={(event) => renameSelectedNode(event.target.value)} />
+          </div>
+          <div className="inspector-section">
+            <label htmlFor="pro-node-threshold">기준값 직접 입력</label>
+            <div className="empty-input">
+              <input id="pro-node-threshold" placeholder="값을 입력하세요" value={selectedNode.params.threshold} onChange={(event) => updateSelectedParam('threshold', event.target.value)} />
+              {!selectedNode.params.threshold && <b>required</b>}
+            </div>
+          </div>
+          <div className="inspector-section">
+            <label htmlFor="pro-node-timeframe">시간축</label>
+            <select id="pro-node-timeframe" value={selectedNode.params.timeframe} onChange={(event) => updateSelectedParam('timeframe', event.target.value)}>
+              <option value="">시간축 선택</option>
+              {PRO_TIMEFRAMES.map((timeframe) => <option key={timeframe} value={timeframe}>{timeframe}</option>)}
+            </select>
+          </div>
+          <div className="inspector-ports">
+            <p>연결부 타입</p>
+            {[...selectedNode.inputs.map((port) => ({ port, direction: '입력 연결부' })), ...selectedNode.outputs.map((port) => ({ port, direction: '출력 연결부' }))].map(({ port, direction }) => {
+              const meta = describePortType(port.type);
+              return <span key={`${direction}-${port.id}`}>
+                <i className={`port-shape port-shape--${port.type}`} aria-hidden="true" />
+                <b>{port.label}</b>
+                <small>{direction} · {meta.name} · {meta.shape}</small>
+              </span>;
+            })}
+          </div>
+          <div className="inspector-actions">
+            <Button kind="ghost" icon={Trash2} onClick={() => deleteNode(selectedNode.id)}>노드 삭제</Button>
+          </div>
+        </> : <p className="inspector-empty">노드를 선택하면 설정과 연결부를 확인할 수 있습니다.</p>}
+      </aside>
+    </div>
+    {notice && <div className="pro-editor-notice" role="alert" data-tone={notice.kind}>
+      {notice.kind === 'error'
+        ? <div>
+          <strong>문제 · {notice.problem}</strong>
+          <span>영향 · {notice.impact}</span>
+          <span>해결 · {notice.fix}</span>
+          {notice.count > 1 && <small>남은 문제 {notice.count - 1}개</small>}
+        </div>
+        : <div><strong>{notice.message}</strong></div>}
+      <div className="pro-editor-notice-actions">
+        {notice.kind === 'undo' && <Button kind="ghost" onClick={undoDelete}>실행 취소</Button>}
+        <button type="button" aria-label="알림 닫기" onClick={() => setNotice(null)}><X size={15} /></button>
+      </div>
+    </div>}
+    {trashItemLabel && <div
+      ref={(element) => { trashZoneRef.current = element; }}
+      className={`editor-trash-zone is-pointer-trash ${trashReady ? 'is-ready' : ''}`}
+      role="region"
+      aria-label={`${trashItemLabel} 삭제 영역`}
+      data-testid="pro-trash-zone"
+    >
+      <span className="editor-trash-icon"><Trash2 size={18} aria-hidden="true" /></span>
+      <span className="editor-trash-copy"><strong>{trashItemLabel} 버리기</strong><small>여기에 놓으면 삭제됩니다</small></span>
+    </div>}
   </div></Localized>;
 }
