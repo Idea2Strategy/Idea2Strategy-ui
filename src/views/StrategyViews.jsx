@@ -1,19 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Boxes, Check, ChevronDown, ChevronRight, CircleDollarSign, GitBranch, GripVertical, Import, Layers3, LockKeyhole, Minus, Play, Plus, Save, Search, ShieldCheck, Sparkles, Split, Timer, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Boxes, Check, ChevronDown, ChevronRight, CircleDollarSign, GitBranch, GripVertical, Import, Layers3, Minus, Play, Plus, Save, Search, ShieldCheck, Sparkles, Split, Timer, Trash2, X } from 'lucide-react';
 import { strategies } from '../data/mockData.js';
-import { Button, DataTable, FilterButton, HelpNote, PageHeading, Panel, SearchBar, StatCard, Status } from '../components/common.jsx';
+import { Button, PageHeading, Panel, Status } from '../components/common.jsx';
 import { Localized } from '../lib/i18n.jsx';
 
 const statusTone = (state) => state === '검증 완료' ? 'positive' : state === '미완성' ? 'warning' : 'neutral';
 
-export function StrategyHome({ openEditor, variant = 'balanced' }) {
-  return variant === 'terminal'
-    ? <TerminalStrategyHome openEditor={openEditor} />
-    : <BalancedStrategyHome openEditor={openEditor} />;
-}
-
-function BalancedStrategyHome({ openEditor }) {
+export function StrategyHome({ openEditor }) {
   const [items, setItems] = useState(() => strategies.map((strategy, index) => ({
     ...strategy,
     id: `strategy-${index}`,
@@ -118,23 +112,6 @@ function BalancedStrategyHome({ openEditor }) {
       </section>
     </div>}
   </div></Localized>;
-}
-
-function TerminalStrategyHome({ openEditor }) {
-  const columns = [
-    { key: 'name', label: '전략', render: (row) => <button className="table-primary" onClick={() => openEditor(row.mode.toLowerCase())}><span className={`mode-mark mode-${row.mode.toLowerCase()}`}>{row.mode[0]}</span><span><strong>{row.name}</strong><small>{row.updated}</small></span></button> },
-    { key: 'mode', label: '모드' },
-    { key: 'state', label: '검증', render: (row) => <Status tone={statusTone(row.state)}>{row.state}</Status> },
-    { key: 'backtest', label: '백테스트' },
-    { key: 'action', label: '', render: (row) => <Button kind="ghost" onClick={() => openEditor(row.mode.toLowerCase())}>열기</Button> },
-  ];
-  return <div className="page strategy-home">
-    <PageHeading eyebrow="STRATEGY WORKSPACE" title="전략 스튜디오" description="전략을 작성하고 검증한 뒤 잠긴 버전으로 출시합니다." actions={<Button kind="primary" icon={Plus} onClick={() => openEditor('basic')}>새 전략</Button>} />
-    <div className="stats-grid three"><StatCard label="작업본" value="03" detail="미저장 변경 없음" icon={Layers3} /><StatCard label="검증 준비" value="01" detail="출시 전 확인 가능" trend="READY" icon={ShieldCheck} /><StatCard label="출시 전략" value="08" detail="자동 백테스트 7/8" icon={LockKeyhole} /></div>
-    <div className="content-grid strategy-grid">
-      <Panel className="span-3" title="내 전략" subtitle="현재 작업본과 출시된 상태" action={<div className="toolbar-inline"><SearchBar placeholder="전략 검색" /><FilterButton /></div>}><DataTable columns={columns} rows={strategies} /></Panel>
-    </div>
-  </div>;
 }
 
 const INITIAL_BASIC_BLOCKS = {
@@ -2149,12 +2126,13 @@ export function ProEditor({ goBack, openEditor }) {
     <div className="pro-editor-commandbar floating-editor-controls" role="toolbar" aria-label="Pro 편집 작업">
       <div className="pro-editor-context">
         <Button className="floating-editor-button" kind="ghost" icon={ArrowLeft} onClick={goBack}>목록</Button>
+        {/* Same clean bar as Basic: navigation and actions only. The strategy
+            name/version belongs to the list and save flow, and the sample-data
+            disclosure lives on the help page (2026-07-26 decision). */}
         <div className="floating-editor-mode-controls" role="group" aria-label="편집기 전환">
           <Button className="floating-editor-button" onClick={() => openEditor?.('basic')}>Basic 편집기</Button>
           <Button className="floating-editor-button active" onClick={() => openEditor?.('pro')}>Pro 편집기</Button>
         </div>
-        <h1 className="pro-editor-title">Pro 전략 편집기</h1>
-        <span className="pro-editor-meta">Pair Spread Monitor · v0.8 · 샘플 데이터</span>
       </div>
       <div className="pro-editor-actions">
         <Button className="floating-editor-button" icon={Save} onClick={saveDraft}>저장</Button>

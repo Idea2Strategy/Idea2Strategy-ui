@@ -1,4 +1,4 @@
-import { ArrowUpRight, ChevronRight, CircleHelp, Search, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, ChevronRight, CircleHelp, Inbox, Loader2, RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
 import { Localized } from '../lib/i18n.jsx';
 
 export function PageHeading({ eyebrow, title, description, actions, meta }) {
@@ -78,4 +78,78 @@ export function ListRow({ icon: Icon, title, detail, end, active = false, onClic
 
 export function Segmented({ value, onChange, items, label }) {
   return <div className="segmented" aria-label={label}>{items.map((item) => <button key={item.id} className={value === item.id ? 'active' : ''} onClick={() => onChange(item.id)}>{item.label}</button>)}</div>;
+}
+
+/*
+  Shared result states.
+
+  Every surface that can come back with nothing, fail, or still be working uses
+  these three so the same situation always looks the same. Each one states what
+  happened and what the person can do next, rather than only that something is
+  missing.
+*/
+export function EmptyState({ title, detail, action, icon: Icon = Inbox }) {
+  return <div className="result-state is-empty">
+    <span className="result-state-icon"><Icon size={20} aria-hidden="true" /></span>
+    <strong>{title}</strong>
+    {detail && <p>{detail}</p>}
+    {action}
+  </div>;
+}
+
+export function ErrorState({ title, detail, onRetry, retryLabel = '다시 시도' }) {
+  return <div className="result-state is-error" role="alert">
+    <span className="result-state-icon"><AlertTriangle size={20} aria-hidden="true" /></span>
+    <strong>{title}</strong>
+    {detail && <p>{detail}</p>}
+    {onRetry && <Button icon={RotateCcw} onClick={onRetry}>{retryLabel}</Button>}
+  </div>;
+}
+
+export function LoadingState({ label = '불러오는 중' }) {
+  return <div className="result-state is-loading" role="status">
+    <span className="result-state-icon"><Loader2 size={20} aria-hidden="true" /></span>
+    <strong>{label}</strong>
+  </div>;
+}
+
+/*
+  Tab set that keeps detail behind a deliberate choice instead of stacking every
+  panel onto one screen.
+*/
+export function Tabs({ value, onChange, items, label }) {
+  return <div className="detail-tabs" role="tablist" aria-label={label}>
+    {items.map((item) => <button
+      key={item.id}
+      type="button"
+      role="tab"
+      id={`tab-${item.id}`}
+      aria-selected={value === item.id}
+      aria-controls={`tabpanel-${item.id}`}
+      tabIndex={value === item.id ? 0 : -1}
+      className={value === item.id ? 'active' : ''}
+      onClick={() => onChange(item.id)}
+    >{item.label}{item.count !== undefined && <b>{item.count}</b>}</button>)}
+  </div>;
+}
+
+export function TabPanel({ id, children }) {
+  return <div className="detail-tabpanel" role="tabpanel" id={`tabpanel-${id}`} aria-labelledby={`tab-${id}`}>{children}</div>;
+}
+
+/*
+  Compact metric row. Replaces the 130px stat cards on the operations and
+  backtest screens, which spent most of their height on padding.
+*/
+export function MetricRow({ items, label }) {
+  // The data key is `figure`, not `value`: the localization walk skips
+  // properties named `value` (a DOM attribute), which left metric figures
+  // untranslated in English.
+  return <div className="metric-row" aria-label={label}>
+    {items.map((item) => <div key={item.label}>
+      <span>{item.label}</span>
+      <strong className={item.tone ? item.tone : ''}>{item.figure}</strong>
+      {item.detail && <small>{item.detail}</small>}
+    </div>)}
+  </div>;
 }

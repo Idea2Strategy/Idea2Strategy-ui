@@ -1,9 +1,24 @@
+/*
+  Signal Studio design tokens.
+
+  This file is the single source of truth for both themes. Product rules live in
+  balanced.css and consume these variables only — do not redeclare a palette
+  value further down the cascade, otherwise one theme silently inherits the
+  other theme's colours.
+
+  Both palettes define the same variable names. When a token is added to one
+  theme it must be added to the other in the same order.
+*/
+
 :root {
   font-family: var(--font-sans);
   color-scheme: light dark;
   font-synthesis: none;
+
   --font-sans: Pretendard, Inter, "Noto Sans KR", "Segoe UI", sans-serif;
   --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+
+  /* 4px spacing scale */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -11,50 +26,306 @@
   --space-5: 24px;
   --space-6: 32px;
   --space-8: 48px;
-  --radius-xs: 6px;
-  --radius-sm: 10px;
-  --radius-md: 16px;
-  --radius-lg: 22px;
+
+  /* Radius scale. Kept soft enough that 1px borders and dense data do not read
+     as visual noise. Overlays use the largest step. */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* Type scale, tuned like a brokerage app: numbers and captions must survive
+     a glance. 11px is the smallest size allowed for real content; anything
+     below that is decoration and must not carry meaning on its own. The
+     strategy editors keep their own pixel-tuned micro type (zoomable canvas). */
+  --fs-micro: 11px;
+  --fs-caption: 12px;
+  --fs-control: 13px;
+  --fs-body: 14px;
+  --fs-card: 15px;
+  --fs-section: 17px;
+
+  /* Control sizing, per the design system component rules */
+  --control-h: 36px;
+  --control-h-lg: 40px;
+
+  --motion-fast: .14s ease;
+  --motion-base: .18s ease;
 }
 
-.theme-light {
-  --bg: #f3f6f9;
-  --surface: #ffffff;
-  --surface-2: #f7f9fb;
-  --surface-3: #edf2f6;
-  --text: #13202d;
-  --text-soft: #5d6b78;
-  --text-faint: #8c98a4;
-  --line: #dfe6ec;
-  --line-strong: #cbd5de;
-  --accent: #246bfd;
-  --accent-soft: #e8f0ff;
-  --positive: #0b8f63;
-  --positive-soft: #e3f6ef;
-  --negative: #d94755;
-  --negative-soft: #fdecef;
-  --warning: #c37a15;
-  --warning-soft: #fff3dc;
-  --shadow: 0 15px 35px rgba(28, 46, 65, .07);
-}
+/*
+  Dark — the primary product theme, and the default.
 
+  It is also declared on :root so that html/body and any component rendered
+  outside the themed app shell (unit tests render the editors bare) still
+  resolve every token instead of falling back to initial values.
+*/
+:root,
+:root[data-theme="dark"],
 .theme-dark {
-  --bg: #090e14;
-  --surface: #111820;
-  --surface-2: #151e28;
-  --surface-3: #1c2732;
-  --text: #e8edf2;
-  --text-soft: #9ba9b6;
-  --text-faint: #6f7d89;
-  --line: #26323e;
-  --line-strong: #344452;
-  --accent: #6c97ff;
-  --accent-soft: #17284c;
-  --positive: #43d39e;
-  --positive-soft: #15362e;
-  --negative: #ff6979;
-  --negative-soft: #3d1d24;
-  --warning: #f0b45b;
-  --warning-soft: #3c2d17;
-  --shadow: 0 18px 44px rgba(0, 0, 0, .25);
+  /* Neutral charcoal with only a hint of cool. The earlier palette tinted
+     every grey green, which made whole screens read as murky; neutrals must
+     stay neutral so the semantic colours are the only hue on the page. */
+  --bg: #0f1214;
+  --surface: #15191b;
+  --surface-2: #1a1f21;
+  --surface-3: #232829;
+
+  --text: #dce3e4;
+  --text-soft: #9dabac;
+  --text-muted: #9dabac;
+  /* Carries captions, table headers and micro labels, so it is held above 4.5:1
+     on --surface rather than treated as decoration. */
+  --text-faint: #869495;
+
+  --line: #293133;
+  --line-strong: #3a4548;
+
+  /* Brand teal, matching the product logo (#347d7e family): a light pastel
+     with dark ink on the dark theme. */
+  --accent: #5ecfca;
+  --accent-soft: #123433;
+  --accent-ink: #04201f;
+
+  --positive: #74bc98;
+  --positive-soft: #1c3328;
+  --negative: #ff6575;
+  --negative-soft: #351a20;
+  --warning: #e5ad59;
+  --warning-soft: #382b18;
+  --info: #7fb4e8;
+  --info-soft: #1a2b3a;
+
+  /*
+    Price direction. Separate from --positive/--negative on purpose: state
+    semantics (running, success, error) never change, but the colour of a gain
+    is a market convention the person chooses — Korean charts paint gains red
+    and losses blue; US charts paint gains green and losses red. The default is
+    Korean; [data-updown="us"] on the shell flips it (see the bottom of this
+    file).
+  */
+  --gain: #ff7c88;
+  --gain-soft: #3a1e23;
+  --loss: #6fa8ff;
+  --loss-soft: #1a2740;
+
+  /* Order direction. Semantic, never decorative. */
+  --buy-block-color: rgb(240, 66, 81);
+  --sell-block-color: rgb(67, 145, 255);
+  --buy-text: #ff7c88;
+  --sell-text: #6fa8ff;
+
+  /*
+    Strategy block categories.
+
+    The fills are bright pastels so they read as coloured chips on the dark
+    canvas; that means the ink on top of them has to be dark. White ink on
+    #e8bb3e or #6edb95 measures under 2:1, so the label is technically present
+    but not actually readable.
+  */
+  --block-tone-ink: #132021;
+  --block-data-color: #72bff1;
+  --block-data-surface: var(--block-data-color);
+  --block-indicator-color: #b594ff;
+  --block-indicator-surface: var(--block-indicator-color);
+  --block-condition-color: #e8bb3e;
+  --block-condition-surface: var(--block-condition-color);
+  --block-logic-color: #96b6ff;
+  --block-logic-surface: var(--block-logic-color);
+  --block-time-color: #5fd5d1;
+  --block-time-surface: var(--block-time-color);
+  --block-order-color: #6edb95;
+  --block-order-surface: var(--block-order-color);
+  --block-risk-color: #ff746e;
+  --block-risk-surface: var(--block-risk-color);
+
+  /*
+    Category tones for ranking badges, competition cards, chart series, template
+    icons and Pro node headers. These are drawn as 1px strokes and small text on
+    the page surface, so unlike the block fills above they must satisfy contrast
+    against --surface in each theme.
+  */
+  --tone-standard: #b9d56f;
+  --tone-risk: #76b9df;
+  --tone-return: #e4b76a;
+  --tone-sharpe: #b69ae2;
+  --tone-universe: #2dd4bf;
+  --tone-data: #38bdf8;
+  --tone-indicator: #a78bfa;
+  --tone-condition: #fb923c;
+  --tone-logic: #fbbf24;
+  --tone-order: #94a3b8;
+  --tone-risk-node: #f87171;
+
+  /* Surfaces that sit above the page: dialogs, popovers, floating panels. */
+  --scrim: rgba(3, 5, 6, .72);
+  --glass: color-mix(in srgb, var(--surface) 92%, transparent);
+  --glass-border: color-mix(in srgb, var(--line-strong) 82%, transparent);
+  --inset-highlight: rgba(255, 255, 255, .04);
+
+  /* Chart ink. Charts must not read colour straight from --text. */
+  --chart-grid: color-mix(in srgb, var(--line) 80%, transparent);
+  --chart-axis: var(--text-faint);
+  --chart-benchmark: #7f8d96;
+
+  /* Shadow ink as a bare rgb triple so individual rules can keep their own
+     offset, blur and alpha while the colour still follows the theme. */
+  --shadow-rgb: 0, 0, 0;
+  --shadow: 0 18px 44px rgba(0, 0, 0, .22);
+  --shadow-overlay: 0 22px 60px rgba(0, 0, 0, .38);
+  --shadow-float: 0 16px 38px rgba(0, 0, 0, .26);
+  --focus-ring: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+/*
+  Light — a full peer of the dark theme, not an override of it.
+
+  Every foreground colour here is checked to at least 4.5:1 against --surface so
+  captions and micro labels stay readable. Neutrals are crisp cool greys — the
+  earlier sage-cream tints made the light theme read as muddy — and the brand
+  teal is darkened because a pastel only reaches ~2:1 on white.
+*/
+:root[data-theme="light"],
+.theme-light {
+  --bg: #f1f4f4;
+  --surface: #ffffff;
+  --surface-2: #f6f8f8;
+  --surface-3: #e9eeee;
+
+  --text: #1a2224;
+  --text-soft: #4d5c5f;
+  --text-muted: #4d5c5f;
+  /* --text-faint carries captions and micro labels in ~50 places, so it is held
+     above 4.5:1 on --surface rather than treated as decoration. */
+  --text-faint: #5f6f70;
+
+  --line: #e2e8e8;
+  --line-strong: #c9d3d3;
+
+  --accent: #0e7476;
+  --accent-soft: #e0f2f2;
+  --accent-ink: #ffffff;
+
+  --positive: #1f7a55;
+  --positive-soft: #e3f2ea;
+  --negative: #c92f3f;
+  --negative-soft: #fce9eb;
+  --warning: #8c5c0d;
+  --warning-soft: #f9eeda;
+  --info: #1c5f92;
+  --info-soft: #e7f0f8;
+
+  /* Price direction, Korean default (gain red · loss blue), light-checked. */
+  --gain: #c92f3f;
+  --gain-soft: #fce9eb;
+  --loss: #1f5fc0;
+  --loss-soft: #e7eefb;
+
+  --buy-block-color: rgb(226, 52, 67);
+  --sell-block-color: rgb(38, 111, 214);
+  --buy-text: #c92f3f;
+  --sell-text: #1f5fc0;
+
+  /* Same hue family as dark, darkened so white ink passes on the block fill. */
+  --block-tone-ink: #ffffff;
+  --block-data-color: #2b7cb0;
+  --block-data-surface: var(--block-data-color);
+  --block-indicator-color: #6d4bc4;
+  --block-indicator-surface: var(--block-indicator-color);
+  --block-condition-color: #91700f;
+  --block-condition-surface: var(--block-condition-color);
+  --block-logic-color: #4265be;
+  --block-logic-surface: var(--block-logic-color);
+  --block-time-color: #17827f;
+  --block-time-surface: var(--block-time-color);
+  --block-order-color: #1f7c49;
+  --block-order-surface: var(--block-order-color);
+  --block-risk-color: #bf3f39;
+  --block-risk-surface: var(--block-risk-color);
+
+  /* Same hues as dark, darkened to at least 4.8:1 on white. */
+  --tone-standard: #5d781c;
+  --tone-risk: #24698e;
+  --tone-return: #906116;
+  --tone-sharpe: #73539e;
+  --tone-universe: #0f7a70;
+  --tone-data: #1c6f9c;
+  --tone-indicator: #6d4bc4;
+  --tone-condition: #a8500c;
+  --tone-logic: #8a6008;
+  --tone-order: #4f6070;
+  --tone-risk-node: #c2403f;
+
+  --scrim: rgba(16, 28, 30, .44);
+  --glass: color-mix(in srgb, var(--surface) 94%, transparent);
+  --glass-border: color-mix(in srgb, var(--line-strong) 88%, transparent);
+  --inset-highlight: rgba(24, 32, 34, .04);
+
+  --chart-grid: color-mix(in srgb, var(--line-strong) 70%, transparent);
+  --chart-axis: var(--text-faint);
+  --chart-benchmark: #7b8790;
+
+  /* A slate-teal ink rather than pure black, so the same authored alpha reads
+     as a soft lift on white instead of a grey smudge. */
+  --shadow-rgb: 38, 54, 56;
+  --shadow: 0 10px 28px rgba(24, 40, 42, .07);
+  --shadow-overlay: 0 20px 52px rgba(24, 40, 42, .16);
+  --shadow-float: 0 14px 32px rgba(24, 40, 42, .1);
+  --focus-ring: color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+/*
+  Colour templates, chosen from the dock at the bottom of the screen. Each
+  template swaps only the brand accent triple — neutrals, status colours and
+  price colours are semantic and never follow the template. Declared per
+  theme: dark accents are pastels with dark ink, light accents are deep hues
+  with white ink, all checked to at least 4.5:1 on their surface. "teal" is
+  the default palette from the logo and needs no override.
+*/
+.theme-dark[data-palette="blue"] { --accent: #8fb3ff; --accent-soft: #1b2540; --accent-ink: #0a1226; }
+.theme-light[data-palette="blue"] { --accent: #2563eb; --accent-soft: #e8effd; --accent-ink: #ffffff; }
+.theme-dark[data-palette="violet"] { --accent: #bda4ff; --accent-soft: #251d40; --accent-ink: #150f30; }
+.theme-light[data-palette="violet"] { --accent: #6d4bc4; --accent-soft: #efeafd; --accent-ink: #ffffff; }
+.theme-dark[data-palette="green"] { --accent: #7fd1a4; --accent-soft: #163325; --accent-ink: #06231a; }
+.theme-light[data-palette="green"] { --accent: #1f7a55; --accent-soft: #e3f2ea; --accent-ink: #ffffff; }
+.theme-dark[data-palette="amber"] { --accent: #eec27e; --accent-soft: #382b18; --accent-ink: #241a07; }
+.theme-light[data-palette="amber"] { --accent: #8c5c0d; --accent-soft: #f9eeda; --accent-ink: #ffffff; }
+.theme-dark[data-palette="rose"] { --accent: #f79ab0; --accent-soft: #38202a; --accent-ink: #260f19; }
+.theme-light[data-palette="rose"] { --accent: #b42a52; --accent-soft: #fbe9ef; --accent-ink: #ffffff; }
+
+/*
+  US up/down convention, chosen in the account display settings: gains green,
+  losses red. Declared per theme so both palettes keep their contrast checks.
+*/
+.theme-dark[data-updown="us"] {
+  --gain: #74bc98;
+  --gain-soft: #1c3328;
+  --loss: #ff7c88;
+  --loss-soft: #3a1e23;
+}
+.theme-light[data-updown="us"] {
+  --gain: #1f7a55;
+  --gain-soft: #e3f2ea;
+  --loss: #c92f3f;
+  --loss-soft: #fce9eb;
+}
+
+/* Respect the OS preference for reduced motion everywhere, not per component. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: .01ms;
+    --motion-base: .01ms;
+  }
+}
+
+/*
+  Explicit user override from the account settings screen. This wins over the OS
+  preference because the person asked for it in the product.
+*/
+.reduce-motion,
+.reduce-motion * {
+  animation-duration: .01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .01ms !important;
+  scroll-behavior: auto !important;
 }

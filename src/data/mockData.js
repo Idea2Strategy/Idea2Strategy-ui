@@ -10,10 +10,18 @@ export const templates = [
   { type: 'Pro', name: 'Pair spread structure', detail: '병렬 · 스프레드 · 균형', fields: 9 },
 ];
 
+/*
+  `labels` group bots for aggregate selection (a person can run up to ten).
+  `startDaysAgo` is the bot's launch date relative to the sample end date —
+  bots launched inside a chart window enter the aggregate as a capital-inflow
+  step, never as fake performance.
+*/
 export const bots = [
-  { name: 'Atlas 07', state: '실행 중', capital: '$24,892.40', change: '+1.84%', strategies: 2, room: '개인 봇' },
-  { name: 'Room Beta', state: '평가 중', capital: '$10,184.12', change: '+1.84%', strategies: 1, room: 'Momentum Lab' },
-  { name: 'Pair Lab', state: '조치 필요', capital: '$18,940.08', change: '-0.38%', strategies: 2, room: '개인 봇' },
+  { name: 'Atlas 07', state: '실행 중', capital: '$24,892.40', change: '+1.84%', strategies: 2, room: '개인 봇', labels: ['개인'], startDaysAgo: 380 },
+  { name: 'Room Beta', state: '평가 중', capital: '$10,184.12', change: '+1.84%', strategies: 1, room: 'Momentum Lab', labels: ['대회'], startDaysAgo: 45 },
+  /* A budget-cap deferral is part of normal operation — the bot retries on the
+     next evaluation — so it is not an attention state. */
+  { name: 'Pair Lab', state: '실행 중', capital: '$18,940.08', change: '-0.38%', strategies: 2, room: '개인 봇', labels: ['개인', '페어'], startDaysAgo: 18 },
 ];
 
 export const positions = [
@@ -38,18 +46,36 @@ export const rooms = [
   { name: 'Quant Study 04', phase: '모집 중', bots: '3 / 8', remaining: '6일 09시간', score: '수익률', privacy: '비밀' },
 ];
 
+/*
+  Competition entries carry every comparable metric so the ranking can be sorted
+  by whichever one the person cares about, rather than presenting a single
+  composite score as the one true answer.
+*/
 export const leaderboard = [
-  { rank: 1, bot: 'Bot 3F9A', score: '82.41', return: '+4.18%', drawdown: '-1.08%', mine: false },
-  { rank: 2, bot: 'Room Beta', score: '80.92', return: '+3.84%', drawdown: '-0.94%', mine: true },
-  { rank: 3, bot: 'Bot 8C21', score: '78.07', return: '+3.58%', drawdown: '-1.44%', mine: false },
-  { rank: 4, bot: 'Bot 11D0', score: '74.36', return: '+2.96%', drawdown: '-1.12%', mine: false },
+  { rank: 1, bot: 'Bot 3F9A', score: 82.41, return: 4.18, drawdown: -1.08, sharpe: 1.94, volatility: 8.4, winRate: 61.2, trades: 48, mine: false },
+  { rank: 2, bot: 'Room Beta', score: 80.92, return: 3.84, drawdown: -0.94, sharpe: 2.08, volatility: 7.1, winRate: 58.7, trades: 31, mine: true },
+  { rank: 3, bot: 'Bot 8C21', score: 78.07, return: 3.58, drawdown: -1.44, sharpe: 1.62, volatility: 9.8, winRate: 55.4, trades: 62, mine: false },
+  { rank: 4, bot: 'Bot 11D0', score: 74.36, return: 2.96, drawdown: -1.12, sharpe: 1.71, volatility: 8.9, winRate: 52.1, trades: 27, mine: false },
 ];
 
+/*
+  `severity` drives the shape and icon of a notification, not just its colour, so
+  the list stays readable without relying on hue. `target` is the product page a
+  notification leads to; entries with no useful destination omit it and render
+  without a navigation affordance.
+*/
+/*
+  Action severity is reserved for user-actionable, time-bound items (the
+  renewal deadline). Routine engine events — budget-cap deferrals, data
+  checks — are info: the bot handles them itself on the next evaluation.
+*/
 export const notifications = [
-  { kind: '조치 필요', title: 'Pair Lab 데이터 확인', detail: '새 주문 평가를 보류하고 기존 상태를 유지합니다.', time: '4분 전', unread: true },
-  { kind: '체결', title: 'Atlas 07 · SPY 전량 체결', detail: '12주 · 평균 $634.06 · 수수료 $15.22', time: '18분 전', unread: true },
-  { kind: '방', title: 'Momentum Lab 평가 12일 남음', detail: '평가 종료 시점에 공식 결과가 확정됩니다.', time: '1시간 전', unread: false },
-  { kind: '백테스트', title: 'Opening Range Flow 완료', detail: '2023 Q3–2026 Q2 공식 구간 처리가 완료되었습니다.', time: '어제', unread: false },
+  { id: 'n-0', kind: '조치 필요', severity: 'action', target: 'home', title: 'Atlas 07 계속 실행 확인', detail: '무소속 봇은 기한 전에 연장해야 계속 실행됩니다 · 08.10까지 (D-18)', time: '오늘', unread: true },
+  { id: 'n-1', kind: '데이터', severity: 'info', target: 'bots', title: 'Pair Lab 데이터 확인', detail: '새 주문 평가를 보류하고 기존 상태를 유지합니다. 다음 평가에서 재시도합니다.', time: '4분 전', unread: true },
+  { id: 'n-2', kind: '체결', severity: 'success', target: 'bots', title: 'Atlas 07 · SPY 전량 체결', detail: '12주 · 평균 $634.06 · 수수료 $15.22', time: '18분 전', unread: false },
+  { id: 'n-3', kind: '대회', severity: 'info', target: 'rooms', title: 'Momentum Lab 평가 12일 남음', detail: '평가 종료 시점에 공식 결과가 확정됩니다.', time: '1시간 전', unread: false },
+  { id: 'n-4', kind: '백테스트', severity: 'success', target: 'backtest', title: 'Opening Range Flow 완료', detail: '2023 Q3–2026 Q2 공식 구간 처리가 완료되었습니다.', time: '어제', unread: false },
+  { id: 'n-6', kind: '데이터', severity: 'info', title: '시장 데이터 지연 복구', detail: '09:12 ET부터 12분간 지연된 시세가 정상 수집으로 돌아왔습니다.', time: '2일 전', unread: false },
 ];
 
 export const monthlyFailures = [
