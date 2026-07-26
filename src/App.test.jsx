@@ -41,21 +41,23 @@ describe('Signal product UI', () => {
     unmount();
     window.history.replaceState({}, '', '/strategies/new/pro');
     render(<App />);
-    expect(screen.getByRole('heading', { name: 'Pro 전략 편집기' })).toBeInTheDocument();
+    // The Pro command bar is as clean as Basic's: navigation and actions only.
+    expect(screen.getByRole('toolbar', { name: 'Pro 편집 작업' })).toBeInTheDocument();
+    expect(screen.queryByText(/샘플 데이터/)).not.toBeInTheDocument();
   });
 
   test('opens on the home dashboard and returns home when the brand is clicked', async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    expect(screen.getByRole('heading', { name: '오늘의 운용 현황' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
     expect(screen.getByText('확인이 필요한 작업')).toBeInTheDocument();
     expect(screen.getByText('전체 성과')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '전략' }));
     expect(screen.getByRole('heading', { name: '전략' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Idea2Strategy 홈' }));
-    expect(screen.getByRole('heading', { name: '오늘의 운용 현황' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
   });
 
   test('removes admin and watchlist entry points and opens security inside My account', async () => {
@@ -74,7 +76,7 @@ describe('Signal product UI', () => {
     const { unmount } = render(<App />);
 
     await user.selectOptions(screen.getByRole('combobox', { name: '언어 선택' }), 'en');
-    expect(screen.getByRole('heading', { name: "Today's operations" })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Welcome back, KIM' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'New strategy' })).toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute('lang', 'en');
     await user.click(screen.getByRole('button', { name: 'Bots' }));
@@ -92,11 +94,11 @@ describe('Signal product UI', () => {
     render(<App />);
 
     for (const [navigation, heading] of [
-      ['홈', '오늘의 운용 현황'],
+      ['홈', '반갑습니다, 김전략님'],
       ['전략', '전략'],
       ['봇', '봇 운영 센터'],
       ['백테스트', '봇 백테스트'],
-      ['Competition', 'Competition'],
+      ['모의투자', '모의투자'],
     ]) {
       await user.click(screen.getByRole('button', { name: navigation }));
       expect(screen.getByRole('heading', { name: heading }).closest('.page-heading')).not.toBeNull();
@@ -114,7 +116,7 @@ describe('Signal product UI', () => {
 
   test.each(['balanced', 'terminal'])('resolves the legacy %s entry to the shared Signal product UI', (variant) => {
     render(<App initialVariant={variant} />);
-    for (const name of ['홈', '전략', '봇', '백테스트', 'Competition']) expect(screen.getByRole('button', { name })).toBeInTheDocument();
+    for (const name of ['홈', '전략', '봇', '백테스트', '모의투자']) expect(screen.getByRole('button', { name })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '알림' })).toBeInTheDocument();
     expect(screen.getByTestId('app-shell')).toHaveAttribute('data-variant', 'signal');
     expect(screen.queryByText('TERMINAL / PULSE')).not.toBeInTheDocument();
@@ -244,15 +246,15 @@ describe('Signal product UI', () => {
   test('separates the official season from the searchable Competition list', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
-    await user.click(screen.getByRole('button', { name: 'Competition' }));
+    await user.click(screen.getByRole('button', { name: '모의투자' }));
 
-    expect(screen.getByRole('heading', { name: 'Competition' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '2026 Q3 공식 대회 보러가기' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '모의투자' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '공식 대회 전체 보기' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'OFFICAL' })).not.toBeInTheDocument();
-    const search = screen.getByRole('searchbox', { name: 'Competition 검색' });
-    await user.type(search, 'ETF');
+    const search = screen.getByRole('searchbox', { name: '대회 검색' });
+    await user.type(search, 'ETF Disc');
     expect(
-      screen.getByRole('complementary', { name: 'ETF Discipline 선택 정보' }),
+      screen.getByRole('complementary', { name: 'ETF Discipline 순위' }),
     ).toBeInTheDocument();
     expect(screen.queryByText('Momentum Lab')).not.toBeInTheDocument();
 

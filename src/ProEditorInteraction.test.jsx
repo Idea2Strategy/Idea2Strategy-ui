@@ -14,8 +14,10 @@ describe('Pro editor shell', () => {
   test('uses the same floating editor shell as the Basic canvas', () => {
     render(<ProEditor goBack={() => {}} openEditor={() => {}} />);
 
-    expect(screen.getByRole('heading', { name: 'Pro 전략 편집기' })).toBeInTheDocument();
     expect(screen.getByRole('toolbar', { name: 'Pro 편집 작업' })).toHaveClass('floating-editor-controls');
+    // No title or strategy meta in the bar — same clean shell as Basic.
+    expect(screen.queryByRole('heading', { name: 'Pro 전략 편집기' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/샘플 데이터/)).not.toBeInTheDocument();
     expect(screen.getByRole('group', { name: '편집기 전환' })).toHaveClass('floating-editor-mode-controls');
     expect(screen.getByRole('group', { name: '캔버스 확대/축소' })).toHaveClass('floating-zoom-controls');
     for (const name of ['목록', 'Basic 편집기', 'Pro 편집기', '저장', '검증', '축소', '배율 초기화', '확대']) {
@@ -221,7 +223,7 @@ describe('Pro editor localization', () => {
     window.localStorage.setItem('i2s-language', 'en');
     render(<LanguageProvider><ProEditor goBack={() => {}} openEditor={() => {}} /></LanguageProvider>);
 
-    expect(screen.getByRole('heading', { name: 'Pro strategy editor' })).toBeInTheDocument();
+    expect(screen.getByRole('toolbar', { name: 'Pro editing actions' })).toBeInTheDocument();
     expect(screen.getByText('Market data')).toBeInTheDocument();
     expect(screen.getByText('Condition · signal')).toBeInTheDocument();
     window.localStorage.clear();
