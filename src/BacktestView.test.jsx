@@ -60,6 +60,13 @@ describe('BacktestView', () => {
     render(<BacktestView />);
 
     const comparisonWorkspace = screen.getByTestId('backtest-comparison-workspace');
+    const [botSelector, performancePanel] = comparisonWorkspace.children;
+
+    expect(botSelector).toHaveClass('backtest-bot-selector');
+    expect(performancePanel).toHaveClass('backtest-performance-panel');
+    expect(balancedStyles).toMatch(
+      /backtest-comparison-workspace[\s\S]*?grid-template-columns:\s*minmax\(280px,\s*\.85fr\)\s+minmax\(0,\s*2\.15fr\)/,
+    );
     expect(within(comparisonWorkspace).getByRole('list', { name: '백테스트 봇 목록' })).toBeInTheDocument();
     expect(within(comparisonWorkspace).getByRole('heading', { name: '봇 선택' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '조건 미충족 요약' })).not.toBeInTheDocument();

@@ -1946,7 +1946,7 @@
 }
 .variant-balanced[data-design="signal-studio"] .backtest-comparison-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 2.15fr) minmax(280px, .85fr);
+  grid-template-columns: minmax(280px, .85fr) minmax(0, 2.15fr);
   align-items: stretch;
   gap: var(--space-4);
   margin-bottom: var(--space-4);

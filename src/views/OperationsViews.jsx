@@ -832,22 +832,6 @@ export function BacktestView() {
       actions={<Button icon={CalendarDays}>2023 Q3–2026 Q2</Button>}
     />
     <div className="backtest-comparison-workspace" data-testid="backtest-comparison-workspace">
-      <Panel className="backtest-performance-panel" title={`${selectedBot.name} vs 시장 지수`} subtitle="2023 Q3–2026 Q2 · 누적 수익률 (%)" action={<div className="backtest-chart-legend" role="group" aria-label="비교 지표 선택">
-        <span className="bot"><i />선택한 봇</span>
-        {backtestBenchmarks.map((benchmark) => {
-          const isActive = activeBenchmarkIds.includes(benchmark.id);
-          return <button
-            key={benchmark.id}
-            type="button"
-            className={`benchmark ${benchmark.id}${isActive ? ' active' : ''}`}
-            aria-label={`${benchmark.name} 지표 표시`}
-            aria-pressed={isActive}
-            onClick={() => toggleBenchmark(benchmark.id)}
-          ><i />{benchmark.name}</button>;
-        })}
-      </div>}>
-        <BacktestComparisonChart bot={selectedBot} benchmarks={activeBenchmarks} />
-      </Panel>
       <aside className="backtest-bot-selector" aria-labelledby="backtest-bot-selector-title">
         <header>
           <div><span>TRADING BOTS</span><h2 id="backtest-bot-selector-title">봇 선택</h2></div>
@@ -883,6 +867,22 @@ export function BacktestView() {
           <span>{filteredBacktestBots.length > 3 ? '스크롤하여 더 보기' : '목록이 모두 표시됨'}</span>
         </footer>
       </aside>
+      <Panel className="backtest-performance-panel" title={`${selectedBot.name} vs 시장 지수`} subtitle="2023 Q3–2026 Q2 · 누적 수익률 (%)" action={<div className="backtest-chart-legend" role="group" aria-label="비교 지표 선택">
+        <span className="bot"><i />선택한 봇</span>
+        {backtestBenchmarks.map((benchmark) => {
+          const isActive = activeBenchmarkIds.includes(benchmark.id);
+          return <button
+            key={benchmark.id}
+            type="button"
+            className={`benchmark ${benchmark.id}${isActive ? ' active' : ''}`}
+            aria-label={`${benchmark.name} 지표 표시`}
+            aria-pressed={isActive}
+            onClick={() => toggleBenchmark(benchmark.id)}
+          ><i />{benchmark.name}</button>;
+        })}
+      </div>}>
+        <BacktestComparisonChart bot={selectedBot} benchmarks={activeBenchmarks} />
+      </Panel>
     </div>
 
     {/* A compact row instead of four 130px cards. The bot and benchmark returns
