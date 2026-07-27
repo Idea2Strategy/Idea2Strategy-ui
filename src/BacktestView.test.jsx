@@ -127,6 +127,8 @@ describe('BacktestView', () => {
     expect(screen.getByRole('img', { name: 'SPY 캔들 차트와 매수 매도 기록' })).toBeInTheDocument();
     expect(screen.getAllByTestId('trade-marker').length).toBeGreaterThan(0);
     expect(screen.getAllByTestId('trade-marker')[0]).toHaveTextContent(/매수|매도/);
+    expect(screen.getByText('선택한 종목')).toBeInTheDocument();
+    expect(screen.queryByRole('searchbox', { name: '거래 종목 검색' })).not.toBeInTheDocument();
 
     const dailyCandleCount = screen.getAllByTestId('market-candle').length;
     expect(dailyCandleCount).toBe(60);
@@ -138,14 +140,23 @@ describe('BacktestView', () => {
     expect(screen.getByRole('img', { name: 'SPY 캔들 차트와 매수 매도 기록' })).toHaveAttribute('data-timeframe', '1시간');
     expect(screen.getAllByTestId('market-candle')).toHaveLength(48);
 
-    const symbolSearch = screen.getByRole('searchbox', { name: '종목 검색' });
+    await user.click(screen.getByRole('button', { name: '거래 종목 선택 열기' }));
+
+    const symbolDialog = screen.getByRole('dialog', { name: '거래 종목 선택' });
+    const symbolSearch = within(symbolDialog).getByRole('searchbox', { name: '거래 종목 검색' });
+    expect(symbolDialog).toHaveAttribute('aria-modal', 'true');
+    expect(within(symbolDialog).getByText('3 / 3개 종목')).toBeInTheDocument();
+    expect(within(symbolDialog).getByRole('button', { name: 'SPY 종목 선택' })).toHaveAttribute('aria-pressed', 'true');
+
     await user.type(symbolSearch, 'AAPL');
 
-    expect(screen.getByRole('button', { name: 'AAPL 종목 선택' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'SPY 종목 선택' })).not.toBeInTheDocument();
+    expect(within(symbolDialog).getByText('1 / 3개 종목')).toBeInTheDocument();
+    expect(within(symbolDialog).getByRole('button', { name: 'AAPL 종목 선택' })).toBeInTheDocument();
+    expect(within(symbolDialog).queryByRole('button', { name: 'SPY 종목 선택' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'AAPL 종목 선택' }));
+    await user.click(within(symbolDialog).getByRole('button', { name: 'AAPL 종목 선택' }));
 
+    expect(screen.queryByRole('dialog', { name: '거래 종목 선택' })).not.toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'AAPL 캔들 차트와 매수 매도 기록' })).toBeInTheDocument();
     const executionLog = screen.getByRole('region', { name: 'AAPL 체결 로그' });
     expect(within(executionLog).getAllByText('AAPL').length).toBeGreaterThan(0);
@@ -153,8 +164,18 @@ describe('BacktestView', () => {
 
     await user.click(screen.getByRole('button', { name: /Pair Lab 백테스트 보기/ }));
 
-    expect(screen.getByRole('button', { name: 'KO 종목 선택' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'KO 캔들 차트와 매수 매도 기록' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '거래 종목 선택 열기' }));
+    expect(within(screen.getByRole('dialog', { name: '거래 종목 선택' })).getByRole('button', { name: 'KO 종목 선택' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('dialog', { name: '거래 종목 선택' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '거래 종목 선택 열기' }));
+    fireEvent.mouseDown(document.querySelector('.backtest-symbol-modal-backdrop'));
+
+    expect(screen.queryByRole('dialog', { name: '거래 종목 선택' })).not.toBeInTheDocument();
   });
 
   test('filters execution logs by date and exposes pagination controls for large histories', async () => {

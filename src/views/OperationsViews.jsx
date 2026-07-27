@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, Bot, CalendarDays, ChevronLeft, ChevronRight, Coins, Plus, Search, Trophy, X } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Bot, CalendarDays, Check, ChevronLeft, ChevronRight, Coins, Plus, Search, Trophy, X } from 'lucide-react';
 import { Button, DataTable, EmptyState, MetricRow, PageHeading, Panel, Status } from '../components/common.jsx';
 import { leaderboard } from '../data/mockData.js';
 import { Localized, useLanguage } from '../lib/i18n.jsx';
@@ -572,6 +572,7 @@ export function BacktestView() {
   const [selectedSymbol, setSelectedSymbol] = useState(botInstruments[backtestBots[0].name][0].symbol);
   const [botQuery, setBotQuery] = useState('');
   const [symbolQuery, setSymbolQuery] = useState('');
+  const [symbolModalOpen, setSymbolModalOpen] = useState(false);
   const [timeframe, setTimeframe] = useState('1일');
   const [activeBenchmarkIds, setActiveBenchmarkIds] = useState([backtestBenchmark.id]);
   const [executionStartDate, setExecutionStartDate] = useState('');
@@ -609,6 +610,19 @@ export function BacktestView() {
     [undefined, undefined],
   ), [selectedInstrument]);
   const executionCalendarDates = useMemo(() => calendarDatesForMonth(executionCalendarMonth), [executionCalendarMonth]);
+  useEffect(() => {
+    if (!symbolModalOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setSymbolModalOpen(false);
+    };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [symbolModalOpen]);
   useEffect(() => {
     if (!executionCalendarOpen) return undefined;
     const closeOnOutsideClick = (event) => {
@@ -664,7 +678,14 @@ export function BacktestView() {
     setSelectedBotName(bot.name);
     setSelectedSymbol(firstInstrument.symbol);
     setSymbolQuery('');
+    setSymbolModalOpen(false);
     resetExecutionLogView(firstInstrument);
+  };
+  const selectInstrument = (instrument) => {
+    setSelectedSymbol(instrument.symbol);
+    setSymbolQuery('');
+    setSymbolModalOpen(false);
+    resetExecutionLogView(instrument);
   };
   const toggleBenchmark = (benchmarkId) => {
     setActiveBenchmarkIds((current) => current.includes(benchmarkId)
@@ -749,21 +770,22 @@ export function BacktestView() {
     </section>
     <Panel className="backtest-trade-chart-panel" title="종목별 체결 차트" subtitle={`${selectedBot.name} · 조정 가격 · 미국 동부 시각`}>
       <div className="backtest-symbol-toolbar">
-        <label className="backtest-symbol-search"><Search size={15} /><input type="search" aria-label="종목 검색" placeholder="티커 또는 종목명 검색" value={symbolQuery} onChange={(event) => setSymbolQuery(event.target.value)} /></label>
-        <div className="backtest-symbol-options" role="list" aria-label={`${selectedBot.name} 거래 종목`}>
-          {filteredInstruments.map((instrument) => <button
-            key={instrument.symbol}
-            type="button"
-            aria-label={`${instrument.symbol} 종목 선택`}
-            aria-pressed={instrument.symbol === selectedInstrument.symbol}
-            className={instrument.symbol === selectedInstrument.symbol ? 'active' : ''}
-            onClick={() => {
-              setSelectedSymbol(instrument.symbol);
-              resetExecutionLogView(instrument);
-            }}
-          ><strong>{instrument.symbol}</strong><span>{instrument.name}</span></button>)}
-          {filteredInstruments.length === 0 && <small>검색 결과가 없습니다.</small>}
+        <div className="backtest-selected-symbol">
+          <span className="backtest-selected-symbol-code">{selectedInstrument.symbol.slice(0, 2)}</span>
+          <span><small>선택한 종목</small><strong>{selectedInstrument.symbol}</strong><em>{selectedInstrument.name}</em></span>
+          <b>{selectedInstrument.executions.length}건 체결</b>
         </div>
+        <button
+          type="button"
+          className="backtest-symbol-modal-trigger"
+          aria-label="거래 종목 선택 열기"
+          aria-haspopup="dialog"
+          aria-expanded={symbolModalOpen}
+          onClick={() => {
+            setSymbolQuery('');
+            setSymbolModalOpen(true);
+          }}
+        ><Search size={14} />종목 변경</button>
       </div>
       <div className="backtest-chart-controls">
         <div className="backtest-timeframe" role="group" aria-label="차트 기간">
@@ -890,6 +912,69 @@ export function BacktestView() {
         </nav>}
       </section>
     </Panel>
+    {symbolModalOpen && <div
+      className="backtest-symbol-modal-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) setSymbolModalOpen(false);
+      }}
+    >
+      <section
+        className="backtest-symbol-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="backtest-symbol-modal-title"
+      >
+        <header>
+          <div>
+            <span>TRADED INSTRUMENTS</span>
+            <h2 id="backtest-symbol-modal-title">거래 종목 선택</h2>
+            <p>{selectedBot.name}이(가) 백테스트 기간에 거래한 종목입니다.</p>
+          </div>
+          <button type="button" aria-label="거래 종목 선택 닫기" onClick={() => setSymbolModalOpen(false)}><X size={17} /></button>
+        </header>
+        <div className="backtest-symbol-modal-tools">
+          <label>
+            <Search size={15} aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="거래 종목 검색"
+              placeholder="티커 또는 종목명 검색"
+              value={symbolQuery}
+              autoFocus
+              onChange={(event) => setSymbolQuery(event.target.value)}
+            />
+            {symbolQuery && <button type="button" aria-label="종목 검색 초기화" onClick={() => setSymbolQuery('')}><X size={13} /></button>}
+          </label>
+          <strong>{`${filteredInstruments.length} / ${selectedBotInstruments.length}개 종목`}</strong>
+        </div>
+        <div className="backtest-symbol-modal-list" role="list" aria-label={`${selectedBot.name} 거래 종목`}>
+          {filteredInstruments.map((instrument) => {
+            const isSelected = instrument.symbol === selectedInstrument.symbol;
+            return <div role="listitem" key={instrument.symbol}><button
+              type="button"
+              aria-label={`${instrument.symbol} 종목 선택`}
+              aria-pressed={isSelected}
+              className={isSelected ? 'active' : ''}
+              onClick={() => selectInstrument(instrument)}
+            >
+              <span className="backtest-symbol-modal-code">{instrument.symbol.slice(0, 2)}</span>
+              <span><strong>{instrument.symbol}</strong><small>{instrument.name}</small></span>
+              <span className="backtest-symbol-modal-trades">{instrument.executions.length}건 체결</span>
+              <span className="backtest-symbol-modal-check">{isSelected && <Check size={14} />}</span>
+            </button></div>;
+          })}
+          {filteredInstruments.length === 0 && <div className="backtest-symbol-modal-empty" role="status">
+            <Search size={18} />
+            <strong>일치하는 종목이 없습니다.</strong>
+            <span>티커 또는 종목명을 다시 확인해 주세요.</span>
+          </div>}
+        </div>
+        <footer>
+          <span>종목을 선택하면 차트와 체결 로그가 함께 변경됩니다.</span>
+          <kbd>ESC</kbd><small>닫기</small>
+        </footer>
+      </section>
+    </div>}
   </div></Localized>;
 }
 
