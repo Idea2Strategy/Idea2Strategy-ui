@@ -126,6 +126,34 @@ describe('BacktestView', () => {
     expect(screen.getByRole('button', { name: 'KO 종목 선택' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'KO 캔들 차트와 매수 매도 기록' })).toBeInTheDocument();
   });
+
+  test('filters execution logs by date and exposes pagination controls for large histories', async () => {
+    const user = userEvent.setup();
+    render(<BacktestView />);
+
+    const executionLog = screen.getByRole('region', { name: 'SPY 체결 로그' });
+    const startDate = within(executionLog).getByLabelText('체결 로그 시작일');
+    const endDate = within(executionLog).getByLabelText('체결 로그 종료일');
+    const pageSize = within(executionLog).getByRole('combobox', { name: '페이지당 로그 수' });
+
+    expect(startDate).toHaveAttribute('type', 'date');
+    expect(endDate).toHaveAttribute('type', 'date');
+    expect(pageSize).toHaveValue('10');
+    expect(within(executionLog).getByText('3건 검색됨')).toBeInTheDocument();
+    expect(within(executionLog).getByRole('button', { name: '이전 로그 페이지' })).toBeDisabled();
+    expect(within(executionLog).getByRole('button', { name: '다음 로그 페이지' })).toBeDisabled();
+
+    fireEvent.change(startDate, { target: { value: '2026-07-19' } });
+
+    expect(within(executionLog).getByText('1건 검색됨')).toBeInTheDocument();
+    expect(within(executionLog).getByText('07.19 10:00')).toBeInTheDocument();
+    expect(within(executionLog).queryByText('07.18 10:30')).not.toBeInTheDocument();
+
+    await user.click(within(executionLog).getByRole('button', { name: '전체 기간 보기' }));
+
+    expect(startDate).toHaveValue('');
+    expect(within(executionLog).getByText('3건 검색됨')).toBeInTheDocument();
+  });
 });
 
 describe('BacktestView chart interactions', () => {

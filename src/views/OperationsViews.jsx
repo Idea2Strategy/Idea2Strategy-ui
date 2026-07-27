@@ -84,6 +84,8 @@ function makeInstrument(symbol, name, basePrice, changes, executionSpecs) {
     return {
       id: `${symbol}-${execution.index}-${execution.side}`,
       index: execution.index,
+      date: execution.index < 14 ? '2026-07-18' : '2026-07-19',
+      timestamp: `${execution.index < 14 ? '2026-07-18' : '2026-07-19'}T${candleTimes[execution.index]}`,
       time: candle.time,
       symbol,
       side: execution.side,
@@ -475,11 +477,37 @@ export function BacktestView() {
   const [symbolQuery, setSymbolQuery] = useState('');
   const [timeframe, setTimeframe] = useState('1일');
   const [activeBenchmarkIds, setActiveBenchmarkIds] = useState([backtestBenchmark.id]);
+  const [executionStartDate, setExecutionStartDate] = useState('');
+  const [executionEndDate, setExecutionEndDate] = useState('');
+  const [executionPage, setExecutionPage] = useState(1);
+  const [executionPageSize, setExecutionPageSize] = useState(10);
   const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
   const activeBenchmarks = backtestBenchmarks.filter((benchmark) => activeBenchmarkIds.includes(benchmark.id));
   const selectedBotInstruments = botInstruments[selectedBot.name];
   const selectedInstrument = selectedBotInstruments.find((instrument) => instrument.symbol === selectedSymbol) ?? selectedBotInstruments[0];
   const filteredInstruments = selectedBotInstruments.filter((instrument) => `${instrument.symbol} ${instrument.name}`.toLowerCase().includes(symbolQuery.trim().toLowerCase()));
+  const filteredExecutions = useMemo(() => selectedInstrument.executions
+    .filter((execution) => (!executionStartDate || execution.date >= executionStartDate)
+      && (!executionEndDate || execution.date <= executionEndDate))
+    .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp)), [executionEndDate, executionStartDate, selectedInstrument]);
+  const executionPageCount = Math.max(1, Math.ceil(filteredExecutions.length / executionPageSize));
+  const currentExecutionPage = Math.min(executionPage, executionPageCount);
+  const executionPageOffset = (currentExecutionPage - 1) * executionPageSize;
+  const visibleExecutions = filteredExecutions.slice(executionPageOffset, executionPageOffset + executionPageSize);
+  const executionRangeStart = filteredExecutions.length === 0 ? 0 : executionPageOffset + 1;
+  const executionRangeEnd = Math.min(executionPageOffset + executionPageSize, filteredExecutions.length);
+  const [firstExecutionDate, lastExecutionDate] = useMemo(() => selectedInstrument.executions.reduce(
+    ([first, last], execution) => [
+      !first || execution.date < first ? execution.date : first,
+      !last || execution.date > last ? execution.date : last,
+    ],
+    [undefined, undefined],
+  ), [selectedInstrument]);
+  useEffect(() => {
+    setExecutionStartDate('');
+    setExecutionEndDate('');
+    setExecutionPage(1);
+  }, [selectedInstrument.symbol]);
   const selectBot = (bot) => {
     setSelectedBotName(bot.name);
     setSelectedSymbol(botInstruments[bot.name][0].symbol);
@@ -584,12 +612,82 @@ export function BacktestView() {
           no longer carry separate 72px headers saying the same thing. */}
       <section className="backtest-execution-log" role="region" aria-label={`${selectedInstrument.symbol} 체결 로그`}>
         <header>
-          <div><strong>{selectedInstrument.symbol} 매수·매도 로그</strong><small>{selectedInstrument.name} · 차트에 표시된 개별 체결</small></div>
-          <span>{selectedInstrument.executions.length}건</span>
+          <div><strong>{selectedInstrument.symbol} 매수·매도 로그</strong><small>{selectedInstrument.name} · 최신 체결부터 표시</small></div>
+          <span>전체 {selectedInstrument.executions.length}건</span>
         </header>
-        {selectedInstrument.executions.length > 0
-          ? <DataTable columns={columns} rows={selectedInstrument.executions} rowKey="id" />
-          : <EmptyState icon={Coins} title="이 종목에는 체결 기록이 없습니다." detail="다른 종목을 선택하면 해당 종목의 체결 내역을 확인할 수 있습니다." />}
+        <div className="backtest-log-toolbar">
+          <div className="backtest-log-date-filter" role="group" aria-label="체결 로그 기간 검색">
+            <CalendarDays size={15} aria-hidden="true" />
+            <label><span>시작일</span><input
+              type="date"
+              aria-label="체결 로그 시작일"
+              min={firstExecutionDate}
+              max={executionEndDate || lastExecutionDate}
+              value={executionStartDate}
+              onChange={(event) => {
+                setExecutionStartDate(event.target.value);
+                setExecutionPage(1);
+              }}
+            /></label>
+            <i aria-hidden="true">–</i>
+            <label><span>종료일</span><input
+              type="date"
+              aria-label="체결 로그 종료일"
+              min={executionStartDate || firstExecutionDate}
+              max={lastExecutionDate}
+              value={executionEndDate}
+              onChange={(event) => {
+                setExecutionEndDate(event.target.value);
+                setExecutionPage(1);
+              }}
+            /></label>
+            <button
+              type="button"
+              aria-label="전체 기간 보기"
+              disabled={!executionStartDate && !executionEndDate}
+              onClick={() => {
+                setExecutionStartDate('');
+                setExecutionEndDate('');
+                setExecutionPage(1);
+              }}
+            >전체 기간</button>
+          </div>
+          <div className="backtest-log-table-controls">
+            <strong aria-live="polite">{filteredExecutions.length}건 검색됨</strong>
+            <label>페이지당 <select
+              aria-label="페이지당 로그 수"
+              value={executionPageSize}
+              onChange={(event) => {
+                setExecutionPageSize(Number(event.target.value));
+                setExecutionPage(1);
+              }}
+            >
+              {[10, 25, 50].map((size) => <option key={size} value={size}>{size}건</option>)}
+            </select></label>
+          </div>
+        </div>
+        {visibleExecutions.length > 0
+          ? <DataTable className="backtest-log-table" columns={columns} rows={visibleExecutions} rowKey="id" />
+          : <EmptyState
+            icon={Coins}
+            title={selectedInstrument.executions.length > 0 ? '선택한 기간에 체결 기록이 없습니다.' : '이 종목에는 체결 기록이 없습니다.'}
+            detail={selectedInstrument.executions.length > 0 ? '기간을 조정하거나 전체 기간으로 초기화해 주세요.' : '다른 종목을 선택하면 해당 종목의 체결 내역을 확인할 수 있습니다.'}
+          />}
+        {selectedInstrument.executions.length > 0 && <nav className="backtest-log-pagination" aria-label="체결 로그 페이지">
+          <button
+            type="button"
+            aria-label="이전 로그 페이지"
+            disabled={currentExecutionPage === 1}
+            onClick={() => setExecutionPage(currentExecutionPage - 1)}
+          >이전</button>
+          <span>{executionRangeStart}–{executionRangeEnd} / {filteredExecutions.length}건 · {currentExecutionPage}/{executionPageCount} 페이지</span>
+          <button
+            type="button"
+            aria-label="다음 로그 페이지"
+            disabled={currentExecutionPage === executionPageCount}
+            onClick={() => setExecutionPage(currentExecutionPage + 1)}
+          >다음</button>
+        </nav>}
       </section>
     </Panel>
   </div></Localized>;
