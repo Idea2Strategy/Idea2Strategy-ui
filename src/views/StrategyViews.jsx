@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Boxes, Check, ChevronDown, ChevronRight, CircleDollarSign, GitBranch, GripVertical, Import, Layers3, Minus, Play, Plus, Save, Search, ShieldCheck, Sparkles, Split, Timer, Trash2, TriangleAlert, X } from 'lucide-react';
+import { ArrowLeft, Boxes, Check, ChevronDown, ChevronRight, CircleDollarSign, GitBranch, GripVertical, Import, Layers3, Minus, Play, Plus, Rocket, Save, Search, ShieldCheck, Sparkles, Split, Timer, Trash2, TriangleAlert, X } from 'lucide-react';
 import { strategies } from '../data/mockData.js';
 import { Button, PageHeading, Panel, Status } from '../components/common.jsx';
 import { Localized } from '../lib/i18n.jsx';
@@ -1368,7 +1368,7 @@ export function BasicEditor({ goBack, openEditor }) {
     <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
     <div className="basic-editor-commandbar floating-editor-controls" role="toolbar" aria-label="Basic 편집 작업">
       <div className="basic-editor-context"><Button className="floating-editor-button" kind="ghost" icon={ArrowLeft} onClick={goBack}>목록</Button><div className="floating-editor-mode-controls" role="group" aria-label="편집기 전환"><Button className="floating-editor-button active" onClick={() => openEditor?.('basic')}>Basic 편집기</Button><Button className="floating-editor-button" onClick={() => openEditor?.('pro')}>Pro 편집기</Button></div></div>
-      <div className="basic-editor-actions"><Button className="floating-editor-button" icon={Save} onClick={saveStrategy}>저장</Button><Button className="floating-editor-button" kind="primary" icon={ShieldCheck} onClick={runBasicValidation}>검증</Button></div>
+      <div className="basic-editor-actions"><Button className="floating-editor-button" icon={Save} onClick={saveStrategy}>저장</Button><Button className="floating-editor-button" kind="primary" icon={Rocket} title="검증 후 개인 운용 봇으로 출시합니다." onClick={runBasicValidation}>개인 봇 출시</Button></div>
     </div>
     <section
       className={`basic-validation-summary ${isLaunchable ? 'is-launchable' : 'is-incomplete'}`}

@@ -15,9 +15,14 @@ describe('Basic editor strategy explanations', () => {
     expect(screen.queryByText('미저장 변경')).not.toBeInTheDocument();
     expect(screen.getByRole('group', { name: '편집기 전환' })).toHaveClass('floating-editor-mode-controls');
     expect(screen.getByRole('group', { name: '캔버스 확대/축소' })).toHaveClass('floating-zoom-controls');
-    for (const name of ['목록', 'Basic 편집기', 'Pro 편집기', '저장', '검증', '축소', '배율 초기화', '확대']) {
+    for (const name of ['목록', 'Basic 편집기', 'Pro 편집기', '저장', '개인 봇 출시', '축소', '배율 초기화', '확대']) {
       expect(screen.getByRole('button', { name })).toHaveClass('floating-editor-button');
     }
+    expect(screen.getByRole('button', { name: '개인 봇 출시' })).toHaveAttribute(
+      'title',
+      '검증 후 개인 운용 봇으로 출시합니다.',
+    );
+    expect(screen.queryByRole('button', { name: '검증' })).not.toBeInTheDocument();
     expect(screen.getByTestId('basic-editor-workspace')).toHaveClass('full-editor-workspace');
     expect(screen.getByTestId('basic-templates-panel')).toHaveClass('floating-editor-panel');
     expect(screen.getByTestId('basic-block-library')).toHaveClass('floating-editor-panel');

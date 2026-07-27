@@ -284,6 +284,8 @@ const english = {
   '저장됨': 'Saved',
   '미저장 변경': 'Unsaved changes',
   '검증': 'Validate',
+  '개인 봇 출시': 'Launch personal bot',
+  '검증 후 개인 운용 봇으로 출시합니다.': 'Validate and launch as a personal bot.',
   '블록 검색': 'Search blocks',
   'RSI, 가격, 체결량': 'RSI, price, volume',
   '이동평균': 'Moving average',
