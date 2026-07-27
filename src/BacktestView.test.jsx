@@ -127,6 +127,7 @@ describe('BacktestView', () => {
     expect(screen.getByRole('img', { name: 'SPY 캔들 차트와 매수 매도 기록' })).toBeInTheDocument();
     expect(screen.getAllByTestId('trade-marker').length).toBeGreaterThan(0);
     expect(screen.getAllByTestId('trade-marker')[0]).toHaveTextContent(/매수|매도/);
+    expect(screen.getByText('주요 종목')).toBeInTheDocument();
     const quickSymbols = screen.getByRole('list', { name: '빠른 거래 종목 선택' });
     expect(within(quickSymbols).getAllByRole('listitem')).toHaveLength(3);
     expect(within(quickSymbols).getByRole('button', { name: 'SPY 종목 빠른 선택' })).toHaveAttribute('aria-pressed', 'true');

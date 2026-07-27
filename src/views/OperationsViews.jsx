@@ -774,6 +774,7 @@ export function BacktestView() {
     </section>
     <Panel className="backtest-trade-chart-panel" title="종목별 체결 차트" subtitle={`${selectedBot.name} · 조정 가격 · 미국 동부 시각`}>
       <div className="backtest-symbol-toolbar">
+        <span className="backtest-symbol-preview-label">주요 종목</span>
         <div className="backtest-symbol-preview" role="list" aria-label="빠른 거래 종목 선택">
           {previewInstruments.map((instrument) => {
             const isSelected = instrument.symbol === selectedInstrument.symbol;

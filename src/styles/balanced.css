@@ -2386,6 +2386,18 @@
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--surface-2) 72%, transparent);
 }
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-preview-label {
+  min-height: 28px;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding-right: 10px;
+  border-right: 1px solid var(--line);
+  color: var(--text-faint);
+  font-size: 9px;
+  font-weight: 750;
+  white-space: nowrap;
+}
 .variant-balanced[data-design="signal-studio"] .backtest-symbol-preview {
   min-width: 0;
   flex: 1;
