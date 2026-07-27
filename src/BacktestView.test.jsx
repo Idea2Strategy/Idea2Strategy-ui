@@ -133,7 +133,11 @@ describe('BacktestView chart interactions', () => {
     expect(balancedStyles).toMatch(/\.backtest-chart-legend\s*\{[^}]*border:\s*1px solid var\(--line\)[^}]*background:\s*var\(--surface\)/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-legend span\s*\{[^}]*font:\s*650 11px\/1 var\(--font-sans\)/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-legend \.bot\s*\{[^}]*background:\s*var\(--accent-soft\)/s);
-    expect(balancedStyles).toMatch(/\.backtest-chart-legend button\.active\s*\{[^}]*background:\s*color-mix\(in srgb,\s*var\(--benchmark-color\)[^}]*box-shadow:\s*inset 0 0 0 1px color-mix\(in srgb,\s*var\(--benchmark-color\)/s);
+    expect(balancedStyles).toMatch(/\.backtest-chart-legend button\.active\s*\{[^}]*color:\s*var\(--accent\)[^}]*background:\s*var\(--accent-soft\)[^}]*box-shadow:\s*inset 0 0 0 1px color-mix\(in srgb,\s*var\(--accent\)/s);
+    expect(balancedStyles).toMatch(/\.backtest-chart-legend \.benchmark i\s*\{[^}]*background:\s*var\(--benchmark-color\)[^}]*opacity:\s*1/s);
+    expect(balancedStyles).toMatch(/\.backtest-chart-line\.benchmark\s*\{[^}]*stroke:\s*var\(--text-soft\)/s);
+    expect(balancedStyles).toMatch(/\.backtest-chart-legend \.nasdaq\s*\{[^}]*--benchmark-color:\s*var\(--info\)/s);
+    expect(balancedStyles).toMatch(/\.backtest-chart-line\.benchmark\.nasdaq\s*\{[^}]*stroke:\s*var\(--info\)/s);
   });
 
   test('uses a defined theme surface color for the price axis background', () => {
