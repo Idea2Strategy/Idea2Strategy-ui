@@ -28,7 +28,7 @@ import { ReadOnlyStrategyBlock } from './StrategyViews.jsx';
 
 /* ---------- Types ----------------------------------------------------------- */
 
-type FilterId = 'all' | 'running' | 'evaluating' | 'attention';
+type FilterId = 'all' | 'personal' | 'competition';
 type TabId = 'overview' | 'positions' | 'decisions';
 type StepTone = 'universe' | 'data' | 'indicator' | 'condition' | 'risk' | 'order' | 'portfolio' | 'time';
 type LogScope = 'fills' | 'all';
@@ -368,18 +368,16 @@ const eventDaysAgo = (time: string): number => {
   return Math.round((SAMPLE_END_DATE - Date.UTC(2026, Number(match[1]) - 1, Number(match[2]))) / 86400000);
 };
 
-const botStateFilters: Array<{ id: FilterId; label: string }> = [
+const botOperationFilters: Array<{ id: FilterId; label: string }> = [
   { id: 'all', label: '전체' },
-  { id: 'running', label: '실행' },
-  { id: 'evaluating', label: '평가' },
-  { id: 'attention', label: '확인' },
+  { id: 'personal', label: '개인 운용' },
+  { id: 'competition', label: '대회 참가 중' },
 ];
 
 const matchesBotFilter = (bot: BotRecord, filter: FilterId): boolean => {
   if (filter === 'all') return true;
-  if (filter === 'running') return bot.state === '실행 중';
-  if (filter === 'evaluating') return bot.state === '평가 중';
-  return bot.state === '조치 필요';
+  const isCompetitionBot = bot.labels.includes('대회');
+  return filter === 'competition' ? isCompetitionBot : !isCompetitionBot;
 };
 
 /* Each state gets its own tone: running green, evaluating blue, attention
@@ -916,8 +914,8 @@ export function BotsView(): ReactNode {
       <section className="bots-list-panel panel" aria-labelledby="bots-list-title">
         <header className="bots-list-head">
           <div><span>MY BOTS</span><h2 id="bots-list-title">봇 목록</h2></div>
-          <div className="bots-filter" role="group" aria-label="봇 상태 필터">
-            {botStateFilters.map((option) => <button
+          <div className="bots-filter" role="group" aria-label="봇 운용 유형 필터">
+            {botOperationFilters.map((option) => <button
               key={option.id}
               type="button"
               aria-pressed={filter === option.id}
@@ -950,7 +948,7 @@ export function BotsView(): ReactNode {
         </div> : <EmptyState
           icon={Bot}
           title="조건에 맞는 봇이 없습니다."
-          detail="다른 상태 필터를 선택하면 나머지 봇을 확인할 수 있습니다."
+          detail="다른 운용 유형을 선택하면 나머지 봇을 확인할 수 있습니다."
           action={<Button onClick={() => setFilter('all')}>전체 보기</Button>}
         />}
       </section>

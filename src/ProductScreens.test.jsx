@@ -24,24 +24,26 @@ describe('Bot operations', () => {
     expect(screen.queryByRole('region', { name: 'Atlas 07 운영 상세' })).not.toBeInTheDocument();
   });
 
-  test('the status filter narrows the list and an empty result offers a way back', async () => {
+  test('the operation type filter separates personal bots from competition bots', async () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
+    const filter = screen.getByRole('group', { name: '봇 운용 유형 필터' });
     const list = () => within(screen.getByRole('list', { name: '봇 목록 결과' })).getAllByRole('listitem');
     expect(list()).toHaveLength(3);
+    expect(within(filter).getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'true');
 
-    await user.click(screen.getByRole('button', { name: '실행' }));
+    await user.click(within(filter).getByRole('button', { name: '개인 운용' }));
     expect(list()).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Atlas 07 상세 보기' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pair Lab 상세 보기' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Room Beta 상세 보기' })).not.toBeInTheDocument();
 
-    // No bot needs attention: budget-cap deferrals are normal operation, so
-    // the attention filter legitimately comes back empty.
-    await user.click(screen.getByRole('button', { name: '확인' }));
-    expect(screen.queryByRole('list', { name: '봇 목록 결과' })).not.toBeInTheDocument();
-    expect(screen.getByText('조건에 맞는 봇이 없습니다.')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: '전체 보기' }));
-    expect(list()).toHaveLength(3);
+    await user.click(within(filter).getByRole('button', { name: '대회 참가 중' }));
+    expect(list()).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Room Beta 상세 보기' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Atlas 07 상세 보기' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pair Lab 상세 보기' })).not.toBeInTheDocument();
   });
 
   test('a budget-cap deferral is recorded as normal flow, not escalated as a problem', async () => {

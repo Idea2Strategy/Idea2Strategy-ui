@@ -5355,6 +5355,7 @@
   cursor: pointer;
   font-size: var(--fs-caption);
   font-weight: 650;
+  white-space: nowrap;
 }
 .bots-filter button:hover { color: var(--text); }
 .bots-filter button.active { color: var(--accent-ink); background: var(--accent); }
