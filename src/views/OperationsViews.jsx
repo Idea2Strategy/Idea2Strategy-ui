@@ -567,7 +567,7 @@ export function BacktestView() {
   };
   const selectExecutionCalendarDate = (date) => {
     setExecutionPage(1);
-    if (executionCalendarPhase === 'start' || !executionStartDate) {
+    if (executionCalendarPhase !== 'end' || !executionStartDate) {
       setExecutionStartDate(date);
       setExecutionEndDate('');
       setExecutionCalendarPhase('end');
@@ -579,8 +579,7 @@ export function BacktestView() {
     } else {
       setExecutionEndDate(date);
     }
-    setExecutionCalendarPhase('start');
-    setExecutionCalendarOpen(false);
+    setExecutionCalendarPhase('complete');
   };
   const resetExecutionLogView = (instrument) => {
     const latestExecutionDate = instrument.executions.reduce(
@@ -711,7 +710,7 @@ export function BacktestView() {
             <CalendarDays size={15} aria-hidden="true" />
             <button
               type="button"
-              className={`backtest-log-date-trigger${executionCalendarOpen ? ' active' : ''}`}
+              className={`backtest-log-date-trigger${executionCalendarOpen && executionCalendarPhase === 'start' ? ' active' : ''}`}
               aria-label="체결 로그 시작일"
               aria-expanded={executionCalendarOpen}
               onClick={() => openExecutionCalendar(executionStartDate)}
@@ -719,7 +718,7 @@ export function BacktestView() {
             <i className="backtest-log-date-arrow" aria-hidden="true">→</i>
             <button
               type="button"
-              className={`backtest-log-date-trigger${executionCalendarOpen ? ' active' : ''}`}
+              className={`backtest-log-date-trigger${executionCalendarOpen && executionCalendarPhase === 'end' ? ' active' : ''}`}
               aria-label="체결 로그 종료일"
               aria-expanded={executionCalendarOpen}
               onClick={() => openExecutionCalendar(executionEndDate)}
@@ -762,7 +761,11 @@ export function BacktestView() {
                 })}
               </div>
               <footer>
-                <span aria-live="polite">{executionCalendarPhase === 'start' ? '시작일을 선택해 주세요' : '종료일을 선택해 주세요'}</span>
+                <span aria-live="polite">{executionCalendarPhase === 'start'
+                  ? '시작일을 선택해 주세요'
+                  : executionCalendarPhase === 'end'
+                    ? '종료일을 선택해 주세요'
+                    : '기간 선택이 완료되었습니다'}</span>
                 <button type="button" aria-label="달력 닫기" onClick={() => setExecutionCalendarOpen(false)}><X size={15} /></button>
               </footer>
             </div>}

@@ -148,10 +148,16 @@ describe('BacktestView', () => {
 
     expect(screen.getByRole('dialog', { name: '체결 로그 날짜 선택' })).toBeInTheDocument();
     expect(screen.getByText('시작일을 선택해 주세요')).toBeInTheDocument();
+    expect(startDate).toHaveClass('active');
+    expect(endDate).not.toHaveClass('active');
 
     await user.click(screen.getByRole('button', { name: '2026년 7월 19일' }));
 
-    expect(within(getExecutionLog()).getByRole('button', { name: '체결 로그 시작일' })).toHaveTextContent('2026. 07. 19.');
+    const selectedStartDate = within(getExecutionLog()).getByRole('button', { name: '체결 로그 시작일' });
+    const selectingEndDate = within(getExecutionLog()).getByRole('button', { name: '체결 로그 종료일' });
+    expect(selectedStartDate).toHaveTextContent('2026. 07. 19.');
+    expect(selectedStartDate).not.toHaveClass('active');
+    expect(selectingEndDate).toHaveClass('active');
     expect(screen.getByText('종료일을 선택해 주세요')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '2026년 7월 19일' }));
@@ -160,6 +166,11 @@ describe('BacktestView', () => {
     expect(within(getExecutionLog()).getByText('07.19 10:00')).toBeInTheDocument();
     expect(within(getExecutionLog()).queryByText('07.18 10:30')).not.toBeInTheDocument();
     expect(within(getExecutionLog()).getByRole('button', { name: '체결 로그 종료일' })).toHaveTextContent('2026. 07. 19.');
+    expect(screen.getByRole('dialog', { name: '체결 로그 날짜 선택' })).toBeInTheDocument();
+    expect(screen.getByText('기간 선택이 완료되었습니다')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('heading', { name: '봇 백테스트' }));
+
     expect(screen.queryByRole('dialog', { name: '체결 로그 날짜 선택' })).not.toBeInTheDocument();
 
     await user.click(within(getExecutionLog()).getByRole('button', { name: '전체 기간 보기' }));
