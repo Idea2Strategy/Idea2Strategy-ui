@@ -4,11 +4,28 @@ import { Button, DataTable, EmptyState, MetricRow, PageHeading, Panel, Status } 
 import { leaderboard } from '../data/mockData.js';
 import { Localized, useLanguage } from '../lib/i18n.jsx';
 
-const backtestBenchmark = {
-  name: 'S&P 500',
-  return: '+10.8%',
-  values: [0, 0.7, -0.4, 1.2, 2.4, 1.8, 3.7, 4.5, 6.1, 7.4, 8.3, 10.8],
-};
+const backtestBenchmarks = [
+  {
+    id: 'sp500',
+    name: 'S&P 500',
+    return: '+10.8%',
+    values: [0, 0.7, -0.4, 1.2, 2.4, 1.8, 3.7, 4.5, 6.1, 7.4, 8.3, 10.8],
+  },
+  {
+    id: 'nasdaq',
+    name: 'NASDAQ',
+    return: '+15.1%',
+    values: [0, 1.2, -0.8, 2.1, 3.8, 3, 5.9, 7.2, 8.4, 10.2, 12.3, 15.1],
+  },
+  {
+    id: 'russell',
+    name: 'Russell 2000',
+    return: '+6.7%',
+    values: [0, 0.2, -1.2, 0.5, 1.6, 0.8, 2.1, 2.7, 3.6, 4.4, 5.2, 6.7],
+  },
+];
+
+const backtestBenchmark = backtestBenchmarks[0];
 
 const backtestPeriods = ['2023 Q3', '2023 Q4', '2024 Q1', '2024 Q2', '2024 Q3', '2024 Q4', '2025 Q1', '2025 Q2', '2025 Q3', '2025 Q4', '2026 Q1', '2026 Q2'];
 
@@ -160,19 +177,21 @@ function comparisonPoints(values, width, height, min, max, padX = 18, padY = 18)
   ]);
 }
 
-function BacktestComparisonChart({ bot }) {
+function BacktestComparisonChart({ bot, benchmarks }) {
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const width = 820;
   const height = 280;
-  const combined = [...bot.values, ...backtestBenchmark.values];
+  const combined = [...bot.values, ...benchmarks.flatMap((benchmark) => benchmark.values)];
   const min = Math.min(...combined, 0) - 2;
   const max = Math.max(...combined, 0) + 2;
   const botPoints = comparisonPoints(bot.values, width, height, min, max);
-  const benchmarkPoints = comparisonPoints(backtestBenchmark.values, width, height, min, max);
+  const benchmarkSeries = benchmarks.map((benchmark) => ({
+    ...benchmark,
+    points: comparisonPoints(benchmark.values, width, height, min, max),
+  }));
   const toPolyline = (points) => points.map(([x, y]) => `${x},${y}`).join(' ');
   const zeroY = height - 18 - ((0 - min) / (max - min)) * (height - 36);
   const activeBotPoint = hoveredIndex === null ? null : botPoints[hoveredIndex];
-  const activeBenchmarkPoint = hoveredIndex === null ? null : benchmarkPoints[hoveredIndex];
   const setIndexFromPointer = (event) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const normalizedX = Math.min(Math.max((event.clientX - bounds.left) / (bounds.width || 1), 18 / width), 1 - (18 / width));
@@ -196,16 +215,17 @@ function BacktestComparisonChart({ bot }) {
     onBlur={() => setHoveredIndex(null)}
     onKeyDown={moveIndexWithKeyboard}
   >
-    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`${bot.name}와 S&P 500 누적 수익률 비교`}>
+    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`${bot.name}와 시장 지수 누적 수익률 비교`}>
       {[0.2, 0.4, 0.6, 0.8].map((ratio) => <line key={ratio} className="backtest-chart-gridline" x1="18" x2={width - 18} y1={height * ratio} y2={height * ratio} />)}
       <line className="backtest-chart-zero" x1="18" x2={width - 18} y1={zeroY} y2={zeroY} />
-      <polyline
-        className="backtest-chart-line benchmark"
-        points={toPolyline(benchmarkPoints)}
-        data-testid="backtest-benchmark-series"
-        data-benchmark={backtestBenchmark.name}
+      {benchmarkSeries.map((benchmark) => <polyline
+        key={benchmark.id}
+        className={`backtest-chart-line benchmark ${benchmark.id}`}
+        points={toPolyline(benchmark.points)}
+        data-testid={`backtest-benchmark-series-${benchmark.id}`}
+        data-benchmark={benchmark.name}
         vectorEffect="non-scaling-stroke"
-      />
+      />)}
       <polyline
         className="backtest-chart-line bot"
         points={toPolyline(botPoints)}
@@ -213,11 +233,25 @@ function BacktestComparisonChart({ bot }) {
         data-bot={bot.name}
         vectorEffect="non-scaling-stroke"
       />
-      <circle className="backtest-chart-end benchmark" cx={benchmarkPoints.at(-1)[0]} cy={benchmarkPoints.at(-1)[1]} r="4" vectorEffect="non-scaling-stroke" />
+      {benchmarkSeries.map((benchmark) => <circle
+        key={benchmark.id}
+        className={`backtest-chart-end benchmark ${benchmark.id}`}
+        cx={benchmark.points.at(-1)[0]}
+        cy={benchmark.points.at(-1)[1]}
+        r="4"
+        vectorEffect="non-scaling-stroke"
+      />)}
       <circle className="backtest-chart-end bot" cx={botPoints.at(-1)[0]} cy={botPoints.at(-1)[1]} r="5" vectorEffect="non-scaling-stroke" />
       {hoveredIndex !== null && <>
         <line className="backtest-chart-hover-line" x1={activeBotPoint[0]} x2={activeBotPoint[0]} y1="18" y2={height - 18} vectorEffect="non-scaling-stroke" />
-        <circle className="backtest-chart-hover-point benchmark" cx={activeBenchmarkPoint[0]} cy={activeBenchmarkPoint[1]} r="5" vectorEffect="non-scaling-stroke" />
+        {benchmarkSeries.map((benchmark) => <circle
+          key={benchmark.id}
+          className={`backtest-chart-hover-point benchmark ${benchmark.id}`}
+          cx={benchmark.points[hoveredIndex][0]}
+          cy={benchmark.points[hoveredIndex][1]}
+          r="5"
+          vectorEffect="non-scaling-stroke"
+        />)}
         <circle className="backtest-chart-hover-point bot" cx={activeBotPoint[0]} cy={activeBotPoint[1]} r="6" vectorEffect="non-scaling-stroke" />
       </>}
     </svg>
@@ -228,7 +262,7 @@ function BacktestComparisonChart({ bot }) {
     >
       <strong>{backtestPeriods[hoveredIndex]}</strong>
       <span className="bot"><i />{bot.name}<b>{bot.values[hoveredIndex] > 0 ? '+' : ''}{bot.values[hoveredIndex].toFixed(1)}%</b></span>
-      <span className="benchmark"><i />S&amp;P 500<b>{backtestBenchmark.values[hoveredIndex] > 0 ? '+' : ''}{backtestBenchmark.values[hoveredIndex].toFixed(1)}%</b></span>
+      {benchmarks.map((benchmark) => <span className={`benchmark ${benchmark.id}`} key={benchmark.id}><i />{benchmark.name}<b>{benchmark.values[hoveredIndex] > 0 ? '+' : ''}{benchmark.values[hoveredIndex].toFixed(1)}%</b></span>)}
     </div>}
     <div className="backtest-chart-axis"><span>2023 Q3</span><span>2024 Q2</span><span>2025 Q2</span><span>2026 Q2</span></div>
   </div>;
@@ -440,7 +474,9 @@ export function BacktestView() {
   const [selectedSymbol, setSelectedSymbol] = useState(botInstruments[backtestBots[0].name][0].symbol);
   const [symbolQuery, setSymbolQuery] = useState('');
   const [timeframe, setTimeframe] = useState('1일');
+  const [activeBenchmarkIds, setActiveBenchmarkIds] = useState([backtestBenchmark.id]);
   const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
+  const activeBenchmarks = backtestBenchmarks.filter((benchmark) => activeBenchmarkIds.includes(benchmark.id));
   const selectedBotInstruments = botInstruments[selectedBot.name];
   const selectedInstrument = selectedBotInstruments.find((instrument) => instrument.symbol === selectedSymbol) ?? selectedBotInstruments[0];
   const filteredInstruments = selectedBotInstruments.filter((instrument) => `${instrument.symbol} ${instrument.name}`.toLowerCase().includes(symbolQuery.trim().toLowerCase()));
@@ -449,18 +485,36 @@ export function BacktestView() {
     setSelectedSymbol(botInstruments[bot.name][0].symbol);
     setSymbolQuery('');
   };
+  const toggleBenchmark = (benchmarkId) => {
+    setActiveBenchmarkIds((current) => current.includes(benchmarkId)
+      ? current.filter((id) => id !== benchmarkId)
+      : [...current, benchmarkId]);
+  };
   const columns = [{ key: 'time', label: '시각 (ET)' }, { key: 'symbol', label: '종목' }, { key: 'side', label: '행동', render: (row) => <span className={row.side === '매수' ? 'buy-text' : 'sell-text'}>{row.side}</span> }, { key: 'quantity', label: '수량' }, { key: 'price', label: '체결가' }, { key: 'value', label: '체결 금액' }, { key: 'fee', label: '수수료' }, { key: 'result', label: '결과' }];
   return <Localized><div className="page backtest-page">
     <PageHeading
       eyebrow="BOT PERFORMANCE"
       title="봇 백테스트"
-      description="트레이딩 봇별 누적 수익률을 같은 기간의 S&P 500과 직접 비교합니다."
+      description="트레이딩 봇별 누적 수익률을 같은 기간의 주요 시장 지수와 직접 비교합니다."
       meta={<Status tone="positive">완료 · 2026 Q3</Status>}
       actions={<Button icon={CalendarDays}>2023 Q3–2026 Q2</Button>}
     />
     <div className="backtest-comparison-workspace" data-testid="backtest-comparison-workspace">
-      <Panel className="backtest-performance-panel" title={`${selectedBot.name} vs S&P 500`} subtitle="2023 Q3–2026 Q2 · 누적 수익률 (%)" action={<div className="backtest-chart-legend"><span className="bot"><i />선택한 봇</span><span className="benchmark"><i />S&P 500</span></div>}>
-        <BacktestComparisonChart bot={selectedBot} />
+      <Panel className="backtest-performance-panel" title={`${selectedBot.name} vs 시장 지수`} subtitle="2023 Q3–2026 Q2 · 누적 수익률 (%)" action={<div className="backtest-chart-legend" role="group" aria-label="비교 지표 선택">
+        <span className="bot"><i />선택한 봇</span>
+        {backtestBenchmarks.map((benchmark) => {
+          const isActive = activeBenchmarkIds.includes(benchmark.id);
+          return <button
+            key={benchmark.id}
+            type="button"
+            className={`benchmark ${benchmark.id}${isActive ? ' active' : ''}`}
+            aria-label={`${benchmark.name} 지표 표시`}
+            aria-pressed={isActive}
+            onClick={() => toggleBenchmark(benchmark.id)}
+          ><i />{benchmark.name}</button>;
+        })}
+      </div>}>
+        <BacktestComparisonChart bot={selectedBot} benchmarks={activeBenchmarks} />
       </Panel>
       <aside className="backtest-bot-selector" aria-labelledby="backtest-bot-selector-title">
         <header>

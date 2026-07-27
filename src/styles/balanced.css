@@ -2094,16 +2094,20 @@
 .variant-balanced[data-design="signal-studio"] .backtest-comparison-summary .is-bot strong { color: var(--accent); }
 .variant-balanced[data-design="signal-studio"] .backtest-comparison-summary small { grid-column: 1 / -1; }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-legend {
+  max-width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 2px;
   margin-left: auto;
   padding: 2px;
+  overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: 5px;
   background: var(--surface);
   box-shadow: inset 0 1px color-mix(in srgb, var(--text) 4%, transparent);
+  scrollbar-width: none;
 }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend::-webkit-scrollbar { display: none; }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-legend span {
   display: flex;
   align-items: center;
@@ -2114,6 +2118,29 @@
   color: var(--text-soft);
   font: 650 11px/1 var(--font-sans);
   white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend button {
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 3px;
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+  font: 650 11px/1 var(--font-sans);
+  white-space: nowrap;
+  transition: color var(--motion-fast), background var(--motion-fast);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend button:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend button.active {
+  color: var(--text-soft);
+  background: var(--surface-2);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-legend .bot {
   color: var(--accent);
@@ -2130,6 +2157,13 @@
   height: 1px;
   background: var(--text-faint);
 }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .benchmark:not(.active) i {
+  opacity: .38;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .nasdaq.active { color: var(--info); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .nasdaq i { background: var(--info); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .russell.active { color: var(--warning); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .russell i { background: var(--warning); }
 .variant-balanced[data-design="signal-studio"] .backtest-comparison-chart {
   position: relative;
   height: 330px;
@@ -2168,6 +2202,8 @@
   stroke: var(--text-faint);
   stroke-width: 2;
 }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark.nasdaq { stroke: var(--info); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark.russell { stroke: var(--warning); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-end {
   fill: var(--surface);
 }
@@ -2179,6 +2215,8 @@
   stroke: var(--text-faint);
   stroke-width: 2;
 }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-end.benchmark.nasdaq { stroke: var(--info); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-end.benchmark.russell { stroke: var(--warning); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-hover-line {
   stroke: color-mix(in srgb, var(--text) 35%, transparent);
   stroke-width: 1;
@@ -2195,6 +2233,8 @@
   stroke: var(--text-faint);
   stroke-width: 2;
 }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-hover-point.benchmark.nasdaq { stroke: var(--info); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-hover-point.benchmark.russell { stroke: var(--warning); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip {
   position: absolute;
   z-index: 4;
@@ -2234,6 +2274,8 @@
   background: var(--accent);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip .benchmark i { background: var(--text-faint); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip .nasdaq i { background: var(--info); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip .russell i { background: var(--warning); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip b {
   color: var(--text);
   font: 800 10px var(--font-mono);
