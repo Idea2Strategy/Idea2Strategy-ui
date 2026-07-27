@@ -4952,23 +4952,54 @@
 
 /* Backtest — the execution log folded into the chart panel */
 .backtest-execution-log { border-top: 1px solid var(--line); }
-.backtest-execution-log > header {
+.backtest-execution-log-toggle {
+  width: 100%;
+  min-height: 68px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
   padding: var(--space-3) var(--space-4);
+  border: 0;
+  color: var(--text);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 160ms ease;
 }
-.backtest-execution-log > header > div { display: grid; gap: 3px; }
-.backtest-execution-log > header strong { font-size: var(--fs-card); }
-.backtest-execution-log > header small { color: var(--text-faint); font-size: var(--fs-caption); }
-.backtest-execution-log > header > span {
+.backtest-execution-log-toggle:hover {
+  background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
+}
+.backtest-execution-log-toggle:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 68%, var(--line));
+}
+.backtest-execution-log-summary { display: grid; gap: 3px; }
+.backtest-execution-log-summary strong { font-size: var(--fs-card); }
+.backtest-execution-log-summary small { color: var(--text-faint); font-size: var(--fs-caption); }
+.backtest-execution-log-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-soft);
+  font-size: var(--fs-caption);
+  font-weight: 650;
+}
+.backtest-execution-log-count {
   padding: 3px var(--space-2);
   border-radius: 99px;
   color: var(--text-soft);
   background: var(--surface-3);
   font: 700 var(--fs-micro) var(--font-mono);
 }
+.backtest-execution-log-action > svg {
+  color: var(--text-faint);
+  transition: transform 160ms ease;
+}
+.backtest-execution-log-toggle[aria-expanded="true"] .backtest-execution-log-action > svg {
+  transform: rotate(180deg);
+}
+.backtest-execution-log-details { border-top: 1px solid var(--line); }
 .variant-balanced[data-design="signal-studio"] .market-indicator-line {
   fill: none;
   stroke-width: 1.7;

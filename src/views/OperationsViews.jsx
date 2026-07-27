@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, Bot, CalendarDays, Check, ChevronLeft, ChevronRight, Coins, Maximize2, Minimize2, PencilLine, Plus, Search, Trash2, Trophy, X } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Bot, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Coins, Maximize2, Minimize2, PencilLine, Plus, Search, Trash2, Trophy, X } from 'lucide-react';
 import { Button, DataTable, EmptyState, MetricRow, PageHeading, Panel, Status } from '../components/common.jsx';
 import { leaderboard } from '../data/mockData.js';
 import { Localized, useLanguage } from '../lib/i18n.jsx';
@@ -708,6 +708,7 @@ export function BacktestView() {
   const [executionCalendarOpen, setExecutionCalendarOpen] = useState(false);
   const [executionCalendarPhase, setExecutionCalendarPhase] = useState('start');
   const [executionCalendarMonth, setExecutionCalendarMonth] = useState('2026-07');
+  const [executionLogOpen, setExecutionLogOpen] = useState(false);
   const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
   const filteredBacktestBots = useMemo(() => {
     const query = botQuery.trim().toLowerCase();
@@ -943,11 +944,29 @@ export function BacktestView() {
       {/* The log lives in the same panel as the chart it annotates, so the two
           no longer carry separate 72px headers saying the same thing. */}
       <section className="backtest-execution-log" role="region" aria-label={`${selectedInstrument.symbol} 체결 로그`}>
-        <header>
-          <div><strong>{selectedInstrument.symbol} 매수·매도 로그</strong><small>{selectedInstrument.name} · 최신 체결부터 표시</small></div>
-          <span>전체 {selectedInstrument.executions.length}건</span>
-        </header>
-        <div className="backtest-log-toolbar">
+        <button
+          type="button"
+          className="backtest-execution-log-toggle"
+          aria-label={`${selectedInstrument.symbol} 매수·매도 로그 ${executionLogOpen ? '접기' : '펼치기'}`}
+          aria-expanded={executionLogOpen}
+          aria-controls="backtest-execution-log-details"
+          onClick={() => {
+            setExecutionLogOpen((open) => !open);
+            if (executionLogOpen) setExecutionCalendarOpen(false);
+          }}
+        >
+          <span className="backtest-execution-log-summary">
+            <strong>{selectedInstrument.symbol} 매수·매도 로그</strong>
+            <small>{selectedInstrument.name} · 최신 체결부터 표시</small>
+          </span>
+          <span className="backtest-execution-log-action">
+            <span className="backtest-execution-log-count">전체 {selectedInstrument.executions.length}건</span>
+            <span>{executionLogOpen ? '접기' : '체결 내역 보기'}</span>
+            <ChevronDown size={16} aria-hidden="true" />
+          </span>
+        </button>
+        {executionLogOpen && <div id="backtest-execution-log-details" className="backtest-execution-log-details">
+          <div className="backtest-log-toolbar">
           <div className="backtest-log-date-filter" role="group" aria-label="체결 로그 기간 검색">
             <CalendarDays size={15} aria-hidden="true" />
             <button
@@ -1025,29 +1044,30 @@ export function BacktestView() {
               {[10, 25, 50].map((size) => <option key={size} value={size}>{size}건</option>)}
             </select></label>
           </div>
-        </div>
-        {visibleExecutions.length > 0
-          ? <DataTable className="backtest-log-table" columns={columns} rows={visibleExecutions} rowKey="id" />
-          : <EmptyState
-            icon={Coins}
-            title={selectedInstrument.executions.length > 0 ? '선택한 기간에 체결 기록이 없습니다.' : '이 종목에는 체결 기록이 없습니다.'}
-            detail={selectedInstrument.executions.length > 0 ? '기간을 조정하거나 전체 기간으로 초기화해 주세요.' : '다른 종목을 선택하면 해당 종목의 체결 내역을 확인할 수 있습니다.'}
-          />}
-        {selectedInstrument.executions.length > 0 && <nav className="backtest-log-pagination" aria-label="체결 로그 페이지">
-          <button
-            type="button"
-            aria-label="이전 로그 페이지"
-            disabled={currentExecutionPage === 1}
-            onClick={() => setExecutionPage(currentExecutionPage - 1)}
-          >이전</button>
-          <span>{executionRangeStart}–{executionRangeEnd} / {filteredExecutions.length}건 · {currentExecutionPage}/{executionPageCount} 페이지</span>
-          <button
-            type="button"
-            aria-label="다음 로그 페이지"
-            disabled={currentExecutionPage === executionPageCount}
-            onClick={() => setExecutionPage(currentExecutionPage + 1)}
-          >다음</button>
-        </nav>}
+          </div>
+          {visibleExecutions.length > 0
+            ? <DataTable className="backtest-log-table" columns={columns} rows={visibleExecutions} rowKey="id" />
+            : <EmptyState
+              icon={Coins}
+              title={selectedInstrument.executions.length > 0 ? '선택한 기간에 체결 기록이 없습니다.' : '이 종목에는 체결 기록이 없습니다.'}
+              detail={selectedInstrument.executions.length > 0 ? '기간을 조정하거나 전체 기간으로 초기화해 주세요.' : '다른 종목을 선택하면 해당 종목의 체결 내역을 확인할 수 있습니다.'}
+            />}
+          {selectedInstrument.executions.length > 0 && <nav className="backtest-log-pagination" aria-label="체결 로그 페이지">
+            <button
+              type="button"
+              aria-label="이전 로그 페이지"
+              disabled={currentExecutionPage === 1}
+              onClick={() => setExecutionPage(currentExecutionPage - 1)}
+            >이전</button>
+            <span>{executionRangeStart}–{executionRangeEnd} / {filteredExecutions.length}건 · {currentExecutionPage}/{executionPageCount} 페이지</span>
+            <button
+              type="button"
+              aria-label="다음 로그 페이지"
+              disabled={currentExecutionPage === executionPageCount}
+              onClick={() => setExecutionPage(currentExecutionPage + 1)}
+            >다음</button>
+          </nav>}
+        </div>}
       </section>
     </Panel>
     {symbolModalOpen && <div

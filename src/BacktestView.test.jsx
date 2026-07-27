@@ -177,6 +177,7 @@ describe('BacktestView', () => {
     expect(screen.queryByRole('dialog', { name: '거래 종목 선택' })).not.toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'AAPL 캔들 차트와 매수 매도 기록' })).toBeInTheDocument();
     const executionLog = screen.getByRole('region', { name: 'AAPL 체결 로그' });
+    await user.click(within(executionLog).getByRole('button', { name: 'AAPL 매수·매도 로그 펼치기' }));
     expect(within(executionLog).getAllByText('AAPL').length).toBeGreaterThan(0);
     expect(within(executionLog).queryByText('SPY')).not.toBeInTheDocument();
 
@@ -196,12 +197,37 @@ describe('BacktestView', () => {
     expect(screen.queryByRole('dialog', { name: '거래 종목 선택' })).not.toBeInTheDocument();
   });
 
+  test('keeps the execution log discoverable while collapsed and toggles its details', async () => {
+    const user = userEvent.setup();
+    render(<BacktestView />);
+
+    const executionLog = screen.getByRole('region', { name: 'SPY 체결 로그' });
+    const toggle = within(executionLog).getByRole('button', { name: 'SPY 매수·매도 로그 펼치기' });
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle).toHaveTextContent('전체 3건');
+    expect(within(executionLog).queryByRole('table')).not.toBeInTheDocument();
+    expect(within(executionLog).queryByRole('group', { name: '체결 로그 기간 검색' })).not.toBeInTheDocument();
+
+    await user.click(toggle);
+
+    expect(within(executionLog).getByRole('button', { name: 'SPY 매수·매도 로그 접기' })).toHaveAttribute('aria-expanded', 'true');
+    expect(within(executionLog).getByRole('table')).toBeInTheDocument();
+    expect(within(executionLog).getByRole('group', { name: '체결 로그 기간 검색' })).toBeInTheDocument();
+
+    await user.click(within(executionLog).getByRole('button', { name: 'SPY 매수·매도 로그 접기' }));
+
+    expect(within(executionLog).getByRole('button', { name: 'SPY 매수·매도 로그 펼치기' })).toHaveAttribute('aria-expanded', 'false');
+    expect(within(executionLog).queryByRole('table')).not.toBeInTheDocument();
+  });
+
   test('filters execution logs by date and exposes pagination controls for large histories', async () => {
     const user = userEvent.setup();
     render(<BacktestView />);
 
     const getExecutionLog = () => screen.getByRole('region', { name: 'SPY 체결 로그' });
     const executionLog = getExecutionLog();
+    await user.click(within(executionLog).getByRole('button', { name: 'SPY 매수·매도 로그 펼치기' }));
     const startDate = within(executionLog).getByRole('button', { name: '체결 로그 시작일' });
     const endDate = within(executionLog).getByRole('button', { name: '체결 로그 종료일' });
     const pageSize = within(executionLog).getByRole('combobox', { name: '페이지당 로그 수' });
