@@ -453,6 +453,12 @@ function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange 
   const visibleCandles = displayCandles.slice(safeViewStart, safeViewStart + visibleCount);
   const visibleRangeStart = visibleCandles[0]?.rangeStart;
   const visibleRangeEnd = visibleCandles.at(-1)?.rangeEnd;
+  const visibleChartExecutions = instrument.executions.map((execution) => ({
+    execution,
+    displayIndex: Math.round((execution.index / (instrument.candles.length - 1)) * (displayCandles.length - 1)),
+  })).filter(({ displayIndex }) => displayIndex >= safeViewStart && displayIndex < safeViewStart + visibleCandles.length);
+  const visibleExecutionIds = visibleChartExecutions.map(({ execution }) => execution.id);
+  const visibleExecutionKey = visibleExecutionIds.join('|');
   const width = 1040;
   const height = 420;
   const left = 18;
@@ -483,8 +489,12 @@ function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange 
   const activeUp = activeCandle.close >= activeCandle.open;
   useEffect(() => {
     if (!visibleRangeStart || !visibleRangeEnd) return;
-    onVisibleRangeChange?.({ startDate: visibleRangeStart, endDate: visibleRangeEnd });
-  }, [onVisibleRangeChange, visibleRangeEnd, visibleRangeStart]);
+    onVisibleRangeChange?.({
+      startDate: visibleRangeStart,
+      endDate: visibleRangeEnd,
+      executionIds: visibleExecutionIds,
+    });
+  }, [onVisibleRangeChange, visibleExecutionKey, visibleRangeEnd, visibleRangeStart]);
   const setIndexFromPointer = (event) => {
     if (interactionRef.current) return;
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -724,9 +734,7 @@ function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange 
           clipPath="url(#market-price-plot-clip)"
           vectorEffect="non-scaling-stroke"
         />}
-        {instrument.executions.map((execution) => {
-          const displayIndex = Math.round((execution.index / (instrument.candles.length - 1)) * (displayCandles.length - 1));
-          if (displayIndex < safeViewStart || displayIndex >= safeViewStart + visibleCandles.length) return null;
+        {visibleChartExecutions.map(({ execution, displayIndex }) => {
           const visibleIndex = displayIndex - safeViewStart;
           const candle = visibleCandles[visibleIndex];
           const x = xForIndex(visibleIndex);
@@ -770,6 +778,7 @@ export function BacktestView() {
   const [executionCalendarMonth, setExecutionCalendarMonth] = useState('2026-07');
   const [executionLogOpen, setExecutionLogOpen] = useState(false);
   const [chartVisibleRange, setChartVisibleRange] = useState(null);
+  const [chartExecutionFilterIds, setChartExecutionFilterIds] = useState(null);
   const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
   const filteredBacktestBots = useMemo(() => {
     const query = botQuery.trim().toLowerCase();
@@ -784,10 +793,15 @@ export function BacktestView() {
     ...selectedBotInstruments.filter((instrument) => instrument.symbol !== selectedInstrument.symbol),
   ].slice(0, 3);
   const filteredInstruments = selectedBotInstruments.filter((instrument) => `${instrument.symbol} ${instrument.name}`.toLowerCase().includes(symbolQuery.trim().toLowerCase()));
-  const filteredExecutions = useMemo(() => selectedInstrument.executions
-    .filter((execution) => (!executionStartDate || execution.date >= executionStartDate)
-      && (!executionEndDate || execution.date <= executionEndDate))
-    .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp)), [executionEndDate, executionStartDate, selectedInstrument]);
+  const filteredExecutions = useMemo(() => {
+    const chartExecutionIdSet = chartExecutionFilterIds === null ? null : new Set(chartExecutionFilterIds);
+    return selectedInstrument.executions
+      .filter((execution) => chartExecutionIdSet
+        ? chartExecutionIdSet.has(execution.id)
+        : (!executionStartDate || execution.date >= executionStartDate)
+          && (!executionEndDate || execution.date <= executionEndDate))
+      .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp));
+  }, [chartExecutionFilterIds, executionEndDate, executionStartDate, selectedInstrument]);
   const executionPageCount = Math.max(1, Math.ceil(filteredExecutions.length / executionPageSize));
   const currentExecutionPage = Math.min(executionPage, executionPageCount);
   const executionPageOffset = (currentExecutionPage - 1) * executionPageSize;
@@ -839,6 +853,7 @@ export function BacktestView() {
   };
   const selectExecutionCalendarDate = (date) => {
     setExecutionPage(1);
+    setChartExecutionFilterIds(null);
     if (executionCalendarPhase !== 'end' || !executionStartDate) {
       setExecutionStartDate(date);
       setExecutionEndDate('');
@@ -865,6 +880,7 @@ export function BacktestView() {
     setExecutionCalendarPhase('start');
     setExecutionCalendarMonth((latestExecutionDate || '2026-07-01').slice(0, 7));
     setChartVisibleRange(null);
+    setChartExecutionFilterIds(null);
   };
   const selectBot = (bot) => {
     const firstInstrument = botInstruments[bot.name][0];
@@ -1038,6 +1054,8 @@ export function BacktestView() {
             <button
               type="button"
               className={`backtest-log-chart-range${chartVisibleRange
+                && chartExecutionFilterIds !== null
+                && chartExecutionFilterIds.join('|') === chartVisibleRange.executionIds.join('|')
                 && executionStartDate === chartVisibleRange.startDate
                 && executionEndDate === chartVisibleRange.endDate ? ' active' : ''}`}
               aria-label="현재 차트 구간 로그 보기"
@@ -1046,6 +1064,7 @@ export function BacktestView() {
                 if (!chartVisibleRange) return;
                 setExecutionStartDate(chartVisibleRange.startDate);
                 setExecutionEndDate(chartVisibleRange.endDate);
+                setChartExecutionFilterIds(chartVisibleRange.executionIds);
                 setExecutionPage(1);
                 setExecutionCalendarOpen(false);
                 setExecutionCalendarPhase('complete');
@@ -1075,6 +1094,7 @@ export function BacktestView() {
               onClick={() => {
                 setExecutionStartDate('');
                 setExecutionEndDate('');
+                setChartExecutionFilterIds(null);
                 setExecutionPage(1);
               }}
             >전체 기간</button>

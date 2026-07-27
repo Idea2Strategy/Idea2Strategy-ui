@@ -240,23 +240,28 @@ describe('BacktestView', () => {
 
     expect(canvas).toHaveAttribute('data-visible-range-start', '2026-05-08');
     expect(canvas).toHaveAttribute('data-visible-range-end', '2026-07-30');
+    expect(screen.getAllByTestId('trade-marker')).toHaveLength(1);
 
     await user.click(chartRangeButton);
 
     expect(within(executionLog).getByRole('button', { name: '체결 로그 시작일' })).toHaveTextContent('2026. 05. 08.');
     expect(within(executionLog).getByRole('button', { name: '체결 로그 종료일' })).toHaveTextContent('2026. 07. 30.');
-    expect(within(executionLog).getByText('3건 검색됨')).toBeInTheDocument();
+    expect(within(executionLog).getByText('1건 검색됨')).toBeInTheDocument();
+    expect(within(executionLog).getByText('07.19 10:00')).toBeInTheDocument();
+    expect(within(executionLog).queryByText('07.18 14:30')).not.toBeInTheDocument();
 
     fireEvent.pointerDown(canvas, { clientX: 480, clientY: 210, pointerId: 12 });
     fireEvent.pointerMove(canvas, { clientX: 900, clientY: 210, pointerId: 12 });
     fireEvent.pointerUp(canvas, { clientX: 900, clientY: 210, pointerId: 12 });
 
     expect(canvas.dataset.visibleRangeEnd < '2026-07-18').toBe(true);
+    expect(screen.getAllByTestId('trade-marker')).toHaveLength(1);
 
     await user.click(chartRangeButton);
 
-    expect(within(executionLog).getByText('0건 검색됨')).toBeInTheDocument();
-    expect(within(executionLog).getByText('선택한 기간에 체결 기록이 없습니다.')).toBeInTheDocument();
+    expect(within(executionLog).getByText('1건 검색됨')).toBeInTheDocument();
+    expect(within(executionLog).getByText('07.18 14:30')).toBeInTheDocument();
+    expect(within(executionLog).queryByText('07.19 10:00')).not.toBeInTheDocument();
   });
 
   test('filters execution logs by date and exposes pagination controls for large histories', async () => {
