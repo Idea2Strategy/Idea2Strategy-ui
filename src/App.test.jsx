@@ -249,7 +249,7 @@ describe('Signal product UI', () => {
     await user.click(screen.getByRole('button', { name: '모의투자' }));
 
     expect(screen.getByRole('heading', { name: '모의투자' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '공식 대회 전체 보기' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '공식 대회 전체 보기' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'OFFICAL' })).not.toBeInTheDocument();
     const search = screen.getByRole('searchbox', { name: '대회 검색' });
     await user.type(search, 'ETF Disc');

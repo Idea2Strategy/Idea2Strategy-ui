@@ -4,42 +4,69 @@ import { describe, expect, test } from 'vitest';
 import { RoomsView } from './views/OperationsViews.jsx';
 
 describe('Competition lobby', () => {
-  test('shows official competitions as a compact badge-led showcase, each on its own calendar', async () => {
+  test('shows official competitions in a responsive closing-soonest grid', () => {
+    render(<RoomsView />);
+
+    // The official rooms stay on the lobby: no duplicate LIVE label, separate
+    // overview action, shared progress bar, or horizontal carousel.
+    expect(screen.getByRole('heading', { name: '공식 대회' })).toBeInTheDocument();
+    expect(screen.getByText('OFFICIAL')).toBeInTheDocument();
+    expect(screen.queryByText(/LIVE/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '공식 대회 전체 보기' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+
+    const officialRooms = screen.getByRole('list', { name: '공식 대회 목록' });
+    expect(within(officialRooms).getAllByRole('button').map((card) => card.getAttribute('aria-label'))).toEqual([
+      'ETF Sprint 열기',
+      'Alpha Dash 열기',
+      'Risk Control Cup 열기',
+      'I2S Summer League 열기',
+      'Dividend Marathon 열기',
+      'Volatility Shield 열기',
+    ]);
+
+    const summer = screen.getByRole('button', { name: 'I2S Summer League 열기' });
+    expect(within(summer).getByText('표준점수제')).toBeInTheDocument();
+    expect(within(summer).getByText('1위')).toBeInTheDocument();
+    expect(summer.querySelector('.official-card-schedule')).toHaveTextContent('07.01–09.30·65일 남음');
+    expect(summer.querySelector('.official-card-schedule-separator')).toHaveTextContent('·');
+    expect(within(summer).getByText('참여 봇 184개')).toBeInTheDocument();
+    expect(summer.querySelector('.official-card-arrow')).toHaveAttribute('aria-hidden', 'true');
+    expect(within(summer).queryByText('복합 점수 · 3개월')).not.toBeInTheDocument();
+
+    const etf = screen.getByRole('button', { name: 'ETF Sprint 열기' });
+    expect(within(etf).getByText('2위')).toBeInTheDocument();
+    expect(within(etf).getByText('5일 남음')).toHaveClass('is-urgent');
+    expect(etf.querySelector('.official-card-schedule')).toHaveTextContent('07.21–08.01·5일 남음');
+    const alpha = screen.getByRole('button', { name: 'Alpha Dash 열기' });
+    expect(within(alpha).getByText('미참가')).toBeInTheDocument();
+  });
+
+  test('filters official competitions by participation state', async () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    // The showcase is on the lobby itself. There is no shared season frame:
-    // no page-level progress bar or D-day — each card carries its own period.
-    expect(screen.getByRole('heading', { name: '공식 대회' })).toBeInTheDocument();
-    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-    for (const name of ['I2S Summer League', 'Risk Control Cup', 'ETF Sprint', 'Volatility Shield', 'Dividend Marathon', 'Alpha Dash']) {
-      expect(screen.getByRole('button', { name: `${name} 열기` })).toBeInTheDocument();
-    }
-    const summer = screen.getByRole('button', { name: 'I2S Summer League 열기' });
-    expect(within(summer).getByText('표준점수제')).toBeInTheDocument();
-    expect(within(summer).getByText('복합 점수 · 3개월')).toBeInTheDocument();
-    expect(within(summer).getByText('07.01–09.30')).toBeInTheDocument();
-    expect(within(summer).getByText('D-65')).toBeInTheDocument();
-    // The stat block is gone from cards — stats live on the detail page.
-    expect(within(summer).queryByText('총 제출')).not.toBeInTheDocument();
+    const filters = screen.getByRole('group', { name: '공식 대회 참여 상태 필터' });
+    const officialRooms = screen.getByRole('list', { name: '공식 대회 목록' });
+    const allFilter = within(filters).getByRole('button', { name: '전체 6' });
+    const joinedFilter = within(filters).getByRole('button', { name: '참가 4' });
+    const unjoinedFilter = within(filters).getByRole('button', { name: '미참가 2' });
 
-    await user.click(screen.getByRole('button', { name: '공식 대회 전체 보기' }));
+    expect(allFilter).toHaveAttribute('aria-pressed', 'true');
+    expect(within(officialRooms).getAllByRole('listitem')).toHaveLength(6);
 
-    const official = screen.getByRole('region', { name: '공식 대회 페이지' });
-    expect(within(official).getByRole('heading', { level: 1, name: '공식 대회' })).toBeInTheDocument();
-    expect(within(official).getByRole('img', { name: '공식 대회별 누적 수익률 추이' })).toBeInTheDocument();
-    expect(within(official).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
-      '진행 중인 대회',
-      '누적 성과',
-      '전체 순위',
-    ]);
-    const officialRooms = within(official).getByRole('region', { name: '진행 중인 대회' });
-    for (const value of ['Volatility Shield', '샤프 지수 · 1년', '01.02–12.30', 'D-156', 'Alpha Dash', 'D-12']) {
-      expect(within(officialRooms).getByText(value)).toBeInTheDocument();
-    }
+    await user.click(joinedFilter);
+    expect(joinedFilter).toHaveAttribute('aria-pressed', 'true');
+    expect(within(officialRooms).getAllByRole('listitem')).toHaveLength(4);
+    expect(within(officialRooms).queryByRole('button', { name: 'Alpha Dash 열기' })).not.toBeInTheDocument();
+    expect(within(officialRooms).getByRole('button', { name: 'I2S Summer League 열기' })).toBeInTheDocument();
 
-    await user.click(within(official).getByRole('button', { name: '대회 홈으로' }));
-    expect(screen.getByRole('heading', { name: '대회 찾기' })).toBeInTheDocument();
+    await user.click(unjoinedFilter);
+    expect(unjoinedFilter).toHaveAttribute('aria-pressed', 'true');
+    expect(within(officialRooms).getAllByRole('listitem')).toHaveLength(2);
+    expect(within(officialRooms).getByRole('button', { name: 'Alpha Dash 열기' })).toBeInTheDocument();
+    expect(within(officialRooms).getByRole('button', { name: 'Risk Control Cup 열기' })).toBeInTheDocument();
+    expect(within(officialRooms).queryByRole('button', { name: 'ETF Sprint 열기' })).not.toBeInTheDocument();
   });
 
   test('filters the screener immediately with compact controls', async () => {
@@ -53,6 +80,24 @@ describe('Competition lobby', () => {
     expect(within(results).getAllByRole('listitem')).toHaveLength(1);
     expect(within(results).getByRole('listitem', { name: 'ETF Discipline 선택' })).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'ETF Discipline 순위' })).toBeInTheDocument();
+  });
+
+  test('filters rooms by participation and highlights the seven-day deadline', async () => {
+    const user = userEvent.setup();
+    render(<RoomsView />);
+
+    const results = screen.getByRole('list', { name: '대회 탐색 결과' });
+    const earnings = within(results).getByRole('listitem', { name: 'Earnings Play 선택' });
+    expect(within(earnings).getByText('7일 남음')).toHaveClass('is-urgent');
+    expect(earnings).toHaveTextContent('07.22–08.12·7일 남음');
+
+    const participationFilter = screen.getByRole('combobox', { name: '참가 상태 필터' });
+    await user.selectOptions(participationFilter, 'joined');
+    expect(within(results).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(results).getByRole('listitem', { name: 'Momentum Lab 선택' })).toBeInTheDocument();
+
+    await user.selectOptions(participationFilter, 'unjoined');
+    expect(within(results).queryByRole('listitem', { name: 'Momentum Lab 선택' })).not.toBeInTheDocument();
   });
 
   test('paginates and sorts the room list', async () => {

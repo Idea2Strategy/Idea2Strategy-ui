@@ -540,20 +540,24 @@ export function BacktestView() {
 }
 
 /*
-  Official competitions run on their own calendars — a couple of weeks up to a
-  full year, and up to eight can be live at once — so there is no shared
-  "season" frame: every card carries its own period and D-day.
+  Official competitions stay ordered by their closing date so the most urgent
+  choice is always first. Each card owns its calendar and participation state.
 */
 const officialCompetitions = [
-  { name: 'I2S Summer League', bots: 184, ranking: '표준점수제', score: '복합 점수', duration: '3개월', dday: 'D-65', tone: 'standard', official: true, host: 'I2S 운영팀', start: '07.01', end: '09.30' },
-  { name: 'Risk Control Cup', bots: 96, ranking: '위험조정 점수제', score: '최대 낙폭', duration: '4주', dday: 'D-15', tone: 'risk', official: true, host: 'I2S 운영팀', start: '07.14', end: '08.11' },
-  { name: 'ETF Sprint', bots: 128, ranking: '수익률 점수제', score: '수익률', duration: '2주', dday: 'D-5', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.21', end: '08.01' },
-  { name: 'Volatility Shield', bots: 72, ranking: '샤프 점수제', score: '샤프 지수', duration: '1년', dday: 'D-156', tone: 'sharpe', official: true, host: 'I2S 운영팀', start: '01.02', end: '12.30' },
-  { name: 'Dividend Marathon', bots: 58, ranking: '위험조정 점수제', score: '최대 낙폭', duration: '6개월', dday: 'D-152', tone: 'risk', official: true, host: 'I2S 운영팀', start: '07.01', end: '12.26' },
-  { name: 'Alpha Dash', bots: 41, ranking: '수익률 점수제', score: '수익률', duration: '2주', dday: 'D-12', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.27', end: '08.08' },
+  { name: 'ETF Sprint', bots: 128, ranking: '수익률 점수제', score: '수익률', remainingDays: 5, standing: '2위', standingTone: 'silver', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.21', end: '08.01' },
+  { name: 'Alpha Dash', bots: 41, ranking: '수익률 점수제', score: '수익률', remainingDays: 12, standing: '미참가', standingTone: 'inactive', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.27', end: '08.08' },
+  { name: 'Risk Control Cup', bots: 96, ranking: '위험조정 점수제', score: '최대 낙폭', remainingDays: 15, standing: '미참가', standingTone: 'inactive', tone: 'risk', official: true, host: 'I2S 운영팀', start: '07.14', end: '08.11' },
+  { name: 'I2S Summer League', bots: 184, ranking: '표준점수제', score: '복합 점수', remainingDays: 65, standing: '1위', standingTone: 'gold', tone: 'standard', official: true, host: 'I2S 운영팀', start: '07.01', end: '09.30' },
+  { name: 'Dividend Marathon', bots: 58, ranking: '위험조정 점수제', score: '최대 낙폭', remainingDays: 152, standing: '3위', standingTone: 'bronze', tone: 'risk', official: true, host: 'I2S 운영팀', start: '07.01', end: '12.26' },
+  { name: 'Volatility Shield', bots: 72, ranking: '샤프 점수제', score: '샤프 지수', remainingDays: 156, standing: '5위', standingTone: 'neutral', tone: 'sharpe', official: true, host: 'I2S 운영팀', start: '01.02', end: '12.30' },
 ];
 
 const officialBotsTotal = officialCompetitions.reduce((total, competition) => total + competition.bots, 0);
+const officialParticipationCounts = {
+  all: officialCompetitions.length,
+  joined: officialCompetitions.filter((competition) => competition.standingTone !== 'inactive').length,
+  unjoined: officialCompetitions.filter((competition) => competition.standingTone === 'inactive').length,
+};
 const officialLeaderboard = [
   { rank: 1, bot: 'AlphaCore_7X', score: '9,842.15', return: '+28.47%' },
   { rank: 2, bot: 'QuantumFlow', score: '9,215.63', return: '+22.31%' },
@@ -593,17 +597,17 @@ const makeStandings = (roomIndex, kind, myRank = null) => {
 const competitionRooms = [
   /* Momentum Lab's standings come from the same leaderboard the detail page
      ranks, so the two screens agree on Room Beta's #2. */
-  { name: 'Momentum Lab', score: '복합 점수', ranking: '표준점수제', joined: 8, host: '이서준', start: '07.07', end: '08.04', myBot: 'Room Beta', standings: leaderboard.map((entry) => ({ rank: entry.rank, bot: entry.bot, value: entry.score.toFixed(2), mine: entry.mine })) },
-  { name: 'ETF Discipline', score: '최대 낙폭', ranking: '위험조정 점수제', joined: 18, host: 'ETF연구회', start: '07.14', end: '08.25', myBot: null, standings: makeStandings(1, '최대 낙폭') },
-  { name: 'Quant Study 04', score: '수익률', ranking: '수익률 점수제', joined: 3, host: '박하나', start: '07.21', end: '08.18', myBot: null, standings: makeStandings(2, '수익률') },
-  { name: 'Low Volatility Club', score: '샤프 지수', ranking: '샤프 점수제', joined: 24, host: '차분한투자', start: '07.01', end: '09.26', myBot: null, standings: makeStandings(3, '샤프 지수') },
-  { name: 'Gap Hunters', score: '수익률', ranking: '수익률 점수제', joined: 15, host: '한지민', start: '07.10', end: '08.07', myBot: null, standings: makeStandings(4, '수익률') },
-  { name: 'Macro Pulse', score: '복합 점수', ranking: '표준점수제', joined: 12, host: '거시경제방', start: '07.03', end: '09.11', myBot: null, standings: makeStandings(5, '복합 점수') },
-  { name: 'Dividend Guard', score: '샤프 지수', ranking: '샤프 점수제', joined: 7, host: '배당사냥꾼', start: '07.17', end: '08.28', myBot: null, standings: makeStandings(6, '샤프 지수') },
-  { name: 'Swing Lab 12', score: '복합 점수', ranking: '표준점수제', joined: 6, host: '윤도현', start: '07.20', end: '08.17', myBot: null, standings: makeStandings(7, '복합 점수') },
-  { name: 'Earnings Play', score: '수익률', ranking: '수익률 점수제', joined: 9, host: '실적시즌', start: '07.22', end: '08.12', myBot: null, standings: makeStandings(8, '수익률') },
-  { name: 'Slow Turtle', score: '최대 낙폭', ranking: '위험조정 점수제', joined: 5, host: '거북이클럽', start: '07.05', end: '09.20', myBot: null, standings: makeStandings(9, '최대 낙폭') },
-  { name: 'Golden Cross Club', score: '복합 점수', ranking: '표준점수제', joined: 4, host: '김골든', start: '07.24', end: '08.21', myBot: null, standings: makeStandings(10, '복합 점수') },
+  { name: 'Momentum Lab', score: '복합 점수', ranking: '표준점수제', joined: 8, host: '이서준', start: '07.07', end: '08.04', remainingDays: 8, myBot: 'Room Beta', standings: leaderboard.map((entry) => ({ rank: entry.rank, bot: entry.bot, value: entry.score.toFixed(2), mine: entry.mine })) },
+  { name: 'ETF Discipline', score: '최대 낙폭', ranking: '위험조정 점수제', joined: 18, host: 'ETF연구회', start: '07.14', end: '08.25', remainingDays: 29, myBot: null, standings: makeStandings(1, '최대 낙폭') },
+  { name: 'Quant Study 04', score: '수익률', ranking: '수익률 점수제', joined: 3, host: '박하나', start: '07.21', end: '08.18', remainingDays: 22, myBot: null, standings: makeStandings(2, '수익률') },
+  { name: 'Low Volatility Club', score: '샤프 지수', ranking: '샤프 점수제', joined: 24, host: '차분한투자', start: '07.01', end: '09.26', remainingDays: 61, myBot: null, standings: makeStandings(3, '샤프 지수') },
+  { name: 'Gap Hunters', score: '수익률', ranking: '수익률 점수제', joined: 15, host: '한지민', start: '07.10', end: '08.07', remainingDays: 11, myBot: null, standings: makeStandings(4, '수익률') },
+  { name: 'Macro Pulse', score: '복합 점수', ranking: '표준점수제', joined: 12, host: '거시경제방', start: '07.03', end: '09.11', remainingDays: 46, myBot: null, standings: makeStandings(5, '복합 점수') },
+  { name: 'Dividend Guard', score: '샤프 지수', ranking: '샤프 점수제', joined: 7, host: '배당사냥꾼', start: '07.17', end: '08.28', remainingDays: 32, myBot: null, standings: makeStandings(6, '샤프 지수') },
+  { name: 'Swing Lab 12', score: '복합 점수', ranking: '표준점수제', joined: 6, host: '윤도현', start: '07.20', end: '08.17', remainingDays: 21, myBot: null, standings: makeStandings(7, '복합 점수') },
+  { name: 'Earnings Play', score: '수익률', ranking: '수익률 점수제', joined: 9, host: '실적시즌', start: '07.22', end: '08.12', remainingDays: 7, myBot: null, standings: makeStandings(8, '수익률') },
+  { name: 'Slow Turtle', score: '최대 낙폭', ranking: '위험조정 점수제', joined: 5, host: '거북이클럽', start: '07.05', end: '09.20', remainingDays: 55, myBot: null, standings: makeStandings(9, '최대 낙폭') },
+  { name: 'Golden Cross Club', score: '복합 점수', ranking: '표준점수제', joined: 4, host: '김골든', start: '07.24', end: '08.21', remainingDays: 25, myBot: null, standings: makeStandings(10, '복합 점수') },
 ];
 
 const ROOMS_PER_PAGE = 5;
@@ -692,9 +696,9 @@ function OfficialLeaderboard() {
   leads as the tone-coloured badge and the same tone edges the card. Stats
   live on the detail page — a stat block on every card read as clutter.
 */
-function OfficialCompetitionGrid({ onSelect, carousel = false }) {
+function OfficialCompetitionGrid({ competitions = officialCompetitions, onSelect }) {
   const { t } = useLanguage();
-  return <Localized><div className={`official-competition-list competition-card-grid${carousel ? ' is-carousel' : ''}`} role="list">{officialCompetitions.map((competition) =>
+  return <Localized><div className="official-competition-list competition-card-grid" role="list" aria-label="공식 대회 목록">{competitions.map((competition) =>
     <div role="listitem" key={competition.name}>
       <article className="competition-discovery-card official-competition-card-tile" data-card-tone={competition.tone} role="button" tabIndex="0" aria-label={`${competition.name} 열기`} onClick={() => onSelect(competition)} onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -702,13 +706,19 @@ function OfficialCompetitionGrid({ onSelect, carousel = false }) {
           onSelect(competition);
         }
       }}>
-        <strong className="competition-ranking-badge" data-ranking-tone={competition.tone}>{t(competition.ranking)}</strong>
+        <header className="official-card-header">
+          <strong className="competition-ranking-badge" data-ranking-tone={competition.tone}>{t(competition.ranking)}</strong>
+          <span className="official-card-standing" data-standing-tone={competition.standingTone}>{t(competition.standing)}</span>
+        </header>
         <h3>{competition.name}</h3>
-        <small className="official-card-basis">{`${competition.score} · ${competition.duration}`}</small>
-        <footer className="official-card-meta">
+        <div className="official-card-schedule">
           <span>{`${competition.start}–${competition.end}`}</span>
-          <b>{competition.dday}</b>
-          <em>{`${t('참여')} ${competition.bots}`}</em>
+          <span className="official-card-schedule-separator" aria-hidden="true">·</span>
+          <b className={competition.remainingDays <= 7 ? 'is-urgent' : ''}>{`${competition.remainingDays}일 남음`}</b>
+        </div>
+        <footer className="official-card-footer">
+          <p className="official-card-bots">{`참여 봇 ${competition.bots}개`}</p>
+          <ArrowUpRight className="official-card-arrow" size={15} strokeWidth={1.8} aria-hidden="true" />
         </footer>
       </article>
     </div>
@@ -750,18 +760,27 @@ export function RoomsView() {
   const [query, setQuery] = useState('');
   const [scoreFilter, setScoreFilter] = useState('all');
   const [sizeFilter, setSizeFilter] = useState('all');
+  const [participationFilter, setParticipationFilter] = useState('all');
+  const [officialParticipationFilter, setOfficialParticipationFilter] = useState('all');
   const [roomSort, setRoomSort] = useState({ key: 'joined', dir: 'desc' });
   const [page, setPage] = useState(1);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [officialSeasonOpen, setOfficialSeasonOpen] = useState(false);
   const [focusedRoom, setFocusedRoom] = useState(competitionRooms[0]);
   const [sortMetric, setSortMetric] = useState('score');
+  const visibleOfficialCompetitions = officialCompetitions.filter((competition) => (
+    officialParticipationFilter === 'all'
+    || (officialParticipationFilter === 'joined' && competition.standingTone !== 'inactive')
+    || (officialParticipationFilter === 'unjoined' && competition.standingTone === 'inactive')
+  ));
   const visibleRooms = useMemo(() => sortRooms(competitionRooms.filter((room) => {
     const matchesQuery = room.name.toLowerCase().includes(query.trim().toLowerCase());
     const matchesScore = scoreFilter === 'all' || room.score === scoreFilter;
     const matchesSize = sizeFilter === 'all' || (sizeFilter === 'small' ? room.joined <= 10 : room.joined > 10);
-    return matchesQuery && matchesScore && matchesSize;
-  }), roomSort.key, roomSort.dir), [query, scoreFilter, sizeFilter, roomSort]);
+    const matchesParticipation = participationFilter === 'all'
+      || (participationFilter === 'joined' ? Boolean(room.myBot) : !room.myBot);
+    return matchesQuery && matchesScore && matchesSize && matchesParticipation;
+  }), roomSort.key, roomSort.dir), [query, scoreFilter, sizeFilter, participationFilter, roomSort]);
   const toggleRoomSort = (key) => setRoomSort((current) => ({
     key,
     dir: current.key === key ? (current.dir === 'asc' ? 'desc' : 'asc') : sortableColumns[key].firstDir,
@@ -854,21 +873,30 @@ export function RoomsView() {
   return <Localized><div className="page competition-page competition-lobby-page">
     <PageHeading eyebrow="BOT COMPETITION" title="모의투자" description="같은 규칙에서 봇을 비교하고, 참여할 대회를 빠르게 선택하세요." actions={<Button kind="primary" icon={Plus}>대회 만들기</Button>} />
 
-    {/* Official competitions are the product's real events, so they get a
-        branded showcase with compact cards inline — up to eight can run at
-        once, each on its own calendar (weeks to a year), so there is no
-        shared season frame or season progress. The dedicated page stays
-        behind the link for the chart and the full leaderboard. */}
+    {/* Official competitions are visible at once in a responsive grid. Each
+        card remains the navigation target, so no duplicate overview action or
+        horizontal carousel is necessary. */}
     <section className="official-showcase" aria-labelledby="official-showcase-title">
       <header>
         <div>
-          <small><Trophy size={12} aria-hidden="true" /> OFFICIAL · LIVE</small>
+          <small><Trophy size={12} aria-hidden="true" /> OFFICIAL</small>
           <h2 id="official-showcase-title">공식 대회</h2>
           <p>{`I2S 운영팀이 직접 운영합니다 · 진행 중 ${officialCompetitions.length}개 · 참여 봇 ${officialBotsTotal}개`}</p>
         </div>
-        <button type="button" className="official-showcase-link" onClick={() => setOfficialSeasonOpen(true)}>공식 대회 전체 보기 <ArrowUpRight size={14} /></button>
+        <div className="official-participation-filter" role="group" aria-label="공식 대회 참여 상태 필터">
+          {[
+            { id: 'all', label: '전체', count: officialParticipationCounts.all },
+            { id: 'joined', label: '참가', count: officialParticipationCounts.joined },
+            { id: 'unjoined', label: '미참가', count: officialParticipationCounts.unjoined },
+          ].map((filter) => <button
+            type="button"
+            key={filter.id}
+            aria-pressed={officialParticipationFilter === filter.id}
+            onClick={() => setOfficialParticipationFilter(filter.id)}
+          >{`${filter.label} ${filter.count}`}</button>)}
+        </div>
       </header>
-      <OfficialCompetitionGrid onSelect={setSelectedRoom} carousel />
+      <OfficialCompetitionGrid competitions={visibleOfficialCompetitions} onSelect={setSelectedRoom} />
     </section>
 
     <div className="competition-lobby-grid">
@@ -881,6 +909,9 @@ export function RoomsView() {
           </select>
           <select aria-label="참여 규모 필터" value={sizeFilter} onChange={(event) => setSizeFilter(event.target.value)}>
             <option value="all">모든 참여 규모</option><option value="small">10봇 이하</option><option value="large">11봇 이상</option>
+          </select>
+          <select aria-label="참가 상태 필터" value={participationFilter} onChange={(event) => setParticipationFilter(event.target.value)}>
+            <option value="all">모든 참가 상태</option><option value="joined">참가 중인 대회</option><option value="unjoined">미참가 대회</option>
           </select>
         </div>
         {/* Sorting lives where list views put it: on the column headers.
@@ -900,11 +931,15 @@ export function RoomsView() {
                 tone-coloured badge here, not plain text. */}
             <span className="screener-method"><strong className="competition-ranking-badge" data-ranking-tone={rankingToneByLabel[room.ranking] ?? 'standard'}>{room.ranking}</strong></span>
             <span><strong>{room.host}</strong></span>
-            <span><strong>{`${room.start}–${room.end}`}</strong></span>
+            <span className="screener-period">
+              <strong>{`${room.start}–${room.end}`}</strong>
+              <i aria-hidden="true">·</i>
+              <b className={room.remainingDays <= 7 ? 'is-urgent' : ''}>{`${room.remainingDays}일 남음`}</b>
+            </span>
             <span><strong>{room.joined}</strong></span>
             <ArrowUpRight size={14} />
           </button>)}
-          {visibleRooms.length === 0 && <div className="competition-empty"><Search size={20} /><strong>조건에 맞는 대회가 없습니다.</strong><button onClick={() => { setQuery(''); setScoreFilter('all'); setSizeFilter('all'); }}>필터 초기화</button></div>}
+          {visibleRooms.length === 0 && <div className="competition-empty"><Search size={20} /><strong>조건에 맞는 대회가 없습니다.</strong><button onClick={() => { setQuery(''); setScoreFilter('all'); setSizeFilter('all'); setParticipationFilter('all'); }}>필터 초기화</button></div>}
         </div>
         {pageCount > 1 && <nav className="competition-pagination" aria-label="대회 목록 페이지">
           <button type="button" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>이전 페이지</button>
