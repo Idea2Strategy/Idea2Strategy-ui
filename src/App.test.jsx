@@ -71,12 +71,43 @@ describe('Signal product UI', () => {
     expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '새 전략' })).not.toBeInTheDocument();
     expect(screen.getByText('확인이 필요한 작업')).toBeInTheDocument();
-    expect(screen.getByText('전체 성과')).toBeInTheDocument();
+    expect(screen.getByText('운용 성과')).toBeInTheDocument();
+    expect(screen.queryByText('전체 성과')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '전략' }));
     expect(screen.getByRole('heading', { name: '전략' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Idea2Strategy 홈' }));
     expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
+  });
+
+  test('separates personal and competition performance without mixing their bots', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const performance = screen.getByRole('region', { name: '운용 성과' });
+    const scope = within(performance).getByRole('group', { name: '성과 유형' });
+    const personal = within(scope).getByRole('button', { name: '개인 운용' });
+    const competition = within(scope).getByRole('button', { name: '대회 참가' });
+    expect(personal).toHaveAttribute('aria-pressed', 'true');
+    expect(competition).toHaveAttribute('aria-pressed', 'false');
+    expect(performance).toHaveTextContent('개인 운용 봇의 시간가중 성과');
+
+    await user.click(within(performance).getByRole('button', { name: '합산에 포함할 봇 선택' }));
+    let botPicker = within(performance).getByRole('group', { name: '합산에 포함할 봇 선택' });
+    expect(within(botPicker).getByText('Atlas 07')).toBeInTheDocument();
+    expect(within(botPicker).getAllByText('Pair Lab').length).toBeGreaterThan(0);
+    expect(within(botPicker).queryByText('Room Beta')).not.toBeInTheDocument();
+
+    await user.click(competition);
+    expect(competition).toHaveAttribute('aria-pressed', 'true');
+    expect(performance).toHaveTextContent('대회 참가 봇의 시간가중 성과');
+    expect(within(performance).getByText('봇 1/1 포함')).toBeInTheDocument();
+    await user.click(within(performance).getByRole('button', { name: '합산에 포함할 봇 선택' }));
+    botPicker = within(performance).getByRole('group', { name: '합산에 포함할 봇 선택' });
+    expect(within(botPicker).getAllByText('Room Beta').length).toBeGreaterThan(0);
+    expect(within(botPicker).queryByText('Atlas 07')).not.toBeInTheDocument();
+    expect(within(botPicker).queryByText('Pair Lab')).not.toBeInTheDocument();
+    expect(performance).toHaveTextContent('개인 운용과 대회 성과는 합산하지 않습니다.');
   });
 
   test('removes admin and watchlist entry points and opens security inside My account', async () => {
