@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, Bot, CalendarDays, Check, ChevronLeft, ChevronRight, Coins, Plus, Search, Trophy, X } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Bot, CalendarDays, Check, ChevronLeft, ChevronRight, Coins, Maximize2, Minimize2, PencilLine, Plus, Search, Trash2, Trophy, X } from 'lucide-react';
 import { Button, DataTable, EmptyState, MetricRow, PageHeading, Panel, Status } from '../components/common.jsx';
 import { leaderboard } from '../data/mockData.js';
 import { Localized, useLanguage } from '../lib/i18n.jsx';
@@ -260,6 +260,23 @@ function candlesForTimeframe(candles, timeframe) {
   });
 }
 
+function simpleMovingAverage(candles, period) {
+  return candles.map((_, index) => {
+    if (index < period - 1) return null;
+    const window = candles.slice(index - period + 1, index + 1);
+    return window.reduce((total, candle) => total + candle.close, 0) / period;
+  });
+}
+
+function exponentialMovingAverage(candles, period) {
+  const multiplier = 2 / (period + 1);
+  return candles.reduce((values, candle, index) => {
+    const previous = index === 0 ? candle.close : values[index - 1];
+    values.push(candle.close * multiplier + previous * (1 - multiplier));
+    return values;
+  }, []);
+}
+
 function comparisonPoints(values, width, height, min, max, padX = 18, padY = 18) {
   const range = max - min || 1;
   return values.map((value, index) => [
@@ -360,15 +377,25 @@ function BacktestComparisonChart({ bot, benchmarks }) {
 }
 
 function BacktestCandlestickChart({ instrument, timeframe }) {
-  const displayCandles = candlesForTimeframe(instrument.candles, timeframe);
+  const displayCandles = useMemo(() => candlesForTimeframe(instrument.candles, timeframe), [instrument.candles, timeframe]);
   const defaultVisibleCount = Math.min(timeframeVisibleCandleCounts[timeframe], displayCandles.length);
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const [viewStart, setViewStart] = useState(() => Math.max(0, timeframeCandleCounts[timeframe] - timeframeVisibleCandleCounts[timeframe]));
   const [visibleCount, setVisibleCount] = useState(defaultVisibleCount);
   const [priceScale, setPriceScale] = useState(1);
+  const [priceOffset, setPriceOffset] = useState(0);
   const [dragMode, setDragMode] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [activeIndicators, setActiveIndicators] = useState([]);
+  const [drawingMode, setDrawingMode] = useState(false);
+  const [drawingDraft, setDrawingDraft] = useState(null);
+  const [drawings, setDrawings] = useState([]);
   const canvasRef = useRef(null);
   const interactionRef = useRef(null);
+  const indicatorValues = useMemo(() => ({
+    sma: simpleMovingAverage(displayCandles, 20),
+    ema: exponentialMovingAverage(displayCandles, 20),
+  }), [displayCandles]);
   const maxViewStart = Math.max(0, displayCandles.length - visibleCount);
   const safeViewStart = Math.min(viewStart, maxViewStart);
   const visibleCandles = displayCandles.slice(safeViewStart, safeViewStart + visibleCount);
@@ -388,13 +415,15 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
   const pricePadding = (priceMax - priceMin) * .12 || 1;
   const baseDomainMin = priceMin - pricePadding;
   const baseDomainMax = priceMax + pricePadding;
-  const domainMiddle = (baseDomainMin + baseDomainMax) / 2;
+  const domainMiddle = (baseDomainMin + baseDomainMax) / 2 + priceOffset;
   const domainHalfRange = ((baseDomainMax - baseDomainMin) / 2) * priceScale;
   const domainMin = domainMiddle - domainHalfRange;
   const domainMax = domainMiddle + domainHalfRange;
   const maxVolume = Math.max(...visibleCandles.map((candle) => candle.volume));
   const priceToY = (price) => chartBottom - ((price - domainMin) / (domainMax - domainMin)) * (chartBottom - chartTop);
+  const yToPrice = (y) => domainMax - ((y - chartTop) / (chartBottom - chartTop)) * (domainMax - domainMin);
   const xForIndex = (index) => left + candleStep * index + candleStep / 2;
+  const xForDisplayIndex = (index) => xForIndex(index - safeViewStart);
   const activeIndex = Math.min(hoveredIndex ?? visibleCandles.length - 1, visibleCandles.length - 1);
   const activeCandle = visibleCandles[activeIndex];
   const activeUp = activeCandle.close >= activeCandle.open;
@@ -418,6 +447,22 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
   const startInteraction = (event) => {
     if (event.button !== undefined && event.button !== 0) return;
     const point = getChartPoint(event);
+    if (drawingMode && point.x >= left && point.x < width - right && point.y >= chartTop && point.y <= chartBottom) {
+      const visibleIndex = Math.min(Math.max(Math.floor((point.x - left) / candleStep), 0), visibleCandles.length - 1);
+      const drawingPoint = {
+        index: safeViewStart + visibleIndex,
+        price: yToPrice(point.y),
+      };
+      if (drawingDraft) {
+        setDrawings((current) => [...current, { start: drawingDraft, end: drawingPoint }]);
+        setDrawingDraft(null);
+        setDrawingMode(false);
+      } else {
+        setDrawingDraft(drawingPoint);
+      }
+      setHoveredIndex(null);
+      return;
+    }
     const mode = point.x >= width - right ? 'scaling' : 'panning';
     interactionRef.current = {
       mode,
@@ -426,6 +471,7 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
       startY: point.y,
       startView: safeViewStart,
       startScale: priceScale,
+      startOffset: priceOffset,
     };
     setDragMode(mode);
     setHoveredIndex(null);
@@ -441,6 +487,9 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
     if (interaction.mode === 'panning') {
       const candleDelta = Math.round((point.x - interaction.startX) / candleStep);
       setViewStart(Math.min(maxViewStart, Math.max(0, interaction.startView - candleDelta)));
+      const priceDelta = ((point.y - interaction.startY) / (chartBottom - chartTop))
+        * (baseDomainMax - baseDomainMin) * interaction.startScale;
+      setPriceOffset(interaction.startOffset + priceDelta);
     } else {
       const nextScale = interaction.startScale * Math.exp((point.y - interaction.startY) / 150);
       setPriceScale(Math.min(3, Math.max(.4, nextScale)));
@@ -478,9 +527,58 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
     setVisibleCount(defaultVisibleCount);
     setViewStart(Math.max(0, displayCandles.length - defaultVisibleCount));
     setPriceScale(1);
+    setPriceOffset(0);
   };
 
-  return <div className="backtest-market-chart">
+  useEffect(() => {
+    if (!isFullscreen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const exitOnEscape = (event) => {
+      if (event.key === 'Escape') setIsFullscreen(false);
+    };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', exitOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', exitOnEscape);
+    };
+  }, [isFullscreen]);
+
+  const toggleIndicator = (indicator) => {
+    setActiveIndicators((current) => current.includes(indicator)
+      ? current.filter((item) => item !== indicator)
+      : [...current, indicator]);
+  };
+  const indicatorPoints = (indicator) => visibleCandles.map((_, index) => {
+    const value = indicatorValues[indicator][safeViewStart + index];
+    return value === null || value === undefined ? null : `${xForIndex(index)},${priceToY(value)}`;
+  }).filter(Boolean).join(' ');
+
+  return <div
+    className={`backtest-market-chart${isFullscreen ? ' is-fullscreen' : ''}`}
+    data-testid="backtest-market-chart"
+    role="region"
+    aria-label={`${instrument.symbol} 인터랙티브 차트`}
+  >
+    <div className="backtest-chart-toolstrip">
+      <div role="group" aria-label="차트 지표와 그리기 도구">
+        <button type="button" aria-label="SMA 20 지표 표시" aria-pressed={activeIndicators.includes('sma')} className={activeIndicators.includes('sma') ? 'active sma' : 'sma'} onClick={() => toggleIndicator('sma')}><i />SMA 20</button>
+        <button type="button" aria-label="EMA 20 지표 표시" aria-pressed={activeIndicators.includes('ema')} className={activeIndicators.includes('ema') ? 'active ema' : 'ema'} onClick={() => toggleIndicator('ema')}><i />EMA 20</button>
+        <span />
+        <button type="button" aria-label="추세선 그리기" aria-pressed={drawingMode} className={drawingMode ? 'active' : ''} onClick={() => {
+          setDrawingMode((current) => !current);
+          setDrawingDraft(null);
+        }}><PencilLine size={13} />추세선</button>
+        <button type="button" aria-label="차트 선 모두 지우기" disabled={drawings.length === 0 && !drawingDraft} onClick={() => {
+          setDrawings([]);
+          setDrawingDraft(null);
+        }}><Trash2 size={13} />지우기</button>
+      </div>
+      <button type="button" className="backtest-chart-fullscreen" aria-label={isFullscreen ? '차트 전체화면 닫기' : '차트 전체화면 열기'} onClick={() => setIsFullscreen((current) => !current)}>
+        {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+        {isFullscreen ? '축소' : '전체화면'}
+      </button>
+    </div>
     <div className="backtest-market-ohlc">
       <strong>{instrument.symbol}</strong>
       <span>{activeCandle.time} ET</span>
@@ -489,16 +587,17 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
       <span>L <b>{activeCandle.low.toFixed(2)}</b></span>
       <span>C <b className={activeUp ? 'positive' : 'negative'}>{activeCandle.close.toFixed(2)}</b></span>
       <span>VOL <b>{(activeCandle.volume / 1000000).toFixed(2)}M</b></span>
-      <span className="market-chart-gesture-hint">휠 확대·축소 · 좌우 드래그 · 가격축 상하 드래그 · 더블클릭 초기화</span>
+      <span className="market-chart-gesture-hint">휠 확대·축소 · 화면 자유 이동 · 가격축 상하 드래그 · 더블클릭 초기화</span>
     </div>
     <div
       ref={canvasRef}
-      className={`backtest-candle-canvas ${dragMode ? `is-${dragMode}` : ''}`}
+      className={`backtest-candle-canvas${dragMode ? ` is-${dragMode}` : ''}${drawingMode ? ' is-drawing' : ''}`}
       data-testid="backtest-candle-canvas"
       data-total-candles={displayCandles.length}
       data-visible-candles={visibleCandles.length}
       data-view-start={safeViewStart}
       data-price-scale={priceScale.toFixed(3)}
+      data-price-offset={priceOffset.toFixed(3)}
       onPointerDown={startInteraction}
       onPointerMove={continueInteraction}
       onPointerUp={stopInteraction}
@@ -538,6 +637,33 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
             <rect className="market-volume-bar" x={x - candleWidth / 2} y={volumeBottom - volumeHeight} width={candleWidth} height={volumeHeight} />
           </g>;
         })}
+        {activeIndicators.map((indicator) => <polyline
+          key={indicator}
+          className={`market-indicator-line ${indicator}`}
+          data-testid={`market-indicator-${indicator}`}
+          points={indicatorPoints(indicator)}
+          clipPath="url(#market-price-plot-clip)"
+          vectorEffect="non-scaling-stroke"
+        />)}
+        {drawings.map((drawing, index) => <line
+          key={`${drawing.start.index}-${drawing.end.index}-${index}`}
+          className="market-user-drawing"
+          data-testid="market-drawing"
+          x1={xForDisplayIndex(drawing.start.index)}
+          y1={priceToY(drawing.start.price)}
+          x2={xForDisplayIndex(drawing.end.index)}
+          y2={priceToY(drawing.end.price)}
+          clipPath="url(#market-price-plot-clip)"
+          vectorEffect="non-scaling-stroke"
+        />)}
+        {drawingDraft && <circle
+          className="market-user-drawing-point"
+          cx={xForDisplayIndex(drawingDraft.index)}
+          cy={priceToY(drawingDraft.price)}
+          r="4"
+          clipPath="url(#market-price-plot-clip)"
+          vectorEffect="non-scaling-stroke"
+        />}
         {instrument.executions.map((execution) => {
           const displayIndex = Math.round((execution.index / (instrument.candles.length - 1)) * (displayCandles.length - 1));
           if (displayIndex < safeViewStart || displayIndex >= safeViewStart + visibleCandles.length) return null;

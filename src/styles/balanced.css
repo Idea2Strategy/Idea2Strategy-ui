@@ -2753,6 +2753,91 @@
     linear-gradient(color-mix(in srgb, var(--surface) 96%, transparent), color-mix(in srgb, var(--surface) 96%, transparent)),
     radial-gradient(circle at 50% 20%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 46%);
 }
+.variant-balanced[data-design="signal-studio"] .backtest-market-chart.is-fullscreen {
+  position: fixed;
+  z-index: 140;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-toolstrip {
+  min-height: 42px;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 6px 10px 6px 14px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 82%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-toolstrip > div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-toolstrip > div::-webkit-scrollbar {
+  display: none;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-toolstrip button {
+  height: 28px;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 750;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-toolstrip button:hover:not(:disabled) {
+  border-color: var(--line);
+  color: var(--text);
+  background: var(--surface);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-toolstrip button.active {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-toolstrip button:disabled {
+  opacity: .38;
+  cursor: default;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-toolstrip button > i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-toolstrip button.sma {
+  color: var(--info);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-toolstrip button.ema {
+  color: var(--tone-condition);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-toolstrip > div > span {
+  width: 1px;
+  height: 18px;
+  flex: 0 0 1px;
+  margin: 0 4px;
+  background: var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-fullscreen {
+  border-color: var(--line-strong) !important;
+  color: var(--text-soft) !important;
+  background: var(--surface) !important;
+}
 .variant-balanced[data-design="signal-studio"] .backtest-market-ohlc {
   min-height: 42px;
   display: flex;
@@ -2790,6 +2875,14 @@
 }
 .variant-balanced[data-design="signal-studio"] .backtest-candle-canvas.is-scaling {
   cursor: ns-resize;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-candle-canvas.is-drawing {
+  cursor: crosshair;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-market-chart.is-fullscreen .backtest-candle-canvas {
+  min-height: 0;
+  height: auto;
+  flex: 1;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-candle-canvas svg {
   width: 100%;
@@ -4875,6 +4968,31 @@
   color: var(--text-soft);
   background: var(--surface-3);
   font: 700 var(--fs-micro) var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .market-indicator-line {
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .market-indicator-line.sma {
+  stroke: var(--info);
+}
+.variant-balanced[data-design="signal-studio"] .market-indicator-line.ema {
+  stroke: var(--tone-condition);
+}
+.variant-balanced[data-design="signal-studio"] .market-user-drawing {
+  stroke: var(--warning);
+  stroke-width: 1.6;
+  stroke-dasharray: 5 3;
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .market-user-drawing-point {
+  fill: var(--warning);
+  stroke: var(--surface);
+  stroke-width: 1.5;
+  pointer-events: none;
 }
 .backtest-log-toolbar {
   position: relative;

@@ -338,4 +338,62 @@ describe('BacktestView chart interactions', () => {
     expect(screen.getAllByTestId('market-candle')).toHaveLength(Number(canvas.dataset.visibleCandles));
     expect(screen.getByText(/휠 확대·축소/)).toBeInTheDocument();
   });
+
+  test('keeps chart interactions available in the expanded chart workspace', () => {
+    render(<BacktestView />);
+
+    const chartWorkspace = screen.getByTestId('backtest-market-chart');
+    const canvas = screen.getByTestId('backtest-candle-canvas');
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 });
+
+    fireEvent.click(screen.getByRole('button', { name: '차트 전체화면 열기' }));
+
+    expect(chartWorkspace).toHaveClass('is-fullscreen');
+    expect(screen.getByRole('button', { name: '차트 전체화면 닫기' })).toBeInTheDocument();
+
+    fireEvent.wheel(canvas, { clientX: 520, clientY: 210, deltaY: -120 });
+    fireEvent.pointerDown(canvas, { clientX: 1000, clientY: 250, pointerId: 8 });
+    fireEvent.pointerMove(canvas, { clientX: 1000, clientY: 100, pointerId: 8 });
+    fireEvent.pointerUp(canvas, { clientX: 1000, clientY: 100, pointerId: 8 });
+
+    expect(Number(canvas.dataset.visibleCandles)).toBeLessThan(60);
+    expect(Number(canvas.dataset.priceScale)).toBeLessThan(1);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(chartWorkspace).not.toHaveClass('is-fullscreen');
+  });
+
+  test('pans prices freely and supports indicators and trend-line drawings', () => {
+    render(<BacktestView />);
+
+    const canvas = screen.getByTestId('backtest-candle-canvas');
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 });
+    const initialPriceOffset = Number(canvas.dataset.priceOffset);
+
+    fireEvent.pointerDown(canvas, { clientX: 520, clientY: 210, pointerId: 9 });
+    fireEvent.pointerMove(canvas, { clientX: 620, clientY: 280, pointerId: 9 });
+    fireEvent.pointerUp(canvas, { clientX: 620, clientY: 280, pointerId: 9 });
+
+    expect(Number(canvas.dataset.priceOffset)).not.toBe(initialPriceOffset);
+
+    fireEvent.click(screen.getByRole('button', { name: 'SMA 20 지표 표시' }));
+    fireEvent.click(screen.getByRole('button', { name: 'EMA 20 지표 표시' }));
+
+    expect(screen.getByTestId('market-indicator-sma')).toBeInTheDocument();
+    expect(screen.getByTestId('market-indicator-ema')).toBeInTheDocument();
+
+    const trendLineTool = screen.getByRole('button', { name: '추세선 그리기' });
+    fireEvent.click(trendLineTool);
+    expect(trendLineTool).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.pointerDown(canvas, { clientX: 280, clientY: 160, pointerId: 10 });
+    fireEvent.pointerDown(canvas, { clientX: 720, clientY: 240, pointerId: 11 });
+
+    expect(screen.getByTestId('market-drawing')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '차트 선 모두 지우기' }));
+
+    expect(screen.queryByTestId('market-drawing')).not.toBeInTheDocument();
+  });
 });
