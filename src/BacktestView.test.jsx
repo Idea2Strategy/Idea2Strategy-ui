@@ -131,28 +131,49 @@ describe('BacktestView', () => {
     const user = userEvent.setup();
     render(<BacktestView />);
 
-    const executionLog = screen.getByRole('region', { name: 'SPY 체결 로그' });
-    const startDate = within(executionLog).getByLabelText('체결 로그 시작일');
-    const endDate = within(executionLog).getByLabelText('체결 로그 종료일');
+    const getExecutionLog = () => screen.getByRole('region', { name: 'SPY 체결 로그' });
+    const executionLog = getExecutionLog();
+    const startDate = within(executionLog).getByRole('button', { name: '체결 로그 시작일' });
+    const endDate = within(executionLog).getByRole('button', { name: '체결 로그 종료일' });
     const pageSize = within(executionLog).getByRole('combobox', { name: '페이지당 로그 수' });
 
-    expect(startDate).toHaveAttribute('type', 'date');
-    expect(endDate).toHaveAttribute('type', 'date');
+    expect(startDate).toHaveTextContent('시작 날짜');
+    expect(endDate).toHaveTextContent('종료 날짜');
     expect(pageSize).toHaveValue('10');
     expect(within(executionLog).getByText('3건 검색됨')).toBeInTheDocument();
     expect(within(executionLog).getByRole('button', { name: '이전 로그 페이지' })).toBeDisabled();
     expect(within(executionLog).getByRole('button', { name: '다음 로그 페이지' })).toBeDisabled();
 
-    fireEvent.change(startDate, { target: { value: '2026-07-19' } });
+    await user.click(startDate);
 
-    expect(within(executionLog).getByText('1건 검색됨')).toBeInTheDocument();
-    expect(within(executionLog).getByText('07.19 10:00')).toBeInTheDocument();
-    expect(within(executionLog).queryByText('07.18 10:30')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: '체결 로그 날짜 선택' })).toBeInTheDocument();
+    expect(screen.getByText('시작일을 선택해 주세요')).toBeInTheDocument();
 
-    await user.click(within(executionLog).getByRole('button', { name: '전체 기간 보기' }));
+    await user.click(screen.getByRole('button', { name: '2026년 7월 19일' }));
 
-    expect(startDate).toHaveValue('');
-    expect(within(executionLog).getByText('3건 검색됨')).toBeInTheDocument();
+    expect(within(getExecutionLog()).getByRole('button', { name: '체결 로그 시작일' })).toHaveTextContent('2026. 07. 19.');
+    expect(screen.getByText('종료일을 선택해 주세요')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '2026년 7월 19일' }));
+
+    expect(within(getExecutionLog()).getByText('1건 검색됨')).toBeInTheDocument();
+    expect(within(getExecutionLog()).getByText('07.19 10:00')).toBeInTheDocument();
+    expect(within(getExecutionLog()).queryByText('07.18 10:30')).not.toBeInTheDocument();
+    expect(within(getExecutionLog()).getByRole('button', { name: '체결 로그 종료일' })).toHaveTextContent('2026. 07. 19.');
+    expect(screen.queryByRole('dialog', { name: '체결 로그 날짜 선택' })).not.toBeInTheDocument();
+
+    await user.click(within(getExecutionLog()).getByRole('button', { name: '전체 기간 보기' }));
+
+    expect(within(getExecutionLog()).getByRole('button', { name: '체결 로그 시작일' })).toHaveTextContent('시작 날짜');
+    expect(within(getExecutionLog()).getByRole('button', { name: '체결 로그 종료일' })).toHaveTextContent('종료 날짜');
+    expect(within(getExecutionLog()).getByText('3건 검색됨')).toBeInTheDocument();
+
+    await user.click(within(getExecutionLog()).getByRole('button', { name: '체결 로그 종료일' }));
+    await user.click(screen.getByRole('button', { name: '2026년 7월 19일' }));
+    await user.click(screen.getByRole('button', { name: '2026년 7월 18일' }));
+
+    expect(within(getExecutionLog()).getByRole('button', { name: '체결 로그 시작일' })).toHaveTextContent('2026. 07. 18.');
+    expect(within(getExecutionLog()).getByRole('button', { name: '체결 로그 종료일' })).toHaveTextContent('2026. 07. 19.');
   });
 });
 

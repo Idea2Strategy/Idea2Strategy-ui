@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, Bot, CalendarDays, Coins, Plus, Search, Trophy } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Bot, CalendarDays, ChevronLeft, ChevronRight, Coins, Plus, Search, Trophy, X } from 'lucide-react';
 import { Button, DataTable, EmptyState, MetricRow, PageHeading, Panel, Status } from '../components/common.jsx';
 import { leaderboard } from '../data/mockData.js';
 import { Localized, useLanguage } from '../lib/i18n.jsx';
@@ -60,6 +60,42 @@ const backtestBots = [
 ];
 
 const candleTimes = ['09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '09:30', '10:00', '10:30', '11:00'];
+const calendarWeekdays = ['일', '월', '화', '수', '목', '금', '토'];
+
+function formatCalendarDate(date) {
+  if (!date) return '';
+  const [year, month, day] = date.split('-');
+  return `${year}. ${month}. ${day}.`;
+}
+
+function calendarDateLabel(date) {
+  const [year, month, day] = date.split('-').map(Number);
+  return `${year}년 ${month}월 ${day}일`;
+}
+
+function calendarMonthLabel(monthKey) {
+  const [year, month] = monthKey.split('-').map(Number);
+  return `${year}년 ${month}월`;
+}
+
+function shiftCalendarMonth(monthKey, offset) {
+  const [year, month] = monthKey.split('-').map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1 + offset, 1));
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function calendarDatesForMonth(monthKey) {
+  const [year, month] = monthKey.split('-').map(Number);
+  const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const cellCount = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+  return Array.from({ length: cellCount }, (_, index) => {
+    const day = index - firstWeekday + 1;
+    return day > 0 && day <= daysInMonth
+      ? `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      : null;
+  });
+}
 
 function makeInstrument(symbol, name, basePrice, changes, executionSpecs) {
   let previousClose = basePrice;
@@ -481,6 +517,9 @@ export function BacktestView() {
   const [executionEndDate, setExecutionEndDate] = useState('');
   const [executionPage, setExecutionPage] = useState(1);
   const [executionPageSize, setExecutionPageSize] = useState(10);
+  const [executionCalendarOpen, setExecutionCalendarOpen] = useState(false);
+  const [executionCalendarPhase, setExecutionCalendarPhase] = useState('start');
+  const [executionCalendarMonth, setExecutionCalendarMonth] = useState('2026-07');
   const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
   const activeBenchmarks = backtestBenchmarks.filter((benchmark) => activeBenchmarkIds.includes(benchmark.id));
   const selectedBotInstruments = botInstruments[selectedBot.name];
@@ -496,22 +535,71 @@ export function BacktestView() {
   const visibleExecutions = filteredExecutions.slice(executionPageOffset, executionPageOffset + executionPageSize);
   const executionRangeStart = filteredExecutions.length === 0 ? 0 : executionPageOffset + 1;
   const executionRangeEnd = Math.min(executionPageOffset + executionPageSize, filteredExecutions.length);
-  const [firstExecutionDate, lastExecutionDate] = useMemo(() => selectedInstrument.executions.reduce(
+  const [, lastExecutionDate] = useMemo(() => selectedInstrument.executions.reduce(
     ([first, last], execution) => [
       !first || execution.date < first ? execution.date : first,
       !last || execution.date > last ? execution.date : last,
     ],
     [undefined, undefined],
   ), [selectedInstrument]);
+  const executionCalendarDates = useMemo(() => calendarDatesForMonth(executionCalendarMonth), [executionCalendarMonth]);
   useEffect(() => {
+    if (!executionCalendarOpen) return undefined;
+    const closeOnOutsideClick = (event) => {
+      if (!event.target?.closest?.('.backtest-log-date-filter')) {
+        setExecutionCalendarOpen(false);
+      }
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setExecutionCalendarOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [executionCalendarOpen]);
+  const openExecutionCalendar = (preferredDate) => {
+    setExecutionCalendarMonth((preferredDate || executionEndDate || executionStartDate || lastExecutionDate || '2026-07-01').slice(0, 7));
+    setExecutionCalendarPhase('start');
+    setExecutionCalendarOpen(true);
+  };
+  const selectExecutionCalendarDate = (date) => {
+    setExecutionPage(1);
+    if (executionCalendarPhase === 'start' || !executionStartDate) {
+      setExecutionStartDate(date);
+      setExecutionEndDate('');
+      setExecutionCalendarPhase('end');
+      return;
+    }
+    if (date < executionStartDate) {
+      setExecutionStartDate(date);
+      setExecutionEndDate(executionStartDate);
+    } else {
+      setExecutionEndDate(date);
+    }
+    setExecutionCalendarPhase('start');
+    setExecutionCalendarOpen(false);
+  };
+  const resetExecutionLogView = (instrument) => {
+    const latestExecutionDate = instrument.executions.reduce(
+      (latest, execution) => (!latest || execution.date > latest ? execution.date : latest),
+      '',
+    );
     setExecutionStartDate('');
     setExecutionEndDate('');
     setExecutionPage(1);
-  }, [selectedInstrument.symbol]);
+    setExecutionCalendarOpen(false);
+    setExecutionCalendarPhase('start');
+    setExecutionCalendarMonth((latestExecutionDate || '2026-07-01').slice(0, 7));
+  };
   const selectBot = (bot) => {
+    const firstInstrument = botInstruments[bot.name][0];
     setSelectedBotName(bot.name);
-    setSelectedSymbol(botInstruments[bot.name][0].symbol);
+    setSelectedSymbol(firstInstrument.symbol);
     setSymbolQuery('');
+    resetExecutionLogView(firstInstrument);
   };
   const toggleBenchmark = (benchmarkId) => {
     setActiveBenchmarkIds((current) => current.includes(benchmarkId)
@@ -588,7 +676,10 @@ export function BacktestView() {
             aria-label={`${instrument.symbol} 종목 선택`}
             aria-pressed={instrument.symbol === selectedInstrument.symbol}
             className={instrument.symbol === selectedInstrument.symbol ? 'active' : ''}
-            onClick={() => setSelectedSymbol(instrument.symbol)}
+            onClick={() => {
+              setSelectedSymbol(instrument.symbol);
+              resetExecutionLogView(instrument);
+            }}
           ><strong>{instrument.symbol}</strong><span>{instrument.name}</span></button>)}
           {filteredInstruments.length === 0 && <small>검색 결과가 없습니다.</small>}
         </div>
@@ -618,31 +709,24 @@ export function BacktestView() {
         <div className="backtest-log-toolbar">
           <div className="backtest-log-date-filter" role="group" aria-label="체결 로그 기간 검색">
             <CalendarDays size={15} aria-hidden="true" />
-            <label><span>시작일</span><input
-              type="date"
-              aria-label="체결 로그 시작일"
-              min={firstExecutionDate}
-              max={executionEndDate || lastExecutionDate}
-              value={executionStartDate}
-              onChange={(event) => {
-                setExecutionStartDate(event.target.value);
-                setExecutionPage(1);
-              }}
-            /></label>
-            <i aria-hidden="true">–</i>
-            <label><span>종료일</span><input
-              type="date"
-              aria-label="체결 로그 종료일"
-              min={executionStartDate || firstExecutionDate}
-              max={lastExecutionDate}
-              value={executionEndDate}
-              onChange={(event) => {
-                setExecutionEndDate(event.target.value);
-                setExecutionPage(1);
-              }}
-            /></label>
             <button
               type="button"
+              className={`backtest-log-date-trigger${executionCalendarOpen ? ' active' : ''}`}
+              aria-label="체결 로그 시작일"
+              aria-expanded={executionCalendarOpen}
+              onClick={() => openExecutionCalendar(executionStartDate)}
+            ><span>시작일</span><b className={executionStartDate ? '' : 'placeholder'}>{formatCalendarDate(executionStartDate) || '시작 날짜'}</b></button>
+            <i className="backtest-log-date-arrow" aria-hidden="true">→</i>
+            <button
+              type="button"
+              className={`backtest-log-date-trigger${executionCalendarOpen ? ' active' : ''}`}
+              aria-label="체결 로그 종료일"
+              aria-expanded={executionCalendarOpen}
+              onClick={() => openExecutionCalendar(executionEndDate)}
+            ><span>종료일</span><b className={executionEndDate ? '' : 'placeholder'}>{formatCalendarDate(executionEndDate) || '종료 날짜'}</b></button>
+            <button
+              type="button"
+              className="backtest-log-date-reset"
               aria-label="전체 기간 보기"
               disabled={!executionStartDate && !executionEndDate}
               onClick={() => {
@@ -651,6 +735,37 @@ export function BacktestView() {
                 setExecutionPage(1);
               }}
             >전체 기간</button>
+            {executionCalendarOpen && <div className="backtest-log-calendar" role="dialog" aria-label="체결 로그 날짜 선택">
+              <header>
+                <button type="button" aria-label="이전 달" onClick={() => setExecutionCalendarMonth(shiftCalendarMonth(executionCalendarMonth, -1))}><ChevronLeft size={16} /></button>
+                <strong>{calendarMonthLabel(executionCalendarMonth)}</strong>
+                <button type="button" aria-label="다음 달" onClick={() => setExecutionCalendarMonth(shiftCalendarMonth(executionCalendarMonth, 1))}><ChevronRight size={16} /></button>
+              </header>
+              <div className="backtest-log-calendar-weekdays" aria-hidden="true">
+                {calendarWeekdays.map((weekday) => <span key={weekday}>{weekday}</span>)}
+              </div>
+              <div className="backtest-log-calendar-grid" role="grid" aria-label={`${calendarMonthLabel(executionCalendarMonth)} 달력`}>
+                {executionCalendarDates.map((date, index) => {
+                  if (!date) return <span className="empty" aria-hidden="true" key={`empty-${index}`} />;
+                  const isStart = date === executionStartDate;
+                  const isEnd = date === executionEndDate;
+                  const isInRange = executionStartDate && executionEndDate && date > executionStartDate && date < executionEndDate;
+                  return <button
+                    type="button"
+                    key={date}
+                    data-date={date}
+                    aria-label={calendarDateLabel(date)}
+                    aria-pressed={isStart || isEnd}
+                    className={`${isStart ? 'range-start ' : ''}${isEnd ? 'range-end ' : ''}${isInRange ? 'in-range' : ''}`.trim()}
+                    onClick={(event) => selectExecutionCalendarDate(event.currentTarget.dataset.date)}
+                  >{Number(date.slice(-2))}</button>;
+                })}
+              </div>
+              <footer>
+                <span aria-live="polite">{executionCalendarPhase === 'start' ? '시작일을 선택해 주세요' : '종료일을 선택해 주세요'}</span>
+                <button type="button" aria-label="달력 닫기" onClick={() => setExecutionCalendarOpen(false)}><X size={15} /></button>
+              </footer>
+            </div>}
           </div>
           <div className="backtest-log-table-controls">
             <strong aria-live="polite">{filteredExecutions.length}건 검색됨</strong>
