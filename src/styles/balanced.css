@@ -2139,15 +2139,16 @@
   cursor: pointer;
   font: 650 11px/1 var(--font-sans);
   white-space: nowrap;
-  transition: color var(--motion-fast), background var(--motion-fast);
+  transition: color var(--motion-fast), background var(--motion-fast), box-shadow var(--motion-fast);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-legend button:hover {
   color: var(--text);
   background: var(--surface-2);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-legend button.active {
-  color: var(--text-soft);
-  background: var(--surface-2);
+  color: var(--benchmark-color);
+  background: color-mix(in srgb, var(--benchmark-color) 18%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--benchmark-color) 42%, transparent);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-legend .bot {
   color: var(--accent);
@@ -2162,15 +2163,16 @@
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-legend .benchmark i {
   height: 1px;
-  background: var(--text-faint);
+  background: var(--benchmark-color);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .benchmark {
+  --benchmark-color: var(--text-soft);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-legend .benchmark:not(.active) i {
   opacity: .38;
 }
-.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .nasdaq.active { color: var(--info); }
-.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .nasdaq i { background: var(--info); }
-.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .russell.active { color: var(--warning); }
-.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .russell i { background: var(--warning); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .nasdaq { --benchmark-color: var(--info); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .russell { --benchmark-color: var(--warning); }
 .variant-balanced[data-design="signal-studio"] .backtest-comparison-chart {
   position: relative;
   height: 330px;
