@@ -6,6 +6,13 @@ import { BotsView } from './views/BotsView';
 import { AccountView, HelpView, NotificationsView } from './views/SupportViews.jsx';
 
 describe('Bot operations', () => {
+  test('keeps the bot launch action without a manual refresh button', () => {
+    render(<BotsView />);
+
+    expect(screen.getByRole('button', { name: '봇 출시' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '새로고침' })).not.toBeInTheDocument();
+  });
+
   test('selecting a bot drives the detail panel instead of pinning it to one bot', async () => {
     const user = userEvent.setup();
     render(<BotsView />);
