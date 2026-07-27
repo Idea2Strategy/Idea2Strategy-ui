@@ -5538,7 +5538,7 @@
 
 .bots-overview-figures {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   border-bottom: 1px solid var(--line);
 }
 .bots-overview-figures > div {
@@ -5552,6 +5552,30 @@
 .bots-overview-figures strong { font: 700 20px/1.15 var(--font-mono); }
 .bots-overview-figures small { color: var(--text-faint); font: 600 var(--fs-micro) var(--font-mono); }
 
+.bots-overview-timing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 68%, transparent);
+}
+.bots-overview-timing > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  font-weight: 650;
+}
+.bots-overview-timing > strong { color: var(--text); font: 650 var(--fs-caption) var(--font-mono); }
+.bots-overview-timing > small {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+}
+
 /* The per-bot P&L curve, same chart component and reading as Home. */
 .bots-overview-chart { padding: var(--space-3) var(--space-4) var(--space-4); }
 .bots-overview-chart > header {
@@ -5561,8 +5585,12 @@
   gap: var(--space-3);
   padding-bottom: var(--space-2);
 }
+.bots-overview-chart > header > div { display: grid; gap: 3px; }
 .bots-overview-chart h3 { margin: 0; color: var(--text-soft); font-size: var(--fs-caption); font-weight: 650; }
+.bots-overview-chart > header small { color: var(--text-faint); font: 600 var(--fs-micro) var(--font-mono); }
 .bots-overview-chart > header > span { color: var(--text-faint); font: 600 var(--fs-caption) var(--font-mono); }
+.bots-overview-chart > header > span.positive { color: var(--gain); }
+.bots-overview-chart > header > span.negative { color: var(--loss); }
 .bots-overview-chart .dashboard-chart-frame { height: 180px; }
 
 /* What the equity is made of right now: a stacked composition bar with a

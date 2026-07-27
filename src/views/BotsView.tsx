@@ -43,6 +43,7 @@ interface BotRecord {
   room: string;
   labels: string[];
   startDaysAgo: number;
+  startedAt: string;
 }
 
 interface Position {
@@ -131,7 +132,8 @@ const botList = bots as BotRecord[];
 /* ---------- Data ------------------------------------------------------------ */
 
 const SAMPLE_END_DATE = Date.UTC(2026, 6, 23);
-const CAPITALS: Record<string, number> = { 'Atlas 07': 24892.40, 'Room Beta': 10184.12, 'Pair Lab': 18940.08 };
+const INITIAL_CAPITAL = 10000;
+const CAPITALS: Record<string, number> = { 'Atlas 07': 24892.40, 'Room Beta': 10184.12, 'Pair Lab': 9790 };
 
 /*
   Per-bot operating detail. Selecting a bot drives every panel — a chart that
@@ -237,7 +239,7 @@ const botDetails: Record<string, BotDetail> = {
     strategy: 'Pair Spread Monitor · v1',
     monthReturn: -.021,
     dailyVol: .005,
-    cash: '$18,940.08',
+    cash: '$9,790.00',
     cashShare: 100,
     invested: '$0.00',
     positions: [],
@@ -890,13 +892,19 @@ export function BotsView(): ReactNode {
     { key: 'share', label: '비중' },
   ];
 
-  // The selected bot's 30-day curve, shown as P&L with the rate in the tooltip
-  // — the same reading as the Home aggregate.
-  const chartDays = 30;
+  // Up to 30 days of the selected bot's curve, shown as P&L with the rate in
+  // the tooltip. A newer bot starts at its real launch date instead of showing
+  // invented pre-launch history.
+  const chartDays = selected ? Math.min(30, selected.startDaysAgo) : 30;
   const series = selected && detail ? walkSeries(selected.name, chartDays, CAPITALS[selected.name], detail.monthReturn, detail.dailyVol) : [];
   const botProfit = series.map((value) => value - series[0]);
   const botRates = series.map((value) => (value / series[0] - 1) * 100);
   const chartDates = dateLabels(SAMPLE_END_DATE, chartDays);
+  const isYoungBot = chartDays < 30;
+  const chartTitle = isYoungBot ? `운용 시작 후 ${chartDays}일 손익` : '최근 30일 손익';
+  const chartRange = chartDates.length > 0 ? `${chartDates[0]}–${chartDates[chartDates.length - 1]} · ${chartDays}일` : '';
+  const isCompetitionBot = selected?.labels.includes('대회') ?? false;
+  const startLabel = isCompetitionBot ? '대회 참가 시간' : '운용 시작 시간';
 
   return <Localized><div className="page bots-page">
     <PageHeading
@@ -1060,13 +1068,22 @@ export function BotsView(): ReactNode {
         {tab === 'overview' && <TabPanel id="overview">
           <div className="bots-overview-figures">
             <div><span>총자산</span><strong>{selected.capital}</strong><small>{`${signedMoney(botProfit[botProfit.length - 1])} · ${percent(detail.monthReturn)}`}</small></div>
+            <div><span>초기 자산</span><strong>{money(INITIAL_CAPITAL)}</strong><small>모든 봇 동일</small></div>
             <div><span>투자 중</span><strong>{detail.invested}</strong></div>
             {/* Cash IS the buying power here — the product has no margin, so a
                 separate buying-power figure would just repeat this number. */}
             <div><span>현금</span><strong>{detail.cash}</strong><small>주문 가능 금액</small></div>
           </div>
+          <div className="bots-overview-timing">
+            <span><Timer size={14} aria-hidden="true" />{startLabel}</span>
+            <strong>{selected.startedAt}</strong>
+            <small>{isCompetitionBot ? `${selected.room} 참가 ${selected.startDaysAgo}일째` : `${selected.startDaysAgo}일째 운용 중`}</small>
+          </div>
           <div className="bots-overview-chart">
-            <header><h3>최근 30일 손익</h3><span>{money(series[series.length - 1])}</span></header>
+            <header>
+              <div><h3>{chartTitle}</h3><small>{chartRange}</small></div>
+              <span className={botProfit[botProfit.length - 1] >= 0 ? 'positive' : 'negative'}>{signedMoney(botProfit[botProfit.length - 1])}</span>
+            </header>
             <EquityChart
               values={botProfit}
               rates={botRates}

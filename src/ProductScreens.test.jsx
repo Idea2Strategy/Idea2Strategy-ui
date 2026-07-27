@@ -52,6 +52,38 @@ describe('Bot operations', () => {
     expect(screen.queryByRole('button', { name: 'Pair Lab 상세 보기' })).not.toBeInTheDocument();
   });
 
+  test('the overview shows the correct start event and the shared initial capital', async () => {
+    const user = userEvent.setup();
+    render(<BotsView />);
+
+    const atlas = screen.getByRole('region', { name: 'Atlas 07 운영 상세' });
+    expect(within(atlas).getByText('초기 자산')).toBeInTheDocument();
+    expect(within(atlas).getByText('$10,000.00')).toBeInTheDocument();
+    expect(within(atlas).getByText('운용 시작 시간')).toBeInTheDocument();
+    expect(within(atlas).getByText('2025.07.08 09:30 ET')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '대회 참가 중' }));
+
+    const competitionBot = screen.getByRole('region', { name: 'Room Beta 운영 상세' });
+    expect(within(competitionBot).getByText('초기 자산')).toBeInTheDocument();
+    expect(within(competitionBot).getByText('$10,000.00')).toBeInTheDocument();
+    expect(within(competitionBot).getByText('대회 참가 시간')).toBeInTheDocument();
+    expect(within(competitionBot).getByText('2026.06.08 09:30 ET')).toBeInTheDocument();
+  });
+
+  test('a bot younger than 30 days charts only its actual operating period', async () => {
+    const user = userEvent.setup();
+    render(<BotsView />);
+
+    await user.click(screen.getByRole('button', { name: 'Pair Lab 상세 보기' }));
+
+    const detail = screen.getByRole('region', { name: 'Pair Lab 운영 상세' });
+    expect(within(detail).getAllByText('$9,790.00')).toHaveLength(2);
+    expect(within(detail).getByRole('heading', { name: '운용 시작 후 18일 손익' })).toBeInTheDocument();
+    expect(within(detail).getByText('07.05–07.23 · 18일')).toBeInTheDocument();
+    expect(within(detail).queryByRole('heading', { name: '최근 30일 손익' })).not.toBeInTheDocument();
+  });
+
   test('a budget-cap deferral is recorded as normal flow, not escalated as a problem', async () => {
     const user = userEvent.setup();
     render(<BotsView />);

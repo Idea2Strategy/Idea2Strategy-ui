@@ -17,11 +17,11 @@ export const templates = [
   step, never as fake performance.
 */
 export const bots = [
-  { name: 'Atlas 07', state: '실행 중', capital: '$24,892.40', change: '+1.84%', strategies: 2, room: '개인 봇', labels: ['개인'], startDaysAgo: 380 },
-  { name: 'Room Beta', state: '평가 중', capital: '$10,184.12', change: '+1.84%', strategies: 1, room: 'Momentum Lab', labels: ['대회'], startDaysAgo: 45 },
+  { name: 'Atlas 07', state: '실행 중', capital: '$24,892.40', change: '+1.84%', strategies: 2, room: '개인 봇', labels: ['개인'], startDaysAgo: 380, startedAt: '2025.07.08 09:30 ET' },
+  { name: 'Room Beta', state: '평가 중', capital: '$10,184.12', change: '+1.84%', strategies: 1, room: 'Momentum Lab', labels: ['대회'], startDaysAgo: 45, startedAt: '2026.06.08 09:30 ET' },
   /* A budget-cap deferral is part of normal operation — the bot retries on the
      next evaluation — so it is not an attention state. */
-  { name: 'Pair Lab', state: '실행 중', capital: '$18,940.08', change: '-0.38%', strategies: 2, room: '개인 봇', labels: ['개인', '페어'], startDaysAgo: 18 },
+  { name: 'Pair Lab', state: '실행 중', capital: '$9,790.00', change: '-0.38%', strategies: 2, room: '개인 봇', labels: ['개인', '페어'], startDaysAgo: 18, startedAt: '2026.07.05 09:30 ET' },
 ];
 
 export const positions = [
