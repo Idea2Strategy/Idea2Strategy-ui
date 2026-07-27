@@ -134,6 +134,7 @@ describe('BacktestView chart interactions', () => {
     expect(balancedStyles).toMatch(/\.backtest-chart-legend span\s*\{[^}]*font:\s*650 11px\/1 var\(--font-sans\)/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-legend \.bot\s*\{[^}]*background:\s*var\(--accent-soft\)/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-legend button\.active\s*\{[^}]*color:\s*var\(--accent\)[^}]*background:\s*var\(--accent-soft\)[^}]*box-shadow:\s*inset 0 0 0 1px color-mix\(in srgb,\s*var\(--accent\)/s);
+    expect(balancedStyles).toMatch(/\.backtest-chart-legend i\s*\{[^}]*width:\s*7px[^}]*height:\s*7px[^}]*border-radius:\s*50%/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-legend \.benchmark i\s*\{[^}]*background:\s*var\(--benchmark-color\)[^}]*opacity:\s*1/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-line\.benchmark\s*\{[^}]*stroke:\s*var\(--text-soft\)/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-legend \.nasdaq\s*\{[^}]*--benchmark-color:\s*var\(--info\)/s);

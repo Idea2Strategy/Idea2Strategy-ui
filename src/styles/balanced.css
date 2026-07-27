@@ -2156,14 +2156,14 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-legend i {
-  width: 12px;
-  height: 2px;
+  width: 7px;
+  height: 7px;
   display: block;
-  border-radius: 99px;
+  flex: 0 0 7px;
+  border-radius: 50%;
   background: var(--accent);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-legend .benchmark i {
-  height: 2px;
   background: var(--benchmark-color);
   opacity: 1;
 }
