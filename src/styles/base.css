@@ -124,6 +124,105 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   gap: 8px;
   pointer-events: auto;
 }
+.basic-validation-summary {
+  position: absolute;
+  z-index: 12;
+  top: 66px;
+  left: 50%;
+  width: max-content;
+  max-width: min(430px, calc(100vw - 680px));
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 12px;
+  transform: translateX(-50%);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 93%, transparent);
+  box-shadow: 0 14px 34px rgba(var(--shadow-rgb), .16);
+  backdrop-filter: blur(16px);
+  pointer-events: auto;
+}
+.basic-validation-summary.is-incomplete {
+  border-color: color-mix(in srgb, var(--warning) 52%, var(--line-strong));
+  background: color-mix(in srgb, var(--surface) 90%, var(--warning-soft));
+}
+.basic-validation-icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--positive);
+  background: var(--positive-soft);
+}
+.basic-validation-summary.is-incomplete .basic-validation-icon {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+.basic-validation-summary > div { min-width: 0; display: grid; gap: 2px; }
+.basic-validation-summary strong { color: var(--text); font-size: 10px; }
+.basic-validation-summary small { color: var(--text-faint); font-size: 9px; line-height: 1.4; }
+.basic-validation-summary ul {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 5px 0 0 14px;
+  border-top: 1px solid color-mix(in srgb, var(--warning) 24%, var(--line));
+  color: var(--text-soft);
+  font-size: 9px;
+  line-height: 1.45;
+}
+.editor-save-feedback {
+  position: fixed;
+  z-index: 270;
+  left: 50%;
+  bottom: 24px;
+  min-width: 330px;
+  max-width: calc(100vw - 32px);
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 9px;
+  padding: 9px;
+  transform: translateX(-50%);
+  border: 1px solid color-mix(in srgb, var(--warning) 52%, var(--line-strong));
+  border-radius: 13px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 92%, var(--warning-soft));
+  box-shadow: 0 20px 52px rgba(var(--shadow-rgb), .24);
+  backdrop-filter: blur(18px);
+}
+.editor-save-feedback.tone-positive {
+  border-color: color-mix(in srgb, var(--positive) 52%, var(--line-strong));
+  background: color-mix(in srgb, var(--surface) 92%, var(--positive-soft));
+}
+.editor-save-feedback > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+.editor-save-feedback.tone-positive > span { color: var(--positive); background: var(--positive-soft); }
+.editor-save-feedback > div { display: grid; gap: 2px; }
+.editor-save-feedback strong { font-size: 10px; }
+.editor-save-feedback small { color: var(--text-faint); font-size: 9px; }
+.editor-save-feedback > button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+}
+.editor-save-feedback > button:hover { color: var(--text); background: var(--surface-2); }
 .floating-editor-mode-controls { display: flex; gap: 5px; }
 .variant-balanced[data-design="signal-studio"] .editor-shell-page .floating-editor-button {
   border: 1px solid color-mix(in srgb, var(--line-strong) 82%, transparent);
@@ -230,6 +329,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   }
   .basic-editor-commandbar,
   .pro-editor-commandbar { padding-inline: 12px; }
+  .basic-validation-summary { display: none; }
   .floating-editor-mode-controls { gap: 3px; }
   .floating-zoom-controls { display: none; }
   .editor-shell-page .floating-editor-panel,

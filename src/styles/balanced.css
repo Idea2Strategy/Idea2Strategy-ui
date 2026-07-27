@@ -658,6 +658,14 @@
 .variant-balanced[data-design="signal-studio"] .section-strategy-grid .strategy-card.is-selected {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 58%, transparent), 0 18px 38px rgba(var(--shadow-rgb), .18);
 }
+.variant-balanced[data-design="signal-studio"] .strategy-section-frame.has-validation-error {
+  border-color: color-mix(in srgb, var(--warning) 82%, var(--line-strong));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning) 18%, transparent), 0 20px 50px rgba(var(--shadow-rgb), .14);
+}
+.variant-balanced[data-design="signal-studio"] .section-strategy-grid .strategy-card.has-validation-error {
+  border-color: var(--warning);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 22%, transparent), 0 18px 38px rgba(var(--shadow-rgb), .18);
+}
 /* Sits inside the saturated buy/sell header, so the chip must be opaque —
    a translucent accent tint over red measured under 1.5:1. */
 .variant-balanced[data-design="signal-studio"] .strategy-target-badge {
@@ -668,6 +676,17 @@
   color: var(--accent);
   background: var(--surface);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
+  font: 700 9px var(--font-mono);
+  font-style: normal;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-validation-badge {
+  width: max-content;
+  margin-top: 2px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  color: var(--warning);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--warning) 48%, transparent);
   font: 700 9px var(--font-mono);
   font-style: normal;
 }
@@ -1189,11 +1208,11 @@
   white-space: nowrap;
   word-break: keep-all;
 }
-.variant-balanced[data-design="signal-studio"] .optional-sell-slot {
+.variant-balanced[data-design="signal-studio"] .optional-sell-slot,
+.variant-balanced[data-design="signal-studio"] .required-buy-slot {
   position: absolute;
   z-index: 1;
   top: 112px;
-  left: 310px;
   width: 260px;
   min-height: 170px;
   display: grid;
@@ -1208,8 +1227,17 @@
   pointer-events: auto;
   cursor: pointer;
 }
+.variant-balanced[data-design="signal-studio"] .optional-sell-slot { left: 310px; }
+.variant-balanced[data-design="signal-studio"] .required-buy-slot {
+  left: 24px;
+  border-color: color-mix(in srgb, var(--warning) 72%, var(--line-strong));
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning-soft) 44%, transparent);
+}
 .variant-balanced[data-design="signal-studio"] .optional-sell-slot strong { font-size: 10px; }
-.variant-balanced[data-design="signal-studio"] .optional-sell-slot span {
+.variant-balanced[data-design="signal-studio"] .required-buy-slot strong { font-size: 10px; }
+.variant-balanced[data-design="signal-studio"] .optional-sell-slot span,
+.variant-balanced[data-design="signal-studio"] .required-buy-slot span {
   color: var(--text-faint);
   font-size: 10px;
 }
@@ -1232,6 +1260,10 @@
 .variant-balanced[data-design="signal-studio"] .optional-sell-slot:hover {
   border-color: #7694ea;
   background: color-mix(in srgb, #4f73df 10%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .required-buy-slot:hover {
+  border-color: var(--warning);
+  background: color-mix(in srgb, var(--warning-soft) 72%, transparent);
 }
 .variant-balanced[data-design="signal-studio"] .strategy-container-header {
   position: relative;

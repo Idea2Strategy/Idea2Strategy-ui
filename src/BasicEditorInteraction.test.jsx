@@ -563,6 +563,46 @@ describe('Basic editor strategy explanations', () => {
     expect(screen.getByRole('status')).toHaveTextContent('전략을 삭제했습니다.');
   });
 
+  test('marks a strategy incomplete when a section has no buy strategy and explains the requirement on save', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    const card = screen.getByTestId('basic-buy-group');
+    const dataTransfer = { effectAllowed: '', dropEffect: '', setData: vi.fn(), getData: vi.fn() };
+    fireEvent.dragStart(card, { dataTransfer });
+    fireEvent.drop(screen.getByTestId('editor-trash-zone'), { dataTransfer });
+
+    const completeness = screen.getByRole('region', { name: '전략 완성도' });
+    expect(completeness).toHaveTextContent('미완성 전략');
+    expect(completeness).toHaveTextContent('SECTION 01에 매수 블록이 필요합니다.');
+    expect(screen.getByTestId('strategy-section-1')).toHaveClass('has-validation-error');
+    expect(screen.getByRole('button', { name: 'SECTION 01 필수 매수 블록 추가' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '저장' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('미완성 상태로 저장했습니다.');
+    expect(screen.getByRole('alert')).toHaveTextContent('매수 조건을 완성하면 출시할 수 있습니다.');
+
+    await user.click(screen.getByRole('button', { name: 'SECTION 01 필수 매수 블록 추가' }));
+    expect(completeness).toHaveTextContent('출시 가능한 전략');
+    expect(screen.getByTestId('strategy-section-1')).not.toHaveClass('has-validation-error');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('marks a buy strategy incomplete when it contains no condition blocks', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    for (const blockId of ['buy-trigger-block', 'buy-rsi-block', 'buy-budget-block']) {
+      const dataTransfer = { effectAllowed: '', dropEffect: '', setData: vi.fn(), getData: vi.fn() };
+      fireEvent.dragStart(screen.getByTestId(blockId), { dataTransfer });
+      fireEvent.drop(screen.getByTestId('editor-trash-zone'), { dataTransfer });
+    }
+
+    expect(screen.getByTestId('basic-buy-group')).toHaveClass('has-validation-error');
+    expect(screen.getByRole('region', { name: '전략 완성도' })).toHaveTextContent(
+      'SECTION 01의 매수 블록에 조건 블록을 하나 이상 추가해 주세요.',
+    );
+  });
+
   test('deletes a partition when its pointer drag ends over the trash zone', () => {
     render(<BasicEditor goBack={() => {}} />);
 
