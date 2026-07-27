@@ -627,13 +627,16 @@ const english = {
   '전략과 설정은 서버에 저장되지 않습니다': 'Strategies and settings are not saved to a server',
 
   // Full sentences that were only partly rewritten because no exact key existed
-  '트레이딩 봇별 누적 수익률을 같은 기간의 S&P 500과 직접 비교합니다.': 'Compare each trading bot\u2019s cumulative return against the S&P 500 over the same period.',
+  '트레이딩 봇별 누적 수익률을 같은 기간의 주요 시장 지수와 직접 비교합니다.': 'Compare each trading bot\u2019s cumulative return against major market indices over the same period.',
   '휠 확대·축소 · 좌우 드래그 · 가격축 상하 드래그 · 더블클릭 초기화': 'Wheel to zoom · drag sideways to pan · drag the price axis vertically · double-click to reset',
   '차트에 표시된 개별 체결': 'Individual fills shown on the chart',
   '조정 가격 · 미국 동부 시각': 'Adjusted prices · US Eastern time',
   '조정주가 · USD': 'Adjusted price · USD',
   '종목별 체결 차트': 'Fills by symbol',
   '봇 선택': 'Select a bot',
+  '시장 지수': 'Market indices',
+  '비교 지표 선택': 'Select comparison indices',
+  '지표 표시': 'Show index',
   'S&P 500 대비': 'vs S&P 500',
   '시장 기준선': 'Market baseline',
   '선택한 봇': 'Selected bot',
