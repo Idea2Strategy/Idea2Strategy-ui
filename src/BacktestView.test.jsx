@@ -90,6 +90,12 @@ describe('BacktestView', () => {
 });
 
 describe('BacktestView chart interactions', () => {
+  test('styles the comparison legend as a compact panel-header control', () => {
+    expect(balancedStyles).toMatch(/\.backtest-chart-legend\s*\{[^}]*border:\s*1px solid var\(--line\)[^}]*background:\s*var\(--surface\)/s);
+    expect(balancedStyles).toMatch(/\.backtest-chart-legend span\s*\{[^}]*font:\s*650 11px\/1 var\(--font-sans\)/s);
+    expect(balancedStyles).toMatch(/\.backtest-chart-legend \.bot\s*\{[^}]*background:\s*var\(--accent-soft\)/s);
+  });
+
   test('uses a defined theme surface color for the price axis background', () => {
     expect(balancedStyles).toMatch(/\.market-price-axis-surface\s*\{[^}]*fill:\s*color-mix\(in srgb,\s*var\(--surface-2\)/s);
     expect(balancedStyles).not.toMatch(/\.market-price-axis-surface\s*\{[^}]*--surface-raised/s);
