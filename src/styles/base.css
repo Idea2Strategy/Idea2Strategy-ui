@@ -37,6 +37,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   background-image: radial-gradient(var(--line-strong) .7px, transparent .7px);
   background-size: 17px 17px;
 }
+.strategy-editor-scroll { width: 100%; }
 .page-scroll { flex: 1; min-width: 0; overflow: hidden; }.page { width: 100%; min-width: 0; max-width: 1280px; margin: 0 auto; padding: 34px 32px 70px; }.narrow-page { max-width: 1080px; }
 .page-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 28px; margin-bottom: 27px; }
 .eyebrow { margin: 0 0 9px; color: var(--accent); font: 700 10px var(--font-mono); letter-spacing: 1.5px; }
@@ -90,6 +91,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .sell-container .block-translation::before { right: -6px; left: auto; border: 0; border-top: 1px solid var(--line-strong); border-right: 1px solid var(--line-strong); }
 
 .variant-balanced[data-design="signal-studio"] .page.editor-shell-page {
+  width: 100%;
   max-width: none;
   height: calc(100vh - 72px);
   height: calc(100dvh - 72px);
