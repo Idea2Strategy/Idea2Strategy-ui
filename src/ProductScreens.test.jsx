@@ -118,6 +118,22 @@ describe('Bot operations', () => {
     expect(within(log()).getByText('예산 상한 검사 통과')).toBeInTheDocument();
   });
 
+  test('the decision log pairs live candles with symbol-specific execution markers', async () => {
+    const user = userEvent.setup();
+    render(<BotsView />);
+
+    await user.click(screen.getByRole('tab', { name: /판단 기록/ }));
+
+    const chart = screen.getByRole('region', { name: 'Atlas 07 실시간 체결 차트' });
+    expect(within(chart).getByText('SPY')).toBeInTheDocument();
+    expect(within(chart).getByText('실시간 데모')).toBeInTheDocument();
+    expect(within(chart).getByTestId('live-trade-marker')).toHaveAttribute('data-side', '매수');
+
+    await user.click(within(chart).getByRole('button', { name: 'AAPL 차트 보기' }));
+    expect(within(chart).getByRole('heading', { name: 'AAPL 실시간 차트' })).toBeInTheDocument();
+    expect(within(chart).getByTestId('live-trade-marker')).toHaveAttribute('data-side', '매도');
+  });
+
   test('the decision log filters by search text and period', async () => {
     const user = userEvent.setup();
     render(<BotsView />);

@@ -5621,6 +5621,151 @@
 .bots-composition-legend strong { font-size: var(--fs-caption); }
 .bots-composition-legend b { color: var(--text-faint); font: 650 var(--fs-caption) var(--font-mono); }
 
+/* Live execution chart: TradingView-grade navigation with the bot's own
+   decisions kept visible as an accessible marker ledger below the canvas. */
+.bots-live-chart {
+  margin: var(--space-4);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.bots-live-chart-head {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.bots-live-chart-head > div:first-child { display: grid; gap: 2px; }
+.bots-live-chart-head h3 {
+  margin: 0;
+  color: var(--text);
+  font: 750 var(--fs-card) var(--font-sans);
+  letter-spacing: -.015em;
+}
+.bots-live-chart-head small { color: var(--text-faint); font-size: var(--fs-caption); }
+.bots-live-kicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--gain);
+  font: 750 var(--fs-micro) var(--font-mono);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.bots-live-kicker i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gain);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--gain) 48%, transparent);
+  animation: bots-live-pulse 1.8s ease-out infinite;
+}
+@keyframes bots-live-pulse {
+  60%, 100% { box-shadow: 0 0 0 7px transparent; }
+}
+.bots-live-quote { display: grid; justify-items: end; gap: 2px; }
+.bots-live-quote strong { font: 750 var(--fs-title-sm) var(--font-mono); }
+.bots-live-quote span { font: 700 var(--fs-caption) var(--font-mono); }
+.bots-live-quote .positive { color: var(--buy-block-color); }
+.bots-live-quote .negative { color: var(--sell-block-color); }
+.bots-live-toolbar {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 6px var(--space-3);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.bots-live-symbols,
+.bots-live-timeframes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.bots-live-symbols { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.bots-live-symbols::-webkit-scrollbar { display: none; }
+.bots-live-symbols button,
+.bots-live-timeframes button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  color: var(--text-faint);
+  background: transparent;
+  font: 700 var(--fs-micro) var(--font-mono);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.bots-live-symbols button:hover,
+.bots-live-timeframes button:hover { color: var(--text); background: var(--surface-3); }
+.bots-live-symbols button.active {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.bots-live-timeframes button.active { color: var(--text); background: var(--surface-3); }
+.bots-live-timeframes button.bots-live-realtime {
+  margin-left: 4px;
+  border-color: var(--line);
+  color: var(--text-soft);
+  background: var(--surface);
+  font-family: var(--font-sans);
+}
+.bots-live-chart-frame {
+  width: 100%;
+  height: clamp(320px, 39vw, 430px);
+  position: relative;
+  background: var(--surface);
+}
+.bots-live-chart-foot {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 7px var(--space-3);
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.bots-live-markers {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.bots-live-markers::-webkit-scrollbar { display: none; }
+.bots-live-markers span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-soft);
+  font: 600 var(--fs-micro) var(--font-mono);
+  white-space: nowrap;
+}
+.bots-live-markers i {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+.bots-live-markers .is-buy i { background: var(--buy-block-color); }
+.bots-live-markers .is-sell i { background: var(--sell-block-color); }
+.bots-live-chart-foot > a {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 10px;
+  text-decoration: none;
+}
+.bots-live-chart-foot > a:hover { color: var(--text-soft); text-decoration: underline; }
+
 /* The decision-log toolbar: search, kind pills, period select — one row. */
 .bots-log-tools {
   display: flex;
@@ -5945,10 +6090,19 @@
   .bots-overview-figures { grid-template-columns: 1fr; }
   .bots-overview-figures > div { border-left: 0; border-top: 1px solid var(--line); }
   .bots-overview-figures > div:first-child { border-top: 0; }
+  .bots-live-chart { margin: var(--space-3); }
+  .bots-live-toolbar,
+  .bots-live-chart-foot { align-items: stretch; flex-direction: column; }
+  .bots-live-timeframes { overflow-x: auto; scrollbar-width: none; }
+  .bots-live-chart-foot > a { align-self: flex-end; }
   .bots-log-tools { flex-wrap: wrap; }
   .bots-log-search { flex-basis: 100%; }
   .bots-event { grid-template-columns: 52px minmax(0, 1fr); }
   .bots-event-meta { grid-column: 2; justify-items: start; text-align: left; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bots-live-kicker i { animation: none; }
 }
 
 /* Shared result states, tabs and metric rows */

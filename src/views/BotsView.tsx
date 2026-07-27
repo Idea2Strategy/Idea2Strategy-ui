@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Plus, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
 import { Button, DataTable, EmptyState, PageHeading, Status, TabPanel, Tabs } from '../components/common.jsx';
 import { EquityChart } from '../components/EquityChart';
+import { LiveExecutionChart } from '../components/LiveExecutionChart';
 import { dateLabels, money, percent, signedMoney, walkSeries } from '../lib/equitySim';
 import { bots } from '../data/mockData.js';
 import { Localized } from '../lib/i18n.jsx';
@@ -831,12 +832,27 @@ export function BotsView(): ReactNode {
   const [logQuery, setLogQuery] = useState('');
   const [logScope, setLogScope] = useState<LogScope>('fills');
   const [logPeriod, setLogPeriod] = useState<LogPeriod>('all');
+  const [decisionSymbol, setDecisionSymbol] = useState('');
 
   const visibleBots = botList.filter((bot) => matchesBotFilter(bot, filter));
   const selected = visibleBots.find((bot) => bot.name === selectedName) ?? visibleBots[0] ?? null;
   const detail = selected ? botDetails[selected.name] : null;
   const attention = botList.filter((bot) => bot.state === '조치 필요');
   const healthyCount = botList.length - attention.length;
+  const fillEvents = useMemo(
+    () => (detail?.events ?? []).filter((event): event is Extract<LogEvent, { kind: 'fill' }> => event.kind === 'fill'),
+    [detail],
+  );
+  const decisionSymbols = useMemo(
+    () => Array.from(new Set(fillEvents.map((event) => event.symbol))),
+    [fillEvents],
+  );
+
+  useEffect(() => {
+    if (!decisionSymbols.includes(decisionSymbol)) {
+      setDecisionSymbol(decisionSymbols[0] ?? '');
+    }
+  }, [decisionSymbol, decisionSymbols]);
 
   useEffect(() => {
     if (!iconPickerOpen) return undefined;
@@ -870,6 +886,8 @@ export function BotsView(): ReactNode {
     setLogQuery('');
     setLogScope('fills');
     setLogPeriod('all');
+    const nextFill = botDetails[bot.name]?.events.find((event) => event.kind === 'fill');
+    setDecisionSymbol(nextFill?.symbol ?? '');
   };
 
   const visibleEvents = (detail?.events ?? []).filter((event) => {
@@ -1133,6 +1151,13 @@ export function BotsView(): ReactNode {
               and when. Fills show by default; engine records (unmet
               conditions, deferrals, passed checks) join when the person opts
               into the full record. */}
+          {decisionSymbol && <LiveExecutionChart
+            botName={selected.name}
+            executions={fillEvents}
+            symbols={decisionSymbols}
+            symbol={decisionSymbol}
+            onSymbolChange={setDecisionSymbol}
+          />}
           <div className="bots-log-tools">
             <label className="bots-log-search">
               <Search size={14} aria-hidden="true" />
