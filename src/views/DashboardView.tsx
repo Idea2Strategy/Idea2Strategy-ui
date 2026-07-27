@@ -5,7 +5,6 @@ import {
   Bot,
   CalendarClock,
   ChevronDown,
-  Plus,
   Trophy,
   X,
 } from 'lucide-react';
@@ -18,7 +17,8 @@ import { Localized } from '../lib/i18n.jsx';
 
 /* ---------- Types (the product is migrating to TypeScript page by page) ---- */
 
-type PeriodKey = 'week' | 'month' | 'quarter';
+type PeriodKey = 'lifetime' | 'week' | 'month' | 'quarter';
+type PerformanceScope = 'personal' | 'competition';
 type PageId = 'home' | 'strategy' | 'bots' | 'backtest' | 'rooms' | 'account' | 'notifications' | 'help';
 
 interface BotRecord {
@@ -43,7 +43,6 @@ interface HomeTask {
 
 interface DashboardViewProps {
   setPage: (page: PageId) => void;
-  openEditor: (mode: 'basic' | 'pro') => void;
 }
 
 const botList = bots as BotRecord[];
@@ -75,7 +74,8 @@ const INITIAL_TASKS: HomeTask[] = [
   principal and the return index chain-links around inflow days — so adding a
   bot never reads as performance.
 */
-const PERIODS: Record<PeriodKey, { label: string; days: number }> = {
+const PERIODS: Record<PeriodKey, { label: string; days: number | null }> = {
+  lifetime: { label: '전체', days: null },
   week: { label: '1주', days: 7 },
   month: { label: '1개월', days: 30 },
   quarter: { label: '3개월', days: 91 },
@@ -87,6 +87,7 @@ const LIFETIME_RETURNS: Record<string, number> = Object.fromEntries(
 );
 const DAILY_VOL: Record<string, number> = { 'Atlas 07': .011, 'Room Beta': .009, 'Pair Lab': .005 };
 const SAMPLE_END_DATE = Date.UTC(2026, 6, 23);
+const percentPoint = (value: number): string => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
 /* The bot's value on each day of the window; null before its launch. */
 const equitySeries = (bot: BotRecord, days: number): { startIndex: number; values: Array<number | null> } => {
@@ -112,28 +113,25 @@ const myCompetitions = [
 const botTone = (state: string): 'positive' | 'info' | 'warning' =>
   state === '실행 중' ? 'positive' : state === '평가 중' ? 'info' : 'warning';
 
-/* Label groups for aggregate selection, with the bots each one contains. */
-const labelGroups = (): Array<{ label: string; names: string[] }> => {
-  const groups = new Map<string, string[]>();
-  for (const bot of botList) {
-    for (const label of bot.labels) {
-      const names = groups.get(label) ?? [];
-      names.push(bot.name);
-      groups.set(label, names);
-    }
-  }
-  return [{ label: '전체', names: botList.map((bot) => bot.name) }, ...[...groups.entries()].map(([label, names]) => ({ label, names }))];
-};
+const isBotInScope = (bot: BotRecord, scope: PerformanceScope): boolean =>
+  scope === 'personal' ? bot.room === '개인 봇' : bot.room !== '개인 봇';
 
-export function DashboardView({ setPage, openEditor }: DashboardViewProps): ReactNode {
-  const [period, setPeriod] = useState<PeriodKey>('month');
-  const [included, setIncluded] = useState<Set<string>>(() => new Set(botList.map((bot) => bot.name)));
+export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
+  const [period, setPeriod] = useState<PeriodKey>('lifetime');
+  const [performanceScope, setPerformanceScope] = useState<PerformanceScope>('personal');
+  const [included, setIncluded] = useState<Set<string>>(
+    () => new Set(botList.filter((bot) => isBotInScope(bot, 'personal')).map((bot) => bot.name)),
+  );
   const [filterOpen, setFilterOpen] = useState(false);
   const [taskList, setTaskList] = useState<HomeTask[]>(INITIAL_TASKS);
   const [confirming, setConfirming] = useState<HomeTask | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
   const allClear = taskList.length === 0;
-  const groups = useMemo(labelGroups, []);
+  const scopedBots = useMemo(
+    () => botList.filter((bot) => isBotInScope(bot, performanceScope)),
+    [performanceScope],
+  );
+  const scopeLabel = performanceScope === 'personal' ? '개인 운용' : '대회 참가';
 
   const confirmExtension = () => {
     if (!confirming) return;
@@ -155,9 +153,17 @@ export function DashboardView({ setPage, openEditor }: DashboardViewProps): Reac
     });
   };
 
-  const { profit, rate, dates, launches, total, invested, twr, today, drawdown, high } = useMemo(() => {
-    const { days } = PERIODS[period];
-    const selected = botList.filter((bot) => included.has(bot.name));
+  const changePerformanceScope = (nextScope: PerformanceScope) => {
+    if (nextScope === performanceScope) return;
+    const nextBots = botList.filter((bot) => isBotInScope(bot, nextScope));
+    setPerformanceScope(nextScope);
+    setIncluded(new Set(nextBots.map((bot) => bot.name)));
+    setFilterOpen(false);
+  };
+
+  const { profit, rate, dates, launches, total, twr, today, drawdown } = useMemo(() => {
+    const selected = scopedBots.filter((bot) => included.has(bot.name));
+    const days = PERIODS[period].days ?? Math.max(...selected.map((bot) => bot.startDaysAgo), 1);
     const series = selected.map((bot) => ({ bot, ...equitySeries(bot, days) }));
 
     const points = Array.from({ length: days + 1 }, (_, index) =>
@@ -166,9 +172,11 @@ export function DashboardView({ setPage, openEditor }: DashboardViewProps): Reac
     // pure performance with injections cancelled out.
     const principal = Array.from({ length: days + 1 }, (_, index) =>
       series.reduce((sum, one) => sum + (one.values[index] === null ? 0 : (one.values[one.startIndex] ?? 0)), 0));
-    const starts: LaunchMark[] = series
-      .filter((one) => one.startIndex > 0)
-      .map((one) => ({ name: one.bot.name, index: one.startIndex }));
+    const starts: LaunchMark[] = series.map((one) => ({
+      name: one.bot.name,
+      index: one.startIndex,
+      kind: one.startIndex === 0 && one.bot.startDaysAgo > days ? 'before-range' : 'start',
+    }));
 
     // Chain-linked daily returns, excluding capital injected on launch days:
     // the time-weighted return, so a bot joining mid-window is not "profit".
@@ -192,13 +200,11 @@ export function DashboardView({ setPage, openEditor }: DashboardViewProps): Reac
       dates: dateLabels(SAMPLE_END_DATE, days),
       launches: starts,
       total: points[points.length - 1],
-      invested: principal[principal.length - 1],
       twr: indexValue - 1,
       today: points[points.length - 1] / points[points.length - 2] - 1,
       drawdown: worst,
-      high: Math.max(...points),
     };
-  }, [included, period]);
+  }, [included, period, scopedBots]);
 
   return <Localized><div className="page dashboard-page">
     <header className="page-heading dashboard-heading">
@@ -210,9 +216,6 @@ export function DashboardView({ setPage, openEditor }: DashboardViewProps): Reac
             ? '봇 3개가 정상 운영 중이에요. 오늘은 확인할 일이 없습니다.'
             : `봇 3개가 정상 운영 중이에요. 아래 ${taskList.length}가지만 확인하면 됩니다.`}
         </p>
-      </div>
-      <div className="page-actions">
-        <Button kind="primary" icon={Plus} onClick={() => openEditor('basic')}>새 전략</Button>
       </div>
     </header>
 
@@ -246,15 +249,25 @@ export function DashboardView({ setPage, openEditor }: DashboardViewProps): Reac
     </div>}
 
     <div className="dashboard-context-row">
-      <section className="dashboard-section" aria-label="전체 성과">
+      <section className="dashboard-section" aria-label="운용 성과">
         <header className="dashboard-section-head">
-          <div><h2>전체 성과</h2><p>선택한 봇의 가상자산 합계</p></div>
+          <div><h2>운용 성과</h2><p>{scopeLabel} 봇의 시간가중 성과</p></div>
           <div className="dashboard-chart-controls">
-            {/* A dropdown with label groups plus per-bot checkboxes: up to ten
-                bots can run at once, so one chip per bot does not scale. Each
-                label row lists the bots it contains — picking a label must
-                never be a mystery set. */}
-            <div className="dashboard-filter-anchor" ref={filterRef} onBlur={(event: FocusEvent<HTMLDivElement>) => {
+            <div className="dashboard-chart-control dashboard-performance-scope" role="group" aria-label="성과 유형">
+              <button
+                className={performanceScope === 'personal' ? 'active' : ''}
+                aria-pressed={performanceScope === 'personal'}
+                onClick={() => changePerformanceScope('personal')}
+              >개인 운용</button>
+              <button
+                className={performanceScope === 'competition' ? 'active' : ''}
+                aria-pressed={performanceScope === 'competition'}
+                onClick={() => changePerformanceScope('competition')}
+              >대회 참가</button>
+            </div>
+            {/* A dropdown with per-bot checkboxes: up to ten bots can run at
+                once, so one chip per bot does not scale. */}
+            <div className="dashboard-chart-control dashboard-filter-anchor" ref={filterRef} onBlur={(event: FocusEvent<HTMLDivElement>) => {
               if (!filterRef.current?.contains(event.relatedTarget as Node)) setFilterOpen(false);
             }}>
               <button
@@ -263,24 +276,10 @@ export function DashboardView({ setPage, openEditor }: DashboardViewProps): Reac
                 aria-expanded={filterOpen}
                 aria-label="합산에 포함할 봇 선택"
                 onClick={() => setFilterOpen((open) => !open)}
-              >{`봇 ${included.size}/${botList.length} 포함`}<ChevronDown size={13} aria-hidden="true" /></button>
+              >{`봇 ${included.size}/${scopedBots.length} 포함`}<ChevronDown size={13} aria-hidden="true" /></button>
               {filterOpen && <div className="dashboard-filter-panel" role="group" aria-label="합산에 포함할 봇 선택">
-                <p className="dashboard-filter-heading">라벨로 선택</p>
-                {groups.map((group) => {
-                  const activeGroup = group.names.length === included.size && group.names.every((name) => included.has(name));
-                  return <button
-                    key={group.label}
-                    type="button"
-                    className={`dashboard-filter-group ${activeGroup ? 'active' : ''}`}
-                    aria-pressed={activeGroup}
-                    onClick={() => setIncluded(new Set(group.names))}
-                  >
-                    <span className="dashboard-filter-copy"><strong>{group.label}</strong><small>{group.names.join(' · ')}</small></span>
-                    <b>{group.names.length}</b>
-                  </button>;
-                })}
                 <p className="dashboard-filter-heading">봇 개별 선택</p>
-                {botList.map((bot) => <label key={bot.name}>
+                {scopedBots.map((bot) => <label key={bot.name}>
                   <input
                     type="checkbox"
                     checked={included.has(bot.name)}
@@ -290,25 +289,36 @@ export function DashboardView({ setPage, openEditor }: DashboardViewProps): Reac
                 </label>)}
               </div>}
             </div>
-            <div aria-label="성과 기간">{(Object.entries(PERIODS) as Array<[PeriodKey, { label: string }]>).map(([id, item]) => <button key={id} className={period === id ? 'active' : ''} aria-pressed={period === id} onClick={() => setPeriod(id)}>{item.label}</button>)}</div>
+            <div className="dashboard-chart-control" role="group" aria-label="성과 기간">{(Object.entries(PERIODS) as Array<[PeriodKey, { label: string }]>).map(([id, item]) => <button key={id} className={period === id ? 'active' : ''} aria-pressed={period === id} onClick={() => setPeriod(id)}>{item.label}</button>)}</div>
           </div>
         </header>
-        {/* P&L and return are one story in two units, so they share one chart:
-            the line is currency, and the day's return rides in the tooltip. */}
+        {/* Return is the primary comparison unit. Dollar totals stay secondary
+            because the bots entered this scope on different dates. */}
         <div className="dashboard-chart-summary">
-          <div>
-            <strong>{money(total)}</strong>
-            <span className={twr >= 0 ? 'positive' : 'negative'}>{`${signedMoney(profit[profit.length - 1])} · ${percent(twr)}`}</span>
+          <div className="dashboard-return-summary">
+            <span>시간가중수익률</span>
+            <div>
+              <strong className={twr >= 0 ? 'positive' : 'negative'}>{percent(twr)}</strong>
+              <small><span>운용 손익</span> {signedMoney(profit[profit.length - 1])} · <span>현재 자산</span> {money(total)}</small>
+            </div>
           </div>
         </div>
-        <EquityChart values={profit} rates={rate} dates={dates} launches={launches} format={signedMoney} ariaLabel="선택한 봇의 손익과 수익률 차트" />
+        <EquityChart
+          values={rate}
+          rates={rate}
+          dates={dates}
+          launches={launches}
+          format={percentPoint}
+          ariaLabel={`${scopeLabel} 봇의 시간가중수익률 차트`}
+          showRateInTooltip={false}
+        />
         <dl className="dashboard-chart-stats">
           <div><dt>오늘</dt><dd className={today >= 0 ? 'positive' : 'negative'}>{percent(today)}</dd></div>
           <div><dt>최대 낙폭</dt><dd>{percent(drawdown)}</dd></div>
-          <div><dt>투입 원금</dt><dd>{money(invested)}</dd></div>
-          <div><dt>기간 최고</dt><dd>{money(high)}</dd></div>
+          <div><dt>선택 봇 수</dt><dd>{included.size}개</dd></div>
+          <div><dt>시작일 보정</dt><dd>적용</dd></div>
         </dl>
-        <p className="dashboard-chart-note">손익과 수익률은 자금 유입을 제외해 계산합니다. 봇 시작 시점은 세로 점선으로 표시합니다.</p>
+        <p className="dashboard-chart-note">선택한 봇을 하나의 운용 묶음으로 보고, 시작 자금 유입은 수익에서 제외한 시간가중수익률입니다. ‘운용 시작’은 실제 시작일이고, ‘이전부터 운용’은 선택 기간보다 먼저 시작된 봇입니다. 개인 운용과 대회 성과는 합산하지 않습니다.</p>
       </section>
 
       <div className="dashboard-side">

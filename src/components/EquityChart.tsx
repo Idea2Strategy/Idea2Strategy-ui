@@ -1,25 +1,28 @@
 import { useId, useRef, useState } from 'react';
 import type { FocusEvent, KeyboardEvent, MouseEvent } from 'react';
+import { Bot } from 'lucide-react';
 import { useLanguage } from '../lib/i18n.jsx';
 
 export interface LaunchMark {
   name: string;
   index: number;
+  kind?: 'start' | 'before-range';
 }
 
 export interface EquityChartProps {
   values: number[];
-  /* The return (%) on each day — the same story as `values` in a different
-     unit, so it rides along in the tooltip instead of being a separate view. */
+  /* The return (%) on each day. Dollar-based charts show it as a secondary
+     tooltip value; return-based charts can hide the duplicate. */
   rates: number[];
   dates: string[];
   launches?: LaunchMark[];
   format: (value: number) => string;
   ariaLabel: string;
+  showRateInTooltip?: boolean;
 }
 
 /*
-  The shared P&L chart (Home aggregate and per-bot overview), kept to the
+  The shared performance chart (Home aggregate and per-bot overview), kept to the
   grammar of consumer brokerage charts:
 
   - The line runs the full width. Stretches above zero wear the gain colour,
@@ -30,14 +33,22 @@ export interface EquityChartProps {
     and below the curve — by definition that space is empty.
   - The current value is the endpoint dot; the big figure above the chart is
     its label. No right-edge tag, no extra guide line.
-  - The only reference line is the subtle zero baseline — percentage context
-    lives in the summary figure and the tooltip, not in grid lines.
+  - The only reference line is the subtle zero baseline — unit context lives
+    in the summary figure and the tooltip, not in grid lines.
   - Hover (or arrow keys) shows a crosshair, a dot, and one tooltip.
 
   The SVG stretches, strokes stay 1:1 via vector-effect, and every label is an
   HTML overlay so text never distorts.
 */
-export function EquityChart({ values, rates, dates, launches = [], format, ariaLabel }: EquityChartProps) {
+export function EquityChart({
+  values,
+  rates,
+  dates,
+  launches = [],
+  format,
+  ariaLabel,
+  showRateInTooltip = true,
+}: EquityChartProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   // Strings created inside a nested component render after the Localized walk,
   // so they translate through the hook instead.
@@ -140,11 +151,45 @@ export function EquityChart({ values, rates, dates, launches = [], format, ariaL
       style={{ left: `${clampPct((xFor(minIndex) / width) * 100)}%`, top: `${(yFor(minValue) / height) * 100}%` }}
     ><i className="sr-only">{t('최저')} </i>{format(minValue)}</span>}
 
-    {launches.map((launch) => <span
-      key={launch.name}
-      className="dashboard-chart-marker"
-      style={{ left: `${(xFor(launch.index) / width) * 100}%` }}
-    >{t(`${launch.name} 시작`)}</span>)}
+    {launches.map((launch, launchIndex) => {
+      const position = (xFor(launch.index) / width) * 100;
+      const lane = launches
+        .slice(0, launchIndex)
+        .filter((other) => other.index === launch.index)
+        .length;
+      const edgeClass = position <= 10 ? 'is-edge-start' : position >= 90 ? 'is-edge-end' : '';
+      const status = launch.kind === 'before-range' ? t('이전부터 운용') : t('운용 시작');
+      const tooltipId = `${clipId}-launch-${launchIndex}`;
+      const tooltipTitle = launch.kind === 'before-range' ? t('선택 기간 이전에 시작') : t('운용 시작 시점');
+      const tooltipDetail = launch.kind === 'before-range'
+        ? t('기간 시작부터 성과에 포함')
+        : `${dates[launch.index]} · ${t('이 날부터 성과에 포함')}`;
+      return <button
+        type="button"
+        key={launch.name}
+        className={`dashboard-chart-marker ${edgeClass}`}
+        style={{ left: `${position}%`, bottom: `${2 + lane * 36}px` }}
+        aria-label={`${launch.name} ${status} ${t('정보')}`}
+        aria-describedby={tooltipId}
+        onFocus={(event) => event.stopPropagation()}
+        onMouseMove={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (['ArrowLeft', 'ArrowRight'].includes(event.key)) event.stopPropagation();
+        }}
+      >
+        <Bot size={16} aria-hidden="true" />
+        <span
+          id={tooltipId}
+          role="tooltip"
+          aria-label={`${launch.name} ${status} ${t('상세')}`}
+          className="dashboard-chart-launch-tooltip"
+        >
+          <strong>{launch.name}</strong>
+          <span>{tooltipTitle}</span>
+          <small>{tooltipDetail}</small>
+        </span>
+      </button>;
+    })}
 
     {active !== null && <div
       className={`dashboard-chart-tooltip ${active < values.length * .18 ? 'edge-left' : active > values.length * .82 ? 'edge-right' : ''}`}
@@ -153,7 +198,7 @@ export function EquityChart({ values, rates, dates, launches = [], format, ariaL
     >
       <strong>{dates[active]}</strong>
       <b>{format(values[active])}</b>
-      <span className={rates[active] >= 0 ? 'positive' : 'negative'}>{`${rates[active] >= 0 ? '+' : ''}${rates[active].toFixed(2)}%`}</span>
+      {showRateInTooltip && <span className={rates[active] >= 0 ? 'positive' : 'negative'}>{`${rates[active] >= 0 ? '+' : ''}${rates[active].toFixed(2)}%`}</span>}
     </div>}
   </div>
   <div className="dashboard-chart-xlabels" aria-hidden="true">
