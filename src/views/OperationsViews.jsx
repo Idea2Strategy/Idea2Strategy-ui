@@ -210,7 +210,17 @@ const chartTimeframes = ['1시간', '4시간', '1일', '주봉', '달봉', '년�
 const timeframeCandleCounts = { '1시간': 48, '4시간': 38, '1일': 200, '주봉': 24, '달봉': 18, '년봉': 12 };
 const timeframeVisibleCandleCounts = { '1시간': 60, '4시간': 60, '1일': 60, '주봉': 60, '달봉': 60, '년봉': 60 };
 
-function tradingDayLabel(index) {
+function toIsoDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function addUtcDays(date, days) {
+  const nextDate = new Date(date);
+  nextDate.setUTCDate(nextDate.getUTCDate() + days);
+  return nextDate;
+}
+
+function tradingDayDate(index) {
   const date = new Date(Date.UTC(2025, 9, 24));
   let remainingDays = index;
   while (remainingDays > 0) {
@@ -218,16 +228,55 @@ function tradingDayLabel(index) {
     const weekday = date.getUTCDay();
     if (weekday !== 0 && weekday !== 6) remainingDays -= 1;
   }
-  return `${date.getUTCFullYear()}.${String(date.getUTCMonth() + 1).padStart(2, '0')}.${String(date.getUTCDate()).padStart(2, '0')}`;
+  return date;
 }
 
-function timeframeLabel(timeframe, index) {
-  if (timeframe === '1시간') return `07.${String(15 + Math.floor(index / 7)).padStart(2, '0')} ${String(9 + (index % 7)).padStart(2, '0')}:30`;
-  if (timeframe === '4시간') return `07.${String(2 + index).padStart(2, '0')} ${index % 2 ? '13:00' : '09:00'}`;
-  if (timeframe === '1일') return tradingDayLabel(index);
-  if (timeframe === '주봉') return `2026 ${String(index + 1).padStart(2, '0')}주`;
-  if (timeframe === '달봉') return `${2025 + Math.floor(index / 12)}.${String((index % 12) + 1).padStart(2, '0')}`;
-  return String(2015 + index);
+function timeframeCandleMeta(timeframe, index) {
+  if (timeframe === '1시간') {
+    const date = addUtcDays(new Date(Date.UTC(2026, 6, 15)), Math.floor(index / 7));
+    const isoDate = toIsoDate(date);
+    return {
+      label: `${isoDate.slice(5).replace('-', '.')} ${String(9 + (index % 7)).padStart(2, '0')}:30`,
+      rangeStart: isoDate,
+      rangeEnd: isoDate,
+    };
+  }
+  if (timeframe === '4시간') {
+    const date = addUtcDays(new Date(Date.UTC(2026, 6, 2)), index);
+    const isoDate = toIsoDate(date);
+    return {
+      label: `${isoDate.slice(5).replace('-', '.')} ${index % 2 ? '13:00' : '09:00'}`,
+      rangeStart: isoDate,
+      rangeEnd: isoDate,
+    };
+  }
+  if (timeframe === '1일') {
+    const isoDate = toIsoDate(tradingDayDate(index));
+    return { label: isoDate.replaceAll('-', '.'), rangeStart: isoDate, rangeEnd: isoDate };
+  }
+  if (timeframe === '주봉') {
+    const rangeStart = addUtcDays(new Date(Date.UTC(2026, 0, 1)), index * 7);
+    return {
+      label: `2026 ${String(index + 1).padStart(2, '0')}주`,
+      rangeStart: toIsoDate(rangeStart),
+      rangeEnd: toIsoDate(addUtcDays(rangeStart, 6)),
+    };
+  }
+  if (timeframe === '달봉') {
+    const year = 2025 + Math.floor(index / 12);
+    const month = index % 12;
+    return {
+      label: `${year}.${String(month + 1).padStart(2, '0')}`,
+      rangeStart: toIsoDate(new Date(Date.UTC(year, month, 1))),
+      rangeEnd: toIsoDate(new Date(Date.UTC(year, month + 1, 0))),
+    };
+  }
+  const year = 2015 + index;
+  return {
+    label: String(year),
+    rangeStart: `${year}-01-01`,
+    rangeEnd: `${year}-12-31`,
+  };
 }
 
 function candlesForTimeframe(candles, timeframe) {
@@ -236,6 +285,7 @@ function candlesForTimeframe(candles, timeframe) {
   const sourceRange = Math.max(...candles.map((candle) => candle.high)) - Math.min(...candles.map((candle) => candle.low));
   let previousClose = candles[0].open;
   return Array.from({ length: count }, (_, index) => {
+    const timeframeMeta = timeframeCandleMeta(timeframe, index);
     const sourcePosition = (index / (count - 1)) * sourceLastIndex;
     const sourceIndex = Math.floor(sourcePosition);
     const nextIndex = Math.min(sourceIndex + 1, sourceLastIndex);
@@ -248,7 +298,9 @@ function candlesForTimeframe(candles, timeframe) {
     const open = previousClose;
     const swing = Math.max(Math.abs(close - open) * .62, sourceRange * .018) + (index % 3) * sourceRange * .004;
     const candle = {
-      time: timeframeLabel(timeframe, index),
+      time: timeframeMeta.label,
+      rangeStart: timeframeMeta.rangeStart,
+      rangeEnd: timeframeMeta.rangeEnd,
       open: Number(open.toFixed(2)),
       high: Number((Math.max(open, close) + swing).toFixed(2)),
       low: Number((Math.min(open, close) - swing * .82).toFixed(2)),
@@ -376,7 +428,7 @@ function BacktestComparisonChart({ bot, benchmarks }) {
   </div>;
 }
 
-function BacktestCandlestickChart({ instrument, timeframe }) {
+function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange }) {
   const displayCandles = useMemo(() => candlesForTimeframe(instrument.candles, timeframe), [instrument.candles, timeframe]);
   const defaultVisibleCount = Math.min(timeframeVisibleCandleCounts[timeframe], displayCandles.length);
   const [hoveredIndex, setHoveredIndex] = useState(null);
@@ -399,6 +451,8 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
   const maxViewStart = Math.max(0, displayCandles.length - visibleCount);
   const safeViewStart = Math.min(viewStart, maxViewStart);
   const visibleCandles = displayCandles.slice(safeViewStart, safeViewStart + visibleCount);
+  const visibleRangeStart = visibleCandles[0]?.rangeStart;
+  const visibleRangeEnd = visibleCandles.at(-1)?.rangeEnd;
   const width = 1040;
   const height = 420;
   const left = 18;
@@ -427,6 +481,10 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
   const activeIndex = Math.min(hoveredIndex ?? visibleCandles.length - 1, visibleCandles.length - 1);
   const activeCandle = visibleCandles[activeIndex];
   const activeUp = activeCandle.close >= activeCandle.open;
+  useEffect(() => {
+    if (!visibleRangeStart || !visibleRangeEnd) return;
+    onVisibleRangeChange?.({ startDate: visibleRangeStart, endDate: visibleRangeEnd });
+  }, [onVisibleRangeChange, visibleRangeEnd, visibleRangeStart]);
   const setIndexFromPointer = (event) => {
     if (interactionRef.current) return;
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -596,6 +654,8 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
       data-total-candles={displayCandles.length}
       data-visible-candles={visibleCandles.length}
       data-view-start={safeViewStart}
+      data-visible-range-start={visibleRangeStart}
+      data-visible-range-end={visibleRangeEnd}
       data-price-scale={priceScale.toFixed(3)}
       data-price-offset={priceOffset.toFixed(3)}
       onPointerDown={startInteraction}
@@ -709,6 +769,7 @@ export function BacktestView() {
   const [executionCalendarPhase, setExecutionCalendarPhase] = useState('start');
   const [executionCalendarMonth, setExecutionCalendarMonth] = useState('2026-07');
   const [executionLogOpen, setExecutionLogOpen] = useState(false);
+  const [chartVisibleRange, setChartVisibleRange] = useState(null);
   const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
   const filteredBacktestBots = useMemo(() => {
     const query = botQuery.trim().toLowerCase();
@@ -803,6 +864,7 @@ export function BacktestView() {
     setExecutionCalendarOpen(false);
     setExecutionCalendarPhase('start');
     setExecutionCalendarMonth((latestExecutionDate || '2026-07-01').slice(0, 7));
+    setChartVisibleRange(null);
   };
   const selectBot = (bot) => {
     const firstInstrument = botInstruments[bot.name][0];
@@ -939,7 +1001,12 @@ export function BacktestView() {
         </div>
         <span>조정주가 · USD</span>
       </div>
-      <BacktestCandlestickChart key={`${selectedInstrument.symbol}-${timeframe}`} instrument={selectedInstrument} timeframe={timeframe} />
+      <BacktestCandlestickChart
+        key={`${selectedInstrument.symbol}-${timeframe}`}
+        instrument={selectedInstrument}
+        timeframe={timeframe}
+        onVisibleRangeChange={setChartVisibleRange}
+      />
 
       {/* The log lives in the same panel as the chart it annotates, so the two
           no longer carry separate 72px headers saying the same thing. */}
@@ -968,6 +1035,22 @@ export function BacktestView() {
         {executionLogOpen && <div id="backtest-execution-log-details" className="backtest-execution-log-details">
           <div className="backtest-log-toolbar">
           <div className="backtest-log-date-filter" role="group" aria-label="체결 로그 기간 검색">
+            <button
+              type="button"
+              className={`backtest-log-chart-range${chartVisibleRange
+                && executionStartDate === chartVisibleRange.startDate
+                && executionEndDate === chartVisibleRange.endDate ? ' active' : ''}`}
+              aria-label="현재 차트 구간 로그 보기"
+              disabled={!chartVisibleRange}
+              onClick={() => {
+                if (!chartVisibleRange) return;
+                setExecutionStartDate(chartVisibleRange.startDate);
+                setExecutionEndDate(chartVisibleRange.endDate);
+                setExecutionPage(1);
+                setExecutionCalendarOpen(false);
+                setExecutionCalendarPhase('complete');
+              }}
+            ><Search size={14} aria-hidden="true" /><span>현재 차트 구간</span></button>
             <CalendarDays size={15} aria-hidden="true" />
             <button
               type="button"

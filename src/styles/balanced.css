@@ -5052,6 +5052,38 @@
 }
 .backtest-log-date-filter { position: relative; }
 .backtest-log-date-filter > svg { flex: 0 0 auto; color: var(--text-faint); }
+.backtest-log-chart-range {
+  height: 40px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.backtest-log-chart-range:hover,
+.backtest-log-chart-range:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line));
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent-soft) 38%, var(--surface));
+  outline: 0;
+}
+.backtest-log-chart-range.active {
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--line));
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.backtest-log-chart-range:disabled {
+  opacity: .5;
+  cursor: wait;
+}
 .backtest-log-date-arrow {
   color: var(--text-faint);
   font-style: normal;
