@@ -177,6 +177,7 @@ const english = {
   '모든 상태': 'All statuses',
   '준비 완료': 'Ready',
   '확인 필요': 'Needs review',
+  '출시 가능': 'Ready to launch',
   '검증 완료': 'Validated',
   '임시 저장': 'Draft',
   '미완성': 'Incomplete',

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Boxes, Check, ChevronDown, ChevronRight, CircleDollarSign, GitBranch, GripVertical, Import, Layers3, Minus, Play, Plus, Save, Search, ShieldCheck, Sparkles, Split, Timer, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Boxes, Check, ChevronDown, ChevronRight, CircleDollarSign, GitBranch, GripVertical, Import, Layers3, Minus, Play, Plus, Save, Search, ShieldCheck, Sparkles, Split, Timer, Trash2, TriangleAlert, X } from 'lucide-react';
 import { strategies } from '../data/mockData.js';
 import { Button, PageHeading, Panel, Status } from '../components/common.jsx';
 import { Localized } from '../lib/i18n.jsx';
@@ -11,7 +11,7 @@ import {
   getStrategyCanvasWheelZoom,
 } from '../lib/strategyCanvasLayout.js';
 
-const statusTone = (state) => state === '검증 완료' ? 'positive' : state === '미완성' ? 'warning' : 'neutral';
+const statusTone = (state) => state === '출시 가능' ? 'positive' : 'warning';
 
 export function StrategyHome({ openEditor }) {
   const [items, setItems] = useState(() => strategies.map((strategy, index) => ({
@@ -29,13 +29,13 @@ export function StrategyHome({ openEditor }) {
   const filteredItems = useMemo(() => items.filter((strategy) => {
     const matchesQuery = strategy.name.toLowerCase().includes(query.trim().toLowerCase());
     const matchesMode = mode === 'all' || strategy.mode.toLowerCase() === mode;
-    const needsInput = strategy.state === '미완성' || strategy.backtest === '데이터 확인';
-    const matchesState = state === 'all' || (state === 'ready' ? strategy.state === '검증 완료' : needsInput);
+    const matchesState = state === 'all'
+      || (state === 'launchable' ? strategy.state === '출시 가능' : strategy.state === '미완성');
     return matchesQuery && matchesMode && matchesState;
   }), [items, mode, query, state]);
 
-  const readyCount = items.filter((strategy) => strategy.state === '검증 완료').length;
-  const needsInputCount = items.filter((strategy) => strategy.state === '미완성' || strategy.backtest === '데이터 확인').length;
+  const launchableCount = items.filter((strategy) => strategy.state === '출시 가능').length;
+  const incompleteCount = items.filter((strategy) => strategy.state === '미완성').length;
 
   const reorderStrategy = (sourceId, targetId) => {
     if (!sourceId || sourceId === targetId) return;
@@ -67,7 +67,7 @@ export function StrategyHome({ openEditor }) {
     <div className="balanced-strategy-grid is-list-only">
       <section className="strategy-library panel">
         <header className="strategy-library-head">
-          <div className="strategy-title-group"><div><h2>내 전략</h2><span>{filteredItems.length}</span></div><div className="strategy-counts" data-testid="strategy-counts"><span>전체 <b>{items.length}</b></span><span>준비 완료 <b>{readyCount}</b></span><span>확인 필요 <b>{needsInputCount}</b></span></div></div>
+          <div className="strategy-title-group"><div><h2>내 전략</h2><span>{filteredItems.length}</span></div><div className="strategy-counts" data-testid="strategy-counts"><span>전체 <b>{items.length}</b></span><span>출시 가능 <b>{launchableCount}</b></span><span>미완성 <b>{incompleteCount}</b></span></div></div>
           <label className="strategy-search"><Search size={16} /><input type="search" aria-label="전략 검색" placeholder="이름으로 검색" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
         </header>
         <div className="strategy-filter-row">
@@ -78,8 +78,8 @@ export function StrategyHome({ openEditor }) {
           </div>
           <div className="strategy-filter-group is-secondary" aria-label="전략 상태 필터">
             <button className={state === 'all' ? 'active' : ''} onClick={() => setState('all')}>모든 상태</button>
-            <button className={state === 'ready' ? 'active' : ''} onClick={() => setState('ready')}>준비 완료</button>
-            <button className={state === 'needs' ? 'active' : ''} onClick={() => setState('needs')}>확인 필요</button>
+            <button className={state === 'launchable' ? 'active' : ''} onClick={() => setState('launchable')}>출시 가능</button>
+            <button className={state === 'incomplete' ? 'active' : ''} onClick={() => setState('incomplete')}>미완성</button>
           </div>
         </div>
         <div className="strategy-rows" data-testid="strategy-list">
@@ -549,6 +549,7 @@ export function BasicEditor({ goBack, openEditor }) {
   const cardElementsRef = useRef(new Map());
   const [cardSizes, setCardSizes] = useState({});
   const [announcement, setAnnouncement] = useState('');
+  const [saveFeedback, setSaveFeedback] = useState(null);
   const [templateQuery, setTemplateQuery] = useState('');
   const [blockQuery, setBlockQuery] = useState('');
   const toggleGroup = (group) => setActiveGroup((current) => current === group ? null : group);
@@ -559,6 +560,76 @@ export function BasicEditor({ goBack, openEditor }) {
     ...category,
     items: category.items.filter((item) => item.toLowerCase().includes(blockQuery.trim().toLowerCase())),
   })).filter((category) => category.items.length > 0), [blockQuery]);
+  const validationIssues = useMemo(() => {
+    if (sections.length === 0) {
+      return [{
+        id: 'strategy-no-section',
+        sectionId: null,
+        cardId: null,
+        message: '매수 블록이 포함된 섹션을 하나 이상 만들어 주세요.',
+      }];
+    }
+
+    return sections.flatMap((section, sectionIndex) => {
+      const sectionLabel = `SECTION ${String(sectionIndex + 1).padStart(2, '0')}`;
+      if (section.cards.buy.length === 0) {
+        return [{
+          id: `${section.id}-no-buy`,
+          sectionId: section.id,
+          cardId: null,
+          message: `${sectionLabel}에 매수 블록이 필요합니다.`,
+        }];
+      }
+      return section.cards.buy
+        .filter((cardId) => (cardBlocks[cardId]?.length ?? 0) === 0)
+        .map((cardId) => ({
+          id: `${cardId}-empty`,
+          sectionId: section.id,
+          cardId,
+          message: `${sectionLabel}의 매수 블록에 조건 블록을 하나 이상 추가해 주세요.`,
+        }));
+    });
+  }, [cardBlocks, sections]);
+  const validationSignature = validationIssues.map((issue) => issue.id).join('|');
+  const isLaunchable = validationIssues.length === 0;
+  const invalidSectionIds = new Set(validationIssues.map((issue) => issue.sectionId).filter(Boolean));
+  const invalidCardIds = new Set(validationIssues.map((issue) => issue.cardId).filter(Boolean));
+
+  useEffect(() => {
+    setSaveFeedback(null);
+  }, [validationSignature]);
+
+  const saveStrategy = () => {
+    const nextFeedback = isLaunchable
+      ? {
+        tone: 'positive',
+        title: '출시 가능 상태로 저장했습니다.',
+        detail: '현재 확인 항목을 모두 만족합니다.',
+      }
+      : {
+        tone: 'warning',
+        title: '미완성 상태로 저장했습니다.',
+        detail: '매수 조건을 완성하면 출시할 수 있습니다.',
+      };
+    setSaveFeedback(nextFeedback);
+    setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
+  };
+
+  const runBasicValidation = () => {
+    const nextFeedback = isLaunchable
+      ? {
+        tone: 'positive',
+        title: '검증을 통과했습니다.',
+        detail: '이 전략은 출시 가능한 상태입니다.',
+      }
+      : {
+        tone: 'warning',
+        title: `검증 결과 ${validationIssues.length}개 항목이 남아 있습니다.`,
+        detail: validationIssues[0].message,
+      };
+    setSaveFeedback(nextFeedback);
+    setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
+  };
 
   useEffect(() => {
     if (typeof ResizeObserver === 'undefined') return undefined;
@@ -1227,7 +1298,7 @@ export function BasicEditor({ goBack, openEditor }) {
     const position = section.cardPositions?.[cardId] ?? getDefaultCardPosition(cardIndex);
     return <div
       key={cardId}
-      className={`strategy-container content-sized-strategy ${side}-container strategy-card ${isExplained ? 'is-explained' : ''} ${isSelected ? 'is-selected' : ''} ${draggedCard?.cardId === cardId ? 'is-card-dragging' : ''} ${cardMove?.cardId === cardId ? 'is-free-moving' : ''} ${libraryDrag?.type === 'block' ? 'is-library-drop-ready' : ''}`}
+      className={`strategy-container content-sized-strategy ${side}-container strategy-card ${isExplained ? 'is-explained' : ''} ${isSelected ? 'is-selected' : ''} ${invalidCardIds.has(cardId) ? 'has-validation-error' : ''} ${draggedCard?.cardId === cardId ? 'is-card-dragging' : ''} ${cardMove?.cardId === cardId ? 'is-free-moving' : ''} ${libraryDrag?.type === 'block' ? 'is-library-drop-ready' : ''}`}
       data-testid={testId}
       data-strategy-card={cardId}
       data-selected={isSelected ? 'true' : undefined}
@@ -1271,7 +1342,7 @@ export function BasicEditor({ goBack, openEditor }) {
           setSelectedCardId(cardId);
           toggleGroup(cardId);
         }}
-      ><span className="container-symbol">{side === 'buy' ? 'B' : 'S'}</span><div><strong>{meta.title}</strong><small>{meta.detail}</small>{isSelected && <em className="strategy-target-badge">블록 대상</em>}</div><span>{cardBlocks[cardId].length + 1} BLOCKS</span></button>
+      ><span className="container-symbol">{side === 'buy' ? 'B' : 'S'}</span><div><strong>{meta.title}</strong><small>{meta.detail}</small>{isSelected && <em className="strategy-target-badge">블록 대상</em>}{invalidCardIds.has(cardId) && <em className="strategy-validation-badge">조건 필요</em>}</div><span>{cardBlocks[cardId].length + 1} BLOCKS</span></button>
       <div id={explanationId} className="block-stack" data-testid={stackTestId} aria-label={`${sideLabel} 전략 규칙 흐름`} onDragOver={(event) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = libraryDrag?.type === 'block' ? 'copy' : 'move';
@@ -1297,8 +1368,23 @@ export function BasicEditor({ goBack, openEditor }) {
     <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
     <div className="basic-editor-commandbar floating-editor-controls" role="toolbar" aria-label="Basic 편집 작업">
       <div className="basic-editor-context"><Button className="floating-editor-button" kind="ghost" icon={ArrowLeft} onClick={goBack}>목록</Button><div className="floating-editor-mode-controls" role="group" aria-label="편집기 전환"><Button className="floating-editor-button active" onClick={() => openEditor?.('basic')}>Basic 편집기</Button><Button className="floating-editor-button" onClick={() => openEditor?.('pro')}>Pro 편집기</Button></div></div>
-      <div className="basic-editor-actions"><Button className="floating-editor-button" icon={Save}>저장</Button><Button className="floating-editor-button" kind="primary" icon={ShieldCheck}>검증</Button></div>
+      <div className="basic-editor-actions"><Button className="floating-editor-button" icon={Save} onClick={saveStrategy}>저장</Button><Button className="floating-editor-button" kind="primary" icon={ShieldCheck} onClick={runBasicValidation}>검증</Button></div>
     </div>
+    <section
+      className={`basic-validation-summary ${isLaunchable ? 'is-launchable' : 'is-incomplete'}`}
+      role="region"
+      aria-label="전략 완성도"
+      aria-live="polite"
+    >
+      <span className="basic-validation-icon" aria-hidden="true">
+        {isLaunchable ? <Check size={15} /> : <TriangleAlert size={15} />}
+      </span>
+      <div>
+        <strong>{isLaunchable ? '출시 가능한 전략' : '미완성 전략'}</strong>
+        <small>{isLaunchable ? '현재 필수 조건을 모두 만족합니다.' : '아래 조건을 만족해야 출시가 가능합니다.'}</small>
+        {!isLaunchable && <ul>{validationIssues.map((issue) => <li key={issue.id}>{issue.message}</li>)}</ul>}
+      </div>
+    </section>
     <div className="editor-layout basic-layout full-editor-workspace" data-testid="basic-editor-workspace">
       <aside className="editor-palette template-library-panel panel floating-editor-panel" data-testid="basic-templates-panel">
         <div className="palette-title"><span>TEMPLATES</span><Sparkles size={15} /></div>
@@ -1362,7 +1448,7 @@ export function BasicEditor({ goBack, openEditor }) {
             const sectionLayout = getSectionLayout(section);
             return <article
               key={section.id}
-              className={`strategy-section-frame ${activeSectionId === section.id ? 'is-selected' : ''} ${draggedCard ? 'is-card-drop-ready' : ''} ${sectionMove?.sectionId === section.id ? 'is-section-moving' : ''} ${libraryDrag?.type === 'template' ? 'is-template-drop-ready' : ''}`}
+              className={`strategy-section-frame ${activeSectionId === section.id ? 'is-selected' : ''} ${invalidSectionIds.has(section.id) ? 'has-validation-error' : ''} ${draggedCard ? 'is-card-drop-ready' : ''} ${sectionMove?.sectionId === section.id ? 'is-section-moving' : ''} ${libraryDrag?.type === 'template' ? 'is-template-drop-ready' : ''}`}
               data-testid={`strategy-${section.id}`}
               aria-label={`SECTION ${sectionNumber}`}
               style={{ left: section.x, top: section.y, width: sectionLayout.width, height: sectionLayout.height }}
@@ -1394,6 +1480,11 @@ export function BasicEditor({ goBack, openEditor }) {
               </header>
               <div className="section-strategy-grid">
                 {section.cardOrder.map((cardId, cardIndex) => renderStrategyCard(section, section.cards.buy.includes(cardId) ? 'buy' : 'sell', cardId, cardIndex))}
+                {section.cards.buy.length === 0 && <button
+                  className="required-buy-slot"
+                  aria-label={`SECTION ${sectionNumber} 필수 매수 블록 추가`}
+                  onClick={() => addStrategyCard(section.id, 'buy')}
+                ><TriangleAlert size={18} /><strong>매수 블록이 필요해요</strong><span>필수 항목 · 추가해야 출시할 수 있어요</span></button>}
                 {section.cards.sell.length === 0 && <button className="optional-sell-slot" onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={18} /><strong>매도 블록 추가</strong><span>선택 사항 · 없어도 저장할 수 있어요</span></button>}
               </div>
             </article>;
@@ -1449,6 +1540,11 @@ export function BasicEditor({ goBack, openEditor }) {
     >
       <span className="editor-trash-icon"><Trash2 size={18} aria-hidden="true" /></span>
       <span className="editor-trash-copy"><strong>{trashItemLabel} 버리기</strong><small>여기에 놓으면 삭제됩니다</small></span>
+    </div>}
+    {saveFeedback && <div className={`editor-save-feedback tone-${saveFeedback.tone}`} role="alert">
+      <span aria-hidden="true">{saveFeedback.tone === 'positive' ? <Check size={16} /> : <TriangleAlert size={16} />}</span>
+      <div><strong>{saveFeedback.title}</strong><small>{saveFeedback.detail}</small></div>
+      <button type="button" aria-label="저장 알림 닫기" onClick={() => setSaveFeedback(null)}><X size={14} /></button>
     </div>}
   </div></Localized>;
 }

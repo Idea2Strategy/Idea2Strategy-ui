@@ -198,6 +198,27 @@ describe('Signal product UI', () => {
     expect(screen.queryByText('Opening Range Flow')).not.toBeInTheDocument();
   });
 
+  test('uses only launchable and incomplete strategy states', async () => {
+    const user = userEvent.setup();
+    render(<App initialVariant="balanced" />);
+    await user.click(screen.getByRole('button', { name: '전략' }));
+
+    const stateLabels = Array.from(document.querySelectorAll('[data-testid^="strategy-row-"] .status'))
+      .map((element) => element.textContent);
+    expect(stateLabels).toEqual(['출시 가능', '미완성', '미완성']);
+    expect(screen.getByTestId('strategy-counts')).toHaveTextContent('출시 가능 1');
+    expect(screen.getByTestId('strategy-counts')).toHaveTextContent('미완성 2');
+    expect(screen.queryByText('검증 완료')).not.toBeInTheDocument();
+    expect(screen.queryByText('임시 저장')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '준비 완료' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '확인 필요' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '출시 가능' }));
+    expect(screen.getByText('Opening Range Flow')).toBeInTheDocument();
+    expect(screen.queryByText('Pair Spread Monitor')).not.toBeInTheDocument();
+    expect(screen.queryByText('Volume Regime Draft')).not.toBeInTheDocument();
+  });
+
   test('removes blocks and copy actions from the strategy home and imports only during creation', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
@@ -239,7 +260,7 @@ describe('Signal product UI', () => {
   test('uses unfinished terminology instead of input-needed terminology', () => {
     render(<App initialVariant="balanced" />);
     fireEvent.click(screen.getByRole('button', { name: '전략' }));
-    expect(screen.getByText('미완성')).toBeInTheDocument();
+    expect(screen.getAllByText('미완성').length).toBeGreaterThan(0);
     expect(screen.queryByText('입력 필요')).not.toBeInTheDocument();
   });
 
