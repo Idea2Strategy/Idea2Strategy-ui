@@ -57,6 +57,51 @@ const backtestBots = [
     trades: 18,
     values: [0, -0.5, 0.2, -1.4, -2.8, -1.9, -3.7, -4.6, -5.4, -4.8, -4.1, -2.6],
   },
+  {
+    name: 'Volatility Edge',
+    strategy: 'Volatility Breakout',
+    return: '+9.8%',
+    alpha: '-1.0%',
+    drawdown: '−5.6%',
+    trades: 27,
+    values: [0, -0.3, 1.4, 0.8, 2.9, 2.2, 4.6, 3.8, 6.1, 7.4, 8.2, 9.8],
+  },
+  {
+    name: 'Sector Pulse',
+    strategy: 'Sector Momentum',
+    return: '+7.1%',
+    alpha: '-3.7%',
+    drawdown: '−3.8%',
+    trades: 24,
+    values: [0, 0.5, 0.1, 1.2, 2.1, 1.7, 3.3, 3.9, 4.8, 5.4, 6.2, 7.1],
+  },
+  {
+    name: 'Dividend Guard',
+    strategy: 'Dividend Quality',
+    return: '+5.4%',
+    alpha: '-5.4%',
+    drawdown: '−2.4%',
+    trades: 16,
+    values: [0, 0.3, 0.7, 0.5, 1.4, 1.9, 2.3, 2.8, 3.4, 4.1, 4.7, 5.4],
+  },
+  {
+    name: 'Tech Swing',
+    strategy: 'Technology Swing',
+    return: '+21.2%',
+    alpha: '+10.4%',
+    drawdown: '−7.9%',
+    trades: 38,
+    values: [0, 1.8, -0.9, 3.4, 5.7, 4.1, 8.5, 7.3, 12.1, 15.6, 17.8, 21.2],
+  },
+  {
+    name: 'Mean Revert',
+    strategy: 'Mean Reversion',
+    return: '+3.6%',
+    alpha: '-7.2%',
+    drawdown: '−4.9%',
+    trades: 35,
+    values: [0, -0.7, 0.6, -0.2, 1.1, 0.4, 1.8, 1.2, 2.6, 2.1, 3.0, 3.6],
+  },
 ];
 
 const candleTimes = ['09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '09:30', '10:00', '10:30', '11:00'];
@@ -152,6 +197,14 @@ const botInstruments = {
     makeInstrument('XOM', 'Exxon Mobil Corp.', 115.2, [.6, -.3, .8, -.5, .4, .7, -.6, .9, -.2, .5, -.4, .8, .3, -.7, .6, .4, -.2, .7], [{ index: 1, side: '매수', quantity: 14 }, { index: 7, side: '매도', quantity: 7 }, { index: 15, side: '매수', quantity: 7, partial: true }]),
   ],
 };
+
+Object.assign(botInstruments, {
+  'Volatility Edge': botInstruments['Atlas 07'],
+  'Sector Pulse': botInstruments['Room Beta'],
+  'Dividend Guard': botInstruments['Pair Lab'],
+  'Tech Swing': botInstruments['Room Beta'],
+  'Mean Revert': botInstruments['Pair Lab'],
+});
 
 const chartTimeframes = ['1시간', '4시간', '1일', '주봉', '달봉', '년봉'];
 const timeframeCandleCounts = { '1시간': 48, '4시간': 38, '1일': 200, '주봉': 24, '달봉': 18, '년봉': 12 };
@@ -517,6 +570,7 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
 export function BacktestView() {
   const [selectedBotName, setSelectedBotName] = useState(backtestBots[0].name);
   const [selectedSymbol, setSelectedSymbol] = useState(botInstruments[backtestBots[0].name][0].symbol);
+  const [botQuery, setBotQuery] = useState('');
   const [symbolQuery, setSymbolQuery] = useState('');
   const [timeframe, setTimeframe] = useState('1일');
   const [activeBenchmarkIds, setActiveBenchmarkIds] = useState([backtestBenchmark.id]);
@@ -528,6 +582,11 @@ export function BacktestView() {
   const [executionCalendarPhase, setExecutionCalendarPhase] = useState('start');
   const [executionCalendarMonth, setExecutionCalendarMonth] = useState('2026-07');
   const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
+  const filteredBacktestBots = useMemo(() => {
+    const query = botQuery.trim().toLowerCase();
+    if (!query) return backtestBots;
+    return backtestBots.filter((bot) => `${bot.name} ${bot.strategy}`.toLowerCase().includes(query));
+  }, [botQuery]);
   const activeBenchmarks = backtestBenchmarks.filter((benchmark) => activeBenchmarkIds.includes(benchmark.id));
   const selectedBotInstruments = botInstruments[selectedBot.name];
   const selectedInstrument = selectedBotInstruments.find((instrument) => instrument.symbol === selectedSymbol) ?? selectedBotInstruments[0];
@@ -643,8 +702,19 @@ export function BacktestView() {
           <div><span>TRADING BOTS</span><h2 id="backtest-bot-selector-title">봇 선택</h2></div>
           <small>{`${backtestBots.length}개 봇 · 동일 기간`}</small>
         </header>
+        <label className="backtest-bot-search">
+          <Search size={14} aria-hidden="true" />
+          <input
+            type="search"
+            aria-label="백테스트 봇 검색"
+            placeholder="봇 이름 또는 전략 검색"
+            value={botQuery}
+            onChange={(event) => setBotQuery(event.target.value)}
+          />
+          {botQuery && <button type="button" aria-label="봇 검색 초기화" onClick={() => setBotQuery('')}><X size={13} /></button>}
+        </label>
         <div className="backtest-bot-options" role="list" aria-label="백테스트 봇 목록">
-          {backtestBots.map((bot) => <div role="listitem" key={bot.name}><button
+          {filteredBacktestBots.map((bot) => <div role="listitem" key={bot.name}><button
             className={bot.name === selectedBot.name ? 'active' : ''}
             type="button"
             aria-label={`${bot.name} 백테스트 보기`}
@@ -655,7 +725,12 @@ export function BacktestView() {
             <span><strong>{bot.name}</strong><small>{bot.strategy}</small></span>
             <b className={bot.return.startsWith('+') ? 'positive' : 'negative'}>{bot.return}</b>
           </button></div>)}
+          {filteredBacktestBots.length === 0 && <div className="backtest-bot-empty" role="status">일치하는 봇이 없습니다.</div>}
         </div>
+        <footer className="backtest-bot-selector-footer">
+          <strong>{`${filteredBacktestBots.length} / ${backtestBots.length}개 표시`}</strong>
+          <span>{filteredBacktestBots.length > 3 ? '스크롤하여 더 보기' : '목록이 모두 표시됨'}</span>
+        </footer>
       </aside>
     </div>
 

@@ -78,6 +78,36 @@ describe('BacktestView', () => {
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
 
+  test('searches and selects a bot from a scrollable list when many bots are available', async () => {
+    const user = userEvent.setup();
+    render(<BacktestView />);
+
+    const botSelector = screen.getByRole('complementary', { name: '봇 선택' });
+    const botList = within(botSelector).getByRole('list', { name: '백테스트 봇 목록' });
+    const botSearch = within(botSelector).getByRole('searchbox', { name: '백테스트 봇 검색' });
+
+    expect(within(botList).getAllByRole('listitem')).toHaveLength(8);
+    expect(within(botSelector).getByText('8개 봇 · 동일 기간')).toBeInTheDocument();
+    expect(within(botSelector).getByText('8 / 8개 표시')).toBeInTheDocument();
+    expect(botList).toHaveClass('backtest-bot-options');
+
+    await user.type(botSearch, 'volatility');
+
+    expect(within(botList).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(botSelector).getByText('1 / 8개 표시')).toBeInTheDocument();
+    expect(within(botList).getByRole('button', { name: 'Volatility Edge 백테스트 보기' })).toBeInTheDocument();
+
+    await user.click(within(botList).getByRole('button', { name: 'Volatility Edge 백테스트 보기' }));
+
+    expect(screen.getByRole('img', { name: 'Volatility Edge와 시장 지수 누적 수익률 비교' })).toBeInTheDocument();
+    expect(screen.getByTestId('backtest-bot-series')).toHaveAttribute('data-bot', 'Volatility Edge');
+
+    await user.click(within(botSelector).getByRole('button', { name: '봇 검색 초기화' }));
+
+    expect(botSearch).toHaveValue('');
+    expect(within(botList).getAllByRole('listitem')).toHaveLength(8);
+  });
+
   test('places the performance metrics inside the same panel surface as the charts', () => {
     render(<BacktestView />);
 
