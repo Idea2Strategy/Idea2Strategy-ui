@@ -6,42 +6,80 @@ import { BotsView } from './views/BotsView';
 import { AccountView, HelpView, NotificationsView } from './views/SupportViews.jsx';
 
 describe('Bot operations', () => {
+  test('keeps the bot launch action without a manual refresh button', () => {
+    render(<BotsView />);
+
+    expect(screen.getByRole('button', { name: '봇 출시' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '새로고침' })).not.toBeInTheDocument();
+  });
+
   test('selecting a bot drives the detail panel instead of pinning it to one bot', async () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
     const detail = screen.getByRole('region', { name: 'Atlas 07 운영 상세' });
     expect(within(detail).getByRole('heading', { name: 'Atlas 07' })).toBeInTheDocument();
-    // The capital appears in the overview figures and again as the chart's
-    // end value, so assert presence rather than uniqueness.
-    expect(within(detail).getAllByText('$24,892.40').length).toBeGreaterThan(0);
+    expect(within(detail).getByText('$10,540.00')).toBeInTheDocument();
+    expect(within(detail).getByText('+$540.00 · +5.40%')).toBeInTheDocument();
 
+    await user.click(screen.getByRole('button', { name: '대회 참가 중' }));
     await user.click(screen.getByRole('button', { name: 'Room Beta 상세 보기' }));
 
     const next = screen.getByRole('region', { name: 'Room Beta 운영 상세' });
     expect(within(next).getByRole('heading', { name: 'Room Beta' })).toBeInTheDocument();
-    expect(within(next).getAllByText('$10,184.12').length).toBeGreaterThan(0);
+    expect(within(next).getByText('$10,490.00')).toBeInTheDocument();
+    expect(within(next).getByText('+$490.00 · +4.90%')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Atlas 07 운영 상세' })).not.toBeInTheDocument();
   });
 
-  test('the status filter narrows the list and an empty result offers a way back', async () => {
+  test('the operation type filter separates personal bots from competition bots', async () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
+    const filter = screen.getByRole('group', { name: '봇 운용 유형 필터' });
     const list = () => within(screen.getByRole('list', { name: '봇 목록 결과' })).getAllByRole('listitem');
-    expect(list()).toHaveLength(3);
-
-    await user.click(screen.getByRole('button', { name: '실행' }));
     expect(list()).toHaveLength(2);
+    expect(within(filter).queryByRole('button', { name: '전체' })).not.toBeInTheDocument();
+    expect(within(filter).getByRole('button', { name: '개인 운용' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Atlas 07 상세 보기' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pair Lab 상세 보기' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Room Beta 상세 보기' })).not.toBeInTheDocument();
 
-    // No bot needs attention: budget-cap deferrals are normal operation, so
-    // the attention filter legitimately comes back empty.
-    await user.click(screen.getByRole('button', { name: '확인' }));
-    expect(screen.queryByRole('list', { name: '봇 목록 결과' })).not.toBeInTheDocument();
-    expect(screen.getByText('조건에 맞는 봇이 없습니다.')).toBeInTheDocument();
+    await user.click(within(filter).getByRole('button', { name: '대회 참가 중' }));
+    expect(list()).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Room Beta 상세 보기' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Atlas 07 상세 보기' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pair Lab 상세 보기' })).not.toBeInTheDocument();
+  });
 
-    await user.click(screen.getByRole('button', { name: '전체 보기' }));
-    expect(list()).toHaveLength(3);
+  test('the overview shows the correct start event without repeating the shared initial capital', async () => {
+    const user = userEvent.setup();
+    render(<BotsView />);
+
+    const atlas = screen.getByRole('region', { name: 'Atlas 07 운영 상세' });
+    expect(within(atlas).queryByText('초기 자산')).not.toBeInTheDocument();
+    expect(within(atlas).getByText('운용 시작 시간')).toBeInTheDocument();
+    expect(within(atlas).getByText('2025.07.08 09:30 ET')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '대회 참가 중' }));
+
+    const competitionBot = screen.getByRole('region', { name: 'Room Beta 운영 상세' });
+    expect(within(competitionBot).queryByText('초기 자산')).not.toBeInTheDocument();
+    expect(within(competitionBot).getByText('대회 참가 시간')).toBeInTheDocument();
+    expect(within(competitionBot).getByText('2026.06.08 09:30 ET')).toBeInTheDocument();
+  });
+
+  test('a bot younger than 30 days charts only its actual operating period', async () => {
+    const user = userEvent.setup();
+    render(<BotsView />);
+
+    await user.click(screen.getByRole('button', { name: 'Pair Lab 상세 보기' }));
+
+    const detail = screen.getByRole('region', { name: 'Pair Lab 운영 상세' });
+    expect(within(detail).getAllByText('$9,790.00')).toHaveLength(2);
+    expect(within(detail).getByRole('heading', { name: '운용 시작 후 18일 손익' })).toBeInTheDocument();
+    expect(within(detail).getByText('07.05–07.23 · 18일')).toBeInTheDocument();
+    expect(within(detail).queryByRole('heading', { name: '최근 30일 손익' })).not.toBeInTheDocument();
   });
 
   test('a budget-cap deferral is recorded as normal flow, not escalated as a problem', async () => {
@@ -71,7 +109,7 @@ describe('Bot operations', () => {
     await user.click(screen.getByRole('tab', { name: /판단 기록/ }));
 
     const log = () => screen.getByRole('list', { name: 'Atlas 07 판단 기록 목록' });
-    expect(within(log()).getByText('SPY 12주 · $634.06')).toBeInTheDocument();
+    expect(within(log()).getByText('SPY 4주 · $634.06')).toBeInTheDocument();
     expect(within(log()).getByText('SECTION 01 · SPY')).toBeInTheDocument();
     expect(within(log()).getAllByText(/시초 15분 고가.*돌파 → 예산 25% 시장가 매수/).length).toBeGreaterThan(0);
     // Engine records join the same timeline once the person opts in.
@@ -91,13 +129,13 @@ describe('Bot operations', () => {
     expect(within(log()).getAllByRole('listitem')).toHaveLength(3);
     await user.type(screen.getByRole('searchbox', { name: '판단 기록 검색' }), 'MSFT');
     expect(within(log()).getAllByRole('listitem')).toHaveLength(1);
-    expect(within(log()).getByText('MSFT 9주 · $492.30')).toBeInTheDocument();
+    expect(within(log()).getByText('MSFT 3주 · $492.30')).toBeInTheDocument();
     await user.clear(screen.getByRole('searchbox', { name: '판단 기록 검색' }));
 
     // The sample "today" is 07.23 — only that day's fill remains.
     await user.selectOptions(screen.getByRole('combobox', { name: '판단 기록 기간 선택' }), 'today');
     expect(within(log()).getAllByRole('listitem')).toHaveLength(1);
-    expect(within(log()).getByText('SPY 12주 · $634.06')).toBeInTheDocument();
+    expect(within(log()).getByText('SPY 4주 · $634.06')).toBeInTheDocument();
 
     // Filters that match nothing surface a reset, not an empty panel.
     await user.type(screen.getByRole('searchbox', { name: '판단 기록 검색' }), 'TSLA');
@@ -168,9 +206,9 @@ describe('Bot operations', () => {
 
     const composition = screen.getByRole('group', { name: 'Atlas 07 자산 구성' });
     expect(within(composition).getByText('SPY')).toBeInTheDocument();
-    expect(within(composition).getByText('30.6%')).toBeInTheDocument();
+    expect(within(composition).getByText('24.0%')).toBeInTheDocument();
     expect(within(composition).getByText('현금')).toBeInTheDocument();
-    expect(within(composition).getByText('35.8%')).toBeInTheDocument();
+    expect(within(composition).getByText('49.5%')).toBeInTheDocument();
 
     // Time-axis records moved to the decision log; positions is current state.
     expect(screen.queryByText('SECTION 01 · SPY')).not.toBeInTheDocument();
@@ -372,6 +410,7 @@ describe('Bot operations', () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
+    await user.click(screen.getByRole('button', { name: '대회 참가 중' }));
     await user.click(screen.getByRole('button', { name: 'Room Beta 상세 보기' }));
     await user.click(screen.getByRole('button', { name: '전략 구성 보기' }));
 

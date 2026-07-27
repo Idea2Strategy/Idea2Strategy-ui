@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Plus, RefreshCw, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
+import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Plus, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
 import { Button, DataTable, EmptyState, PageHeading, Status, TabPanel, Tabs } from '../components/common.jsx';
 import { EquityChart } from '../components/EquityChart';
 import { dateLabels, money, percent, signedMoney, walkSeries } from '../lib/equitySim';
@@ -28,7 +28,7 @@ import { ReadOnlyStrategyBlock } from './StrategyViews.jsx';
 
 /* ---------- Types ----------------------------------------------------------- */
 
-type FilterId = 'all' | 'running' | 'evaluating' | 'attention';
+type FilterId = 'personal' | 'competition';
 type TabId = 'overview' | 'positions' | 'decisions';
 type StepTone = 'universe' | 'data' | 'indicator' | 'condition' | 'risk' | 'order' | 'portfolio' | 'time';
 type LogScope = 'fills' | 'all';
@@ -43,6 +43,7 @@ interface BotRecord {
   room: string;
   labels: string[];
   startDaysAgo: number;
+  startedAt: string;
 }
 
 interface Position {
@@ -131,7 +132,7 @@ const botList = bots as BotRecord[];
 /* ---------- Data ------------------------------------------------------------ */
 
 const SAMPLE_END_DATE = Date.UTC(2026, 6, 23);
-const CAPITALS: Record<string, number> = { 'Atlas 07': 24892.40, 'Room Beta': 10184.12, 'Pair Lab': 18940.08 };
+const CAPITALS: Record<string, number> = { 'Atlas 07': 10540, 'Room Beta': 10490, 'Pair Lab': 9790 };
 
 /*
   Per-bot operating detail. Selecting a bot drives every panel — a chart that
@@ -143,20 +144,20 @@ const botDetails: Record<string, BotDetail> = {
     strategy: 'Opening Range Flow · v4',
     monthReturn: .054,
     dailyVol: .011,
-    cash: '$6,214.08',
-    cashShare: 35.8,
-    invested: '$18,678.32',
+    cash: '$5,213.70',
+    cashShare: 49.5,
+    invested: '$5,326.30',
     positions: [
-      { symbol: 'AAPL', qty: '18', avg: '$214.08', price: '$216.42', pnl: '+$42.12', rate: '+1.09%', shareValue: 15.6, share: '15.6%' },
-      { symbol: 'MSFT', qty: '9', avg: '$492.30', price: '$497.18', pnl: '+$43.92', rate: '+0.99%', shareValue: 18.0, share: '18.0%' },
-      { symbol: 'SPY', qty: '12', avg: '$632.14', price: '$634.06', pnl: '+$23.04', rate: '+0.30%', shareValue: 30.6, share: '30.6%' },
+      { symbol: 'AAPL', qty: '6', avg: '$214.08', price: '$216.42', pnl: '+$14.04', rate: '+1.09%', shareValue: 12.3, share: '12.3%' },
+      { symbol: 'MSFT', qty: '3', avg: '$492.30', price: '$497.18', pnl: '+$14.64', rate: '+0.99%', shareValue: 14.2, share: '14.2%' },
+      { symbol: 'SPY', qty: '4', avg: '$632.14', price: '$634.06', pnl: '+$7.68', rate: '+0.30%', shareValue: 24.0, share: '24.0%' },
     ],
     events: [
-      { kind: 'fill', time: '07.23 10:14 ET', side: '매수', symbol: 'SPY', quantity: '12주', price: '$634.06', partition: 'SECTION 01 · SPY', rule: '시초 15분 고가 $632.80 돌파 → 예산 25% 시장가 매수' },
-      { kind: 'note', tone: 'neutral', time: '07.23 10:14 ET', title: '예산 상한 검사 통과', detail: '요청 $7,608 · 한도 $8,000' },
+      { kind: 'fill', time: '07.23 10:14 ET', side: '매수', symbol: 'SPY', quantity: '4주', price: '$634.06', partition: 'SECTION 01 · SPY', rule: '시초 15분 고가 $632.80 돌파 → 예산 25% 시장가 매수' },
+      { kind: 'note', tone: 'neutral', time: '07.23 10:14 ET', title: '예산 상한 검사 통과', detail: '요청 $2,536.24 · 한도 $8,000' },
       { kind: 'note', tone: 'muted', time: '07.23 10:13 ET', title: 'AAPL 조건 미충족 · 주문 없음', detail: '현재가 $216.42 · 시초 15분 고가 $217.10 미돌파' },
       { kind: 'fill', time: '07.22 14:02 ET', side: '매도', symbol: 'AAPL', quantity: '6주', price: '$215.88', partition: 'SECTION 01 · AAPL', rule: '시초 범위 저가 이탈 → 보유 수량 100% 시장가 매도' },
-      { kind: 'fill', time: '07.21 09:47 ET', side: '매수', symbol: 'MSFT', quantity: '9주', price: '$492.30', partition: 'SECTION 01 · MSFT', rule: '시초 15분 고가 돌파 → 예산 25% 시장가 매수' },
+      { kind: 'fill', time: '07.21 09:47 ET', side: '매수', symbol: 'MSFT', quantity: '3주', price: '$492.30', partition: 'SECTION 01 · MSFT', rule: '시초 15분 고가 돌파 → 예산 25% 시장가 매수' },
     ],
     snapshot: {
       mode: 'Basic',
@@ -197,12 +198,12 @@ const botDetails: Record<string, BotDetail> = {
     strategy: 'Momentum Rotation · v2',
     monthReturn: .049,
     dailyVol: .009,
-    cash: '$2,940.16',
-    cashShare: 54.2,
-    invested: '$7,243.96',
+    cash: '$5,807.76',
+    cashShare: 55.4,
+    invested: '$4,682.24',
     positions: [
-      { symbol: 'NVDA', qty: '24', avg: '$118.40', price: '$121.06', pnl: '+$63.84', rate: '+2.25%', shareValue: 28.4, share: '28.4%' },
-      { symbol: 'MSFT', qty: '4', avg: '$441.60', price: '$444.20', pnl: '+$10.40', rate: '+0.59%', shareValue: 17.4, share: '17.4%' },
+      { symbol: 'NVDA', qty: '24', avg: '$118.40', price: '$121.06', pnl: '+$63.84', rate: '+2.25%', shareValue: 27.7, share: '27.7%' },
+      { symbol: 'MSFT', qty: '4', avg: '$441.60', price: '$444.20', pnl: '+$10.40', rate: '+0.59%', shareValue: 16.9, share: '16.9%' },
     ],
     events: [
       { kind: 'note', tone: 'neutral', time: '07.23 09:30 ET', title: '대회 평가 구간 진행 중', detail: 'Momentum Lab · 12일 남음' },
@@ -237,7 +238,7 @@ const botDetails: Record<string, BotDetail> = {
     strategy: 'Pair Spread Monitor · v1',
     monthReturn: -.021,
     dailyVol: .005,
-    cash: '$18,940.08',
+    cash: '$9,790.00',
     cashShare: 100,
     invested: '$0.00',
     positions: [],
@@ -368,18 +369,14 @@ const eventDaysAgo = (time: string): number => {
   return Math.round((SAMPLE_END_DATE - Date.UTC(2026, Number(match[1]) - 1, Number(match[2]))) / 86400000);
 };
 
-const botStateFilters: Array<{ id: FilterId; label: string }> = [
-  { id: 'all', label: '전체' },
-  { id: 'running', label: '실행' },
-  { id: 'evaluating', label: '평가' },
-  { id: 'attention', label: '확인' },
+const botOperationFilters: Array<{ id: FilterId; label: string }> = [
+  { id: 'personal', label: '개인 운용' },
+  { id: 'competition', label: '대회 참가 중' },
 ];
 
 const matchesBotFilter = (bot: BotRecord, filter: FilterId): boolean => {
-  if (filter === 'all') return true;
-  if (filter === 'running') return bot.state === '실행 중';
-  if (filter === 'evaluating') return bot.state === '평가 중';
-  return bot.state === '조치 필요';
+  const isCompetitionBot = bot.labels.includes('대회');
+  return filter === 'competition' ? isCompetitionBot : !isCompetitionBot;
 };
 
 /* Each state gets its own tone: running green, evaluating blue, attention
@@ -820,7 +817,7 @@ function StrategyLayoutModal({ botName, detail, layout, onClose, onSave }: Strat
   retries next evaluation) and are recorded there, never escalated.
 */
 export function BotsView(): ReactNode {
-  const [filter, setFilter] = useState<FilterId>('all');
+  const [filter, setFilter] = useState<FilterId>('personal');
   const [selectedName, setSelectedName] = useState<string>(botList[0].name);
   const [tab, setTab] = useState<TabId>('overview');
   const [layoutOpen, setLayoutOpen] = useState(false);
@@ -894,13 +891,19 @@ export function BotsView(): ReactNode {
     { key: 'share', label: '비중' },
   ];
 
-  // The selected bot's 30-day curve, shown as P&L with the rate in the tooltip
-  // — the same reading as the Home aggregate.
-  const chartDays = 30;
+  // Up to 30 days of the selected bot's curve, shown as P&L with the rate in
+  // the tooltip. A newer bot starts at its real launch date instead of showing
+  // invented pre-launch history.
+  const chartDays = selected ? Math.min(30, selected.startDaysAgo) : 30;
   const series = selected && detail ? walkSeries(selected.name, chartDays, CAPITALS[selected.name], detail.monthReturn, detail.dailyVol) : [];
   const botProfit = series.map((value) => value - series[0]);
   const botRates = series.map((value) => (value / series[0] - 1) * 100);
   const chartDates = dateLabels(SAMPLE_END_DATE, chartDays);
+  const isYoungBot = chartDays < 30;
+  const chartTitle = isYoungBot ? `운용 시작 후 ${chartDays}일 손익` : '최근 30일 손익';
+  const chartRange = chartDates.length > 0 ? `${chartDates[0]}–${chartDates[chartDates.length - 1]} · ${chartDays}일` : '';
+  const isCompetitionBot = selected?.labels.includes('대회') ?? false;
+  const startLabel = isCompetitionBot ? '대회 참가 시간' : '운용 시작 시간';
 
   return <Localized><div className="page bots-page">
     <PageHeading
@@ -909,15 +912,15 @@ export function BotsView(): ReactNode {
       description={attention.length > 0
         ? `봇 ${botList.length}개 중 ${healthyCount}개가 정상 실행 중이에요. ${attention.map((bot) => bot.name).join(', ')} 하나만 확인하면 됩니다.`
         : `봇 ${botList.length}개가 모두 정상 실행 중이에요. 확인할 문제가 없습니다.`}
-      actions={<><Button icon={RefreshCw}>새로고침</Button><Button kind="primary" icon={Plus}>봇 출시</Button></>}
+      actions={<Button kind="primary" icon={Plus}>봇 출시</Button>}
     />
 
     <div className="bots-workspace">
       <section className="bots-list-panel panel" aria-labelledby="bots-list-title">
         <header className="bots-list-head">
           <div><span>MY BOTS</span><h2 id="bots-list-title">봇 목록</h2></div>
-          <div className="bots-filter" role="group" aria-label="봇 상태 필터">
-            {botStateFilters.map((option) => <button
+          <div className="bots-filter" role="group" aria-label="봇 운용 유형 필터">
+            {botOperationFilters.map((option) => <button
               key={option.id}
               type="button"
               aria-pressed={filter === option.id}
@@ -950,8 +953,10 @@ export function BotsView(): ReactNode {
         </div> : <EmptyState
           icon={Bot}
           title="조건에 맞는 봇이 없습니다."
-          detail="다른 상태 필터를 선택하면 나머지 봇을 확인할 수 있습니다."
-          action={<Button onClick={() => setFilter('all')}>전체 보기</Button>}
+          detail="다른 운용 유형을 선택하면 나머지 봇을 확인할 수 있습니다."
+          action={<Button onClick={() => setFilter(filter === 'personal' ? 'competition' : 'personal')}>
+            {filter === 'personal' ? '대회 참가 봇 보기' : '개인 운용 봇 보기'}
+          </Button>}
         />}
       </section>
 
@@ -1067,8 +1072,16 @@ export function BotsView(): ReactNode {
                 separate buying-power figure would just repeat this number. */}
             <div><span>현금</span><strong>{detail.cash}</strong><small>주문 가능 금액</small></div>
           </div>
+          <div className="bots-overview-timing">
+            <span><Timer size={14} aria-hidden="true" />{startLabel}</span>
+            <strong>{selected.startedAt}</strong>
+            <small>{isCompetitionBot ? `${selected.room} 참가 ${selected.startDaysAgo}일째` : `${selected.startDaysAgo}일째 운용 중`}</small>
+          </div>
           <div className="bots-overview-chart">
-            <header><h3>최근 30일 손익</h3><span>{money(series[series.length - 1])}</span></header>
+            <header>
+              <div><h3>{chartTitle}</h3><small>{chartRange}</small></div>
+              <span className={botProfit[botProfit.length - 1] >= 0 ? 'positive' : 'negative'}>{signedMoney(botProfit[botProfit.length - 1])}</span>
+            </header>
             <EquityChart
               values={botProfit}
               rates={botRates}

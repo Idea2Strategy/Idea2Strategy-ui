@@ -69,7 +69,7 @@ const INITIAL_TASKS: HomeTask[] = [
   aggregate feel like real operation. The seed is fixed so the chart is stable
   across renders and test runs.
 
-  Bots start on different dates with different budgets. A bot launched inside
+  Bots start on different dates with the same $10,000 initial capital. A bot launched inside
   the window contributes nothing before its start and enters as a capital
   inflow. Both chart views neutralise that inflow — profit subtracts invested
   principal and the return index chain-links around inflow days — so adding a
@@ -80,8 +80,11 @@ const PERIODS: Record<PeriodKey, { label: string; days: number }> = {
   month: { label: '1개월', days: 30 },
   quarter: { label: '3개월', days: 91 },
 };
-const LIFETIME_RETURNS: Record<string, number> = { 'Atlas 07': .124, 'Room Beta': .049, 'Pair Lab': -.012 };
-const CAPITALS: Record<string, number> = { 'Atlas 07': 24892.40, 'Room Beta': 10184.12, 'Pair Lab': 18940.08 };
+const INITIAL_CAPITAL = 10000;
+const CAPITALS: Record<string, number> = { 'Atlas 07': 10540, 'Room Beta': 10490, 'Pair Lab': 9790 };
+const LIFETIME_RETURNS: Record<string, number> = Object.fromEntries(
+  Object.entries(CAPITALS).map(([name, capital]) => [name, capital / INITIAL_CAPITAL - 1]),
+);
 const DAILY_VOL: Record<string, number> = { 'Atlas 07': .011, 'Room Beta': .009, 'Pair Lab': .005 };
 const SAMPLE_END_DATE = Date.UTC(2026, 6, 23);
 
