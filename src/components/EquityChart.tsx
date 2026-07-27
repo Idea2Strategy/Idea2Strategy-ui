@@ -1,5 +1,6 @@
 import { useId, useRef, useState } from 'react';
 import type { FocusEvent, KeyboardEvent, MouseEvent } from 'react';
+import { Bot } from 'lucide-react';
 import { useLanguage } from '../lib/i18n.jsx';
 
 export interface LaunchMark {
@@ -158,11 +159,36 @@ export function EquityChart({
         .length;
       const edgeClass = position <= 10 ? 'is-edge-start' : position >= 90 ? 'is-edge-end' : '';
       const status = launch.kind === 'before-range' ? t('이전부터 운용') : t('운용 시작');
-      return <span
+      const tooltipId = `${clipId}-launch-${launchIndex}`;
+      const tooltipTitle = launch.kind === 'before-range' ? t('선택 기간 이전에 시작') : t('운용 시작 시점');
+      const tooltipDetail = launch.kind === 'before-range'
+        ? t('기간 시작부터 성과에 포함')
+        : `${dates[launch.index]} · ${t('이 날부터 성과에 포함')}`;
+      return <button
+        type="button"
         key={launch.name}
         className={`dashboard-chart-marker ${edgeClass}`}
-        style={{ left: `${position}%`, bottom: `${2 + lane * 22}px` }}
-      >{`${launch.name} ${status}`}</span>;
+        style={{ left: `${position}%`, bottom: `${2 + lane * 36}px` }}
+        aria-label={`${launch.name} ${status} ${t('정보')}`}
+        aria-describedby={tooltipId}
+        onFocus={(event) => event.stopPropagation()}
+        onMouseMove={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (['ArrowLeft', 'ArrowRight'].includes(event.key)) event.stopPropagation();
+        }}
+      >
+        <Bot size={16} aria-hidden="true" />
+        <span
+          id={tooltipId}
+          role="tooltip"
+          aria-label={`${launch.name} ${status} ${t('상세')}`}
+          className="dashboard-chart-launch-tooltip"
+        >
+          <strong>{launch.name}</strong>
+          <span>{tooltipTitle}</span>
+          <small>{tooltipDetail}</small>
+        </span>
+      </button>;
     })}
 
     {active !== null && <div
