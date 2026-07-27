@@ -15,9 +15,15 @@ describe('Basic editor strategy explanations', () => {
     expect(screen.queryByText('미저장 변경')).not.toBeInTheDocument();
     expect(screen.getByRole('group', { name: '편집기 전환' })).toHaveClass('floating-editor-mode-controls');
     expect(screen.getByRole('group', { name: '캔버스 확대/축소' })).toHaveClass('floating-zoom-controls');
-    for (const name of ['목록', 'Basic 편집기', 'Pro 편집기', '저장', '검증', '축소', '배율 초기화', '확대']) {
+    for (const name of ['목록', 'Basic 편집기', 'Pro 편집기', '저장', '개인 봇 출시', '축소', '배율 초기화', '확대']) {
       expect(screen.getByRole('button', { name })).toHaveClass('floating-editor-button');
     }
+    const launchButton = screen.getByRole('button', { name: '개인 봇 출시' });
+    expect(launchButton).not.toHaveAttribute('title');
+    expect(launchButton).toHaveAttribute('aria-describedby', 'personal-bot-launch-tooltip');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('개인 운용 봇');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('전략을 검증하고 바로 출시해요.');
+    expect(screen.queryByRole('button', { name: '검증' })).not.toBeInTheDocument();
     expect(screen.getByTestId('basic-editor-workspace')).toHaveClass('full-editor-workspace');
     expect(screen.getByTestId('basic-templates-panel')).toHaveClass('floating-editor-panel');
     expect(screen.getByTestId('basic-block-library')).toHaveClass('floating-editor-panel');
@@ -30,6 +36,34 @@ describe('Basic editor strategy explanations', () => {
 
     await user.click(screen.getByRole('button', { name: 'Pro 편집기' }));
     expect(openEditor).toHaveBeenCalledWith('pro');
+  });
+
+  test('collects a bot name and description before launching a valid strategy', async () => {
+    const user = userEvent.setup();
+    const onLaunchBot = vi.fn();
+    render(<BasicEditor goBack={() => {}} openEditor={() => {}} onLaunchBot={onLaunchBot} />);
+
+    await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
+
+    const dialog = screen.getByRole('dialog', { name: '개인 운용 봇 출시' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    const launchButton = within(dialog).getByRole('button', { name: '봇 출시하기' });
+    expect(launchButton).toBeDisabled();
+
+    await user.type(within(dialog).getByRole('textbox', { name: '봇 이름' }), '  Momentum Scout  ');
+    expect(launchButton).toBeDisabled();
+    await user.type(
+      within(dialog).getByRole('textbox', { name: '봇 설명' }),
+      '  RSI 반등 구간을 포착하는 개인 운용 봇입니다.  ',
+    );
+    expect(launchButton).toBeEnabled();
+
+    await user.click(launchButton);
+    expect(onLaunchBot).toHaveBeenCalledWith({
+      name: 'Momentum Scout',
+      description: 'RSI 반등 구간을 포착하는 개인 운용 봇입니다.',
+    });
+    expect(screen.queryByRole('dialog', { name: '개인 운용 봇 출시' })).not.toBeInTheDocument();
   });
 
   test('uses beginner templates on the left and block ingredients on the right', () => {
@@ -581,6 +615,11 @@ describe('Basic editor strategy explanations', () => {
     await user.click(screen.getByRole('button', { name: '저장' }));
     expect(screen.getByRole('alert')).toHaveTextContent('미완성 상태로 저장했습니다.');
     expect(screen.getByRole('alert')).toHaveTextContent('매수 조건을 완성하면 출시할 수 있습니다.');
+
+    await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
+    expect(screen.queryByRole('dialog', { name: '개인 운용 봇 출시' })).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('출시하려면 1개 항목을 완성해 주세요.');
+    expect(screen.getByRole('alert')).toHaveTextContent('SECTION 01에 매수 블록이 필요합니다.');
 
     await user.click(screen.getByRole('button', { name: 'SECTION 01 필수 매수 블록 추가' }));
     expect(completeness).toHaveTextContent('출시 가능한 전략');
