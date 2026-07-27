@@ -1,11 +1,30 @@
 import { Bot, FlaskConical, House, LayoutGrid, Trophy } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+export type PageId =
+  | 'home'
+  | 'strategy'
+  | 'bots'
+  | 'backtest'
+  | 'rooms'
+  | 'account'
+  | 'notifications'
+  | 'help';
+
+export type StrategyMode = 'basic' | 'pro' | 'home';
+
+export interface NavItem {
+  id: PageId;
+  label: string;
+  icon: LucideIcon;
+}
 
 /*
   Primary navigation. Notifications, help and the account screen are reachable
   from the navigation tools rather than from this list, so the five product areas
   stay the only top-level choices.
 */
-export const navItems = [
+export const navItems: NavItem[] = [
   { id: 'home', label: '홈', icon: House },
   { id: 'strategy', label: '전략', icon: LayoutGrid },
   { id: 'bots', label: '봇', icon: Bot },
@@ -13,7 +32,7 @@ export const navItems = [
   { id: 'rooms', label: '모의투자', icon: Trophy },
 ];
 
-export const pagePaths = {
+export const pagePaths: Record<PageId, string> = {
   home: '/',
   strategy: '/strategies',
   bots: '/bots',
@@ -24,7 +43,7 @@ export const pagePaths = {
   help: '/help',
 };
 
-export function pageFromPathname(pathname = '/') {
+export function pageFromPathname(pathname = '/'): PageId {
   if (pathname.startsWith('/strategies')) return 'strategy';
   if (pathname.startsWith('/bots')) return 'bots';
   if (pathname.startsWith('/backtests')) return 'backtest';
@@ -35,7 +54,7 @@ export function pageFromPathname(pathname = '/') {
   return 'home';
 }
 
-export function strategyModeFromPathname(pathname = '/') {
+export function strategyModeFromPathname(pathname = '/'): StrategyMode {
   if (pathname === '/strategies/new/basic') return 'basic';
   if (pathname === '/strategies/new/pro') return 'pro';
   return 'home';

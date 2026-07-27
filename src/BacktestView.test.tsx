@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
-import { BacktestView } from './views/OperationsViews.jsx';
+import { BacktestView } from './views/OperationsViews';
 
 const balancedStyles = readFileSync('src/styles/balanced.css', 'utf8');
 
@@ -73,7 +73,7 @@ describe('BacktestView', () => {
     expect(screen.queryByRole('button', { name: '다음 봇 보기' })).not.toBeInTheDocument();
 
     const chart = screen.getByTestId('backtest-comparison-chart');
-    chart.getBoundingClientRect = () => ({ left: 0, width: 820 });
+    chart.getBoundingClientRect = () => ({ left: 0, width: 820 } as DOMRect);
     fireEvent.mouseMove(chart, { clientX: 410 });
 
     const tooltip = screen.getByRole('tooltip');
@@ -192,7 +192,7 @@ describe('BacktestView', () => {
     expect(screen.queryByRole('dialog', { name: '거래 종목 선택' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '거래 종목 선택 열기' }));
-    fireEvent.mouseDown(document.querySelector('.backtest-symbol-modal-backdrop'));
+    fireEvent.mouseDown(document.querySelector('.backtest-symbol-modal-backdrop')!);
 
     expect(screen.queryByRole('dialog', { name: '거래 종목 선택' })).not.toBeInTheDocument();
   });
@@ -233,7 +233,7 @@ describe('BacktestView', () => {
     render(<BacktestView />);
 
     const canvas = screen.getByTestId('backtest-candle-canvas');
-    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 });
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 } as DOMRect);
     const executionLog = screen.getByRole('region', { name: 'SPY 체결 로그' });
     await user.click(within(executionLog).getByRole('button', { name: 'SPY 매수·매도 로그 펼치기' }));
     const chartRangeButton = within(executionLog).getByRole('button', { name: '현재 차트 구간 로그 보기' });
@@ -254,7 +254,7 @@ describe('BacktestView', () => {
     fireEvent.pointerMove(canvas, { clientX: 900, clientY: 210, pointerId: 12 });
     fireEvent.pointerUp(canvas, { clientX: 900, clientY: 210, pointerId: 12 });
 
-    expect(canvas.dataset.visibleRangeEnd < '2026-07-18').toBe(true);
+    expect(canvas.dataset.visibleRangeEnd! < '2026-07-18').toBe(true);
     expect(screen.getAllByTestId('trade-marker')).toHaveLength(1);
 
     await user.click(chartRangeButton);
@@ -351,7 +351,7 @@ describe('BacktestView chart interactions', () => {
     render(<BacktestView />);
 
     const canvas = screen.getByTestId('backtest-candle-canvas');
-    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 });
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 } as DOMRect);
     expect(canvas).toHaveAttribute('data-total-candles', '200');
     const initialViewStart = Number(canvas.dataset.viewStart);
     const initialPriceScale = Number(canvas.dataset.priceScale);
@@ -379,7 +379,7 @@ describe('BacktestView chart interactions', () => {
     render(<BacktestView />);
 
     const canvas = screen.getByTestId('backtest-candle-canvas');
-    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 });
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 } as DOMRect);
 
     fireEvent.wheel(canvas, { clientX: 520, clientY: 210, deltaY: 120 });
     fireEvent.pointerDown(canvas, { clientX: 1000, clientY: 300, pointerId: 3 });
@@ -404,7 +404,7 @@ describe('BacktestView chart interactions', () => {
     render(<div onWheel={parentWheelHandler}><BacktestView /></div>);
 
     const canvas = screen.getByTestId('backtest-candle-canvas');
-    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 });
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 } as DOMRect);
     expect(canvas).toHaveAttribute('data-visible-candles', '60');
 
     fireEvent.wheel(canvas, { clientX: 520, clientY: 210, deltaY: -120 });
@@ -420,7 +420,7 @@ describe('BacktestView chart interactions', () => {
 
     const chartWorkspace = screen.getByTestId('backtest-market-chart');
     const canvas = screen.getByTestId('backtest-candle-canvas');
-    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 });
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 } as DOMRect);
 
     fireEvent.click(screen.getByRole('button', { name: '차트 전체화면 열기' }));
 
@@ -444,7 +444,7 @@ describe('BacktestView chart interactions', () => {
     render(<BacktestView />);
 
     const canvas = screen.getByTestId('backtest-candle-canvas');
-    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 });
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 } as DOMRect);
     const initialPriceOffset = Number(canvas.dataset.priceOffset);
 
     fireEvent.pointerDown(canvas, { clientX: 520, clientY: 210, pointerId: 9 });

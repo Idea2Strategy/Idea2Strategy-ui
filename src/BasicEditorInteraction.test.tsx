@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
-import { BasicEditor } from './views/StrategyViews.jsx';
+import { BasicEditor } from './views/StrategyViews';
 
 describe('Basic editor strategy explanations', () => {
   test('uses the full editor workspace without a page title and floats its side panels', () => {
@@ -185,8 +185,8 @@ describe('Basic editor strategy explanations', () => {
       render(<BasicEditor goBack={() => {}} />);
 
       const buyRsi = screen.getByTestId('buy-rsi-block');
-      const valueInput = buyRsi.querySelector('.block-number-stepper input');
-      const increaseButton = buyRsi.querySelector('.block-number-stepper button:last-child');
+      const valueInput = buyRsi.querySelector<HTMLInputElement>('.block-number-stepper input')!;
+      const increaseButton = buyRsi.querySelector<HTMLButtonElement>('.block-number-stepper button:last-child')!;
 
       fireEvent.pointerDown(increaseButton, { button: 0, pointerId: 1 });
       act(() => vi.advanceTimersByTime(900));

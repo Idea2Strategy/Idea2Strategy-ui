@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test } from 'vitest';
-import { App } from './App.jsx';
+import { App } from './App';
 
 describe('Signal product UI', () => {
   beforeEach(() => {

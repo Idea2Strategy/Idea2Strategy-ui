@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test } from 'vitest';
-import { RoomsView } from './views/OperationsViews.jsx';
+import { RoomsView } from './views/OperationsViews';
 
 describe('Competition lobby', () => {
   test('shows official competitions as a compact badge-led showcase, each on its own calendar', async () => {

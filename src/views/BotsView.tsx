@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Plus, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
-import { Button, DataTable, EmptyState, PageHeading, Status, TabPanel, Tabs } from '../components/common.jsx';
+import { Button, DataTable, EmptyState, PageHeading, Status, TabPanel, Tabs } from '../components/common';
 import { EquityChart } from '../components/EquityChart';
 import { LiveExecutionChart } from '../components/LiveExecutionChart';
 import { dateLabels, money, percent, signedMoney, walkSeries } from '../lib/equitySim';
-import { bots } from '../data/mockData.js';
-import { Localized } from '../lib/i18n.jsx';
+import { bots } from '../data/mockData';
+import { Localized } from '../lib/i18n';
 import botAdaptive from '../assets/bots/bot-adaptive.svg';
 import botAggressive from '../assets/bots/bot-aggressive.svg';
 import botAnalytical from '../assets/bots/bot-analytical.svg';
@@ -24,8 +24,8 @@ import {
   getDefaultBasicCardPosition,
   getMovedBasicCardPosition,
   getStrategyCanvasWheelZoom,
-} from '../lib/strategyCanvasLayout.js';
-import { ReadOnlyStrategyBlock } from './StrategyViews.jsx';
+} from '../lib/strategyCanvasLayout';
+import { ReadOnlyStrategyBlock } from './StrategyViews';
 
 /* ---------- Types ----------------------------------------------------------- */
 

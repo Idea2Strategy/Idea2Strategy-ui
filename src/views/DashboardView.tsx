@@ -8,12 +8,12 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
-import { Button, Status } from '../components/common.jsx';
+import { Button, Status } from '../components/common';
 import { EquityChart } from '../components/EquityChart';
 import type { LaunchMark } from '../components/EquityChart';
 import { dateLabels, money, percent, signedMoney, walkSeries } from '../lib/equitySim';
-import { bots } from '../data/mockData.js';
-import { Localized } from '../lib/i18n.jsx';
+import { bots } from '../data/mockData';
+import { Localized } from '../lib/i18n';
 
 /* ---------- Types (the product is migrating to TypeScript page by page) ---- */
 

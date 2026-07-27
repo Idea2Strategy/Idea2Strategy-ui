@@ -1,30 +1,152 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  CSSProperties,
+  DragEvent,
+  FormEvent,
+  HTMLAttributes,
+  KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent as ReactPointerEvent,
+  ReactNode,
+  WheelEvent,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Boxes, Check, ChevronDown, ChevronRight, CircleDollarSign, GitBranch, GripVertical, Import, Layers3, Minus, Play, Plus, Rocket, Save, Search, ShieldCheck, Sparkles, Split, Timer, Trash2, TriangleAlert, X } from 'lucide-react';
-import { strategies } from '../data/mockData.js';
-import { Button, PageHeading, Panel, Status } from '../components/common.jsx';
-import { Localized } from '../lib/i18n.jsx';
+import type { LucideIcon } from 'lucide-react';
+import { strategies } from '../data/mockData';
+import type { StrategySummary } from '../data/mockData';
+import { Button, PageHeading, Panel, Status } from '../components/common';
+import { Localized } from '../lib/i18n';
 import {
   getBasicSectionLayout,
   getDefaultBasicCardPosition,
   getMovedBasicCardPosition,
   getStrategyCanvasWheelZoom,
-} from '../lib/strategyCanvasLayout.js';
+} from '../lib/strategyCanvasLayout';
+import type { CanvasPoint, CanvasSize, CardMoveGesture } from '../lib/strategyCanvasLayout';
 
-const statusTone = (state) => state === '출시 가능' ? 'positive' : 'warning';
+type EditorMode = 'basic' | 'pro';
+type Side = 'buy' | 'sell';
+type BlockTone =
+  | 'data'
+  | 'indicator'
+  | 'condition'
+  | 'logic'
+  | 'time'
+  | 'order'
+  | 'risk'
+  | 'neutral'
+  | 'universe'
+  | 'portfolio'
+  | 'buy'
+  | 'sell';
 
-export function StrategyHome({ openEditor }) {
-  const [items, setItems] = useState(() => strategies.map((strategy, index) => ({
+interface BasicBlock {
+  id: string;
+  icon?: LucideIcon;
+  label: string;
+  op?: string;
+  value?: string;
+  tone: BlockTone;
+}
+
+interface StrategySection {
+  id: string;
+  symbol: string;
+  allocation: number;
+  x: number;
+  y: number;
+  width?: number;
+  minHeight?: number;
+  cards: Record<Side, string[]>;
+  cardOrder: string[];
+  cardPositions: Record<string, CanvasPoint>;
+}
+
+interface StrategyTemplate {
+  id: string;
+  name: string;
+  category: string;
+  indicator: string;
+  buyTitle?: string;
+  sellTitle?: string;
+  buyOp: string;
+  buyValue: string;
+  sellOp: string;
+  sellValue: string;
+  description: string;
+}
+
+interface BlockLibraryCategory {
+  name: string;
+  tone: BlockTone;
+  items: string[];
+}
+
+interface CardMeta {
+  title: string;
+  detail: string;
+  explanation: string;
+}
+
+interface StrategyListItem extends StrategySummary {
+  id: string;
+  symbols: string[];
+}
+
+type LibraryDragPayload =
+  | { type: 'template'; template: StrategyTemplate }
+  | { type: 'block'; label: string; tone: BlockTone };
+
+interface ValidationIssue {
+  id: string;
+  sectionId: string | null;
+  cardId: string | null;
+  message: string;
+}
+
+interface SaveFeedback {
+  tone: 'positive' | 'warning';
+  title: string;
+  detail: string;
+}
+
+interface DraftRect extends CanvasPoint, CanvasSize {}
+
+interface SectionMoveGesture extends CardMoveGesture {
+  sectionId: string;
+}
+
+interface CardMoveState extends CardMoveGesture {
+  sectionId: string;
+  cardId: string;
+}
+
+interface BlockRuleInput {
+  id?: string;
+  label: string;
+  op?: string;
+  value?: string;
+  tone?: BlockTone;
+}
+
+const statusTone = (state: string) => state === '출시 가능' ? 'positive' : 'warning';
+
+interface StrategyHomeProps {
+  openEditor: (mode: EditorMode) => void;
+}
+
+export function StrategyHome({ openEditor }: StrategyHomeProps) {
+  const [items, setItems] = useState<StrategyListItem[]>(() => strategies.map((strategy, index) => ({
     ...strategy,
     id: `strategy-${index}`,
     symbols: index === 0 ? ['AAPL', 'MSFT'] : index === 1 ? ['SPY', 'QQQ'] : ['NVDA'],
   })));
   const [query, setQuery] = useState('');
-  const [mode, setMode] = useState('all');
-  const [state, setState] = useState('all');
+  const [mode, setMode] = useState<'all' | 'basic' | 'pro'>('all');
+  const [state, setState] = useState<'all' | 'launchable' | 'incomplete'>('all');
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [draggedStrategyId, setDraggedStrategyId] = useState(null);
+  const [draggedStrategyId, setDraggedStrategyId] = useState<string | null>(null);
 
   const filteredItems = useMemo(() => items.filter((strategy) => {
     const matchesQuery = strategy.name.toLowerCase().includes(query.trim().toLowerCase());
@@ -37,7 +159,7 @@ export function StrategyHome({ openEditor }) {
   const launchableCount = items.filter((strategy) => strategy.state === '출시 가능').length;
   const incompleteCount = items.filter((strategy) => strategy.state === '미완성').length;
 
-  const reorderStrategy = (sourceId, targetId) => {
+  const reorderStrategy = (sourceId: string | null, targetId: string) => {
     if (!sourceId || sourceId === targetId) return;
     setItems((current) => {
       const sourceIndex = current.findIndex((strategy) => strategy.id === sourceId);
@@ -50,7 +172,7 @@ export function StrategyHome({ openEditor }) {
     });
   };
 
-  const dropOnStrategy = (event, strategyId) => {
+  const dropOnStrategy = (event: DragEvent<HTMLElement>, strategyId: string) => {
     event.preventDefault();
     reorderStrategy(draggedStrategyId, strategyId);
     setDraggedStrategyId(null);
@@ -98,7 +220,7 @@ export function StrategyHome({ openEditor }) {
             <span className="strategy-mode-label">{strategy.mode}</span>
             <Status tone={statusTone(strategy.state)}>{strategy.state}</Status>
             <div className="strategy-row-actions">
-              <button aria-label={`${strategy.name} 열기`} title="열기" onClick={(event) => { event.stopPropagation(); openEditor(strategy.mode.toLowerCase()); }}><ChevronRight size={17} /></button>
+              <button aria-label={`${strategy.name} 열기`} title="열기" onClick={(event) => { event.stopPropagation(); openEditor(strategy.mode.toLowerCase() as EditorMode); }}><ChevronRight size={17} /></button>
             </div>
           </article>)}
           {filteredItems.length === 0 && <div className="strategy-empty"><Search size={20} /><strong>조건에 맞는 전략이 없습니다.</strong><button onClick={() => { setQuery(''); setMode('all'); setState('all'); }}>필터 초기화</button></div>}
@@ -114,13 +236,13 @@ export function StrategyHome({ openEditor }) {
           <button aria-label="Basic으로 시작" onClick={() => { setShowCreate(false); openEditor('basic'); }}><span className="create-icon is-basic"><Boxes size={20} /></span><span><strong>Basic</strong><small>편집기에서 블록으로 구성</small></span><ChevronRight size={18} /></button>
           <button aria-label="Pro로 시작" onClick={() => { setShowCreate(false); openEditor('pro'); }}><span className="create-icon is-pro"><GitBranch size={20} /></span><span><strong>Pro</strong><small>편집기에서 노드로 구성</small></span><ChevronRight size={18} /></button>
           <button className="create-import-option" aria-label="기존 전략 가져오기" onClick={() => setShowImport(true)}><span className="create-icon is-import"><Import size={20} /></span><span><strong>기존 전략 가져오기</strong><small>원본은 그대로 두고 새 초안 생성</small></span><ChevronRight size={18} /></button>
-        </div> : <div className="strategy-import-list">{items.map((strategy) => <button key={strategy.id} aria-label={`${strategy.name} 가져오기`} onClick={() => { setShowCreate(false); setShowImport(false); openEditor(strategy.mode.toLowerCase()); }}><span className={`strategy-mode-icon mode-${strategy.mode.toLowerCase()}`}>{strategy.mode[0]}</span><span><strong>{strategy.name}</strong><small>{strategy.mode} · {strategy.symbols.join(', ')}</small></span><Import size={16} /></button>)}</div>}
+        </div> : <div className="strategy-import-list">{items.map((strategy) => <button key={strategy.id} aria-label={`${strategy.name} 가져오기`} onClick={() => { setShowCreate(false); setShowImport(false); openEditor(strategy.mode.toLowerCase() as EditorMode); }}><span className={`strategy-mode-icon mode-${strategy.mode.toLowerCase()}`}>{strategy.mode[0]}</span><span><strong>{strategy.name}</strong><small>{strategy.mode} · {strategy.symbols.join(', ')}</small></span><Import size={16} /></button>)}</div>}
       </section>
     </div>}
   </div></Localized>;
 }
 
-const INITIAL_BASIC_BLOCKS = {
+const INITIAL_BASIC_BLOCKS: Record<Side, BasicBlock[]> = {
   buy: [
     { id: 'buy-trigger-block', icon: Play, label: '1m BAR', tone: 'time' },
     { id: 'buy-rsi-block', icon: Timer, label: 'RSI', op: '<', value: '30', tone: 'indicator' },
@@ -132,7 +254,7 @@ const INITIAL_BASIC_BLOCKS = {
   ],
 };
 
-const INITIAL_STRATEGY_SECTIONS = [{
+const INITIAL_STRATEGY_SECTIONS: StrategySection[] = [{
   id: 'section-1',
   symbol: 'AAPL · MSFT · SPY',
   allocation: 40,
@@ -148,16 +270,16 @@ const INITIAL_STRATEGY_SECTIONS = [{
 
 const getDefaultCardPosition = getDefaultBasicCardPosition;
 
-const INITIAL_CARD_BLOCKS = {
+const INITIAL_CARD_BLOCKS: Record<string, BasicBlock[]> = {
   'primary-buy': INITIAL_BASIC_BLOCKS.buy,
   'primary-sell': INITIAL_BASIC_BLOCKS.sell,
 };
 
-const createDefaultCardBlocks = (cardId, side) => side === 'buy'
+const createDefaultCardBlocks = (cardId: string, side: Side): BasicBlock[] => side === 'buy'
   ? [{ id: `${cardId}-trigger-block`, icon: Play, label: 'PRICE BAR', tone: 'data' }]
   : [{ id: `${cardId}-position-block`, icon: Play, label: 'POSITION', value: 'OPEN', tone: 'condition' }];
 
-const TEMPLATE_LIBRARY = [
+const TEMPLATE_LIBRARY: StrategyTemplate[] = [
   { id: 'rsi', name: 'RSI 반등', category: '모멘텀', indicator: 'RSI', buyTitle: 'RSI 반등 매수', sellTitle: 'RSI 과열 매도', buyOp: '<', buyValue: '30', sellOp: '>', sellValue: '70', description: '과매도에서 사고 과매수에서 정리해요' },
   { id: 'sma', name: 'SMA 교차', category: '추세', indicator: 'SMA', buyOp: '↑', buyValue: '20 / 60', sellOp: '↓', sellValue: '20 / 60', description: '단기선과 장기선의 교차를 따라가요' },
   { id: 'macd', name: 'MACD 전환', category: '추세', indicator: 'MACD', buyOp: '↑', buyValue: 'SIGNAL', sellOp: '↓', sellValue: 'SIGNAL', description: '추세가 바뀌는 순간을 찾아요' },
@@ -168,7 +290,7 @@ const TEMPLATE_LIBRARY = [
   { id: 'stochastic', name: 'Stochastic 반등', category: '모멘텀', indicator: 'Stochastic', buyOp: '↑', buyValue: '20', sellOp: '↓', sellValue: '80', description: '빠른 과매도·과매수 신호를 사용해요' },
 ];
 
-const BLOCK_LIBRARY = [
+const BLOCK_LIBRARY: BlockLibraryCategory[] = [
   { name: '데이터', tone: 'data', items: ['Open', 'High', 'Low', 'Close', 'HL2', 'HLC3', 'Volume', 'VWAP'] },
   { name: '추세 지표', tone: 'indicator', items: ['SMA', 'EMA', 'MACD', 'ADX', 'Supertrend'] },
   { name: '모멘텀 지표', tone: 'indicator', items: ['RSI', 'Stochastic', 'ROC', 'CCI', 'Williams %R'] },
@@ -181,7 +303,7 @@ const BLOCK_LIBRARY = [
   { name: '위험관리', tone: 'risk', items: ['손절', '익절', '트레일링', '최대 포지션', '일일 최대손실'] },
 ];
 
-const INITIAL_CARD_META = {
+const INITIAL_CARD_META: Record<string, CardMeta> = {
   'primary-buy': {
     title: '매수 전략',
     detail: '가격 갱신 · 종목별 평가',
@@ -194,7 +316,7 @@ const INITIAL_CARD_META = {
   },
 };
 
-const createTemplateBlocks = (template, cardId, side) => side === 'buy'
+const createTemplateBlocks = (template: StrategyTemplate, cardId: string, side: Side): BasicBlock[] => side === 'buy'
   ? [
     { id: `${cardId}-event`, icon: Play, label: '다음 봉 체결', tone: 'time' },
     { id: `${cardId}-indicator`, icon: Timer, label: template.indicator, op: template.buyOp, value: template.buyValue, tone: 'indicator' },
@@ -205,8 +327,8 @@ const createTemplateBlocks = (template, cardId, side) => side === 'buy'
     { id: `${cardId}-indicator`, icon: Timer, label: template.indicator, op: template.sellOp, value: template.sellValue, tone: 'indicator' },
   ];
 
-const createLibraryBlock = (label, tone, id) => {
-  const valueByTone = {
+const createLibraryBlock = (label: string, tone: BlockTone, id: string): BasicBlock => {
+  const valueByTone: Partial<Record<BlockTone, string | undefined>> = {
     data: '현재',
     indicator: '14',
     condition: '설정',
@@ -215,7 +337,7 @@ const createLibraryBlock = (label, tone, id) => {
     order: '기본',
     risk: '설정',
   };
-  const iconByTone = {
+  const iconByTone: Partial<Record<BlockTone, LucideIcon>> = {
     time: Timer,
     order: CircleDollarSign,
     risk: ShieldCheck,
@@ -229,7 +351,7 @@ const createLibraryBlock = (label, tone, id) => {
   };
 };
 
-const blockOperatorCopy = {
+const blockOperatorCopy: Record<string, string> = {
   '<': '미만',
   '>': '초과',
   '=': '같은지',
@@ -239,7 +361,7 @@ const blockOperatorCopy = {
 
 const BLOCK_OPERATORS = ['<', '>', '=', '↑', '↓'];
 
-const getBlockValueOptions = (block) => {
+const getBlockValueOptions = (block: BlockRuleInput): string[] => {
   const normalizedLabel = block.label.toUpperCase();
   if (normalizedLabel.includes('POSITION') || block.label.includes('포지션')) return ['OPEN', 'CLOSED', 'ANY'];
   if (block.tone === 'data') return ['현재', '이전 봉', '2봉 전'];
@@ -255,25 +377,25 @@ const getBlockValueOptions = (block) => {
   return [String(block.value)];
 };
 
-const getNumericValue = (value) => {
+const getNumericValue = (value: string | number | null | undefined) => {
   const match = String(value ?? '').trim().match(/^(-?\d+(?:\.\d+)?)(%)?$/);
   return match ? { number: Number(match[1]), suffix: match[2] ?? '' } : null;
 };
 
-const positionValueCopy = {
+const positionValueCopy: Record<string, string> = {
   OPEN: '포지션을 보유 중',
   CLOSED: '포지션을 보유하지 않음',
   ANY: '포지션 상태와 무관',
 };
 
-const getBlockRule = (block, side) => {
+const getBlockRule = (block: BlockRuleInput, side?: string): ReactNode => {
   if (block.id === 'buy-trigger-block') return <><b>1분봉</b> 하나가 새로 완성될 때마다</>;
-  if (block.id === 'buy-rsi-block') return <><b>RSI(14)</b>가 <b>{block.value} {blockOperatorCopy[block.op] ?? block.op}</b>인지 확인하고</>;
+  if (block.id === 'buy-rsi-block') return <><b>RSI(14)</b>가 <b>{block.value} {blockOperatorCopy[block.op as string] ?? block.op}</b>인지 확인하고</>;
   if (block.id === 'buy-budget-block') return <>조건을 만족하면 전략 예산의 <b>{block.value}</b>를 사용해</>;
-  if (block.id === 'sell-position-block') return <>먼저 현재 <b>{positionValueCopy[block.value] ?? block.value}</b>인지 확인하고</>;
-  if (block.id === 'sell-rsi-block') return <><b>RSI(14)</b>가 <b>{block.value} {blockOperatorCopy[block.op] ?? block.op}</b>인지 확인한 뒤</>;
+  if (block.id === 'sell-position-block') return <>먼저 현재 <b>{positionValueCopy[block.value as string] ?? block.value}</b>인지 확인하고</>;
+  if (block.id === 'sell-rsi-block') return <><b>RSI(14)</b>가 <b>{block.value} {blockOperatorCopy[block.op as string] ?? block.op}</b>인지 확인한 뒤</>;
 
-  const operatorCopy = blockOperatorCopy[block.op] ?? block.op;
+  const operatorCopy = blockOperatorCopy[block.op as string] ?? block.op;
   if (block.tone === 'time') return <><b>{block.label}</b> 이벤트가 발생하면</>;
   if (block.tone === 'data') return <><b>{block.label}</b> 데이터를 읽고</>;
   if (block.tone === 'indicator') return <><b>{block.label}</b>{block.value && <>의 기준값 <b>{block.value}</b></>}{operatorCopy && <>으로 <b>{operatorCopy}</b></>} 확인한 뒤</>;
@@ -284,24 +406,36 @@ const getBlockRule = (block, side) => {
   return <><b>{block.label}</b> 블록의 설정값을 확인하고</>;
 };
 
-const getTerminalRule = (side) => side === 'buy'
+const getTerminalRule = (side?: string): ReactNode => side === 'buy'
   ? <>다음 봉에서 <b>시장가 매수</b> 후보를 만듭니다.</>
   : <>보유 수량의 <b>100%</b>를 <b>시장가 매도</b> 후보로 만듭니다.</>;
 
-const BlockRuleNote = ({ side, step, children }) => <aside role="note" aria-label={`${step}단계 규칙 설명`} className={`strategy-rule-note is-${side}`}>
+interface BlockRuleNoteProps {
+  side: string;
+  step: number;
+  children?: ReactNode;
+}
+
+const BlockRuleNote = ({ side, step, children }: BlockRuleNoteProps) => <aside role="note" aria-label={`${step}단계 규칙 설명`} className={`strategy-rule-note is-${side}`}>
   <span>{String(step).padStart(2, '0')}</span>
   <p>{children}</p>
 </aside>;
 
-const NumericBlockValue = ({ label, value, onChange }) => {
-  const numeric = getNumericValue(value);
+interface NumericBlockValueProps {
+  label: string;
+  value?: string;
+  onChange: (value: string) => void;
+}
+
+const NumericBlockValue = ({ label, value, onChange }: NumericBlockValueProps) => {
+  const numeric = getNumericValue(value)!;
   const valueRef = useRef(numeric.number);
-  const repeatTimerRef = useRef(null);
+  const repeatTimerRef = useRef<number | null>(null);
   const repeatStartedAtRef = useRef(0);
   const repeatedRef = useRef(false);
   valueRef.current = numeric.number;
 
-  const update = (next) => {
+  const update = (next: number | string) => {
     const bounded = Math.max(0, Math.min(numeric.suffix === '%' || label === 'RSI' ? 100 : 9999, Number(next)));
     valueRef.current = Number.isFinite(bounded) ? bounded : 0;
     onChange(`${Number.isFinite(bounded) ? bounded : 0}${numeric.suffix}`);
@@ -317,7 +451,7 @@ const NumericBlockValue = ({ label, value, onChange }) => {
     repeatedRef.current = false;
   };
 
-  const repeatChange = (delta, delay) => {
+  const repeatChange = (delta: number, delay: number) => {
     repeatTimerRef.current = window.setTimeout(() => {
       repeatedRef.current = true;
       update(valueRef.current + delta);
@@ -326,7 +460,7 @@ const NumericBlockValue = ({ label, value, onChange }) => {
     }, delay);
   };
 
-  const beginRepeating = (event, delta) => {
+  const beginRepeating = (event: ReactPointerEvent<HTMLButtonElement>, delta: number) => {
     if (event.button !== 0) return;
     stopRepeating();
     repeatedRef.current = false;
@@ -334,7 +468,7 @@ const NumericBlockValue = ({ label, value, onChange }) => {
     repeatChange(delta, 360);
   };
 
-  const clickOnce = (delta) => {
+  const clickOnce = (delta: number) => {
     if (repeatedRef.current) {
       repeatedRef.current = false;
       return;
@@ -376,19 +510,27 @@ const NumericBlockValue = ({ label, value, onChange }) => {
   </span>;
 };
 
-const CustomBlockSelect = ({ label, value, options, onChange, compact = false }) => {
+interface CustomBlockSelectProps {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  compact?: boolean;
+}
+
+const CustomBlockSelect = ({ label, value, options, onChange, compact = false }: CustomBlockSelectProps) => {
   const [open, setOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState(null);
-  const rootRef = useRef(null);
-  const triggerRef = useRef(null);
-  const menuRef = useRef(null);
+  const [menuPosition, setMenuPosition] = useState<{ left: number; top: number; width: number } | null>(null);
+  const rootRef = useRef<HTMLSpanElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if (!open) return undefined;
-    const closeFromOutside = (event) => {
-      if (!rootRef.current?.contains(event.target) && !menuRef.current?.contains(event.target)) setOpen(false);
+    const closeFromOutside = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node) && !menuRef.current?.contains(event.target as Node)) setOpen(false);
     };
-    const closeWithEscape = (event) => {
+    const closeWithEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
     const closeFromViewportChange = () => setOpen(false);
@@ -418,7 +560,7 @@ const CustomBlockSelect = ({ label, value, options, onChange, compact = false })
     setOpen(true);
   };
 
-  const moveSelection = (direction) => {
+  const moveSelection = (direction: number) => {
     const currentIndex = Math.max(0, options.indexOf(value));
     const nextIndex = (currentIndex + direction + options.length) % options.length;
     onChange(options[nextIndex]);
@@ -469,7 +611,17 @@ const CustomBlockSelect = ({ label, value, options, onChange, compact = false })
   </span>;
 };
 
-const Block = ({ icon: Icon, label, value, op, tone = 'neutral', locked = false, onChange }) => {
+interface BlockProps {
+  icon?: LucideIcon;
+  label: string;
+  value?: string;
+  op?: string;
+  tone?: BlockTone;
+  locked?: boolean;
+  onChange?: (patch: { op?: string; value?: string }) => void;
+}
+
+const Block = ({ icon: Icon, label, value, op, tone = 'neutral', locked = false, onChange }: BlockProps) => {
   const numeric = getNumericValue(value);
   const block = { label, value, op, tone };
   return <div className={`scratch-block block-${tone}`}>
@@ -477,15 +629,27 @@ const Block = ({ icon: Icon, label, value, op, tone = 'neutral', locked = false,
     <span>{label}</span>
     {op && (locked
       ? <b className="block-op">{op}</b>
-      : <CustomBlockSelect compact label={`${label} 연산자`} value={op} options={BLOCK_OPERATORS} onChange={(nextOp) => onChange({ op: nextOp })} />)}
+      : <CustomBlockSelect compact label={`${label} 연산자`} value={op} options={BLOCK_OPERATORS} onChange={(nextOp) => onChange!({ op: nextOp })} />)}
     {value && (locked
       ? <span className="block-value is-locked">{value}</span>
       : numeric
-        ? <NumericBlockValue label={label} value={value} onChange={(nextValue) => onChange({ value: nextValue })} />
-        : <CustomBlockSelect label={`${label} 값 선택`} value={value} options={getBlockValueOptions(block)} onChange={(nextValue) => onChange({ value: nextValue })} />)}
+        ? <NumericBlockValue label={label} value={value} onChange={(nextValue) => onChange!({ value: nextValue })} />
+        : <CustomBlockSelect label={`${label} 값 선택`} value={value} options={getBlockValueOptions(block)} onChange={(nextValue) => onChange!({ value: nextValue })} />)}
   </div>;
 };
-const StrategyBlock = ({ id, fixed = false, dragging = false, dragProps = {}, showRule = false, rule, ruleSide = 'right', ruleStep = 1, ...blockProps }) => <div
+
+interface StrategyBlockProps extends BlockProps {
+  id: string;
+  fixed?: boolean;
+  dragging?: boolean;
+  dragProps?: HTMLAttributes<HTMLDivElement> & { 'data-drop-target'?: string };
+  showRule?: boolean;
+  rule?: ReactNode;
+  ruleSide?: 'left' | 'right';
+  ruleStep?: number;
+}
+
+const StrategyBlock = ({ id, fixed = false, dragging = false, dragProps = {}, showRule = false, rule, ruleSide = 'right', ruleStep = 1, ...blockProps }: StrategyBlockProps) => <div
   className={`block-with-copy ${fixed ? 'fixed-terminal-block' : 'draggable-strategy-block'} ${dragging ? 'is-dragging' : ''}`}
   data-testid={id}
   aria-disabled={fixed ? 'true' : undefined}
@@ -497,6 +661,15 @@ const StrategyBlock = ({ id, fixed = false, dragging = false, dragProps = {}, sh
 
 /* Shared by read-only strategy surfaces so launched snapshots keep the exact
    block silhouette, tone system, spacing, and terminal shape of the editor. */
+export interface ReadOnlyStrategyBlockProps extends BlockProps {
+  id: string;
+  fixed?: boolean;
+  showRule?: boolean;
+  rule?: ReactNode;
+  ruleSide?: 'left' | 'right';
+  ruleStep?: number;
+}
+
 export const ReadOnlyStrategyBlock = ({
   id,
   fixed = false,
@@ -505,7 +678,7 @@ export const ReadOnlyStrategyBlock = ({
   ruleSide = 'right',
   ruleStep = 1,
   ...blockProps
-}) => {
+}: ReadOnlyStrategyBlockProps) => {
   const resolvedRule = rule ?? (fixed
     ? getTerminalRule(blockProps.tone)
     : getBlockRule(blockProps, blockProps.tone));
@@ -520,42 +693,48 @@ export const ReadOnlyStrategyBlock = ({
   </div>;
 };
 
-export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
-  const [activeGroup, setActiveGroup] = useState(null);
+interface BasicEditorProps {
+  goBack: () => void;
+  openEditor?: (mode: EditorMode) => void;
+  onLaunchBot?: (bot: { name: string; description: string }) => void;
+}
+
+export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProps) {
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [activeSectionId, setActiveSectionId] = useState('section-1');
-  const [selectedCardId, setSelectedCardId] = useState('primary-buy');
-  const [sections, setSections] = useState(INITIAL_STRATEGY_SECTIONS);
-  const [cardBlocks, setCardBlocks] = useState(INITIAL_CARD_BLOCKS);
-  const [cardMeta, setCardMeta] = useState(INITIAL_CARD_META);
-  const [draggedBlock, setDraggedBlock] = useState(null);
-  const [draggedCard, setDraggedCard] = useState(null);
-  const [libraryDrag, setLibraryDrag] = useState(null);
-  const [dragTarget, setDragTarget] = useState(null);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>('primary-buy');
+  const [sections, setSections] = useState<StrategySection[]>(INITIAL_STRATEGY_SECTIONS);
+  const [cardBlocks, setCardBlocks] = useState<Record<string, BasicBlock[]>>(INITIAL_CARD_BLOCKS);
+  const [cardMeta, setCardMeta] = useState<Record<string, CardMeta>>(INITIAL_CARD_META);
+  const [draggedBlock, setDraggedBlock] = useState<{ cardId: string; blockId: string } | null>(null);
+  const [draggedCard, setDraggedCard] = useState<{ sectionId: string; side: Side; cardId: string } | null>(null);
+  const [libraryDrag, setLibraryDrag] = useState<LibraryDragPayload | null>(null);
+  const [dragTarget, setDragTarget] = useState<{ cardId: string; index: number } | null>(null);
   const [customBlockCount, setCustomBlockCount] = useState(0);
   const [cardCount, setCardCount] = useState(2);
   const [drawMode, setDrawMode] = useState(false);
-  const [drawStart, setDrawStart] = useState(null);
-  const [draftRect, setDraftRect] = useState(null);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [drawStart, setDrawStart] = useState<CanvasPoint | null>(null);
+  const [draftRect, setDraftRect] = useState<DraftRect | null>(null);
+  const [pan, setPan] = useState<CanvasPoint>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [panGesture, setPanGesture] = useState(null);
+  const [panGesture, setPanGesture] = useState<CardMoveGesture | null>(null);
   const [spacePanning, setSpacePanning] = useState(false);
   const spacePanningRef = useRef(false);
-  const pointerPositionRef = useRef(null);
-  const [sectionMove, setSectionMove] = useState(null);
-  const [cardMove, setCardMove] = useState(null);
-  const trashZoneRef = useRef(null);
+  const pointerPositionRef = useRef<CanvasPoint | null>(null);
+  const [sectionMove, setSectionMove] = useState<SectionMoveGesture | null>(null);
+  const [cardMove, setCardMove] = useState<CardMoveState | null>(null);
+  const trashZoneRef = useRef<HTMLDivElement | null>(null);
   const [trashReady, setTrashReady] = useState(false);
-  const cardElementsRef = useRef(new Map());
-  const [cardSizes, setCardSizes] = useState({});
+  const cardElementsRef = useRef(new Map<string, HTMLDivElement>());
+  const [cardSizes, setCardSizes] = useState<Record<string, CanvasSize>>({});
   const [announcement, setAnnouncement] = useState('');
-  const [saveFeedback, setSaveFeedback] = useState(null);
+  const [saveFeedback, setSaveFeedback] = useState<SaveFeedback | null>(null);
   const [launchDialogOpen, setLaunchDialogOpen] = useState(false);
   const [botName, setBotName] = useState('');
   const [botDescription, setBotDescription] = useState('');
   const [templateQuery, setTemplateQuery] = useState('');
   const [blockQuery, setBlockQuery] = useState('');
-  const toggleGroup = (group) => setActiveGroup((current) => current === group ? null : group);
+  const toggleGroup = (group: string) => setActiveGroup((current) => current === group ? null : group);
   const filteredTemplates = useMemo(() => TEMPLATE_LIBRARY.filter((template) => (
     `${template.name} ${template.category} ${template.indicator}`.toLowerCase().includes(templateQuery.trim().toLowerCase())
   )), [templateQuery]);
@@ -563,7 +742,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     ...category,
     items: category.items.filter((item) => item.toLowerCase().includes(blockQuery.trim().toLowerCase())),
   })).filter((category) => category.items.length > 0), [blockQuery]);
-  const validationIssues = useMemo(() => {
+  const validationIssues = useMemo<ValidationIssue[]>(() => {
     if (sections.length === 0) {
       return [{
         id: 'strategy-no-section',
@@ -573,7 +752,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
       }];
     }
 
-    return sections.flatMap((section, sectionIndex) => {
+    return sections.flatMap((section, sectionIndex): ValidationIssue[] => {
       const sectionLabel = `SECTION ${String(sectionIndex + 1).padStart(2, '0')}`;
       if (section.cards.buy.length === 0) {
         return [{
@@ -603,7 +782,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
   }, [validationSignature]);
 
   const saveStrategy = () => {
-    const nextFeedback = isLaunchable
+    const nextFeedback: SaveFeedback = isLaunchable
       ? {
         tone: 'positive',
         title: '출시 가능 상태로 저장했습니다.',
@@ -626,7 +805,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
 
   const preparePersonalBotLaunch = () => {
     if (!isLaunchable) {
-      const nextFeedback = {
+      const nextFeedback: SaveFeedback = {
         tone: 'warning',
         title: `출시하려면 ${validationIssues.length}개 항목을 완성해 주세요.`,
         detail: validationIssues[0].message,
@@ -641,7 +820,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setAnnouncement('개인 운용 봇 정보를 입력해 주세요.');
   };
 
-  const launchPersonalBot = (event) => {
+  const launchPersonalBot = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = botName.trim();
     const description = botDescription.trim();
@@ -653,7 +832,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
 
   useEffect(() => {
     if (!launchDialogOpen) return undefined;
-    const closeOnEscape = (event) => {
+    const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeLaunchDialog();
     };
     window.addEventListener('keydown', closeOnEscape);
@@ -667,7 +846,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
         let changed = false;
         const next = { ...current };
         entries.forEach((entry) => {
-          const cardId = entry.target.dataset.strategyCard;
+          const cardId = (entry.target as HTMLElement).dataset.strategyCard;
           if (!cardId) return;
           const width = Math.ceil(entry.borderBoxSize?.[0]?.inlineSize ?? entry.contentRect.width);
           const height = Math.ceil(entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height);
@@ -683,19 +862,19 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
   }, [activeGroup, cardBlocks, sections]);
 
   useEffect(() => {
-    const isTypingTarget = (target) => target?.closest?.('input, textarea, select, button, [role="combobox"], [contenteditable="true"]');
+    const isTypingTarget = (target: EventTarget | null) => (target as Element | null)?.closest?.('input, textarea, select, button, [role="combobox"], [contenteditable="true"]');
     const stopSpacePanning = () => {
       spacePanningRef.current = false;
       setSpacePanning(false);
     };
-    const handleKeyDown = (event) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code !== 'Space' || isTypingTarget(event.target)) return;
       event.preventDefault();
       if (spacePanningRef.current) return;
       spacePanningRef.current = true;
       setSpacePanning(true);
     };
-    const handleKeyUp = (event) => {
+    const handleKeyUp = (event: KeyboardEvent) => {
       if (event.code === 'Space') stopSpacePanning();
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -708,7 +887,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     };
   }, []);
 
-  const moveBlock = (sourceCardId, blockId, targetCardId, targetIndex) => {
+  const moveBlock = (sourceCardId: string, blockId: string, targetCardId: string, targetIndex: number) => {
     const movingLabel = cardBlocks[sourceCardId].find((block) => block.id === blockId)?.label ?? '선택한';
     setCardBlocks((current) => {
       const sourceBlocks = [...current[sourceCardId]];
@@ -728,9 +907,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setAnnouncement(`${movingLabel} 조건 블록을 이동했습니다.`);
   };
 
-  const startDragging = (event, cardId, blockId) => {
+  const startDragging = (event: DragEvent<HTMLDivElement>, cardId: string, blockId: string) => {
     event.stopPropagation();
-    if (event.target.closest?.('button, input, select')) {
+    if ((event.target as Element).closest?.('button, input, select')) {
       event.preventDefault();
       return;
     }
@@ -739,7 +918,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setDraggedBlock({ cardId, blockId });
   };
 
-  const dropBlock = (event, targetCardId, targetIndex) => {
+  const dropBlock = (event: DragEvent<HTMLElement>, targetCardId: string, targetIndex: number) => {
     event.preventDefault();
     event.stopPropagation();
     if (draggedBlock) moveBlock(draggedBlock.cardId, draggedBlock.blockId, targetCardId, targetIndex);
@@ -747,7 +926,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setDragTarget(null);
   };
 
-  const moveWithKeyboard = (event, cardId, blockId, index) => {
+  const moveWithKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>, cardId: string, blockId: string, index: number) => {
     if (!event.altKey) return;
     if (event.key === 'ArrowUp') {
       event.preventDefault();
@@ -764,7 +943,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     }
   };
 
-  const addBlock = (cardId, side) => {
+  const addBlock = (cardId: string, side: Side) => {
     const nextCount = customBlockCount + 1;
     setCustomBlockCount(nextCount);
     setCardBlocks((current) => ({
@@ -783,7 +962,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setAnnouncement(`${side === 'buy' ? '매수' : '매도'} 전략에 이동평균 조건을 추가했습니다.`);
   };
 
-  const applyTemplate = (template, targetSectionId = activeSectionId) => {
+  const applyTemplate = (template: StrategyTemplate, targetSectionId: string = activeSectionId) => {
     const targetSection = sections.find((section) => section.id === targetSectionId) ?? sections[0];
     if (!targetSection) return;
     const nextCardCount = cardCount + 1;
@@ -828,7 +1007,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setAnnouncement(`${template.name} 템플릿의 매수·매도 블록을 ${targetSection.id.replace('section-', 'SECTION ')}에 추가했습니다.`);
   };
 
-  const addLibraryBlock = (label, tone, targetCardId = selectedCardId, targetIndex) => {
+  const addLibraryBlock = (label: string, tone: BlockTone, targetCardId: string | null = selectedCardId, targetIndex?: number) => {
     if (!targetCardId || !cardBlocks[targetCardId]) {
       setAnnouncement('먼저 블록을 넣을 매수 또는 매도 전략을 선택해 주세요.');
       return;
@@ -847,7 +1026,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setAnnouncement(`${label} 블록을 대상 전략에 추가했습니다.`);
   };
 
-  const startLibraryDrag = (event, payload) => {
+  const startLibraryDrag = (event: DragEvent<HTMLButtonElement>, payload: LibraryDragPayload) => {
     event.stopPropagation();
     event.dataTransfer.effectAllowed = 'copy';
     event.dataTransfer.setData('text/plain', payload.type === 'template' ? payload.template.name : payload.label);
@@ -859,7 +1038,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setDragTarget(null);
   };
 
-  const deleteBlock = (cardId, blockId) => {
+  const deleteBlock = (cardId: string, blockId: string) => {
     const blockLabel = cardBlocks[cardId]?.find((block) => block.id === blockId)?.label ?? '선택한';
     setCardBlocks((current) => ({
       ...current,
@@ -871,7 +1050,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setAnnouncement(`${blockLabel} 블록을 삭제했습니다.`);
   };
 
-  const deleteStrategyCard = (sectionId, cardId) => {
+  const deleteStrategyCard = (sectionId: string, cardId: string) => {
     setSections((current) => current.map((section) => {
       if (section.id !== sectionId) return section;
       const cardPositions = { ...section.cardPositions };
@@ -904,9 +1083,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setAnnouncement('전략을 삭제했습니다.');
   };
 
-  const deleteSection = (sectionId) => {
+  const deleteSection = (sectionId: string) => {
     const targetSection = sections.find((section) => section.id === sectionId);
-    const deletedCardIds = new Set(targetSection?.cardOrder ?? []);
+    const deletedCardIds = new Set<string | null>(targetSection?.cardOrder ?? []);
     const remainingSections = sections.filter((section) => section.id !== sectionId);
     setSections(remainingSections);
     setCardBlocks((current) => Object.fromEntries(
@@ -923,7 +1102,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setAnnouncement('파티션을 삭제했습니다.');
   };
 
-  const isPointerOverTrash = (event) => {
+  const isPointerOverTrash = (event: { clientX: number; clientY: number }) => {
     const bounds = trashZoneRef.current?.getBoundingClientRect();
     if (!bounds) return false;
     return event.clientX >= bounds.left
@@ -932,7 +1111,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
       && event.clientY <= bounds.bottom;
   };
 
-  const dropOnTrash = (event) => {
+  const dropOnTrash = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
     if (draggedBlock) {
@@ -942,7 +1121,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     }
   };
 
-  const dropLibraryBlock = (event, targetCardId, targetIndex) => {
+  const dropLibraryBlock = (event: DragEvent<HTMLElement>, targetCardId: string, targetIndex?: number) => {
     if (libraryDrag?.type !== 'block') return false;
     event.preventDefault();
     event.stopPropagation();
@@ -951,7 +1130,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     return true;
   };
 
-  const updateStrategyBlock = (cardId, blockId, patch) => {
+  const updateStrategyBlock = (cardId: string, blockId: string, patch: Partial<BasicBlock>) => {
     setCardBlocks((current) => ({
       ...current,
       [cardId]: current[cardId].map((block) => block.id === blockId ? { ...block, ...patch } : block),
@@ -959,7 +1138,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setAnnouncement('블록 설정을 변경했습니다.');
   };
 
-  const renderEditableBlocks = (cardId, side, showRules) => cardBlocks[cardId].map((block, index) => <StrategyBlock
+  const renderEditableBlocks = (cardId: string, side: Side, showRules: boolean) => cardBlocks[cardId].map((block, index) => <StrategyBlock
     key={block.id}
     {...block}
     showRule={showRules}
@@ -991,11 +1170,11 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     }}
   />);
 
-  const updateSection = (sectionId, patch) => setSections((current) => current.map((section) => (
+  const updateSection = (sectionId: string, patch: Partial<StrategySection>) => setSections((current) => current.map((section) => (
     section.id === sectionId ? { ...section, ...patch } : section
   )));
 
-  const updateCardPosition = (sectionId, cardId, position) => {
+  const updateCardPosition = (sectionId: string, cardId: string, position: CanvasPoint) => {
     setSections((current) => current.map((section) => section.id === sectionId
       ? {
         ...section,
@@ -1007,7 +1186,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
       : section));
   };
 
-  const getSectionLayout = (section) => {
+  const getSectionLayout = (section: StrategySection) => {
     return getBasicSectionLayout(
       section.cardOrder,
       (cardId, index) => section.cardPositions?.[cardId] ?? getDefaultCardPosition(index),
@@ -1015,8 +1194,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     );
   };
 
-  const addStrategyCard = (sectionId, side) => {
-    const section = sections.find((item) => item.id === sectionId);
+  const addStrategyCard = (sectionId: string, side: Side) => {
+    const section = sections.find((item) => item.id === sectionId)!;
     const nextCardCount = cardCount + 1;
     const cardId = `${sectionId}-${side}-${section.cards[side].length + 1}-${nextCardCount}`;
     setCardCount(nextCardCount);
@@ -1045,9 +1224,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setAnnouncement(`${sectionId.replace('section-', 'SECTION ')}에 ${side === 'buy' ? '매수' : '매도'} 블록을 추가했습니다.`);
   };
 
-  const startCardDrag = (event, sectionId, side, cardId) => {
+  const startCardDrag = (event: DragEvent<HTMLDivElement>, sectionId: string, side: Side, cardId: string) => {
     if (draggedBlock) return;
-    if (event.target.closest?.('.strategy-card-move-handle')) {
+    if ((event.target as Element).closest?.('.strategy-card-move-handle')) {
       event.preventDefault();
       return;
     }
@@ -1056,9 +1235,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setDraggedCard({ sectionId, side, cardId });
   };
 
-  const moveStrategyCard = (targetSectionId, targetIndex) => {
+  const moveStrategyCard = (targetSectionId: string, targetIndex: number) => {
     if (!draggedCard || draggedBlock) return;
-    const sourceSection = sections.find((section) => section.id === draggedCard.sectionId);
+    const sourceSection = sections.find((section) => section.id === draggedCard.sectionId)!;
     if (draggedCard.side === 'buy' && sourceSection.cards.buy.length === 1 && sourceSection.id !== targetSectionId) {
       setAnnouncement('각 섹션에는 매수 블록이 하나 이상 필요합니다.');
       setDraggedCard(null);
@@ -1106,14 +1285,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setDraggedCard(null);
   };
 
-  const dropCardOnSection = (event, targetSectionId) => {
+  const dropCardOnSection = (event: DragEvent<HTMLElement>, targetSectionId: string) => {
     event.preventDefault();
     if (!draggedCard) return;
-    const targetSection = sections.find((section) => section.id === targetSectionId);
+    const targetSection = sections.find((section) => section.id === targetSectionId)!;
     moveStrategyCard(targetSectionId, targetSection.cardOrder.length);
   };
 
-  const dropOnSection = (event, targetSectionId) => {
+  const dropOnSection = (event: DragEvent<HTMLElement>, targetSectionId: string) => {
     if (libraryDrag?.type === 'template') {
       event.preventDefault();
       event.stopPropagation();
@@ -1124,14 +1303,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     dropCardOnSection(event, targetSectionId);
   };
 
-  const dropCardBefore = (event, targetSectionId, targetIndex) => {
+  const dropCardBefore = (event: DragEvent<HTMLElement>, targetSectionId: string, targetIndex: number) => {
     if (!draggedCard) return;
     event.preventDefault();
     event.stopPropagation();
     moveStrategyCard(targetSectionId, targetIndex);
   };
 
-  const pointInSurface = (event) => {
+  const pointInSurface = (event: ReactPointerEvent<HTMLDivElement>): CanvasPoint => {
     const bounds = event.currentTarget.getBoundingClientRect();
     return {
       x: (event.clientX - bounds.left - pan.x) / zoom,
@@ -1139,7 +1318,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     };
   };
 
-  const beginCanvasGesture = (event) => {
+  const beginCanvasGesture = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
     if (drawMode) {
       const point = pointInSurface(event);
@@ -1151,7 +1330,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
-  const zoomCanvasWithWheel = (event) => {
+  const zoomCanvasWithWheel = (event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
     if (drawMode || sectionMove || cardMove) return;
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -1163,21 +1342,21 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setPan(next.pan);
   };
 
-  const updateCursorSpotlight = (event) => {
+  const updateCursorSpotlight = (event: ReactPointerEvent<HTMLDivElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
-    const canvas = event.currentTarget.closest('.basic-canvas');
+    const canvas = event.currentTarget.closest<HTMLElement>('.basic-canvas');
     if (!canvas) return;
     canvas.style.setProperty('--spotlight-x', `${event.clientX - bounds.left}px`);
     canvas.style.setProperty('--spotlight-y', `${event.clientY - bounds.top}px`);
     canvas.style.setProperty('--spotlight-opacity', '1');
   };
 
-  const hideCursorSpotlight = (event) => {
-    event.currentTarget.closest('.basic-canvas')?.style.setProperty('--spotlight-opacity', '0');
+  const hideCursorSpotlight = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.currentTarget.closest<HTMLElement>('.basic-canvas')?.style.setProperty('--spotlight-opacity', '0');
     pointerPositionRef.current = null;
   };
 
-  const updateCanvasGesture = (event) => {
+  const updateCanvasGesture = (event: ReactPointerEvent<HTMLDivElement>) => {
     updateCursorSpotlight(event);
     const previousPointer = pointerPositionRef.current;
     pointerPositionRef.current = { x: event.clientX, y: event.clientY };
@@ -1225,7 +1404,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     }
   };
 
-  const finishCanvasGesture = (event) => {
+  const finishCanvasGesture = (event: ReactPointerEvent<HTMLDivElement>) => {
     const shouldDelete = event?.type !== 'pointercancel' && isPointerOverTrash(event);
     if (shouldDelete && cardMove) {
       deleteStrategyCard(cardMove.sectionId, cardMove.cardId);
@@ -1279,7 +1458,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     setTrashReady(false);
   };
 
-  const beginSectionMove = (event, section) => {
+  const beginSectionMove = (event: ReactPointerEvent<HTMLElement>, section: StrategySection) => {
     event.preventDefault();
     event.stopPropagation();
     setActiveSectionId(section.id);
@@ -1287,13 +1466,13 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     event.currentTarget.closest('.section-workspace')?.setPointerCapture?.(event.pointerId);
   };
 
-  const beginSectionAreaMove = (event, section) => {
+  const beginSectionAreaMove = (event: ReactPointerEvent<HTMLElement>, section: StrategySection) => {
     if (event.button !== 0) return;
-    if (event.target.closest?.('button, input, select, label, .strategy-card')) return;
+    if ((event.target as Element).closest?.('button, input, select, label, .strategy-card')) return;
     beginSectionMove(event, section);
   };
 
-  const beginCardMove = (event, section, cardId) => {
+  const beginCardMove = (event: ReactPointerEvent<HTMLElement>, section: StrategySection, cardId: string) => {
     event.preventDefault();
     event.stopPropagation();
     const position = section.cardPositions?.[cardId] ?? getDefaultCardPosition(section.cardOrder.indexOf(cardId));
@@ -1310,7 +1489,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
     event.currentTarget.closest('.section-workspace')?.setPointerCapture?.(event.pointerId);
   };
 
-  const renderStrategyCard = (section, side, cardId, cardIndex) => {
+  const renderStrategyCard = (section: StrategySection, side: Side, cardId: string, cardIndex: number) => {
     const isPrimary = cardId === `primary-${side}`;
     const testId = isPrimary ? `basic-${side}-group` : `strategy-card-${cardId}`;
     const stackTestId = isPrimary ? `basic-${side}-stack` : `strategy-stack-${cardId}`;
@@ -1462,7 +1641,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
           backgroundPosition: `${pan.x}px ${pan.y}px`,
           '--canvas-pan-x': `${pan.x}px`,
           '--canvas-pan-y': `${pan.y}px`,
-        }}
+        } as CSSProperties}
       >
         <div className="cursor-dot-spotlight" data-testid="cursor-dot-spotlight" aria-hidden="true" />
         <div className="section-draw-controls" role="group" aria-label="섹션 도구">
@@ -1540,7 +1719,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
         <div className="inspector-title"><span>BLOCKS</span><Boxes size={15} /></div>
         <div className="block-library-target">
           <span>블록을 넣을 곳</span>
-          <strong>{cardMeta[selectedCardId]?.title ?? '전략을 선택해 주세요'}</strong>
+          <strong>{cardMeta[selectedCardId!]?.title ?? '전략을 선택해 주세요'}</strong>
           <small>클릭하거나 원하는 전략 카드로 드래그하세요.</small>
         </div>
         <label className="palette-search"><Search size={14} /><input aria-label="블록 검색" placeholder="MACD, 조건, 손절" value={blockQuery} onChange={(event) => setBlockQuery(event.target.value)} /></label>
@@ -1578,7 +1757,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
         setTrashReady(true);
       }}
       onDragLeave={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setTrashReady(false);
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setTrashReady(false);
       }}
       onDrop={dropOnTrash}
     >
@@ -1658,7 +1837,89 @@ const PRO_NODE_WIDTH = 196;
 const PRO_PORT_START = 88;
 const PRO_PORT_GAP = 26;
 
-const PRO_PORT_TYPES = {
+type ProPortType = 'universe' | 'series' | 'scalar' | 'signal' | 'order';
+
+interface ProPort {
+  id: string;
+  type: ProPortType;
+  label: string;
+  testId?: string;
+}
+
+interface ProNodeBlueprint {
+  id: string;
+  kicker: string;
+  title: string;
+  detail: string;
+  icon: LucideIcon;
+  group?: string;
+  inputs: ProPort[];
+  outputs: ProPort[];
+}
+
+interface ProNodeLibraryCategory {
+  category: string;
+  tone: BlockTone;
+  items: ProNodeBlueprint[];
+}
+
+interface ProNode {
+  id: string;
+  blueprintId: string;
+  kicker: string;
+  title: string;
+  detail: string;
+  tone: BlockTone;
+  icon: LucideIcon;
+  inputs: ProPort[];
+  outputs: ProPort[];
+  params: { threshold: string; timeframe: string };
+  x: number;
+  y: number;
+}
+
+interface ProLinkEnd {
+  nodeId: string;
+  portId: string;
+}
+
+interface ProLink {
+  id: string;
+  from: ProLinkEnd;
+  to: ProLinkEnd;
+}
+
+interface NodeMoveGesture extends CardMoveGesture {
+  nodeId: string;
+}
+
+interface LinkDraft {
+  source: ProLinkEnd;
+  type: ProPortType;
+  origin: CanvasPoint;
+  point: CanvasPoint;
+}
+
+interface ProPicker {
+  x: number;
+  y: number;
+  type: ProPortType;
+  source: ProLinkEnd;
+}
+
+type ProNotice =
+  | { kind: 'error'; problem: string; impact: string; fix: string; count?: number }
+  | { kind: 'info'; message: string }
+  | { kind: 'undo'; message: string; restore: { node: ProNode; links: ProLink[] } };
+
+interface ProValidationIssue {
+  nodeId: string | null;
+  problem: string;
+  impact: string;
+  fix: string;
+}
+
+const PRO_PORT_TYPES: Record<ProPortType, { name: string; shape: string }> = {
   universe: { name: '종목 집합', shape: '이중 원' },
   series: { name: '시세 계열', shape: '정사각형' },
   scalar: { name: '지표 값', shape: '마름모' },
@@ -1666,9 +1927,9 @@ const PRO_PORT_TYPES = {
   order: { name: '주문 후보', shape: '육각형' },
 };
 
-const describePortType = (type) => PRO_PORT_TYPES[type] ?? { name: type, shape: '기본 모양' };
+const describePortType = (type: ProPortType) => PRO_PORT_TYPES[type] ?? { name: type, shape: '기본 모양' };
 
-const PRO_NODE_LIBRARY = [
+const PRO_NODE_LIBRARY: ProNodeLibraryCategory[] = [
   {
     category: '유니버스',
     tone: 'universe',
@@ -1790,24 +2051,24 @@ const PRO_NODE_LIBRARY = [
   },
 ];
 
-const PRO_BLUEPRINTS = Object.fromEntries(PRO_NODE_LIBRARY.flatMap((category) => category.items.map((item) => [
+const PRO_BLUEPRINTS = Object.fromEntries(PRO_NODE_LIBRARY.flatMap((category) => category.items.map((item): [string, ProNodeBlueprint & { category: string; tone: BlockTone }] => [
   item.id,
   { ...item, category: category.category, tone: category.tone },
 ])));
 
-const proNodeHeight = (node) => PRO_PORT_START + Math.max(node.inputs.length, node.outputs.length, 1) * PRO_PORT_GAP + 12;
+const proNodeHeight = (node: ProNode) => PRO_PORT_START + Math.max(node.inputs.length, node.outputs.length, 1) * PRO_PORT_GAP + 12;
 
-const proPortPoint = (node, direction, index) => ({
+const proPortPoint = (node: ProNode, direction: 'in' | 'out', index: number): CanvasPoint => ({
   x: node.x + (direction === 'out' ? PRO_NODE_WIDTH : 0),
   y: node.y + PRO_PORT_START + index * PRO_PORT_GAP,
 });
 
-const proLinkPath = (from, to) => {
+const proLinkPath = (from: CanvasPoint, to: CanvasPoint) => {
   const curve = Math.max(46, Math.min(150, Math.abs(to.x - from.x) * .55));
   return `M ${from.x} ${from.y} C ${from.x + curve} ${from.y}, ${to.x - curve} ${to.y}, ${to.x} ${to.y}`;
 };
 
-const createProNode = (blueprintId, id, x, y, overrides = {}) => {
+const createProNode = (blueprintId: string, id: string, x: number, y: number, overrides: Partial<ProNode> = {}): ProNode => {
   const blueprint = PRO_BLUEPRINTS[blueprintId];
   return {
     id,
@@ -1826,7 +2087,7 @@ const createProNode = (blueprintId, id, x, y, overrides = {}) => {
   };
 };
 
-const INITIAL_PRO_NODES = [
+const INITIAL_PRO_NODES: ProNode[] = [
   createProNode('basket', 'node-basket', 24, 176),
   createProNode('quotes', 'node-quotes', 256, 176),
   createProNode('feature', 'node-feature-a', 488, 40, { title: '지표 계산 A' }),
@@ -1841,7 +2102,7 @@ const INITIAL_PRO_NODES = [
   createProNode('processor', 'node-processor', 1416, 176),
 ];
 
-const INITIAL_PRO_LINKS = [
+const INITIAL_PRO_LINKS: ProLink[] = [
   { id: 'link-1', from: { nodeId: 'node-basket', portId: 'out' }, to: { nodeId: 'node-quotes', portId: 'in' } },
   { id: 'link-2', from: { nodeId: 'node-quotes', portId: 'out' }, to: { nodeId: 'node-feature-a', portId: 'in' } },
   { id: 'link-3', from: { nodeId: 'node-quotes', portId: 'out' }, to: { nodeId: 'node-feature-b', portId: 'in' } },
@@ -1855,45 +2116,50 @@ const INITIAL_PRO_LINKS = [
 
 const PRO_TIMEFRAMES = ['1분', '5분', '15분', '1시간', '1일'];
 
-export function ProEditor({ goBack, openEditor }) {
-  const [nodes, setNodes] = useState(INITIAL_PRO_NODES);
-  const [links, setLinks] = useState(INITIAL_PRO_LINKS);
-  const [selectedNodeId, setSelectedNodeId] = useState('node-compare-a');
-  const [pan, setPan] = useState({ x: 0, y: 0 });
+interface ProEditorProps {
+  goBack: () => void;
+  openEditor?: (mode: EditorMode) => void;
+}
+
+export function ProEditor({ goBack, openEditor }: ProEditorProps) {
+  const [nodes, setNodes] = useState<ProNode[]>(INITIAL_PRO_NODES);
+  const [links, setLinks] = useState<ProLink[]>(INITIAL_PRO_LINKS);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>('node-compare-a');
+  const [pan, setPan] = useState<CanvasPoint>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [panGesture, setPanGesture] = useState(null);
+  const [panGesture, setPanGesture] = useState<CardMoveGesture | null>(null);
   const [spacePanning, setSpacePanning] = useState(false);
-  const [nodeMove, setNodeMove] = useState(null);
-  const [linkDraft, setLinkDraft] = useState(null);
-  const [picker, setPicker] = useState(null);
+  const [nodeMove, setNodeMove] = useState<NodeMoveGesture | null>(null);
+  const [linkDraft, setLinkDraft] = useState<LinkDraft | null>(null);
+  const [picker, setPicker] = useState<ProPicker | null>(null);
   const [pickerQuery, setPickerQuery] = useState('');
-  const [libraryDrag, setLibraryDrag] = useState(null);
+  const [libraryDrag, setLibraryDrag] = useState<ProNodeBlueprint | null>(null);
   const [nodeQuery, setNodeQuery] = useState('');
   const [announcement, setAnnouncement] = useState('');
-  const [notice, setNotice] = useState(null);
+  const [notice, setNotice] = useState<ProNotice | null>(null);
   const [trashReady, setTrashReady] = useState(false);
   const spacePanningRef = useRef(false);
-  const pointerPositionRef = useRef(null);
-  const workspaceRef = useRef(null);
-  const trashZoneRef = useRef(null);
+  const pointerPositionRef = useRef<CanvasPoint | null>(null);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const trashZoneRef = useRef<HTMLDivElement | null>(null);
   const sequenceRef = useRef(INITIAL_PRO_LINKS.length);
 
-  const nodeById = useMemo(() => Object.fromEntries(nodes.map((node) => [node.id, node])), [nodes]);
+  const nodeById = useMemo(() => Object.fromEntries(nodes.map((node): [string, ProNode] => [node.id, node])), [nodes]);
   const filteredLibrary = useMemo(() => PRO_NODE_LIBRARY.map((category) => ({
     ...category,
     items: category.items.filter((item) => `${item.title} ${item.detail}`.toLowerCase().includes(nodeQuery.trim().toLowerCase())),
   })).filter((category) => category.items.length > 0), [nodeQuery]);
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
-  const isInputLinked = (nodeId, portId) => links.some((link) => link.to.nodeId === nodeId && link.to.portId === portId);
+  const isInputLinked = (nodeId: string, portId: string) => links.some((link) => link.to.nodeId === nodeId && link.to.portId === portId);
 
   useEffect(() => {
-    const isTypingTarget = (target) => target?.closest?.('input, textarea, select, [contenteditable="true"]');
+    const isTypingTarget = (target: EventTarget | null) => (target as Element | null)?.closest?.('input, textarea, select, [contenteditable="true"]');
     const stopSpacePanning = () => {
       spacePanningRef.current = false;
       setSpacePanning(false);
     };
-    const handleKeyDown = (event) => {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code === 'Space' && !isTypingTarget(event.target)) {
         event.preventDefault();
         if (spacePanningRef.current) return;
@@ -1901,7 +2167,7 @@ export function ProEditor({ goBack, openEditor }) {
         setSpacePanning(true);
       }
     };
-    const handleKeyUp = (event) => {
+    const handleKeyUp = (event: KeyboardEvent) => {
       if (event.code === 'Space') stopSpacePanning();
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -1914,12 +2180,12 @@ export function ProEditor({ goBack, openEditor }) {
     };
   }, []);
 
-  const nextId = (prefix) => {
+  const nextId = (prefix: string) => {
     sequenceRef.current += 1;
     return `${prefix}-${sequenceRef.current}`;
   };
 
-  const worldPoint = (clientX, clientY) => {
+  const worldPoint = (clientX: number, clientY: number): CanvasPoint => {
     const bounds = workspaceRef.current?.getBoundingClientRect();
     if (!bounds) return { x: 0, y: 0 };
     return {
@@ -1928,9 +2194,9 @@ export function ProEditor({ goBack, openEditor }) {
     };
   };
 
-  const reachesNode = (startNodeId, targetNodeId) => {
-    const visited = new Set();
-    const walk = (nodeId) => {
+  const reachesNode = (startNodeId: string, targetNodeId: string) => {
+    const visited = new Set<string>();
+    const walk = (nodeId: string): boolean => {
       if (nodeId === targetNodeId) return true;
       if (visited.has(nodeId)) return false;
       visited.add(nodeId);
@@ -1939,12 +2205,12 @@ export function ProEditor({ goBack, openEditor }) {
     return walk(startNodeId);
   };
 
-  const rejectConnection = (problem, impact, fix) => {
+  const rejectConnection = (problem: string, impact: string, fix: string) => {
     setNotice({ kind: 'error', problem, impact, fix });
     setAnnouncement(`연결하지 못했습니다. ${problem} ${impact} ${fix}`);
   };
 
-  const connectPorts = (source, target) => {
+  const connectPorts = (source: ProLinkEnd, target: ProLinkEnd) => {
     const fromNode = nodeById[source.nodeId];
     const toNode = nodeById[target.nodeId];
     const fromPort = fromNode?.outputs.find((port) => port.id === source.portId);
@@ -1975,7 +2241,7 @@ export function ProEditor({ goBack, openEditor }) {
     setAnnouncement(`${fromNode.title}의 ${fromPort.label} 출력을 ${toNode.title}의 ${toPort.label} 입력에 연결했습니다.`);
   };
 
-  const deleteNode = (nodeId) => {
+  const deleteNode = (nodeId: string) => {
     const node = nodeById[nodeId];
     if (!node) return;
     const removedLinks = links.filter((link) => link.from.nodeId === nodeId || link.to.nodeId === nodeId);
@@ -1998,14 +2264,14 @@ export function ProEditor({ goBack, openEditor }) {
     setAnnouncement(`${node.title} 노드와 연결을 복원했습니다.`);
   };
 
-  const deleteLink = (linkId) => {
+  const deleteLink = (linkId: string) => {
     setLinks((current) => current.filter((link) => link.id !== linkId));
     setAnnouncement('연결을 삭제했습니다.');
   };
 
   useEffect(() => {
-    const isTypingTarget = (target) => target?.closest?.('input, textarea, select, [contenteditable="true"]');
-    const handleDelete = (event) => {
+    const isTypingTarget = (target: EventTarget | null) => (target as Element | null)?.closest?.('input, textarea, select, [contenteditable="true"]');
+    const handleDelete = (event: KeyboardEvent) => {
       if (event.key !== 'Delete' && event.key !== 'Backspace') return;
       if (!selectedNodeId || isTypingTarget(event.target)) return;
       event.preventDefault();
@@ -2015,7 +2281,7 @@ export function ProEditor({ goBack, openEditor }) {
     return () => window.removeEventListener('keydown', handleDelete);
   });
 
-  const addNode = (blueprintId, position) => {
+  const addNode = (blueprintId: string, position: CanvasPoint) => {
     const node = createProNode(blueprintId, nextId(`node-${blueprintId}`), Math.round(position.x), Math.round(position.y));
     setNodes((current) => [...current, node]);
     setSelectedNodeId(node.id);
@@ -2024,7 +2290,7 @@ export function ProEditor({ goBack, openEditor }) {
     return node;
   };
 
-  const addNodeAtViewportCenter = (blueprintId) => {
+  const addNodeAtViewportCenter = (blueprintId: string) => {
     const bounds = workspaceRef.current?.getBoundingClientRect();
     const center = bounds && bounds.width
       ? worldPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2)
@@ -2032,7 +2298,7 @@ export function ProEditor({ goBack, openEditor }) {
     addNode(blueprintId, { x: center.x - PRO_NODE_WIDTH / 2, y: center.y - PRO_PORT_START / 2 });
   };
 
-  const addNodeFromPicker = (item) => {
+  const addNodeFromPicker = (item: ProNodeBlueprint) => {
     if (!picker) return;
     const point = worldPoint(picker.x, picker.y);
     const node = createProNode(item.id, nextId(`node-${item.id}`), Math.round(point.x), Math.round(point.y - PRO_PORT_START));
@@ -2051,34 +2317,34 @@ export function ProEditor({ goBack, openEditor }) {
   const pickerGroups = useMemo(() => {
     if (!picker) return [];
     const query = pickerQuery.trim().toLowerCase();
-    const groups = new Map();
+    const groups = new Map<string, Array<ProNodeBlueprint & { tone: BlockTone }>>();
     PRO_NODE_LIBRARY.forEach((category) => category.items.forEach((item) => {
       if (!item.inputs.some((port) => port.type === picker.type)) return;
       if (query && !`${item.title} ${item.detail}`.toLowerCase().includes(query)) return;
       const name = item.group ?? category.category;
       if (!groups.has(name)) groups.set(name, []);
-      groups.get(name).push({ ...item, tone: category.tone });
+      groups.get(name)!.push({ ...item, tone: category.tone });
     }));
     return [...groups.entries()].map(([name, items]) => ({ name, items }));
   }, [picker, pickerQuery]);
 
-  const isPointerOverTrash = (event) => {
+  const isPointerOverTrash = (event: { clientX: number; clientY: number }) => {
     const bounds = trashZoneRef.current?.getBoundingClientRect();
     if (!bounds) return false;
     return event.clientX >= bounds.left && event.clientX <= bounds.right
       && event.clientY >= bounds.top && event.clientY <= bounds.bottom;
   };
 
-  const beginNodeMove = (event, node, fromHandle = false) => {
+  const beginNodeMove = (event: ReactPointerEvent<HTMLElement>, node: ProNode, fromHandle = false) => {
     if (event.button !== 0) return;
-    if (!fromHandle && event.target.closest?.('button, input, select, .graph-port')) return;
+    if (!fromHandle && (event.target as Element).closest?.('button, input, select, .graph-port')) return;
     event.stopPropagation();
     setSelectedNodeId(node.id);
     setNodeMove({ nodeId: node.id, startX: event.clientX, startY: event.clientY, originX: node.x, originY: node.y });
     workspaceRef.current?.setPointerCapture?.(event.pointerId);
   };
 
-  const beginLink = (event, node, portId, type) => {
+  const beginLink = (event: ReactPointerEvent<HTMLButtonElement>, node: ProNode, portId: string, type: ProPortType) => {
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
@@ -2088,7 +2354,7 @@ export function ProEditor({ goBack, openEditor }) {
     setLinkDraft({ source: { nodeId: node.id, portId }, type, origin, point: origin });
   };
 
-  const releaseOnOutput = (event, node, portId, type) => {
+  const releaseOnOutput = (event: ReactPointerEvent<HTMLButtonElement>, node: ProNode, portId: string, type: ProPortType) => {
     event.stopPropagation();
     if (linkDraft && linkDraft.source.nodeId !== node.id) {
       setLinkDraft(null);
@@ -2100,35 +2366,35 @@ export function ProEditor({ goBack, openEditor }) {
     setPickerQuery('');
   };
 
-  const releaseOnInput = (event, node, portId) => {
+  const releaseOnInput = (event: ReactPointerEvent<HTMLButtonElement>, node: ProNode, portId: string) => {
     if (!linkDraft) return;
     event.stopPropagation();
     connectPorts(linkDraft.source, { nodeId: node.id, portId });
     setLinkDraft(null);
   };
 
-  const beginCanvasGesture = (event) => {
+  const beginCanvasGesture = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
     setPicker(null);
     setPanGesture({ startX: event.clientX, startY: event.clientY, originX: pan.x, originY: pan.y });
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
 
-  const updateCursorSpotlight = (event) => {
+  const updateCursorSpotlight = (event: ReactPointerEvent<HTMLDivElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
-    const canvas = event.currentTarget.closest('.pro-canvas');
+    const canvas = event.currentTarget.closest<HTMLElement>('.pro-canvas');
     if (!canvas) return;
     canvas.style.setProperty('--spotlight-x', `${event.clientX - bounds.left}px`);
     canvas.style.setProperty('--spotlight-y', `${event.clientY - bounds.top}px`);
     canvas.style.setProperty('--spotlight-opacity', '1');
   };
 
-  const hideCursorSpotlight = (event) => {
-    event.currentTarget.closest('.pro-canvas')?.style.setProperty('--spotlight-opacity', '0');
+  const hideCursorSpotlight = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.currentTarget.closest<HTMLElement>('.pro-canvas')?.style.setProperty('--spotlight-opacity', '0');
     pointerPositionRef.current = null;
   };
 
-  const updateCanvasGesture = (event) => {
+  const updateCanvasGesture = (event: ReactPointerEvent<HTMLDivElement>) => {
     updateCursorSpotlight(event);
     const previousPointer = pointerPositionRef.current;
     pointerPositionRef.current = { x: event.clientX, y: event.clientY };
@@ -2163,7 +2429,7 @@ export function ProEditor({ goBack, openEditor }) {
     }
   };
 
-  const finishCanvasGesture = (event) => {
+  const finishCanvasGesture = (event: ReactPointerEvent<HTMLDivElement>) => {
     const cancelled = event?.type === 'pointercancel';
     if (nodeMove && !cancelled && isPointerOverTrash(event)) {
       deleteNode(nodeMove.nodeId);
@@ -2177,7 +2443,7 @@ export function ProEditor({ goBack, openEditor }) {
     setTrashReady(false);
   };
 
-  const zoomCanvasWithWheel = (event) => {
+  const zoomCanvasWithWheel = (event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
     if (nodeMove || linkDraft) return;
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -2211,14 +2477,14 @@ export function ProEditor({ goBack, openEditor }) {
     setAnnouncement('그래프 전체가 보이도록 배율을 맞췄습니다.');
   };
 
-  const startLibraryDrag = (event, item) => {
+  const startLibraryDrag = (event: DragEvent<HTMLButtonElement>, item: ProNodeBlueprint) => {
     event.stopPropagation();
     event.dataTransfer.effectAllowed = 'copy';
     event.dataTransfer.setData('text/plain', item.id);
     setLibraryDrag(item);
   };
 
-  const dropLibraryNode = (event) => {
+  const dropLibraryNode = (event: DragEvent<HTMLDivElement>) => {
     if (!libraryDrag) return;
     event.preventDefault();
     const point = worldPoint(event.clientX, event.clientY);
@@ -2226,18 +2492,18 @@ export function ProEditor({ goBack, openEditor }) {
     setLibraryDrag(null);
   };
 
-  const updateSelectedParam = (key, value) => {
+  const updateSelectedParam = (key: 'threshold' | 'timeframe', value: string) => {
     setNodes((current) => current.map((node) => node.id === selectedNodeId
       ? { ...node, params: { ...node.params, [key]: value } }
       : node));
   };
 
-  const renameSelectedNode = (title) => {
+  const renameSelectedNode = (title: string) => {
     setNodes((current) => current.map((node) => node.id === selectedNodeId ? { ...node, title } : node));
   };
 
   const runValidation = () => {
-    const issues = [];
+    const issues: ProValidationIssue[] = [];
     if (nodes.length === 0) {
       issues.push({
         nodeId: null,
@@ -2290,12 +2556,12 @@ export function ProEditor({ goBack, openEditor }) {
     setAnnouncement('샘플 편집기에서는 서버에 저장하지 않습니다.');
   };
 
-  const renderPort = (node, port, index, direction) => {
+  const renderPort = (node: ProNode, port: ProPort, index: number, direction: 'in' | 'out') => {
     const meta = describePortType(port.type);
     const linked = direction === 'in'
       ? isInputLinked(node.id, port.id)
       : links.some((link) => link.from.nodeId === node.id && link.from.portId === port.id);
-    const compatible = Boolean(linkDraft)
+    const compatible = linkDraft !== null
       && direction === 'in'
       && linkDraft.type === port.type
       && linkDraft.source.nodeId !== node.id
@@ -2317,7 +2583,7 @@ export function ProEditor({ goBack, openEditor }) {
     </button>;
   };
 
-  const linkTargetReady = (node) => Boolean(linkDraft)
+  const linkTargetReady = (node: ProNode) => linkDraft !== null
     && linkDraft.source.nodeId !== node.id
     && node.inputs.some((port) => port.type === linkDraft.type && !isInputLinked(node.id, port.id));
 
@@ -2375,7 +2641,7 @@ export function ProEditor({ goBack, openEditor }) {
           backgroundPosition: `${pan.x}px ${pan.y}px`,
           '--canvas-pan-x': `${pan.x}px`,
           '--canvas-pan-y': `${pan.y}px`,
-        }}
+        } as CSSProperties}
       >
         <div className="cursor-dot-spotlight" data-testid="cursor-dot-spotlight" aria-hidden="true" />
         <div className="pro-graph-controls" role="group" aria-label="그래프 도구">
@@ -2527,7 +2793,7 @@ export function ProEditor({ goBack, openEditor }) {
           <strong>문제 · {notice.problem}</strong>
           <span>영향 · {notice.impact}</span>
           <span>해결 · {notice.fix}</span>
-          {notice.count > 1 && <small>남은 문제 {notice.count - 1}개</small>}
+          {(notice.count ?? 0) > 1 && <small>남은 문제 {(notice.count ?? 0) - 1}개</small>}
         </div>
         : <div><strong>{notice.message}</strong></div>}
       <div className="pro-editor-notice-actions">
