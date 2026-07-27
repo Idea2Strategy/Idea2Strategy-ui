@@ -23,6 +23,7 @@ describe('Bot operations', () => {
     // end value, so assert presence rather than uniqueness.
     expect(within(detail).getAllByText('$24,892.40').length).toBeGreaterThan(0);
 
+    await user.click(screen.getByRole('button', { name: '대회 참가 중' }));
     await user.click(screen.getByRole('button', { name: 'Room Beta 상세 보기' }));
 
     const next = screen.getByRole('region', { name: 'Room Beta 운영 상세' });
@@ -37,11 +38,9 @@ describe('Bot operations', () => {
 
     const filter = screen.getByRole('group', { name: '봇 운용 유형 필터' });
     const list = () => within(screen.getByRole('list', { name: '봇 목록 결과' })).getAllByRole('listitem');
-    expect(list()).toHaveLength(3);
-    expect(within(filter).getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'true');
-
-    await user.click(within(filter).getByRole('button', { name: '개인 운용' }));
     expect(list()).toHaveLength(2);
+    expect(within(filter).queryByRole('button', { name: '전체' })).not.toBeInTheDocument();
+    expect(within(filter).getByRole('button', { name: '개인 운용' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Atlas 07 상세 보기' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pair Lab 상세 보기' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Room Beta 상세 보기' })).not.toBeInTheDocument();
@@ -381,6 +380,7 @@ describe('Bot operations', () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
+    await user.click(screen.getByRole('button', { name: '대회 참가 중' }));
     await user.click(screen.getByRole('button', { name: 'Room Beta 상세 보기' }));
     await user.click(screen.getByRole('button', { name: '전략 구성 보기' }));
 

@@ -28,7 +28,7 @@ import { ReadOnlyStrategyBlock } from './StrategyViews.jsx';
 
 /* ---------- Types ----------------------------------------------------------- */
 
-type FilterId = 'all' | 'personal' | 'competition';
+type FilterId = 'personal' | 'competition';
 type TabId = 'overview' | 'positions' | 'decisions';
 type StepTone = 'universe' | 'data' | 'indicator' | 'condition' | 'risk' | 'order' | 'portfolio' | 'time';
 type LogScope = 'fills' | 'all';
@@ -369,13 +369,11 @@ const eventDaysAgo = (time: string): number => {
 };
 
 const botOperationFilters: Array<{ id: FilterId; label: string }> = [
-  { id: 'all', label: '전체' },
   { id: 'personal', label: '개인 운용' },
   { id: 'competition', label: '대회 참가 중' },
 ];
 
 const matchesBotFilter = (bot: BotRecord, filter: FilterId): boolean => {
-  if (filter === 'all') return true;
   const isCompetitionBot = bot.labels.includes('대회');
   return filter === 'competition' ? isCompetitionBot : !isCompetitionBot;
 };
@@ -818,7 +816,7 @@ function StrategyLayoutModal({ botName, detail, layout, onClose, onSave }: Strat
   retries next evaluation) and are recorded there, never escalated.
 */
 export function BotsView(): ReactNode {
-  const [filter, setFilter] = useState<FilterId>('all');
+  const [filter, setFilter] = useState<FilterId>('personal');
   const [selectedName, setSelectedName] = useState<string>(botList[0].name);
   const [tab, setTab] = useState<TabId>('overview');
   const [layoutOpen, setLayoutOpen] = useState(false);
@@ -949,7 +947,9 @@ export function BotsView(): ReactNode {
           icon={Bot}
           title="조건에 맞는 봇이 없습니다."
           detail="다른 운용 유형을 선택하면 나머지 봇을 확인할 수 있습니다."
-          action={<Button onClick={() => setFilter('all')}>전체 보기</Button>}
+          action={<Button onClick={() => setFilter(filter === 'personal' ? 'competition' : 'personal')}>
+            {filter === 'personal' ? '대회 참가 봇 보기' : '개인 운용 봇 보기'}
+          </Button>}
         />}
       </section>
 
