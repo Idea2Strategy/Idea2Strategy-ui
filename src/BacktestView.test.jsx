@@ -127,8 +127,18 @@ describe('BacktestView', () => {
     expect(screen.getByRole('img', { name: 'SPY 캔들 차트와 매수 매도 기록' })).toBeInTheDocument();
     expect(screen.getAllByTestId('trade-marker').length).toBeGreaterThan(0);
     expect(screen.getAllByTestId('trade-marker')[0]).toHaveTextContent(/매수|매도/);
-    expect(screen.getByText('선택한 종목')).toBeInTheDocument();
+    const quickSymbols = screen.getByRole('list', { name: '빠른 거래 종목 선택' });
+    expect(within(quickSymbols).getAllByRole('listitem')).toHaveLength(3);
+    expect(within(quickSymbols).getByRole('button', { name: 'SPY 종목 빠른 선택' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(quickSymbols).getByRole('button', { name: 'AAPL 종목 빠른 선택' })).toBeInTheDocument();
+    expect(within(quickSymbols).getByRole('button', { name: 'QQQ 종목 빠른 선택' })).toBeInTheDocument();
     expect(screen.queryByRole('searchbox', { name: '거래 종목 검색' })).not.toBeInTheDocument();
+
+    await user.click(within(quickSymbols).getByRole('button', { name: 'QQQ 종목 빠른 선택' }));
+
+    expect(screen.getByRole('img', { name: 'QQQ 캔들 차트와 매수 매도 기록' })).toBeInTheDocument();
+
+    await user.click(within(quickSymbols).getByRole('button', { name: 'SPY 종목 빠른 선택' }));
 
     const dailyCandleCount = screen.getAllByTestId('market-candle').length;
     expect(dailyCandleCount).toBe(60);

@@ -2386,13 +2386,55 @@
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--surface-2) 72%, transparent);
 }
-.variant-balanced[data-design="signal-studio"] .backtest-selected-symbol {
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-preview {
   min-width: 0;
+  flex: 1;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
-.variant-balanced[data-design="signal-studio"] .backtest-selected-symbol-code,
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-preview::-webkit-scrollbar {
+  display: none;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-preview > div {
+  min-width: 118px;
+  flex: 0 1 150px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-preview button {
+  width: 100%;
+  height: 40px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text);
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-preview button:hover {
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--accent-soft) 34%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-preview button.active {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line));
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 58%, var(--surface));
+  box-shadow: inset 0 -2px var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-preview strong {
+  font: 800 10px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-symbol-preview span {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .variant-balanced[data-design="signal-studio"] .backtest-symbol-modal-code {
   width: 34px;
   height: 34px;
@@ -2404,37 +2446,6 @@
   color: var(--accent);
   background: var(--accent-soft);
   font: 800 10px var(--font-mono);
-}
-.variant-balanced[data-design="signal-studio"] .backtest-selected-symbol > span:nth-child(2) {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: baseline;
-  gap: 2px 7px;
-}
-.variant-balanced[data-design="signal-studio"] .backtest-selected-symbol small {
-  grid-column: 1 / -1;
-  color: var(--text-faint);
-  font-size: 9px;
-  font-weight: 700;
-}
-.variant-balanced[data-design="signal-studio"] .backtest-selected-symbol strong {
-  font: 800 12px var(--font-mono);
-}
-.variant-balanced[data-design="signal-studio"] .backtest-selected-symbol em {
-  overflow: hidden;
-  color: var(--text-soft);
-  font-size: 10px;
-  font-style: normal;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.variant-balanced[data-design="signal-studio"] .backtest-selected-symbol > b {
-  padding-left: 10px;
-  border-left: 1px solid var(--line);
-  color: var(--text-faint);
-  font: 700 9px var(--font-mono);
-  white-space: nowrap;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-symbol-modal-trigger {
   height: 34px;
@@ -6142,8 +6153,8 @@ small.dashboard-bot-scope {
     align-items: center;
     flex-direction: row;
   }
-  .variant-balanced[data-design="signal-studio"] .backtest-selected-symbol > b {
-    display: none;
+  .variant-balanced[data-design="signal-studio"] .backtest-symbol-modal-trigger {
+    flex: 0 0 auto;
   }
   .variant-balanced[data-design="signal-studio"] .backtest-symbol-modal-backdrop {
     padding: 8px;

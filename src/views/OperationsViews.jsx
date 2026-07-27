@@ -591,6 +591,10 @@ export function BacktestView() {
   const activeBenchmarks = backtestBenchmarks.filter((benchmark) => activeBenchmarkIds.includes(benchmark.id));
   const selectedBotInstruments = botInstruments[selectedBot.name];
   const selectedInstrument = selectedBotInstruments.find((instrument) => instrument.symbol === selectedSymbol) ?? selectedBotInstruments[0];
+  const previewInstruments = [
+    selectedInstrument,
+    ...selectedBotInstruments.filter((instrument) => instrument.symbol !== selectedInstrument.symbol),
+  ].slice(0, 3);
   const filteredInstruments = selectedBotInstruments.filter((instrument) => `${instrument.symbol} ${instrument.name}`.toLowerCase().includes(symbolQuery.trim().toLowerCase()));
   const filteredExecutions = useMemo(() => selectedInstrument.executions
     .filter((execution) => (!executionStartDate || execution.date >= executionStartDate)
@@ -770,10 +774,17 @@ export function BacktestView() {
     </section>
     <Panel className="backtest-trade-chart-panel" title="종목별 체결 차트" subtitle={`${selectedBot.name} · 조정 가격 · 미국 동부 시각`}>
       <div className="backtest-symbol-toolbar">
-        <div className="backtest-selected-symbol">
-          <span className="backtest-selected-symbol-code">{selectedInstrument.symbol.slice(0, 2)}</span>
-          <span><small>선택한 종목</small><strong>{selectedInstrument.symbol}</strong><em>{selectedInstrument.name}</em></span>
-          <b>{selectedInstrument.executions.length}건 체결</b>
+        <div className="backtest-symbol-preview" role="list" aria-label="빠른 거래 종목 선택">
+          {previewInstruments.map((instrument) => {
+            const isSelected = instrument.symbol === selectedInstrument.symbol;
+            return <div role="listitem" key={instrument.symbol}><button
+              type="button"
+              aria-label={`${instrument.symbol} 종목 빠른 선택`}
+              aria-pressed={isSelected}
+              className={isSelected ? 'active' : ''}
+              onClick={() => selectInstrument(instrument)}
+            ><strong>{instrument.symbol}</strong><span>{instrument.name}</span></button></div>;
+          })}
         </div>
         <button
           type="button"
