@@ -520,7 +520,7 @@ export const ReadOnlyStrategyBlock = ({
   </div>;
 };
 
-export function BasicEditor({ goBack, openEditor }) {
+export function BasicEditor({ goBack, openEditor, onLaunchBot }) {
   const [activeGroup, setActiveGroup] = useState(null);
   const [activeSectionId, setActiveSectionId] = useState('section-1');
   const [selectedCardId, setSelectedCardId] = useState('primary-buy');
@@ -550,6 +550,9 @@ export function BasicEditor({ goBack, openEditor }) {
   const [cardSizes, setCardSizes] = useState({});
   const [announcement, setAnnouncement] = useState('');
   const [saveFeedback, setSaveFeedback] = useState(null);
+  const [launchDialogOpen, setLaunchDialogOpen] = useState(false);
+  const [botName, setBotName] = useState('');
+  const [botDescription, setBotDescription] = useState('');
   const [templateQuery, setTemplateQuery] = useState('');
   const [blockQuery, setBlockQuery] = useState('');
   const toggleGroup = (group) => setActiveGroup((current) => current === group ? null : group);
@@ -615,21 +618,47 @@ export function BasicEditor({ goBack, openEditor }) {
     setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
   };
 
-  const runBasicValidation = () => {
-    const nextFeedback = isLaunchable
-      ? {
-        tone: 'positive',
-        title: '검증을 통과했습니다.',
-        detail: '이 전략은 출시 가능한 상태입니다.',
-      }
-      : {
+  const closeLaunchDialog = () => {
+    setLaunchDialogOpen(false);
+    setBotName('');
+    setBotDescription('');
+  };
+
+  const preparePersonalBotLaunch = () => {
+    if (!isLaunchable) {
+      const nextFeedback = {
         tone: 'warning',
-        title: `검증 결과 ${validationIssues.length}개 항목이 남아 있습니다.`,
+        title: `출시하려면 ${validationIssues.length}개 항목을 완성해 주세요.`,
         detail: validationIssues[0].message,
       };
-    setSaveFeedback(nextFeedback);
-    setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
+      setSaveFeedback(nextFeedback);
+      setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
+      return;
+    }
+
+    setSaveFeedback(null);
+    setLaunchDialogOpen(true);
+    setAnnouncement('개인 운용 봇 정보를 입력해 주세요.');
   };
+
+  const launchPersonalBot = (event) => {
+    event.preventDefault();
+    const name = botName.trim();
+    const description = botDescription.trim();
+    if (!name || !description) return;
+
+    closeLaunchDialog();
+    onLaunchBot?.({ name, description });
+  };
+
+  useEffect(() => {
+    if (!launchDialogOpen) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') closeLaunchDialog();
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [launchDialogOpen]);
 
   useEffect(() => {
     if (typeof ResizeObserver === 'undefined') return undefined;
@@ -1376,7 +1405,7 @@ export function BasicEditor({ goBack, openEditor }) {
             kind="primary"
             icon={Rocket}
             aria-describedby="personal-bot-launch-tooltip"
-            onClick={runBasicValidation}
+            onClick={preparePersonalBotLaunch}
           >개인 봇 출시</Button>
           <span className="editor-action-tooltip" id="personal-bot-launch-tooltip" role="tooltip">
             <strong>개인 운용 봇</strong>
@@ -1561,6 +1590,67 @@ export function BasicEditor({ goBack, openEditor }) {
       <div><strong>{saveFeedback.title}</strong><small>{saveFeedback.detail}</small></div>
       <button type="button" aria-label="저장 알림 닫기" onClick={() => setSaveFeedback(null)}><X size={14} /></button>
     </div>}
+    {launchDialogOpen && createPortal(<div
+      className="personal-bot-launch-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) closeLaunchDialog();
+      }}
+    >
+      <section
+        className="personal-bot-launch-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="personal-bot-launch-title"
+      >
+        <header>
+          <span className="personal-bot-launch-icon" aria-hidden="true"><Rocket size={18} /></span>
+          <div>
+            <small>PERSONAL BOT</small>
+            <h2 id="personal-bot-launch-title">개인 운용 봇 출시</h2>
+            <p>전략을 실행할 봇의 이름과 설명을 정해 주세요.</p>
+          </div>
+          <button type="button" aria-label="출시 창 닫기" onClick={closeLaunchDialog}><X size={17} /></button>
+        </header>
+        <form onSubmit={launchPersonalBot}>
+          <label className="personal-bot-launch-field">
+            <span><strong>봇 이름</strong><small>{botName.length}/40</small></span>
+            <input
+              autoFocus
+              aria-label="봇 이름"
+              maxLength={40}
+              placeholder="예: Momentum Scout"
+              value={botName}
+              onChange={(event) => setBotName(event.target.value)}
+            />
+            <small>봇 목록에서 쉽게 찾을 수 있는 이름을 입력해 주세요.</small>
+          </label>
+          <label className="personal-bot-launch-field">
+            <span><strong>봇 설명</strong><small>{botDescription.length}/160</small></span>
+            <textarea
+              aria-label="봇 설명"
+              maxLength={160}
+              rows={4}
+              placeholder="이 봇이 어떤 전략으로 운용되는지 간단히 설명해 주세요."
+              value={botDescription}
+              onChange={(event) => setBotDescription(event.target.value)}
+            />
+          </label>
+          <div className="personal-bot-launch-note">
+            <ShieldCheck size={16} aria-hidden="true" />
+            <span><strong>개인 운용으로 시작합니다</strong><small>출시 후 봇 운영 화면에서 상태를 확인할 수 있어요.</small></span>
+          </div>
+          <footer>
+            <Button type="button" onClick={closeLaunchDialog}>취소</Button>
+            <Button
+              type="submit"
+              kind="primary"
+              icon={Rocket}
+              disabled={!botName.trim() || !botDescription.trim()}
+            >봇 출시하기</Button>
+          </footer>
+        </form>
+      </section>
+    </div>, document.body)}
   </div></Localized>;
 }
 

@@ -187,7 +187,7 @@ function ProductApp() {
   const content = <Routes>
     <Route path="/" element={<DashboardView setPage={setPage} openEditor={openEditor} />} />
     <Route path="/strategies" element={<StrategyHome openEditor={openEditor} />} />
-    <Route path="/strategies/new/basic" element={<BasicEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} />} />
+    <Route path="/strategies/new/basic" element={<BasicEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
     <Route path="/strategies/new/pro" element={<ProEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} />} />
     <Route path="/bots" element={<BotsView />} />
     <Route path="/backtests" element={<BacktestView />} />

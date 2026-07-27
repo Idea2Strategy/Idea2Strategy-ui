@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test } from 'vitest';
 import { App } from './App.jsx';
@@ -47,6 +47,21 @@ describe('Signal product UI', () => {
     // The Pro command bar is as clean as Basic's: navigation and actions only.
     expect(screen.getByRole('toolbar', { name: 'Pro 편집 작업' })).toBeInTheDocument();
     expect(screen.queryByText(/샘플 데이터/)).not.toBeInTheDocument();
+  });
+
+  test('moves to bot operations after launching a personal bot', async () => {
+    const user = userEvent.setup();
+    window.history.replaceState({}, '', '/strategies/new/basic');
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
+    const dialog = screen.getByRole('dialog', { name: '개인 운용 봇 출시' });
+    await user.type(within(dialog).getByRole('textbox', { name: '봇 이름' }), 'Momentum Scout');
+    await user.type(within(dialog).getByRole('textbox', { name: '봇 설명' }), 'RSI 반등 전략을 운용합니다.');
+    await user.click(within(dialog).getByRole('button', { name: '봇 출시하기' }));
+
+    expect(window.location.pathname).toBe('/bots');
+    expect(screen.getByRole('heading', { name: '봇 운영 센터' })).toBeInTheDocument();
   });
 
   test('opens on the home dashboard and returns home when the brand is clicked', async () => {

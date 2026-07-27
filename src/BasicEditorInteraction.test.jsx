@@ -38,6 +38,34 @@ describe('Basic editor strategy explanations', () => {
     expect(openEditor).toHaveBeenCalledWith('pro');
   });
 
+  test('collects a bot name and description before launching a valid strategy', async () => {
+    const user = userEvent.setup();
+    const onLaunchBot = vi.fn();
+    render(<BasicEditor goBack={() => {}} openEditor={() => {}} onLaunchBot={onLaunchBot} />);
+
+    await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
+
+    const dialog = screen.getByRole('dialog', { name: '개인 운용 봇 출시' });
+    expect(dialog).toHaveAttribute('aria-modal', 'true');
+    const launchButton = within(dialog).getByRole('button', { name: '봇 출시하기' });
+    expect(launchButton).toBeDisabled();
+
+    await user.type(within(dialog).getByRole('textbox', { name: '봇 이름' }), '  Momentum Scout  ');
+    expect(launchButton).toBeDisabled();
+    await user.type(
+      within(dialog).getByRole('textbox', { name: '봇 설명' }),
+      '  RSI 반등 구간을 포착하는 개인 운용 봇입니다.  ',
+    );
+    expect(launchButton).toBeEnabled();
+
+    await user.click(launchButton);
+    expect(onLaunchBot).toHaveBeenCalledWith({
+      name: 'Momentum Scout',
+      description: 'RSI 반등 구간을 포착하는 개인 운용 봇입니다.',
+    });
+    expect(screen.queryByRole('dialog', { name: '개인 운용 봇 출시' })).not.toBeInTheDocument();
+  });
+
   test('uses beginner templates on the left and block ingredients on the right', () => {
     render(<BasicEditor goBack={() => {}} />);
 
@@ -587,6 +615,11 @@ describe('Basic editor strategy explanations', () => {
     await user.click(screen.getByRole('button', { name: '저장' }));
     expect(screen.getByRole('alert')).toHaveTextContent('미완성 상태로 저장했습니다.');
     expect(screen.getByRole('alert')).toHaveTextContent('매수 조건을 완성하면 출시할 수 있습니다.');
+
+    await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
+    expect(screen.queryByRole('dialog', { name: '개인 운용 봇 출시' })).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('출시하려면 1개 항목을 완성해 주세요.');
+    expect(screen.getByRole('alert')).toHaveTextContent('SECTION 01에 매수 블록이 필요합니다.');
 
     await user.click(screen.getByRole('button', { name: 'SECTION 01 필수 매수 블록 추가' }));
     expect(completeness).toHaveTextContent('출시 가능한 전략');
