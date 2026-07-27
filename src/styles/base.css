@@ -117,6 +117,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   padding: 12px 22px;
   pointer-events: none;
 }
+.basic-editor-commandbar { z-index: 20; }
 .basic-editor-context,
 .basic-editor-actions,
 .pro-editor-context,
@@ -125,6 +126,59 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   align-items: center;
   gap: 8px;
   pointer-events: auto;
+}
+.editor-launch-action {
+  position: relative;
+  display: flex;
+}
+.editor-action-tooltip {
+  position: absolute;
+  z-index: 25;
+  top: calc(100% + 10px);
+  right: 0;
+  width: max-content;
+  max-width: 220px;
+  display: grid;
+  gap: 3px;
+  padding: 9px 11px;
+  transform: translateY(-4px) scale(.98);
+  transform-origin: top right;
+  opacity: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--text);
+  background: var(--glass);
+  box-shadow: var(--shadow-float);
+  backdrop-filter: blur(16px);
+  pointer-events: none;
+  transition: opacity var(--motion-fast), transform var(--motion-fast);
+}
+.editor-action-tooltip::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  right: 18px;
+  width: 8px;
+  height: 8px;
+  transform: rotate(45deg);
+  border-top: 1px solid var(--glass-border);
+  border-left: 1px solid var(--glass-border);
+  background: var(--glass);
+}
+.editor-action-tooltip strong {
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1.35;
+}
+.editor-action-tooltip small {
+  color: var(--text-faint);
+  font-size: 9px;
+  line-height: 1.45;
+}
+.editor-launch-action:hover .editor-action-tooltip,
+.editor-launch-action:focus-within .editor-action-tooltip {
+  transform: translateY(0) scale(1);
+  opacity: 1;
 }
 .basic-validation-summary {
   position: absolute;

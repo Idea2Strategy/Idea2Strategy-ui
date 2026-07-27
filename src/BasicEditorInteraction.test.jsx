@@ -18,10 +18,11 @@ describe('Basic editor strategy explanations', () => {
     for (const name of ['목록', 'Basic 편집기', 'Pro 편집기', '저장', '개인 봇 출시', '축소', '배율 초기화', '확대']) {
       expect(screen.getByRole('button', { name })).toHaveClass('floating-editor-button');
     }
-    expect(screen.getByRole('button', { name: '개인 봇 출시' })).toHaveAttribute(
-      'title',
-      '검증 후 개인 운용 봇으로 출시합니다.',
-    );
+    const launchButton = screen.getByRole('button', { name: '개인 봇 출시' });
+    expect(launchButton).not.toHaveAttribute('title');
+    expect(launchButton).toHaveAttribute('aria-describedby', 'personal-bot-launch-tooltip');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('개인 운용 봇');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('전략을 검증하고 바로 출시해요.');
     expect(screen.queryByRole('button', { name: '검증' })).not.toBeInTheDocument();
     expect(screen.getByTestId('basic-editor-workspace')).toHaveClass('full-editor-workspace');
     expect(screen.getByTestId('basic-templates-panel')).toHaveClass('floating-editor-panel');
