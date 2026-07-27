@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { RoomsView } from './views/OperationsViews.jsx';
@@ -73,7 +73,7 @@ describe('Bot operations', () => {
     const log = () => screen.getByRole('list', { name: 'Atlas 07 판단 기록 목록' });
     expect(within(log()).getByText('SPY 12주 · $634.06')).toBeInTheDocument();
     expect(within(log()).getByText('SECTION 01 · SPY')).toBeInTheDocument();
-    expect(within(log()).getByText(/RSI 30 미만 → 예산 25% 시장가 매수/)).toBeInTheDocument();
+    expect(within(log()).getAllByText(/시초 15분 고가.*돌파 → 예산 25% 시장가 매수/).length).toBeGreaterThan(0);
     // Engine records join the same timeline once the person opts in.
     expect(within(log()).queryByText('예산 상한 검사 통과')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '전체 기록' }));
@@ -106,17 +106,58 @@ describe('Bot operations', () => {
     expect(within(log()).getAllByRole('listitem')).toHaveLength(5);
   });
 
-  test('a bot persona emoji can be changed and shows up in the list tile', async () => {
+  test('selecting a bot shape opens colored icon variants that apply immediately', async () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
-    await user.click(screen.getByRole('button', { name: 'Atlas 07 이모지 설정' }));
-    await user.click(screen.getByRole('button', { name: /공격적/ }));
+    await user.click(screen.getByRole('button', { name: 'Atlas 07 아이콘 설정' }));
 
-    expect(screen.getByRole('button', { name: 'Atlas 07 이모지 설정' })).toHaveTextContent('🔥');
-    expect(screen.getByRole('button', { name: 'Atlas 07 상세 보기' })).toHaveTextContent('🔥');
-    // Picking closes the picker.
-    expect(screen.queryByRole('group', { name: '봇 이모지 선택' })).not.toBeInTheDocument();
+    const iconShapes = screen.getByRole('group', { name: '아이콘 모양' });
+    expect(within(iconShapes).getAllByRole('button')).toHaveLength(12);
+    expect(screen.queryByText('집중')).not.toBeInTheDocument();
+    expect(screen.queryByText('공격적')).not.toBeInTheDocument();
+
+    const analyticalChoice = within(iconShapes).getByRole('button', { name: '분석형 봇 아이콘' });
+    expect(analyticalChoice.querySelector('.bot-icon-glyph')).toHaveAttribute('data-color', 'gray');
+    await user.click(analyticalChoice);
+
+    const initialVariants = screen.getByRole('group', { name: '분석형 봇 아이콘 색상 선택' });
+    expect(analyticalChoice.parentElement).toContainElement(initialVariants);
+    expect(within(initialVariants).getAllByRole('button')).toHaveLength(10);
+
+    await user.click(analyticalChoice);
+    expect(screen.queryByRole('group', { name: '분석형 봇 아이콘 색상 선택' })).not.toBeInTheDocument();
+    await user.click(analyticalChoice);
+
+    const colorVariants = screen.getByRole('group', { name: '분석형 봇 아이콘 색상 선택' });
+    const blueVariant = within(colorVariants).getByRole('button', { name: '분석형 봇 아이콘 파란색 적용' });
+    expect(blueVariant.querySelector('.bot-icon-glyph')).toHaveAttribute('data-icon', 'analytical');
+    expect(blueVariant.querySelector('.bot-icon-glyph')).toHaveAttribute('data-color', 'blue');
+
+    // Clicking the underlying picker dismisses the floating variants without applying.
+    await user.click(within(screen.getByRole('group', { name: '봇 아이콘 선택' })).getByText('아이콘'));
+    expect(screen.queryByRole('group', { name: '분석형 봇 아이콘 색상 선택' })).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: '아이콘 모양' })).toBeInTheDocument();
+    expect(screen.getByTestId('bot-icon-Atlas 07-detail')).toHaveAttribute('data-icon', 'focus');
+
+    // Clicking outside the whole picker closes it without applying, too.
+    await user.click(within(screen.getByRole('group', { name: '아이콘 모양' })).getByRole('button', { name: '분석형 봇 아이콘' }));
+    await user.click(screen.getByRole('heading', { name: 'Atlas 07' }));
+    expect(screen.queryByRole('group', { name: '봇 아이콘 선택' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('bot-icon-Atlas 07-detail')).toHaveAttribute('data-icon', 'focus');
+
+    await user.click(screen.getByRole('button', { name: 'Atlas 07 아이콘 설정' }));
+    await user.click(within(screen.getByRole('group', { name: '아이콘 모양' })).getByRole('button', { name: '분석형 봇 아이콘' }));
+    const reopenedVariants = screen.getByRole('group', { name: '분석형 봇 아이콘 색상 선택' });
+    await user.click(within(reopenedVariants).getByRole('button', { name: '분석형 봇 아이콘 파란색 적용' }));
+
+    const detailIcon = screen.getByTestId('bot-icon-Atlas 07-detail');
+    const listIcon = screen.getByTestId('bot-icon-Atlas 07-list');
+    expect(detailIcon).toHaveAttribute('data-icon', 'analytical');
+    expect(detailIcon).toHaveAttribute('data-color', 'blue');
+    expect(listIcon).toHaveAttribute('data-icon', 'analytical');
+    expect(listIcon).toHaveAttribute('data-color', 'blue');
+    expect(screen.queryByRole('group', { name: '봇 아이콘 선택' })).not.toBeInTheDocument();
   });
 
   test('positions show current state only, with a composition bar including cash', async () => {
@@ -150,56 +191,197 @@ describe('Bot operations', () => {
     expect(screen.getByText(/최초 실패 조건과 함께 남깁니다/)).toBeInTheDocument();
   });
 
-  test('a Basic snapshot keeps the bot > partition > buy/sell > block hierarchy', async () => {
+  test('replaces the strategy snapshot tab with a layout button beside the tabs', () => {
+    render(<BotsView />);
+
+    expect(screen.queryByRole('tab', { name: '전략 스냅샷' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '자연어 설명' })).not.toBeInTheDocument();
+    const tabBar = screen.getByRole('group', { name: 'Atlas 07 상세 탐색' });
+    expect(within(tabBar).getByRole('button', { name: '전략 구성 보기' })).toBeInTheDocument();
+  });
+
+  test('opens the launch snapshot layout in a read-only modal without editor tools', async () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
-    await user.click(screen.getByRole('tab', { name: '전략 스냅샷' }));
+    await user.click(screen.getByRole('button', { name: '전략 구성 보기' }));
 
-    expect(screen.getByText('Opening Range Flow · v4')).toBeInTheDocument();
-    // Launching severs the link entirely — no source-state tracking exists.
-    expect(screen.getByText(/이후 원본 전략을 수정하거나 삭제해도 이 봇에는 영향이 없습니다/)).toBeInTheDocument();
-    expect(screen.queryByText('원본 수정됨')).not.toBeInTheDocument();
-
-    // Three partitions, each with its own symbol, allocation and buy/sell groups.
-    const first = screen.getByRole('region', { name: 'SECTION 01 파티션' });
-    expect(screen.getByRole('region', { name: 'SECTION 03 파티션' })).toBeInTheDocument();
-    expect(within(first).getByText('SPY')).toBeInTheDocument();
-    expect(within(first).getByText('투자비율 40%')).toBeInTheDocument();
-    expect(within(first).getByRole('heading', { name: '매수 전략' })).toBeInTheDocument();
-    expect(within(first).getByRole('heading', { name: '매도 전략' })).toBeInTheDocument();
-    expect(within(first).getByText('RSI 30 미만')).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: 'Atlas 07 전략 구성' });
+    expect(within(dialog).queryByText('보기 전용 · 블록 내용은 수정할 수 없습니다.')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('현재 봇 전용 배치')).toBeInTheDocument();
+    expect(within(dialog).getByText('이 배치는 현재 봇의 스냅샷 화면에만 적용되며 전략 내용에는 영향을 주지 않습니다.')).toBeInTheDocument();
+    expect(within(dialog).getByText('빈 공간 드래그: 화면 이동 · 블록 드래그: 위치 변경')).toBeInTheDocument();
+    expect(within(dialog).getByTestId('snapshot-layout-item-section-01')).toHaveAttribute('data-x', '290');
+    expect(within(dialog).getAllByText('AAPL · MSFT · SPY').length).toBeGreaterThan(0);
+    expect(within(dialog).getByText('1m BAR')).toBeInTheDocument();
+    expect(within(dialog).getByText('OPENING RANGE')).toBeInTheDocument();
+    expect(within(dialog).getByText('OR HIGH')).toBeInTheDocument();
+    expect(within(dialog).getByText('OR LOW')).toBeInTheDocument();
+    expect(within(dialog).getByText('15:55 ET')).toBeInTheDocument();
+    expect(within(dialog).getByText('BUDGET')).toBeInTheDocument();
+    expect(within(dialog).getByText('POSITION')).toBeInTheDocument();
+    expect(dialog.querySelectorAll('.strategy-section-frame')).toHaveLength(1);
+    expect(dialog.querySelectorAll('.strategy-card')).toHaveLength(2);
+    expect(dialog.querySelectorAll('.scratch-block')).toHaveLength(9);
+    expect(within(dialog).queryByRole('combobox', { name: 'SECTION 01 종목' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('블록 편집 잠금')).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: '＋ 매수 블록 추가' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: '＋ 매도 블록 추가' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('searchbox', { name: '블록 검색' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('템플릿')).not.toBeInTheDocument();
   });
 
-  test('the snapshot explains itself in plain language on demand', async () => {
+  test('shows the editor rule-by-rule natural-language explanation in the snapshot modal', async () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
-    await user.click(screen.getByRole('tab', { name: '전략 스냅샷' }));
-    expect(screen.queryByText(/30 미만으로 내려가면 전략 예산의 25%를 시장가로 매수합니다/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '전략 구성 보기' }));
 
-    await user.click(screen.getByRole('button', { name: '자연어 설명' }));
+    const dialog = screen.getByRole('dialog', { name: 'Atlas 07 전략 구성' });
+    expect(within(dialog).queryByRole('note')).not.toBeInTheDocument();
 
-    expect(screen.getAllByText(/30 미만으로 내려가면 전략 예산의 25%를 시장가로 매수합니다/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/70을 넘으면 보유 수량 전체를 시장가로 매도합니다/)).toBeInTheDocument();
+    const buyExplanation = within(dialog).getByRole('button', { name: '매수 전략 자연어 설명' });
+    await user.click(buyExplanation);
+    expect(within(dialog).getAllByRole('note')).toHaveLength(5);
+    expect(within(dialog).getByRole('note', { name: '1단계 규칙 설명' })).toHaveTextContent('1m BAR');
+    expect(within(dialog).getByRole('note', { name: '2단계 규칙 설명' })).toHaveTextContent('OPENING RANGE');
+    expect(within(dialog).getByRole('note', { name: '4단계 규칙 설명' })).toHaveTextContent('25%');
+    expect(within(dialog).getByRole('note', { name: '5단계 규칙 설명' })).toHaveTextContent('시장가 매수');
+    expect(buyExplanation).toHaveAttribute('aria-expanded', 'true');
 
-    await user.click(screen.getByRole('button', { name: '자연어 설명' }));
-    expect(screen.queryByText(/30 미만으로 내려가면/)).not.toBeInTheDocument();
+    const sellExplanation = within(dialog).getByRole('button', { name: '매도 전략 자연어 설명' });
+    await user.click(sellExplanation);
+    expect(within(dialog).getAllByRole('note')).toHaveLength(4);
+    expect(within(dialog).getByRole('note', { name: '1단계 규칙 설명' })).toHaveTextContent('POSITION');
+    expect(within(dialog).getByRole('note', { name: '4단계 규칙 설명' })).toHaveTextContent('시장가 매도');
+
+    await user.click(sellExplanation);
+    expect(within(dialog).queryByRole('note')).not.toBeInTheDocument();
   });
 
-  test('a Pro snapshot renders as execution order', async () => {
+  test('uses the editor cursor spotlight on the snapshot canvas', async () => {
+    const user = userEvent.setup();
+    render(<BotsView />);
+
+    await user.click(screen.getByRole('button', { name: '전략 구성 보기' }));
+
+    const canvas = screen.getByTestId('snapshot-strategy-canvas');
+    fireEvent.pointerMove(canvas, { clientX: 160, clientY: 120 });
+    expect(canvas.style.getPropertyValue('--spotlight-opacity')).toBe('1');
+    expect(screen.getByTestId('snapshot-cursor-dot-spotlight')).toBeInTheDocument();
+  });
+
+  test('uses the editor wheel zoom around the cursor without scrolling the page', async () => {
+    const user = userEvent.setup();
+    render(<BotsView />);
+
+    await user.click(screen.getByRole('button', { name: '전략 구성 보기' }));
+
+    const canvas = screen.getByTestId('snapshot-strategy-canvas');
+    const world = canvas.querySelector('.snapshot-layout-world');
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0 });
+
+    const wheel = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: -100,
+      clientX: 200,
+      clientY: 150,
+    });
+    expect(fireEvent(canvas, wheel)).toBe(false);
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(screen.getByRole('button', { name: '배율 초기화' })).toHaveTextContent('110%');
+    expect(world).toHaveStyle({ transform: 'translate3d(-20px, -15px, 0) scale(1.1)' });
+  });
+
+  test('saves a moved Basic section only in the selected bot layout state', async () => {
+    const user = userEvent.setup();
+    render(<BotsView />);
+
+    await user.click(screen.getByRole('button', { name: '전략 구성 보기' }));
+
+    const item = screen.getByTestId('snapshot-layout-item-section-01');
+    const canvas = screen.getByTestId('snapshot-strategy-canvas');
+    fireEvent.pointerDown(item, { pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 180, clientY: 140 });
+    fireEvent.pointerUp(canvas, { pointerId: 1 });
+    expect(item).toHaveAttribute('data-x', '370');
+    expect(item).toHaveAttribute('data-y', '148');
+
+    await user.click(screen.getByRole('button', { name: '배치 저장' }));
+    expect(screen.queryByRole('dialog', { name: 'Atlas 07 전략 구성' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '전략 구성 보기' }));
+    expect(screen.getByTestId('snapshot-layout-item-section-01')).toHaveAttribute('data-x', '370');
+    expect(screen.getByTestId('snapshot-layout-item-section-01')).toHaveAttribute('data-y', '148');
+  });
+
+  test('moves a Basic strategy card independently inside its section', async () => {
+    const user = userEvent.setup();
+    render(<BotsView />);
+
+    await user.click(screen.getByRole('button', { name: '전략 구성 보기' }));
+
+    const section = screen.getByTestId('snapshot-layout-item-section-01');
+    const card = screen.getByTestId('snapshot-layout-card-section-01-buy');
+    const handle = screen.getByRole('button', { name: '매수 전략 자유 이동' });
+    const canvas = screen.getByTestId('snapshot-strategy-canvas');
+
+    fireEvent.pointerDown(handle, { pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+    expect(card).toHaveClass('is-free-moving');
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 150, clientY: 130 });
+    fireEvent.pointerUp(canvas, { pointerId: 1 });
+
+    expect(card).toHaveAttribute('data-x', '74');
+    expect(card).toHaveAttribute('data-y', '142');
+    expect(card).not.toHaveClass('is-free-moving');
+    expect(section).toHaveAttribute('data-x', '290');
+    expect(section).toHaveAttribute('data-y', '108');
+
+    await user.click(screen.getByRole('button', { name: '배치 저장' }));
+    await user.click(screen.getByRole('button', { name: '전략 구성 보기' }));
+    expect(screen.getByTestId('snapshot-layout-card-section-01-buy')).toHaveAttribute('data-x', '74');
+    expect(screen.getByTestId('snapshot-layout-card-section-01-buy')).toHaveAttribute('data-y', '142');
+  });
+
+  test('expands a Basic section to contain a card moved beyond its current bounds', async () => {
+    const user = userEvent.setup();
+    render(<BotsView />);
+
+    await user.click(screen.getByRole('button', { name: '전략 구성 보기' }));
+
+    const section = screen.getByTestId('snapshot-layout-item-section-01');
+    const card = screen.getByTestId('snapshot-layout-card-section-01-buy');
+    const handle = screen.getByRole('button', { name: '매수 전략 자유 이동' });
+    const canvas = screen.getByTestId('snapshot-strategy-canvas');
+    fireEvent.pointerDown(handle, { pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(canvas, { pointerId: 1, clientX: 1100, clientY: 1100 });
+    fireEvent.pointerUp(canvas, { pointerId: 1 });
+    expect(card).toHaveAttribute('data-x', '1024');
+    expect(card).toHaveAttribute('data-y', '1112');
+    expect(section).toHaveStyle({ width: '1308px', height: '1422px' });
+
+    fireEvent.pointerDown(handle, { pointerId: 2, button: 0, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(canvas, { pointerId: 2, clientX: -1000, clientY: -1000 });
+    fireEvent.pointerUp(canvas, { pointerId: 2 });
+    expect(card).toHaveAttribute('data-x', '0');
+    expect(card).toHaveAttribute('data-y', '96');
+  });
+
+  test('renders Pro snapshot nodes at their saved coordinates in the same modal', async () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
     await user.click(screen.getByRole('button', { name: 'Room Beta 상세 보기' }));
-    await user.click(screen.getByRole('tab', { name: '전략 스냅샷' }));
+    await user.click(screen.getByRole('button', { name: '전략 구성 보기' }));
 
-    expect(screen.getByText(/실행 순서 기준으로 표시합니다/)).toBeInTheDocument();
-
-    const steps = within(screen.getByRole('list', { name: 'Room Beta 전략 실행 순서' })).getAllByRole('listitem');
-    expect(steps).toHaveLength(6);
-    expect(steps[0]).toHaveTextContent('직접 선택 바스켓');
-    expect(steps[3]).toHaveTextContent('분기 · 참/거짓 2갈래');
+    const dialog = screen.getByRole('dialog', { name: 'Room Beta 전략 구성' });
+    expect(within(dialog).getByTestId('snapshot-layout-item-universe')).toHaveAttribute('data-x', '40');
+    expect(within(dialog).getByTestId('snapshot-layout-item-order')).toHaveAttribute('data-x', '1290');
+    expect(within(dialog).getByText('모멘텀 순위')).toBeInTheDocument();
+    expect(dialog.querySelectorAll('.graph-node')).toHaveLength(6);
+    expect(dialog.querySelectorAll('.graph-link')).toHaveLength(5);
+    expect(within(dialog).queryByText('노드 검색')).not.toBeInTheDocument();
   });
 
   test('a bot holding only cash shows an empty position state, not a blank table', async () => {

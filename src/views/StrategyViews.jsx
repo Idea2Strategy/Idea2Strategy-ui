@@ -4,6 +4,12 @@ import { ArrowLeft, Boxes, Check, ChevronDown, ChevronRight, CircleDollarSign, G
 import { strategies } from '../data/mockData.js';
 import { Button, PageHeading, Panel, Status } from '../components/common.jsx';
 import { Localized } from '../lib/i18n.jsx';
+import {
+  getBasicSectionLayout,
+  getDefaultBasicCardPosition,
+  getMovedBasicCardPosition,
+  getStrategyCanvasWheelZoom,
+} from '../lib/strategyCanvasLayout.js';
 
 const statusTone = (state) => state === '검증 완료' ? 'positive' : state === '미완성' ? 'warning' : 'neutral';
 
@@ -140,16 +146,7 @@ const INITIAL_STRATEGY_SECTIONS = [{
   },
 }];
 
-const SECTION_HEADER_HEIGHT = 96;
-const SECTION_MIN_WIDTH = 600;
-const SECTION_PADDING = 24;
-const STRATEGY_CARD_WIDTH = 260;
-const STRATEGY_CARD_FALLBACK_HEIGHT = 286;
-
-const getDefaultCardPosition = (index) => ({
-  x: SECTION_PADDING + (index % 3) * (STRATEGY_CARD_WIDTH + 26),
-  y: 112 + Math.floor(index / 3) * (STRATEGY_CARD_FALLBACK_HEIGHT + 24),
-});
+const getDefaultCardPosition = getDefaultBasicCardPosition;
 
 const INITIAL_CARD_BLOCKS = {
   'primary-buy': INITIAL_BASIC_BLOCKS.buy,
@@ -497,6 +494,31 @@ const StrategyBlock = ({ id, fixed = false, dragging = false, dragProps = {}, sh
   tabIndex={fixed ? undefined : 0}
   {...dragProps}
 >{!fixed && <GripVertical className="block-drag-handle" size={14} aria-hidden="true" />}<Block {...blockProps} locked={fixed} />{showRule && <BlockRuleNote side={ruleSide} step={ruleStep}>{rule}</BlockRuleNote>}</div>;
+
+/* Shared by read-only strategy surfaces so launched snapshots keep the exact
+   block silhouette, tone system, spacing, and terminal shape of the editor. */
+export const ReadOnlyStrategyBlock = ({
+  id,
+  fixed = false,
+  showRule = false,
+  rule,
+  ruleSide = 'right',
+  ruleStep = 1,
+  ...blockProps
+}) => {
+  const resolvedRule = rule ?? (fixed
+    ? getTerminalRule(blockProps.tone)
+    : getBlockRule(blockProps, blockProps.tone));
+  return <div
+    className={`block-with-copy ${fixed ? 'fixed-terminal-block' : 'draggable-strategy-block'} is-read-only`}
+    data-testid={id}
+    aria-label={`${blockProps.label} 읽기 전용 블록`}
+  >
+    {!fixed && <GripVertical className="block-drag-handle" size={14} aria-hidden="true" />}
+    <Block {...blockProps} locked />
+    {showRule && <BlockRuleNote side={ruleSide} step={ruleStep}>{resolvedRule}</BlockRuleNote>}
+  </div>;
+};
 
 export function BasicEditor({ goBack, openEditor }) {
   const [activeGroup, setActiveGroup] = useState(null);
@@ -886,19 +908,11 @@ export function BasicEditor({ goBack, openEditor }) {
   };
 
   const getSectionLayout = (section) => {
-    const bounds = section.cardOrder.reduce((current, cardId, index) => {
-      const position = section.cardPositions?.[cardId] ?? getDefaultCardPosition(index);
-      const size = cardSizes[cardId] ?? { width: STRATEGY_CARD_WIDTH, height: STRATEGY_CARD_FALLBACK_HEIGHT };
-      return {
-        right: Math.max(current.right, position.x + size.width),
-        bottom: Math.max(current.bottom, position.y + size.height),
-      };
-    }, { right: 0, bottom: SECTION_HEADER_HEIGHT });
-
-    return {
-      width: Math.max(SECTION_MIN_WIDTH, Math.ceil(bounds.right + SECTION_PADDING)),
-      height: Math.max(SECTION_HEADER_HEIGHT + 120, Math.ceil(bounds.bottom + SECTION_PADDING)),
-    };
+    return getBasicSectionLayout(
+      section.cardOrder,
+      (cardId, index) => section.cardPositions?.[cardId] ?? getDefaultCardPosition(index),
+      cardSizes,
+    );
   };
 
   const addStrategyCard = (sectionId, side) => {
@@ -1040,20 +1054,13 @@ export function BasicEditor({ goBack, openEditor }) {
   const zoomCanvasWithWheel = (event) => {
     event.preventDefault();
     if (drawMode || sectionMove || cardMove) return;
-    const direction = event.deltaY < 0 ? 1 : -1;
-    const nextZoom = Math.max(.5, Math.min(2, Number((zoom + direction * .1).toFixed(1))));
-    if (nextZoom === zoom) return;
-
     const bounds = event.currentTarget.getBoundingClientRect();
     const cursorX = event.clientX - bounds.left;
     const cursorY = event.clientY - bounds.top;
-    const worldX = (cursorX - pan.x) / zoom;
-    const worldY = (cursorY - pan.y) / zoom;
-    setZoom(nextZoom);
-    setPan({
-      x: Number((cursorX - worldX * nextZoom).toFixed(2)),
-      y: Number((cursorY - worldY * nextZoom).toFixed(2)),
-    });
+    const next = getStrategyCanvasWheelZoom(zoom, pan, event.deltaY, cursorX, cursorY);
+    if (!next) return;
+    setZoom(next.zoom);
+    setPan(next.pan);
   };
 
   const updateCursorSpotlight = (event) => {
@@ -1076,10 +1083,11 @@ export function BasicEditor({ goBack, openEditor }) {
     pointerPositionRef.current = { x: event.clientX, y: event.clientY };
     if (cardMove) {
       setTrashReady(isPointerOverTrash(event));
-      updateCardPosition(cardMove.sectionId, cardMove.cardId, {
-        x: Math.max(0, cardMove.originX + (event.clientX - cardMove.startX) / zoom),
-        y: Math.max(SECTION_HEADER_HEIGHT, cardMove.originY + (event.clientY - cardMove.startY) / zoom),
-      });
+      updateCardPosition(
+        cardMove.sectionId,
+        cardMove.cardId,
+        getMovedBasicCardPosition(cardMove, event.clientX, event.clientY, zoom),
+      );
       return;
     }
     if (sectionMove) {
@@ -1971,20 +1979,13 @@ export function ProEditor({ goBack, openEditor }) {
   const zoomCanvasWithWheel = (event) => {
     event.preventDefault();
     if (nodeMove || linkDraft) return;
-    const direction = event.deltaY < 0 ? 1 : -1;
-    const nextZoom = Math.max(.5, Math.min(2, Number((zoom + direction * .1).toFixed(1))));
-    if (nextZoom === zoom) return;
-
     const bounds = event.currentTarget.getBoundingClientRect();
     const cursorX = event.clientX - bounds.left;
     const cursorY = event.clientY - bounds.top;
-    const worldX = (cursorX - pan.x) / zoom;
-    const worldY = (cursorY - pan.y) / zoom;
-    setZoom(nextZoom);
-    setPan({
-      x: Number((cursorX - worldX * nextZoom).toFixed(2)),
-      y: Number((cursorY - worldY * nextZoom).toFixed(2)),
-    });
+    const next = getStrategyCanvasWheelZoom(zoom, pan, event.deltaY, cursorX, cursorY);
+    if (!next) return;
+    setZoom(next.zoom);
+    setPan(next.pan);
   };
 
   const fitGraphToView = () => {
