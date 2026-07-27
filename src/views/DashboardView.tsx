@@ -86,6 +86,7 @@ const LIFETIME_RETURNS: Record<string, number> = Object.fromEntries(
 );
 const DAILY_VOL: Record<string, number> = { 'Atlas 07': .011, 'Room Beta': .009, 'Pair Lab': .005 };
 const SAMPLE_END_DATE = Date.UTC(2026, 6, 23);
+const percentPoint = (value: number): string => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
 /* The bot's value on each day of the window; null before its launch. */
 const equitySeries = (bot: BotRecord, days: number): { startIndex: number; values: Array<number | null> } => {
@@ -159,7 +160,7 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
     setFilterOpen(false);
   };
 
-  const { profit, rate, dates, launches, total, invested, twr, today, drawdown, high } = useMemo(() => {
+  const { profit, rate, dates, launches, total, twr, today, drawdown } = useMemo(() => {
     const { days } = PERIODS[period];
     const selected = scopedBots.filter((bot) => included.has(bot.name));
     const series = selected.map((bot) => ({ bot, ...equitySeries(bot, days) }));
@@ -196,11 +197,9 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
       dates: dateLabels(SAMPLE_END_DATE, days),
       launches: starts,
       total: points[points.length - 1],
-      invested: principal[principal.length - 1],
       twr: indexValue - 1,
       today: points[points.length - 1] / points[points.length - 2] - 1,
       drawdown: worst,
-      high: Math.max(...points),
     };
   }, [included, period, scopedBots]);
 
@@ -290,22 +289,33 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
             <div aria-label="성과 기간">{(Object.entries(PERIODS) as Array<[PeriodKey, { label: string }]>).map(([id, item]) => <button key={id} className={period === id ? 'active' : ''} aria-pressed={period === id} onClick={() => setPeriod(id)}>{item.label}</button>)}</div>
           </div>
         </header>
-        {/* P&L and return are one story in two units, so they share one chart:
-            the line is currency, and the day's return rides in the tooltip. */}
+        {/* Return is the primary comparison unit. Dollar totals stay secondary
+            because the bots entered this scope on different dates. */}
         <div className="dashboard-chart-summary">
-          <div>
-            <strong>{money(total)}</strong>
-            <span className={twr >= 0 ? 'positive' : 'negative'}>{`${signedMoney(profit[profit.length - 1])} · ${percent(twr)}`}</span>
+          <div className="dashboard-return-summary">
+            <span>시간가중수익률</span>
+            <div>
+              <strong className={twr >= 0 ? 'positive' : 'negative'}>{percent(twr)}</strong>
+              <small><span>운용 손익</span> {signedMoney(profit[profit.length - 1])} · <span>현재 자산</span> {money(total)}</small>
+            </div>
           </div>
         </div>
-        <EquityChart values={profit} rates={rate} dates={dates} launches={launches} format={signedMoney} ariaLabel={`${scopeLabel} 봇의 손익과 시간가중수익률 차트`} />
+        <EquityChart
+          values={rate}
+          rates={rate}
+          dates={dates}
+          launches={launches}
+          format={percentPoint}
+          ariaLabel={`${scopeLabel} 봇의 시간가중수익률 차트`}
+          showRateInTooltip={false}
+        />
         <dl className="dashboard-chart-stats">
           <div><dt>오늘</dt><dd className={today >= 0 ? 'positive' : 'negative'}>{percent(today)}</dd></div>
           <div><dt>최대 낙폭</dt><dd>{percent(drawdown)}</dd></div>
-          <div><dt>투입 원금</dt><dd>{money(invested)}</dd></div>
-          <div><dt>기간 최고</dt><dd>{money(high)}</dd></div>
+          <div><dt>선택 봇 수</dt><dd>{included.size}개</dd></div>
+          <div><dt>시작일 보정</dt><dd>적용</dd></div>
         </dl>
-        <p className="dashboard-chart-note">봇마다 실제 시작일을 반영하고, 시작 자금 유입은 수익에서 제외한 시간가중수익률입니다. 개인 운용과 대회 성과는 합산하지 않습니다.</p>
+        <p className="dashboard-chart-note">선택한 봇을 하나의 운용 묶음으로 보고, 시작 자금 유입은 수익에서 제외한 시간가중수익률입니다. 세로 점선의 ‘운용 시작’은 해당 봇이 성과 계산에 포함되기 시작한 날입니다. 개인 운용과 대회 성과는 합산하지 않습니다.</p>
       </section>
 
       <div className="dashboard-side">

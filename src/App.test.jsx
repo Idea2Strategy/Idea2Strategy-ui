@@ -91,6 +91,14 @@ describe('Signal product UI', () => {
     expect(personal).toHaveAttribute('aria-pressed', 'true');
     expect(competition).toHaveAttribute('aria-pressed', 'false');
     expect(performance).toHaveTextContent('개인 운용 봇의 시간가중 성과');
+    expect(within(performance).getByText('시간가중수익률')).toBeInTheDocument();
+    expect(within(performance).getByRole('img', { name: '개인 운용 봇의 시간가중수익률 차트' })).toBeInTheDocument();
+    expect(within(performance).getByText('Pair Lab 운용 시작')).toBeInTheDocument();
+    expect(within(performance).queryByText('Pair Lab 시작')).not.toBeInTheDocument();
+    expect(performance).toHaveTextContent('세로 점선의 ‘운용 시작’은 해당 봇이 성과 계산에 포함되기 시작한 날입니다.');
+    for (const annotation of performance.querySelectorAll('.dashboard-chart-peak')) {
+      expect(annotation).toHaveTextContent('%');
+    }
 
     await user.click(within(performance).getByRole('button', { name: '합산에 포함할 봇 선택' }));
     let botPicker = within(performance).getByRole('group', { name: '합산에 포함할 봇 선택' });

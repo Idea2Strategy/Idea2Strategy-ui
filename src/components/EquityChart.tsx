@@ -9,17 +9,18 @@ export interface LaunchMark {
 
 export interface EquityChartProps {
   values: number[];
-  /* The return (%) on each day — the same story as `values` in a different
-     unit, so it rides along in the tooltip instead of being a separate view. */
+  /* The return (%) on each day. Dollar-based charts show it as a secondary
+     tooltip value; return-based charts can hide the duplicate. */
   rates: number[];
   dates: string[];
   launches?: LaunchMark[];
   format: (value: number) => string;
   ariaLabel: string;
+  showRateInTooltip?: boolean;
 }
 
 /*
-  The shared P&L chart (Home aggregate and per-bot overview), kept to the
+  The shared performance chart (Home aggregate and per-bot overview), kept to the
   grammar of consumer brokerage charts:
 
   - The line runs the full width. Stretches above zero wear the gain colour,
@@ -30,14 +31,22 @@ export interface EquityChartProps {
     and below the curve — by definition that space is empty.
   - The current value is the endpoint dot; the big figure above the chart is
     its label. No right-edge tag, no extra guide line.
-  - The only reference line is the subtle zero baseline — percentage context
-    lives in the summary figure and the tooltip, not in grid lines.
+  - The only reference line is the subtle zero baseline — unit context lives
+    in the summary figure and the tooltip, not in grid lines.
   - Hover (or arrow keys) shows a crosshair, a dot, and one tooltip.
 
   The SVG stretches, strokes stay 1:1 via vector-effect, and every label is an
   HTML overlay so text never distorts.
 */
-export function EquityChart({ values, rates, dates, launches = [], format, ariaLabel }: EquityChartProps) {
+export function EquityChart({
+  values,
+  rates,
+  dates,
+  launches = [],
+  format,
+  ariaLabel,
+  showRateInTooltip = true,
+}: EquityChartProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   // Strings created inside a nested component render after the Localized walk,
   // so they translate through the hook instead.
@@ -144,7 +153,7 @@ export function EquityChart({ values, rates, dates, launches = [], format, ariaL
       key={launch.name}
       className="dashboard-chart-marker"
       style={{ left: `${(xFor(launch.index) / width) * 100}%` }}
-    >{t(`${launch.name} 시작`)}</span>)}
+    >{`${launch.name} ${t('운용 시작')}`}</span>)}
 
     {active !== null && <div
       className={`dashboard-chart-tooltip ${active < values.length * .18 ? 'edge-left' : active > values.length * .82 ? 'edge-right' : ''}`}
@@ -153,7 +162,7 @@ export function EquityChart({ values, rates, dates, launches = [], format, ariaL
     >
       <strong>{dates[active]}</strong>
       <b>{format(values[active])}</b>
-      <span className={rates[active] >= 0 ? 'positive' : 'negative'}>{`${rates[active] >= 0 ? '+' : ''}${rates[active].toFixed(2)}%`}</span>
+      {showRateInTooltip && <span className={rates[active] >= 0 ? 'positive' : 'negative'}>{`${rates[active] >= 0 ? '+' : ''}${rates[active].toFixed(2)}%`}</span>}
     </div>}
   </div>
   <div className="dashboard-chart-xlabels" aria-hidden="true">
