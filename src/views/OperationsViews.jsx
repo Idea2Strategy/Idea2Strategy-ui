@@ -454,6 +454,11 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
       onMouseLeave={() => setHoveredIndex(null)}
     >
       <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label={`${instrument.symbol} 캔들 차트와 매수 매도 기록`} data-timeframe={timeframe}>
+        <defs>
+          <clipPath id="market-price-plot-clip">
+            <rect x={left} y={chartTop} width={plotWidth} height={chartBottom - chartTop} />
+          </clipPath>
+        </defs>
         <rect className="market-price-axis-surface" x={width - right} y="0" width={right} height={height} />
         <line className="market-price-axis-separator" x1={width - right} x2={width - right} y1="0" y2={height} />
         {[0, .25, .5, .75, 1].map((ratio) => {
@@ -473,8 +478,10 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
           const bodyBottom = priceToY(Math.min(candle.open, candle.close));
           const volumeHeight = (candle.volume / maxVolume) * (volumeBottom - volumeTop);
           return <g key={`${candle.time}-${index}`} className={`market-candle ${up ? 'up' : 'down'}`} data-testid="market-candle">
-            <line className="market-candle-wick" x1={x} x2={x} y1={priceToY(candle.high)} y2={priceToY(candle.low)} vectorEffect="non-scaling-stroke" />
-            <rect className="market-candle-body" x={x - candleWidth / 2} y={bodyTop} width={candleWidth} height={Math.max(bodyBottom - bodyTop, 2)} />
+            <g className="market-candle-price-layer" clipPath="url(#market-price-plot-clip)">
+              <line className="market-candle-wick" x1={x} x2={x} y1={priceToY(candle.high)} y2={priceToY(candle.low)} vectorEffect="non-scaling-stroke" />
+              <rect className="market-candle-body" x={x - candleWidth / 2} y={bodyTop} width={candleWidth} height={Math.max(bodyBottom - bodyTop, 2)} />
+            </g>
             <rect className="market-volume-bar" x={x - candleWidth / 2} y={volumeBottom - volumeHeight} width={candleWidth} height={volumeHeight} />
           </g>;
         })}
@@ -487,7 +494,7 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
           const isBuy = execution.side === '매수';
           const candleY = isBuy ? priceToY(candle.low) : priceToY(candle.high);
           const y = isBuy ? Math.min(candleY + 28, chartBottom - 13) : Math.max(candleY - 28, chartTop + 13);
-          return <g key={execution.id} className={`market-trade-marker ${isBuy ? 'buy' : 'sell'}`} data-testid="trade-marker" data-side={isBuy ? 'buy' : 'sell'}>
+          return <g key={execution.id} className={`market-trade-marker ${isBuy ? 'buy' : 'sell'}`} data-testid="trade-marker" data-side={isBuy ? 'buy' : 'sell'} clipPath="url(#market-price-plot-clip)">
             <line x1={x} x2={x} y1={isBuy ? y - 13 : y + 13} y2={candleY} vectorEffect="non-scaling-stroke" />
             <rect x={x - 21} y={y - 11} width="42" height="22" rx="11" />
             <path d={isBuy ? `M ${x - 4} ${y - 10} L ${x} ${y - 15} L ${x + 4} ${y - 10} Z` : `M ${x - 4} ${y + 10} L ${x} ${y + 15} L ${x + 4} ${y + 10} Z`} />
@@ -496,7 +503,7 @@ function BacktestCandlestickChart({ instrument, timeframe }) {
         })}
         {hoveredIndex !== null && <>
           <line className="market-chart-crosshair" x1={xForIndex(hoveredIndex)} x2={xForIndex(hoveredIndex)} y1={chartTop} y2={volumeBottom} vectorEffect="non-scaling-stroke" />
-          <line className="market-chart-crosshair" x1={left} x2={width - right} y1={priceToY(activeCandle.close)} y2={priceToY(activeCandle.close)} vectorEffect="non-scaling-stroke" />
+          <line className="market-chart-crosshair" x1={left} x2={width - right} y1={priceToY(activeCandle.close)} y2={priceToY(activeCandle.close)} vectorEffect="non-scaling-stroke" clipPath="url(#market-price-plot-clip)" />
         </>}
         {[0, .25, .5, .75, 1].map((ratio) => {
           const index = Math.round((visibleCandles.length - 1) * ratio);

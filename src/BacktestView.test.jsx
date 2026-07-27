@@ -237,6 +237,30 @@ describe('BacktestView chart interactions', () => {
     expect(screen.getByText(/가격축 상하 드래그/)).toBeInTheDocument();
   });
 
+  test('clips vertically scaled candles to the price plot after timeline zooming', () => {
+    render(<BacktestView />);
+
+    const canvas = screen.getByTestId('backtest-candle-canvas');
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 });
+
+    fireEvent.wheel(canvas, { clientX: 520, clientY: 210, deltaY: 120 });
+    fireEvent.pointerDown(canvas, { clientX: 1000, clientY: 300, pointerId: 3 });
+    fireEvent.pointerMove(canvas, { clientX: 1000, clientY: 40, pointerId: 3 });
+    fireEvent.pointerUp(canvas, { clientX: 1000, clientY: 40, pointerId: 3 });
+
+    const priceClip = canvas.querySelector('#market-price-plot-clip rect');
+    const candlePriceLayers = canvas.querySelectorAll('.market-candle-price-layer');
+
+    expect(Number(canvas.dataset.visibleCandles)).toBeGreaterThan(60);
+    expect(Number(canvas.dataset.priceScale)).toBe(.4);
+    expect(priceClip).toHaveAttribute('y', '30');
+    expect(priceClip).toHaveAttribute('height', '274');
+    expect(candlePriceLayers).toHaveLength(Number(canvas.dataset.visibleCandles));
+    candlePriceLayers.forEach((layer) => {
+      expect(layer).toHaveAttribute('clip-path', 'url(#market-price-plot-clip)');
+    });
+  });
+
   test('zooms the candle timeline around the pointer with the mouse wheel', () => {
     const parentWheelHandler = vi.fn();
     render(<div onWheel={parentWheelHandler}><BacktestView /></div>);
