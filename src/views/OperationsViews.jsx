@@ -539,15 +539,17 @@ export function BacktestView() {
 
     {/* A compact row instead of four 130px cards. The bot and benchmark returns
         used to appear both here and again above the chart. */}
-    <MetricRow
-      label={`${selectedBot.name} 백테스트 지표`}
-      items={[
-        { label: '봇 수익률', figure: selectedBot.return, detail: selectedBot.strategy, tone: selectedBot.return.startsWith('+') ? 'positive' : 'negative' },
-        { label: 'S&P 500 대비', figure: selectedBot.alpha, detail: `S&P 500 ${backtestBenchmark.return}`, tone: selectedBot.alpha.startsWith('+') ? 'positive' : 'negative' },
-        { label: '최대 낙폭', figure: selectedBot.drawdown, detail: '기간 내 고점 대비' },
-        { label: '개별 체결', figure: `${selectedBot.trades}건`, detail: '부분 체결 각각 집계' },
-      ]}
-    />
+    <section className="panel backtest-metric-panel">
+      <MetricRow
+        label={`${selectedBot.name} 백테스트 지표`}
+        items={[
+          { label: '봇 수익률', figure: selectedBot.return, detail: selectedBot.strategy, tone: selectedBot.return.startsWith('+') ? 'positive' : 'negative' },
+          { label: 'S&P 500 대비', figure: selectedBot.alpha, detail: `S&P 500 ${backtestBenchmark.return}`, tone: selectedBot.alpha.startsWith('+') ? 'positive' : 'negative' },
+          { label: '최대 낙폭', figure: selectedBot.drawdown, detail: '기간 내 고점 대비' },
+          { label: '개별 체결', figure: `${selectedBot.trades}건`, detail: '부분 체결 각각 집계' },
+        ]}
+      />
+    </section>
     <Panel className="backtest-trade-chart-panel" title="종목별 체결 차트" subtitle={`${selectedBot.name} · 조정 가격 · 미국 동부 시각`}>
       <div className="backtest-symbol-toolbar">
         <label className="backtest-symbol-search"><Search size={15} /><input type="search" aria-label="종목 검색" placeholder="티커 또는 종목명 검색" value={symbolQuery} onChange={(event) => setSymbolQuery(event.target.value)} /></label>

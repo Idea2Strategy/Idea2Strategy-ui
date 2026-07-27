@@ -2068,6 +2068,13 @@
 .variant-balanced[data-design="signal-studio"] .backtest-performance-panel {
   overflow: hidden;
 }
+.variant-balanced[data-design="signal-studio"] .backtest-metric-panel {
+  margin-bottom: var(--space-4);
+  overflow: hidden;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-metric-panel .metric-row {
+  border-block: 0;
+}
 .variant-balanced[data-design="signal-studio"] .backtest-comparison-summary {
   min-height: 80px;
   display: flex;

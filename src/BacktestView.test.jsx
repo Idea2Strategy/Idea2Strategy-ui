@@ -78,6 +78,18 @@ describe('BacktestView', () => {
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
   });
 
+  test('places the performance metrics inside the same panel surface as the charts', () => {
+    render(<BacktestView />);
+
+    const metrics = screen.getByLabelText('Atlas 07 백테스트 지표');
+    const metricPanel = metrics.closest('.backtest-metric-panel');
+
+    expect(metricPanel).not.toBeNull();
+    expect(metricPanel).toHaveClass('panel');
+    expect(metricPanel).toContainElement(screen.getByText('봇 수익률'));
+    expect(metricPanel).toContainElement(screen.getByText('개별 체결'));
+  });
+
   test('filters a bot’s traded symbols and keeps the candle chart and execution log in sync', async () => {
     const user = userEvent.setup();
     render(<BacktestView />);
