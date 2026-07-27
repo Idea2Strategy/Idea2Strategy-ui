@@ -93,12 +93,21 @@ describe('Signal product UI', () => {
     expect(performance).toHaveTextContent('개인 운용 봇의 시간가중 성과');
     expect(within(performance).getByText('시간가중수익률')).toBeInTheDocument();
     expect(within(performance).getByRole('img', { name: '개인 운용 봇의 시간가중수익률 차트' })).toBeInTheDocument();
-    expect(within(performance).getByText('Pair Lab 운용 시작')).toBeInTheDocument();
+    const periodGroup = within(performance).getByRole('group', { name: '성과 기간' });
+    expect(within(periodGroup).getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'true');
+    const oldestLaunch = within(performance).getByText('Atlas 07 운용 시작');
+    expect(oldestLaunch).toHaveClass('is-edge-start');
+    expect(oldestLaunch).toHaveStyle({ left: '0%' });
+    expect(within(performance).getByText('Pair Lab 운용 시작')).toHaveClass('is-edge-end');
     expect(within(performance).queryByText('Pair Lab 시작')).not.toBeInTheDocument();
-    expect(performance).toHaveTextContent('세로 점선의 ‘운용 시작’은 해당 봇이 성과 계산에 포함되기 시작한 날입니다.');
+    expect(performance).toHaveTextContent('‘운용 시작’은 실제 시작일이고, ‘이전부터 운용’은 선택 기간보다 먼저 시작된 봇입니다.');
     for (const annotation of performance.querySelectorAll('.dashboard-chart-peak')) {
       expect(annotation).toHaveTextContent('%');
     }
+
+    await user.click(within(periodGroup).getByRole('button', { name: '1개월' }));
+    expect(within(performance).getByText('Atlas 07 이전부터 운용')).toBeInTheDocument();
+    expect(within(performance).getByText('Pair Lab 운용 시작')).toBeInTheDocument();
 
     await user.click(within(performance).getByRole('button', { name: '합산에 포함할 봇 선택' }));
     let botPicker = within(performance).getByRole('group', { name: '합산에 포함할 봇 선택' });

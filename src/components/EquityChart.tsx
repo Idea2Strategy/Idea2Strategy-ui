@@ -5,6 +5,7 @@ import { useLanguage } from '../lib/i18n.jsx';
 export interface LaunchMark {
   name: string;
   index: number;
+  kind?: 'start' | 'before-range';
 }
 
 export interface EquityChartProps {
@@ -149,11 +150,20 @@ export function EquityChart({
       style={{ left: `${clampPct((xFor(minIndex) / width) * 100)}%`, top: `${(yFor(minValue) / height) * 100}%` }}
     ><i className="sr-only">{t('최저')} </i>{format(minValue)}</span>}
 
-    {launches.map((launch) => <span
-      key={launch.name}
-      className="dashboard-chart-marker"
-      style={{ left: `${(xFor(launch.index) / width) * 100}%` }}
-    >{`${launch.name} ${t('운용 시작')}`}</span>)}
+    {launches.map((launch, launchIndex) => {
+      const position = (xFor(launch.index) / width) * 100;
+      const lane = launches
+        .slice(0, launchIndex)
+        .filter((other) => other.index === launch.index)
+        .length;
+      const edgeClass = position <= 10 ? 'is-edge-start' : position >= 90 ? 'is-edge-end' : '';
+      const status = launch.kind === 'before-range' ? t('이전부터 운용') : t('운용 시작');
+      return <span
+        key={launch.name}
+        className={`dashboard-chart-marker ${edgeClass}`}
+        style={{ left: `${position}%`, bottom: `${2 + lane * 22}px` }}
+      >{`${launch.name} ${status}`}</span>;
+    })}
 
     {active !== null && <div
       className={`dashboard-chart-tooltip ${active < values.length * .18 ? 'edge-left' : active > values.length * .82 ? 'edge-right' : ''}`}

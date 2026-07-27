@@ -6493,6 +6493,8 @@
   font:650 var(--fs-micro)/1.3 var(--font-sans);
   white-space:nowrap;
 }
+.dashboard-chart-marker.is-edge-start { transform:translateX(0); }
+.dashboard-chart-marker.is-edge-end { transform:translateX(-100%); }
 .dashboard-chart-note {
   margin:var(--space-3) 0 0;
   color:var(--text-faint);

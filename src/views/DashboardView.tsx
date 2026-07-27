@@ -17,7 +17,7 @@ import { Localized } from '../lib/i18n.jsx';
 
 /* ---------- Types (the product is migrating to TypeScript page by page) ---- */
 
-type PeriodKey = 'week' | 'month' | 'quarter';
+type PeriodKey = 'lifetime' | 'week' | 'month' | 'quarter';
 type PerformanceScope = 'personal' | 'competition';
 type PageId = 'home' | 'strategy' | 'bots' | 'backtest' | 'rooms' | 'account' | 'notifications' | 'help';
 
@@ -74,7 +74,8 @@ const INITIAL_TASKS: HomeTask[] = [
   principal and the return index chain-links around inflow days — so adding a
   bot never reads as performance.
 */
-const PERIODS: Record<PeriodKey, { label: string; days: number }> = {
+const PERIODS: Record<PeriodKey, { label: string; days: number | null }> = {
+  lifetime: { label: '전체', days: null },
   week: { label: '1주', days: 7 },
   month: { label: '1개월', days: 30 },
   quarter: { label: '3개월', days: 91 },
@@ -116,7 +117,7 @@ const isBotInScope = (bot: BotRecord, scope: PerformanceScope): boolean =>
   scope === 'personal' ? bot.room === '개인 봇' : bot.room !== '개인 봇';
 
 export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
-  const [period, setPeriod] = useState<PeriodKey>('month');
+  const [period, setPeriod] = useState<PeriodKey>('lifetime');
   const [performanceScope, setPerformanceScope] = useState<PerformanceScope>('personal');
   const [included, setIncluded] = useState<Set<string>>(
     () => new Set(botList.filter((bot) => isBotInScope(bot, 'personal')).map((bot) => bot.name)),
@@ -161,8 +162,8 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
   };
 
   const { profit, rate, dates, launches, total, twr, today, drawdown } = useMemo(() => {
-    const { days } = PERIODS[period];
     const selected = scopedBots.filter((bot) => included.has(bot.name));
+    const days = PERIODS[period].days ?? Math.max(...selected.map((bot) => bot.startDaysAgo), 1);
     const series = selected.map((bot) => ({ bot, ...equitySeries(bot, days) }));
 
     const points = Array.from({ length: days + 1 }, (_, index) =>
@@ -171,9 +172,11 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
     // pure performance with injections cancelled out.
     const principal = Array.from({ length: days + 1 }, (_, index) =>
       series.reduce((sum, one) => sum + (one.values[index] === null ? 0 : (one.values[one.startIndex] ?? 0)), 0));
-    const starts: LaunchMark[] = series
-      .filter((one) => one.startIndex > 0)
-      .map((one) => ({ name: one.bot.name, index: one.startIndex }));
+    const starts: LaunchMark[] = series.map((one) => ({
+      name: one.bot.name,
+      index: one.startIndex,
+      kind: one.startIndex === 0 && one.bot.startDaysAgo > days ? 'before-range' : 'start',
+    }));
 
     // Chain-linked daily returns, excluding capital injected on launch days:
     // the time-weighted return, so a bot joining mid-window is not "profit".
@@ -286,7 +289,7 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
                 </label>)}
               </div>}
             </div>
-            <div aria-label="성과 기간">{(Object.entries(PERIODS) as Array<[PeriodKey, { label: string }]>).map(([id, item]) => <button key={id} className={period === id ? 'active' : ''} aria-pressed={period === id} onClick={() => setPeriod(id)}>{item.label}</button>)}</div>
+            <div role="group" aria-label="성과 기간">{(Object.entries(PERIODS) as Array<[PeriodKey, { label: string }]>).map(([id, item]) => <button key={id} className={period === id ? 'active' : ''} aria-pressed={period === id} onClick={() => setPeriod(id)}>{item.label}</button>)}</div>
           </div>
         </header>
         {/* Return is the primary comparison unit. Dollar totals stay secondary
@@ -315,7 +318,7 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
           <div><dt>선택 봇 수</dt><dd>{included.size}개</dd></div>
           <div><dt>시작일 보정</dt><dd>적용</dd></div>
         </dl>
-        <p className="dashboard-chart-note">선택한 봇을 하나의 운용 묶음으로 보고, 시작 자금 유입은 수익에서 제외한 시간가중수익률입니다. 세로 점선의 ‘운용 시작’은 해당 봇이 성과 계산에 포함되기 시작한 날입니다. 개인 운용과 대회 성과는 합산하지 않습니다.</p>
+        <p className="dashboard-chart-note">선택한 봇을 하나의 운용 묶음으로 보고, 시작 자금 유입은 수익에서 제외한 시간가중수익률입니다. ‘운용 시작’은 실제 시작일이고, ‘이전부터 운용’은 선택 기간보다 먼저 시작된 봇입니다. 개인 운용과 대회 성과는 합산하지 않습니다.</p>
       </section>
 
       <div className="dashboard-side">
