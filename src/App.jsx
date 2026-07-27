@@ -221,7 +221,7 @@ function ProductApp() {
       <Topbar theme={theme} setTheme={setTheme} page={page} setPage={setPage} updown={updown} setUpdown={setUpdown} />
       {isStrategyEditor
         ? <div className="strategy-editor-surface" data-testid="strategy-editor-surface">
-          <div className="page-scroll">{content}</div>
+          <div className="page-scroll strategy-editor-scroll">{content}</div>
         </div>
         : <div className="page-scroll">{content}</div>}
     </div>

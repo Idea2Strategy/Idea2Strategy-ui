@@ -37,6 +37,9 @@ describe('Signal product UI', () => {
     expect(editorSurface).toContainElement(screen.getByRole('region', { name: 'Basic 전략 캔버스' }));
     expect(screen.queryByTestId('strategy-editor-subnav')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Basic 편집기' })).toHaveClass('active');
+    const editorPage = screen.getByTestId('basic-editor-workspace').closest('.editor-shell-page');
+    expect(editorPage).not.toBeNull();
+    expect(editorSurface.firstElementChild).toHaveClass('strategy-editor-scroll');
 
     unmount();
     window.history.replaceState({}, '', '/strategies/new/pro');
