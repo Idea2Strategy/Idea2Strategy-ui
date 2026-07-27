@@ -19,16 +19,16 @@ describe('Bot operations', () => {
 
     const detail = screen.getByRole('region', { name: 'Atlas 07 운영 상세' });
     expect(within(detail).getByRole('heading', { name: 'Atlas 07' })).toBeInTheDocument();
-    // The capital appears in the overview figures and again as the chart's
-    // end value, so assert presence rather than uniqueness.
-    expect(within(detail).getAllByText('$24,892.40').length).toBeGreaterThan(0);
+    expect(within(detail).getByText('$10,540.00')).toBeInTheDocument();
+    expect(within(detail).getByText('+$540.00 · +5.40%')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '대회 참가 중' }));
     await user.click(screen.getByRole('button', { name: 'Room Beta 상세 보기' }));
 
     const next = screen.getByRole('region', { name: 'Room Beta 운영 상세' });
     expect(within(next).getByRole('heading', { name: 'Room Beta' })).toBeInTheDocument();
-    expect(within(next).getAllByText('$10,184.12').length).toBeGreaterThan(0);
+    expect(within(next).getByText('$10,490.00')).toBeInTheDocument();
+    expect(within(next).getByText('+$490.00 · +4.90%')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Atlas 07 운영 상세' })).not.toBeInTheDocument();
   });
 
@@ -52,21 +52,19 @@ describe('Bot operations', () => {
     expect(screen.queryByRole('button', { name: 'Pair Lab 상세 보기' })).not.toBeInTheDocument();
   });
 
-  test('the overview shows the correct start event and the shared initial capital', async () => {
+  test('the overview shows the correct start event without repeating the shared initial capital', async () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
     const atlas = screen.getByRole('region', { name: 'Atlas 07 운영 상세' });
-    expect(within(atlas).getByText('초기 자산')).toBeInTheDocument();
-    expect(within(atlas).getByText('$10,000.00')).toBeInTheDocument();
+    expect(within(atlas).queryByText('초기 자산')).not.toBeInTheDocument();
     expect(within(atlas).getByText('운용 시작 시간')).toBeInTheDocument();
     expect(within(atlas).getByText('2025.07.08 09:30 ET')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '대회 참가 중' }));
 
     const competitionBot = screen.getByRole('region', { name: 'Room Beta 운영 상세' });
-    expect(within(competitionBot).getByText('초기 자산')).toBeInTheDocument();
-    expect(within(competitionBot).getByText('$10,000.00')).toBeInTheDocument();
+    expect(within(competitionBot).queryByText('초기 자산')).not.toBeInTheDocument();
     expect(within(competitionBot).getByText('대회 참가 시간')).toBeInTheDocument();
     expect(within(competitionBot).getByText('2026.06.08 09:30 ET')).toBeInTheDocument();
   });
@@ -111,7 +109,7 @@ describe('Bot operations', () => {
     await user.click(screen.getByRole('tab', { name: /판단 기록/ }));
 
     const log = () => screen.getByRole('list', { name: 'Atlas 07 판단 기록 목록' });
-    expect(within(log()).getByText('SPY 12주 · $634.06')).toBeInTheDocument();
+    expect(within(log()).getByText('SPY 4주 · $634.06')).toBeInTheDocument();
     expect(within(log()).getByText('SECTION 01 · SPY')).toBeInTheDocument();
     expect(within(log()).getAllByText(/시초 15분 고가.*돌파 → 예산 25% 시장가 매수/).length).toBeGreaterThan(0);
     // Engine records join the same timeline once the person opts in.
@@ -131,13 +129,13 @@ describe('Bot operations', () => {
     expect(within(log()).getAllByRole('listitem')).toHaveLength(3);
     await user.type(screen.getByRole('searchbox', { name: '판단 기록 검색' }), 'MSFT');
     expect(within(log()).getAllByRole('listitem')).toHaveLength(1);
-    expect(within(log()).getByText('MSFT 9주 · $492.30')).toBeInTheDocument();
+    expect(within(log()).getByText('MSFT 3주 · $492.30')).toBeInTheDocument();
     await user.clear(screen.getByRole('searchbox', { name: '판단 기록 검색' }));
 
     // The sample "today" is 07.23 — only that day's fill remains.
     await user.selectOptions(screen.getByRole('combobox', { name: '판단 기록 기간 선택' }), 'today');
     expect(within(log()).getAllByRole('listitem')).toHaveLength(1);
-    expect(within(log()).getByText('SPY 12주 · $634.06')).toBeInTheDocument();
+    expect(within(log()).getByText('SPY 4주 · $634.06')).toBeInTheDocument();
 
     // Filters that match nothing surface a reset, not an empty panel.
     await user.type(screen.getByRole('searchbox', { name: '판단 기록 검색' }), 'TSLA');
@@ -208,9 +206,9 @@ describe('Bot operations', () => {
 
     const composition = screen.getByRole('group', { name: 'Atlas 07 자산 구성' });
     expect(within(composition).getByText('SPY')).toBeInTheDocument();
-    expect(within(composition).getByText('30.6%')).toBeInTheDocument();
+    expect(within(composition).getByText('24.0%')).toBeInTheDocument();
     expect(within(composition).getByText('현금')).toBeInTheDocument();
-    expect(within(composition).getByText('35.8%')).toBeInTheDocument();
+    expect(within(composition).getByText('49.5%')).toBeInTheDocument();
 
     // Time-axis records moved to the decision log; positions is current state.
     expect(screen.queryByText('SECTION 01 · SPY')).not.toBeInTheDocument();

@@ -81,7 +81,7 @@ const PERIODS: Record<PeriodKey, { label: string; days: number }> = {
   quarter: { label: '3개월', days: 91 },
 };
 const INITIAL_CAPITAL = 10000;
-const CAPITALS: Record<string, number> = { 'Atlas 07': 24892.40, 'Room Beta': 10184.12, 'Pair Lab': 9790 };
+const CAPITALS: Record<string, number> = { 'Atlas 07': 10540, 'Room Beta': 10490, 'Pair Lab': 9790 };
 const LIFETIME_RETURNS: Record<string, number> = Object.fromEntries(
   Object.entries(CAPITALS).map(([name, capital]) => [name, capital / INITIAL_CAPITAL - 1]),
 );

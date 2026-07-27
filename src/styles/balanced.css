@@ -5538,7 +5538,7 @@
 
 .bots-overview-figures {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border-bottom: 1px solid var(--line);
 }
 .bots-overview-figures > div {
