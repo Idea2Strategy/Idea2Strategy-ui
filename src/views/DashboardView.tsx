@@ -253,7 +253,7 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
         <header className="dashboard-section-head">
           <div><h2>운용 성과</h2><p>{scopeLabel} 봇의 시간가중 성과</p></div>
           <div className="dashboard-chart-controls">
-            <div className="dashboard-performance-scope" role="group" aria-label="성과 유형">
+            <div className="dashboard-chart-control dashboard-performance-scope" role="group" aria-label="성과 유형">
               <button
                 className={performanceScope === 'personal' ? 'active' : ''}
                 aria-pressed={performanceScope === 'personal'}
@@ -267,7 +267,7 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
             </div>
             {/* A dropdown with per-bot checkboxes: up to ten bots can run at
                 once, so one chip per bot does not scale. */}
-            <div className="dashboard-filter-anchor" ref={filterRef} onBlur={(event: FocusEvent<HTMLDivElement>) => {
+            <div className="dashboard-chart-control dashboard-filter-anchor" ref={filterRef} onBlur={(event: FocusEvent<HTMLDivElement>) => {
               if (!filterRef.current?.contains(event.relatedTarget as Node)) setFilterOpen(false);
             }}>
               <button
@@ -289,7 +289,7 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
                 </label>)}
               </div>}
             </div>
-            <div role="group" aria-label="성과 기간">{(Object.entries(PERIODS) as Array<[PeriodKey, { label: string }]>).map(([id, item]) => <button key={id} className={period === id ? 'active' : ''} aria-pressed={period === id} onClick={() => setPeriod(id)}>{item.label}</button>)}</div>
+            <div className="dashboard-chart-control" role="group" aria-label="성과 기간">{(Object.entries(PERIODS) as Array<[PeriodKey, { label: string }]>).map(([id, item]) => <button key={id} className={period === id ? 'active' : ''} aria-pressed={period === id} onClick={() => setPeriod(id)}>{item.label}</button>)}</div>
           </div>
         </header>
         {/* Return is the primary comparison unit. Dollar totals stay secondary

@@ -88,12 +88,16 @@ describe('Signal product UI', () => {
     const scope = within(performance).getByRole('group', { name: '성과 유형' });
     const personal = within(scope).getByRole('button', { name: '개인 운용' });
     const competition = within(scope).getByRole('button', { name: '대회 참가' });
+    const botFilter = within(performance).getByRole('button', { name: '합산에 포함할 봇 선택' });
     expect(personal).toHaveAttribute('aria-pressed', 'true');
     expect(competition).toHaveAttribute('aria-pressed', 'false');
     expect(performance).toHaveTextContent('개인 운용 봇의 시간가중 성과');
     expect(within(performance).getByText('시간가중수익률')).toBeInTheDocument();
     expect(within(performance).getByRole('img', { name: '개인 운용 봇의 시간가중수익률 차트' })).toBeInTheDocument();
     const periodGroup = within(performance).getByRole('group', { name: '성과 기간' });
+    expect(scope).toHaveClass('dashboard-chart-control');
+    expect(botFilter.closest('.dashboard-chart-control')).not.toBeNull();
+    expect(periodGroup).toHaveClass('dashboard-chart-control');
     expect(within(periodGroup).getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'true');
     const oldestLaunch = within(performance).getByText('Atlas 07 운용 시작');
     expect(oldestLaunch).toHaveClass('is-edge-start');
