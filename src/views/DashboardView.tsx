@@ -5,7 +5,6 @@ import {
   Bot,
   CalendarClock,
   ChevronDown,
-  Plus,
   Trophy,
   X,
 } from 'lucide-react';
@@ -43,7 +42,6 @@ interface HomeTask {
 
 interface DashboardViewProps {
   setPage: (page: PageId) => void;
-  openEditor: (mode: 'basic' | 'pro') => void;
 }
 
 const botList = bots as BotRecord[];
@@ -125,7 +123,7 @@ const labelGroups = (): Array<{ label: string; names: string[] }> => {
   return [{ label: '전체', names: botList.map((bot) => bot.name) }, ...[...groups.entries()].map(([label, names]) => ({ label, names }))];
 };
 
-export function DashboardView({ setPage, openEditor }: DashboardViewProps): ReactNode {
+export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
   const [period, setPeriod] = useState<PeriodKey>('month');
   const [included, setIncluded] = useState<Set<string>>(() => new Set(botList.map((bot) => bot.name)));
   const [filterOpen, setFilterOpen] = useState(false);
@@ -210,9 +208,6 @@ export function DashboardView({ setPage, openEditor }: DashboardViewProps): Reac
             ? '봇 3개가 정상 운영 중이에요. 오늘은 확인할 일이 없습니다.'
             : `봇 3개가 정상 운영 중이에요. 아래 ${taskList.length}가지만 확인하면 됩니다.`}
         </p>
-      </div>
-      <div className="page-actions">
-        <Button kind="primary" icon={Plus} onClick={() => openEditor('basic')}>새 전략</Button>
       </div>
     </header>
 

@@ -69,6 +69,7 @@ describe('Signal product UI', () => {
     render(<App />);
 
     expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '새 전략' })).not.toBeInTheDocument();
     expect(screen.getByText('확인이 필요한 작업')).toBeInTheDocument();
     expect(screen.getByText('전체 성과')).toBeInTheDocument();
 
@@ -95,7 +96,7 @@ describe('Signal product UI', () => {
 
     await user.selectOptions(screen.getByRole('combobox', { name: '언어 선택' }), 'en');
     expect(screen.getByRole('heading', { name: 'Welcome back, KIM' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'New strategy' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New strategy' })).not.toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute('lang', 'en');
     await user.click(screen.getByRole('button', { name: 'Bots' }));
     expect(screen.getByRole('heading', { name: 'Bot operations' })).toBeInTheDocument();
