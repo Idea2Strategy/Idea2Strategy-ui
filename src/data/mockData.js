@@ -1,7 +1,7 @@
 export const strategies = [
-  { name: 'Opening Range Flow', mode: 'Basic', state: '검증 완료', updated: '07.23 09:41 ET', blocks: 7, backtest: '가능' },
+  { name: 'Opening Range Flow', mode: 'Basic', state: '출시 가능', updated: '07.23 09:41 ET', blocks: 7, backtest: '가능' },
   { name: 'Pair Spread Monitor', mode: 'Pro', state: '미완성', updated: '07.22 15:18 ET', blocks: 14, backtest: '가능' },
-  { name: 'Volume Regime Draft', mode: 'Pro', state: '임시 저장', updated: '07.21 11:05 ET', blocks: 11, backtest: '데이터 확인' },
+  { name: 'Volume Regime Draft', mode: 'Pro', state: '미완성', updated: '07.21 11:05 ET', blocks: 11, backtest: '데이터 확인' },
 ];
 
 export const templates = [

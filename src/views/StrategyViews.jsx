@@ -11,7 +11,7 @@ import {
   getStrategyCanvasWheelZoom,
 } from '../lib/strategyCanvasLayout.js';
 
-const statusTone = (state) => state === '검증 완료' ? 'positive' : state === '미완성' ? 'warning' : 'neutral';
+const statusTone = (state) => state === '출시 가능' ? 'positive' : 'warning';
 
 export function StrategyHome({ openEditor }) {
   const [items, setItems] = useState(() => strategies.map((strategy, index) => ({
@@ -29,13 +29,13 @@ export function StrategyHome({ openEditor }) {
   const filteredItems = useMemo(() => items.filter((strategy) => {
     const matchesQuery = strategy.name.toLowerCase().includes(query.trim().toLowerCase());
     const matchesMode = mode === 'all' || strategy.mode.toLowerCase() === mode;
-    const needsInput = strategy.state === '미완성' || strategy.backtest === '데이터 확인';
-    const matchesState = state === 'all' || (state === 'ready' ? strategy.state === '검증 완료' : needsInput);
+    const matchesState = state === 'all'
+      || (state === 'launchable' ? strategy.state === '출시 가능' : strategy.state === '미완성');
     return matchesQuery && matchesMode && matchesState;
   }), [items, mode, query, state]);
 
-  const readyCount = items.filter((strategy) => strategy.state === '검증 완료').length;
-  const needsInputCount = items.filter((strategy) => strategy.state === '미완성' || strategy.backtest === '데이터 확인').length;
+  const launchableCount = items.filter((strategy) => strategy.state === '출시 가능').length;
+  const incompleteCount = items.filter((strategy) => strategy.state === '미완성').length;
 
   const reorderStrategy = (sourceId, targetId) => {
     if (!sourceId || sourceId === targetId) return;
@@ -67,7 +67,7 @@ export function StrategyHome({ openEditor }) {
     <div className="balanced-strategy-grid is-list-only">
       <section className="strategy-library panel">
         <header className="strategy-library-head">
-          <div className="strategy-title-group"><div><h2>내 전략</h2><span>{filteredItems.length}</span></div><div className="strategy-counts" data-testid="strategy-counts"><span>전체 <b>{items.length}</b></span><span>준비 완료 <b>{readyCount}</b></span><span>확인 필요 <b>{needsInputCount}</b></span></div></div>
+          <div className="strategy-title-group"><div><h2>내 전략</h2><span>{filteredItems.length}</span></div><div className="strategy-counts" data-testid="strategy-counts"><span>전체 <b>{items.length}</b></span><span>출시 가능 <b>{launchableCount}</b></span><span>미완성 <b>{incompleteCount}</b></span></div></div>
           <label className="strategy-search"><Search size={16} /><input type="search" aria-label="전략 검색" placeholder="이름으로 검색" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
         </header>
         <div className="strategy-filter-row">
@@ -78,8 +78,8 @@ export function StrategyHome({ openEditor }) {
           </div>
           <div className="strategy-filter-group is-secondary" aria-label="전략 상태 필터">
             <button className={state === 'all' ? 'active' : ''} onClick={() => setState('all')}>모든 상태</button>
-            <button className={state === 'ready' ? 'active' : ''} onClick={() => setState('ready')}>준비 완료</button>
-            <button className={state === 'needs' ? 'active' : ''} onClick={() => setState('needs')}>확인 필요</button>
+            <button className={state === 'launchable' ? 'active' : ''} onClick={() => setState('launchable')}>출시 가능</button>
+            <button className={state === 'incomplete' ? 'active' : ''} onClick={() => setState('incomplete')}>미완성</button>
           </div>
         </div>
         <div className="strategy-rows" data-testid="strategy-list">
