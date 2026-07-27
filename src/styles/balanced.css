@@ -2168,10 +2168,11 @@
   opacity: 1;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-legend .benchmark {
-  --benchmark-color: var(--text-soft);
+  --benchmark-color: var(--tone-indicator);
 }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .sp500 { --benchmark-color: var(--tone-indicator); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-legend .nasdaq { --benchmark-color: var(--info); }
-.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .russell { --benchmark-color: var(--warning); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-legend .russell { --benchmark-color: var(--tone-condition); }
 .variant-balanced[data-design="signal-studio"] .backtest-comparison-chart {
   position: relative;
   height: 330px;
@@ -2207,11 +2208,12 @@
   filter: drop-shadow(0 0 7px color-mix(in srgb, var(--accent) 32%, transparent));
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark {
-  stroke: var(--text-soft);
+  stroke: var(--tone-indicator);
   stroke-width: 2;
 }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark.sp500 { stroke: var(--tone-indicator); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark.nasdaq { stroke: var(--info); }
-.variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark.russell { stroke: var(--warning); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark.russell { stroke: var(--tone-condition); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-end {
   fill: var(--surface);
 }
@@ -2220,11 +2222,12 @@
   stroke-width: 3;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-end.benchmark {
-  stroke: var(--text-soft);
+  stroke: var(--tone-indicator);
   stroke-width: 2;
 }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-end.benchmark.sp500 { stroke: var(--tone-indicator); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-end.benchmark.nasdaq { stroke: var(--info); }
-.variant-balanced[data-design="signal-studio"] .backtest-chart-end.benchmark.russell { stroke: var(--warning); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-end.benchmark.russell { stroke: var(--tone-condition); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-hover-line {
   stroke: color-mix(in srgb, var(--text) 35%, transparent);
   stroke-width: 1;
@@ -2238,11 +2241,12 @@
   stroke-width: 3;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-hover-point.benchmark {
-  stroke: var(--text-soft);
+  stroke: var(--tone-indicator);
   stroke-width: 2;
 }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-hover-point.benchmark.sp500 { stroke: var(--tone-indicator); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-hover-point.benchmark.nasdaq { stroke: var(--info); }
-.variant-balanced[data-design="signal-studio"] .backtest-chart-hover-point.benchmark.russell { stroke: var(--warning); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-hover-point.benchmark.russell { stroke: var(--tone-condition); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip {
   position: absolute;
   z-index: 4;
@@ -2281,9 +2285,10 @@
   border-radius: 50%;
   background: var(--accent);
 }
-.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip .benchmark i { background: var(--text-soft); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip .benchmark i,
+.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip .sp500 i { background: var(--tone-indicator); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip .nasdaq i { background: var(--info); }
-.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip .russell i { background: var(--warning); }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip .russell i { background: var(--tone-condition); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-tooltip b {
   color: var(--text);
   font: 800 10px var(--font-mono);
