@@ -94,6 +94,8 @@ describe('Signal product UI', () => {
 
     await user.click(within(performance).getByRole('button', { name: '합산에 포함할 봇 선택' }));
     let botPicker = within(performance).getByRole('group', { name: '합산에 포함할 봇 선택' });
+    expect(within(botPicker).queryByText('라벨로 선택')).not.toBeInTheDocument();
+    expect(within(botPicker).getByText('봇 개별 선택')).toBeInTheDocument();
     expect(within(botPicker).getByText('Atlas 07')).toBeInTheDocument();
     expect(within(botPicker).getAllByText('Pair Lab').length).toBeGreaterThan(0);
     expect(within(botPicker).queryByText('Room Beta')).not.toBeInTheDocument();

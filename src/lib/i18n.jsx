@@ -784,7 +784,6 @@ const english = {
   '30명': '30 people', '20명': '20 people', '10명': '10 people', '8명': '8 people',
   '24개': '24', '8개': '8', '5개': '5', '3개': '3',
   // New home features
-  '라벨로 선택': 'By label',
   '봇 개별 선택': 'Individual bots',
   '개인': 'Personal',
   '대회': 'Competition',

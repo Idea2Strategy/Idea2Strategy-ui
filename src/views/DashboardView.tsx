@@ -114,20 +114,6 @@ const botTone = (state: string): 'positive' | 'info' | 'warning' =>
 const isBotInScope = (bot: BotRecord, scope: PerformanceScope): boolean =>
   scope === 'personal' ? bot.room === '개인 봇' : bot.room !== '개인 봇';
 
-/* Label groups for aggregate selection, with the bots each one contains. */
-const labelGroups = (scopedBots: BotRecord[]): Array<{ label: string; names: string[] }> => {
-  const groups = new Map<string, string[]>();
-  for (const bot of scopedBots) {
-    for (const label of bot.labels) {
-      if (label === '개인' || label === '대회') continue;
-      const names = groups.get(label) ?? [];
-      names.push(bot.name);
-      groups.set(label, names);
-    }
-  }
-  return [{ label: '전체', names: scopedBots.map((bot) => bot.name) }, ...[...groups.entries()].map(([label, names]) => ({ label, names }))];
-};
-
 export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
   const [period, setPeriod] = useState<PeriodKey>('month');
   const [performanceScope, setPerformanceScope] = useState<PerformanceScope>('personal');
@@ -143,7 +129,6 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
     () => botList.filter((bot) => isBotInScope(bot, performanceScope)),
     [performanceScope],
   );
-  const groups = useMemo(() => labelGroups(scopedBots), [scopedBots]);
   const scopeLabel = performanceScope === 'personal' ? '개인 운용' : '대회 참가';
 
   const confirmExtension = () => {
@@ -278,10 +263,8 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
                 onClick={() => changePerformanceScope('competition')}
               >대회 참가</button>
             </div>
-            {/* A dropdown with label groups plus per-bot checkboxes: up to ten
-                bots can run at once, so one chip per bot does not scale. Each
-                label row lists the bots it contains — picking a label must
-                never be a mystery set. */}
+            {/* A dropdown with per-bot checkboxes: up to ten bots can run at
+                once, so one chip per bot does not scale. */}
             <div className="dashboard-filter-anchor" ref={filterRef} onBlur={(event: FocusEvent<HTMLDivElement>) => {
               if (!filterRef.current?.contains(event.relatedTarget as Node)) setFilterOpen(false);
             }}>
@@ -293,20 +276,6 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
                 onClick={() => setFilterOpen((open) => !open)}
               >{`봇 ${included.size}/${scopedBots.length} 포함`}<ChevronDown size={13} aria-hidden="true" /></button>
               {filterOpen && <div className="dashboard-filter-panel" role="group" aria-label="합산에 포함할 봇 선택">
-                <p className="dashboard-filter-heading">라벨로 선택</p>
-                {groups.map((group) => {
-                  const activeGroup = group.names.length === included.size && group.names.every((name) => included.has(name));
-                  return <button
-                    key={group.label}
-                    type="button"
-                    className={`dashboard-filter-group ${activeGroup ? 'active' : ''}`}
-                    aria-pressed={activeGroup}
-                    onClick={() => setIncluded(new Set(group.names))}
-                  >
-                    <span className="dashboard-filter-copy"><strong>{group.label}</strong><small>{group.names.join(' · ')}</small></span>
-                    <b>{group.names.length}</b>
-                  </button>;
-                })}
                 <p className="dashboard-filter-heading">봇 개별 선택</p>
                 {scopedBots.map((bot) => <label key={bot.name}>
                   <input
