@@ -960,10 +960,10 @@ export function BacktestView() {
             <small>{selectedInstrument.name} · 최신 체결부터 표시</small>
           </span>
           <span className="backtest-execution-log-action">
-            <span className="backtest-execution-log-count">전체 {selectedInstrument.executions.length}건</span>
             <span>{executionLogOpen ? '접기' : '체결 내역 보기'}</span>
-            <ChevronDown size={16} aria-hidden="true" />
+            <ChevronDown size={17} aria-hidden="true" />
           </span>
+          <span className="backtest-execution-log-count">전체 {selectedInstrument.executions.length}건</span>
         </button>
         {executionLogOpen && <div id="backtest-execution-log-details" className="backtest-execution-log-details">
           <div className="backtest-log-toolbar">

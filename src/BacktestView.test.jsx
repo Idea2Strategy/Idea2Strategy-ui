@@ -206,6 +206,13 @@ describe('BacktestView', () => {
 
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(toggle).toHaveTextContent('전체 3건');
+    expect(toggle.querySelector('.backtest-execution-log-action')).toHaveTextContent('체결 내역 보기');
+    expect(toggle.querySelector('.backtest-execution-log-count')).toHaveTextContent('전체 3건');
+    expect(balancedStyles).toMatch(
+      /\.backtest-execution-log-toggle\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto\s+minmax\(0,\s*1fr\)/s,
+    );
+    expect(balancedStyles).toMatch(/\.backtest-execution-log-action\s*\{[^}]*justify-self:\s*center/s);
+    expect(balancedStyles).toMatch(/\.backtest-execution-log-count\s*\{[^}]*justify-self:\s*end/s);
     expect(within(executionLog).queryByRole('table')).not.toBeInTheDocument();
     expect(within(executionLog).queryByRole('group', { name: '체결 로그 기간 검색' })).not.toBeInTheDocument();
 
