@@ -387,8 +387,10 @@ describe('Competition ranking', () => {
     await user.click(screen.getByRole('button', { name: 'Momentum Lab 열기' }));
 
     const conditions = screen.getByLabelText('Momentum Lab 공통 조건');
+    expect(within(conditions).getAllByRole('listitem')).toHaveLength(4);
     expect(within(conditions).getByText('$10,000')).toBeInTheDocument();
     expect(within(conditions).getByText('미국 상장 주식 · ETF')).toBeInTheDocument();
-    expect(within(conditions).getByText('수수료 0.2% · 슬리피지 0.05%')).toBeInTheDocument();
+    expect(within(conditions).getByText('0.20%')).toBeInTheDocument();
+    expect(within(conditions).getByText('0.05%')).toBeInTheDocument();
   });
 });

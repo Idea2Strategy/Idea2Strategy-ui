@@ -1,8 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, Bot, CalendarDays, Coins, Plus, Search, Trophy } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  BadgePercent,
+  Bot,
+  CalendarDays,
+  ChartPie,
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  Coins,
+  Info,
+  Plus,
+  Search,
+  ShieldCheck,
+  SlidersHorizontal,
+  Trophy,
+  UserRound,
+  WalletCards,
+  X,
+} from 'lucide-react';
 import { Button, DataTable, EmptyState, MetricRow, PageHeading, Panel, Status } from '../components/common.jsx';
 import { leaderboard } from '../data/mockData.js';
 import { Localized, useLanguage } from '../lib/i18n.jsx';
+import alphaDashArtwork from '../assets/competition-v2/alpha-dash.png';
+import dividendMarathonArtwork from '../assets/competition-v2/dividend-marathon.png';
+import etfSprintArtwork from '../assets/competition-v2/etf-sprint.png';
+import i2sSummerLeagueArtwork from '../assets/competition-v2/i2s-summer-league.png';
+import riskControlCupArtwork from '../assets/competition-v2/risk-control-cup.png';
+import volatilityShieldArtwork from '../assets/competition-v2/volatility-shield.png';
 
 const backtestBenchmark = {
   name: 'S&P 500',
@@ -544,19 +570,22 @@ export function BacktestView() {
   choice is always first. Each card owns its calendar and participation state.
 */
 const officialCompetitions = [
-  { name: 'ETF Sprint', bots: 128, ranking: '수익률 점수제', score: '수익률', remainingDays: 5, standing: '2위', standingTone: 'silver', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.21', end: '08.01' },
-  { name: 'Alpha Dash', bots: 41, ranking: '수익률 점수제', score: '수익률', remainingDays: 12, standing: '미참가', standingTone: 'inactive', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.27', end: '08.08' },
-  { name: 'Risk Control Cup', bots: 96, ranking: '위험조정 점수제', score: '최대 낙폭', remainingDays: 15, standing: '미참가', standingTone: 'inactive', tone: 'risk', official: true, host: 'I2S 운영팀', start: '07.14', end: '08.11' },
-  { name: 'I2S Summer League', bots: 184, ranking: '표준점수제', score: '복합 점수', remainingDays: 65, standing: '1위', standingTone: 'gold', tone: 'standard', official: true, host: 'I2S 운영팀', start: '07.01', end: '09.30' },
-  { name: 'Dividend Marathon', bots: 58, ranking: '위험조정 점수제', score: '최대 낙폭', remainingDays: 152, standing: '3위', standingTone: 'bronze', tone: 'risk', official: true, host: 'I2S 운영팀', start: '07.01', end: '12.26' },
-  { name: 'Volatility Shield', bots: 72, ranking: '샤프 점수제', score: '샤프 지수', remainingDays: 156, standing: '5위', standingTone: 'neutral', tone: 'sharpe', official: true, host: 'I2S 운영팀', start: '01.02', end: '12.30' },
+  { name: 'ETF Sprint', description: 'ETF 전략의 단기 수익률을 같은 조건에서 비교합니다.', bots: 128, ranking: '수익률 점수제', score: '수익률', remainingDays: 5, standing: '2위', standingTone: 'silver', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.21', end: '08.01' },
+  { name: 'Alpha Dash', description: '짧은 기간 안에 초과 수익을 만드는 전략을 겨룹니다.', bots: 41, ranking: '수익률 점수제', score: '수익률', remainingDays: 12, standing: '미참가', standingTone: 'inactive', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.27', end: '08.08' },
+  { name: 'Risk Control Cup', description: '손실 위험을 낮추면서 안정적인 성과를 겨룹니다.', bots: 96, ranking: '위험조정 점수제', score: '최대 낙폭', remainingDays: 15, standing: '미참가', standingTone: 'inactive', tone: 'risk', official: true, host: 'I2S 운영팀', start: '07.14', end: '08.11' },
+  { name: 'I2S Summer League', description: '수익성과 안정성을 함께 평가하는 공식 시즌 대회입니다.', bots: 184, ranking: '표준점수제', score: '복합 점수', remainingDays: 65, standing: '1위', standingTone: 'gold', tone: 'standard', official: true, host: 'I2S 운영팀', start: '07.01', end: '09.30' },
+  { name: 'Dividend Marathon', description: '배당 전략의 장기 성과와 안정성을 평가합니다.', bots: 58, ranking: '위험조정 점수제', score: '최대 낙폭', remainingDays: 152, standing: '3위', standingTone: 'bronze', tone: 'risk', official: true, host: 'I2S 운영팀', start: '07.01', end: '12.26' },
+  { name: 'Volatility Shield', description: '낮은 변동성과 꾸준한 성과를 함께 평가합니다.', bots: 72, ranking: '샤프 점수제', score: '샤프 지수', remainingDays: 156, standing: '5위', standingTone: 'neutral', tone: 'sharpe', official: true, host: 'I2S 운영팀', start: '01.02', end: '12.30' },
 ];
 
 const officialBotsTotal = officialCompetitions.reduce((total, competition) => total + competition.bots, 0);
-const officialParticipationCounts = {
-  all: officialCompetitions.length,
-  joined: officialCompetitions.filter((competition) => competition.standingTone !== 'inactive').length,
-  unjoined: officialCompetitions.filter((competition) => competition.standingTone === 'inactive').length,
+const officialCompetitionArtwork = {
+  'ETF Sprint': { id: 'etf-sprint', src: etfSprintArtwork },
+  'Alpha Dash': { id: 'alpha-dash', src: alphaDashArtwork },
+  'Risk Control Cup': { id: 'risk-control-cup', src: riskControlCupArtwork },
+  'I2S Summer League': { id: 'i2s-summer-league', src: i2sSummerLeagueArtwork },
+  'Dividend Marathon': { id: 'dividend-marathon', src: dividendMarathonArtwork },
+  'Volatility Shield': { id: 'volatility-shield', src: volatilityShieldArtwork },
 };
 const officialLeaderboard = [
   { rank: 1, bot: 'AlphaCore_7X', score: '9,842.15', return: '+28.47%' },
@@ -696,33 +725,131 @@ function OfficialLeaderboard() {
   leads as the tone-coloured badge and the same tone edges the card. Stats
   live on the detail page — a stat block on every card read as clutter.
 */
-function OfficialCompetitionGrid({ competitions = officialCompetitions, onSelect }) {
+function OfficialCompetitionCard({
+  competition,
+  onActivate,
+  ariaLabel = `${competition.name} 열기`,
+  isCurrent = false,
+  showStanding = true,
+  showArtwork = false,
+}) {
   const { t } = useLanguage();
+  const artwork = showArtwork ? officialCompetitionArtwork[competition.name] : null;
+  return <article
+    className={`competition-discovery-card official-competition-card-tile${artwork ? ' has-generated-art' : ''}`}
+    data-card-tone={competition.tone}
+    data-card-art={artwork?.id}
+    style={artwork ? { '--official-card-image': `url("${artwork.src}")` } : undefined}
+    role="button"
+    tabIndex="0"
+    aria-label={ariaLabel}
+    aria-current={isCurrent ? 'true' : undefined}
+    onClick={onActivate}
+    onKeyDown={(event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onActivate();
+      }
+    }}
+  >
+    <header className="official-card-header">
+      <strong className="competition-ranking-badge" data-ranking-tone={competition.tone}>{t(competition.ranking)}</strong>
+      {showStanding && <span className="official-card-standing" data-standing-tone={competition.standingTone}>{t(competition.standing)}</span>}
+    </header>
+    <h3>{competition.name}</h3>
+    <p className="official-card-description">{t(competition.description)}</p>
+    <div className="official-card-schedule">
+      <span>{`${competition.start}–${competition.end}`}</span>
+      <span className="official-card-schedule-separator" aria-hidden="true">·</span>
+      <b className={competition.remainingDays <= 7 ? 'is-urgent' : ''}>{`${competition.remainingDays}일 남음`}</b>
+    </div>
+    <footer className="official-card-footer">
+      <p className="official-card-bots">{`참여 봇 ${competition.bots}개`}</p>
+      <ArrowUpRight className="official-card-arrow" size={15} strokeWidth={1.8} aria-hidden="true" />
+    </footer>
+  </article>;
+}
+
+function OfficialCompetitionGrid({ competitions = officialCompetitions, onSelect }) {
   return <Localized><div className="official-competition-list competition-card-grid" role="list" aria-label="공식 대회 목록">{competitions.map((competition) =>
     <div role="listitem" key={competition.name}>
-      <article className="competition-discovery-card official-competition-card-tile" data-card-tone={competition.tone} role="button" tabIndex="0" aria-label={`${competition.name} 열기`} onClick={() => onSelect(competition)} onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onSelect(competition);
-        }
-      }}>
-        <header className="official-card-header">
-          <strong className="competition-ranking-badge" data-ranking-tone={competition.tone}>{t(competition.ranking)}</strong>
-          <span className="official-card-standing" data-standing-tone={competition.standingTone}>{t(competition.standing)}</span>
-        </header>
-        <h3>{competition.name}</h3>
-        <div className="official-card-schedule">
-          <span>{`${competition.start}–${competition.end}`}</span>
-          <span className="official-card-schedule-separator" aria-hidden="true">·</span>
-          <b className={competition.remainingDays <= 7 ? 'is-urgent' : ''}>{`${competition.remainingDays}일 남음`}</b>
-        </div>
-        <footer className="official-card-footer">
-          <p className="official-card-bots">{`참여 봇 ${competition.bots}개`}</p>
-          <ArrowUpRight className="official-card-arrow" size={15} strokeWidth={1.8} aria-hidden="true" />
-        </footer>
-      </article>
+      <OfficialCompetitionCard competition={competition} onActivate={() => onSelect(competition)} />
     </div>
   )}</div></Localized>;
+}
+
+const officialCarouselPosition = (index, activeIndex, length) => {
+  let position = index - activeIndex;
+  if (position > length / 2) position -= length;
+  if (position < -length / 2) position += length;
+  return position;
+};
+
+function OfficialCompetitionCarousel({ onSelect, visualVariant = 'default' }) {
+  const initialIndex = Math.max(0, officialCompetitions.findIndex((competition) => competition.name === 'I2S Summer League'));
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const move = (direction) => setActiveIndex((current) => (
+    (current + direction + officialCompetitions.length) % officialCompetitions.length
+  ));
+  const visibleCompetitions = officialCompetitions
+    .map((competition, index) => ({
+      competition,
+      position: officialCarouselPosition(index, activeIndex, officialCompetitions.length),
+    }))
+    .filter(({ position }) => Math.abs(position) <= 2)
+    .sort((left, right) => left.position - right.position);
+
+  return <Localized><section
+    className="official-carousel"
+    aria-label="공식 대회 캐러셀"
+    onKeyDown={(event) => {
+      if (event.target !== event.currentTarget) return;
+      if (event.key === 'ArrowLeft') move(-1);
+      if (event.key === 'ArrowRight') move(1);
+    }}
+    tabIndex="0"
+  >
+    <button type="button" className="official-carousel-control is-previous" aria-label="이전 공식 대회" onClick={() => move(-1)}>
+      <ChevronLeft size={26} aria-hidden="true" />
+    </button>
+    <div className="official-carousel-stage">
+      <div className="official-carousel-list" role="list" aria-label="공식 대회 목록">
+        {visibleCompetitions.map(({ competition, position }) => {
+          const isCurrent = position === 0;
+          return <div
+            className="official-carousel-item"
+            data-carousel-position={position}
+            role="listitem"
+            key={competition.name}
+          >
+            <OfficialCompetitionCard
+              competition={competition}
+              isCurrent={isCurrent}
+              showStanding={false}
+              showArtwork={visualVariant === 'image'}
+              ariaLabel={isCurrent ? `${competition.name} 열기` : `${competition.name} 앞으로 이동`}
+              onActivate={() => {
+                if (isCurrent) onSelect(competition);
+                else move(position < 0 ? -1 : 1);
+              }}
+            />
+          </div>;
+        })}
+      </div>
+    </div>
+    <button type="button" className="official-carousel-control is-next" aria-label="다음 공식 대회" onClick={() => move(1)}>
+      <ChevronRight size={26} aria-hidden="true" />
+    </button>
+    <nav className="official-carousel-pagination" aria-label="공식 대회 선택">
+      {officialCompetitions.map((competition, index) => <button
+        type="button"
+        key={competition.name}
+        aria-label={`${competition.name} 공식 대회 보기`}
+        aria-current={activeIndex === index ? 'true' : undefined}
+        onClick={() => setActiveIndex(index)}
+      />)}
+    </nav>
+  </section></Localized>;
 }
 
 /*
@@ -750,29 +877,129 @@ const formatMetric = (entry, metric) => {
 };
 
 const competitionConditions = [
-  { label: '시작 자본', value: '$10,000', detail: '모든 참가 봇 동일' },
-  { label: '종목 범위', value: '미국 상장 주식 · ETF', detail: '레버리지 상품 제외' },
-  { label: '비교 기준', value: 'S&P 500', detail: '같은 기간 지수' },
-  { label: '체결·비용', value: '수수료 0.2% · 슬리피지 0.05%', detail: '전 참가자 동일 적용' },
+  { label: '시작 자본', value: '$10,000', detail: '모든 참가 봇 동일', icon: WalletCards },
+  { label: '종목 범위', value: '미국 상장 주식 · ETF', detail: '레버리지 상품 제외', icon: ChartPie },
+  { label: '수수료', value: '0.20%', detail: '매수·매도 체결 시 적용', icon: BadgePercent },
+  { label: '슬리피지', value: '0.05%', detail: '시장가 체결 오차 반영', icon: SlidersHorizontal },
 ];
 
-export function RoomsView() {
+const rankingCalculationHelp = {
+  '표준점수제': '수익률, 최대 낙폭, 변동성을 각각 표준화한 뒤 대회 가중치에 따라 합산해 점수를 계산합니다.',
+  '위험조정 점수제': '수익률에서 변동성과 최대 낙폭을 반영해 위험 대비 성과를 점수로 계산합니다.',
+  '수익률 점수제': '대회 시작 자본 대비 종료 시점의 누적 수익률을 기준으로 점수를 계산합니다.',
+  '샤프 점수제': '무위험 수익률을 제외한 초과 수익률을 변동성으로 나눈 샤프 지수로 점수를 계산합니다.',
+};
+
+const competitionDetailDescriptions = {
+  'ETF Sprint': 'ETF 전략의 단기 수익성과 매매 일관성을 동일한 조건에서 비교하는 공식 대회입니다.',
+  'Alpha Dash': '짧은 기간 안에 초과 수익을 만드는 전략의 속도와 위험 관리 능력을 함께 평가합니다.',
+  'Risk Control Cup': '손실 위험을 낮추면서 안정적인 성과를 만드는 전략을 위험조정 점수로 평가합니다.',
+  'I2S Summer League': '수익성과 안정성을 함께 평가하며, 다양한 시장 국면에서 전략이 얼마나 일관되게 작동하는지 비교합니다.',
+  'Dividend Marathon': '배당주 중심의 장기 운용 성과를 겨루며, 배당 재투자와 안정적인 자산 성장, 하락 구간의 위험 관리 능력을 함께 평가합니다.',
+  'Volatility Shield': '낮은 변동성과 꾸준한 위험 대비 성과를 유지하는 전략을 장기간에 걸쳐 평가합니다.',
+};
+
+function CompetitionCreateDialog({ onClose }) {
+  const nameInputRef = useRef(null);
+  const [description, setDescription] = useState('');
+
+  useEffect(() => {
+    nameInputRef.current?.focus();
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
+  return <div
+    className="competition-create-backdrop"
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}
+  >
+    <form
+      className="competition-create-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="competition-create-title"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+    >
+      <header>
+        <h2 id="competition-create-title">대회 만들기</h2>
+        <button type="button" aria-label="대회 만들기 닫기" onClick={onClose}><X size={20} /></button>
+      </header>
+
+      <fieldset>
+        <legend>기본 정보</legend>
+        <label>
+          <span>대회 이름</span>
+          <input ref={nameInputRef} aria-label="대회 이름" placeholder="대회 이름을 입력하세요" required />
+        </label>
+        <label>
+          <span>대회 설명</span>
+          <textarea
+            aria-label="대회 설명"
+            placeholder="참가자가 대회의 목적을 이해할 수 있도록 설명하세요"
+            maxLength={120}
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+          <small aria-hidden="true">{`${description.length} / 120`}</small>
+        </label>
+      </fieldset>
+
+      <fieldset className="competition-create-settings">
+        <legend>운영 설정</legend>
+        <div className="competition-create-period">
+          <span>대회 기간</span>
+          <div>
+            <label><span>시작일</span><input type="date" aria-label="시작일" required /></label>
+            <i aria-hidden="true">–</i>
+            <label><span>종료일</span><input type="date" aria-label="종료일" required /></label>
+          </div>
+        </div>
+        <label className="competition-create-score">
+          <span>채점 방식 <button type="button" aria-label="채점 방식 도움말"><CircleHelp size={14} /></button></span>
+          <select aria-label="채점 방식" defaultValue="표준점수제">
+            <option>표준점수제</option>
+            <option>위험조정 점수제</option>
+            <option>수익률 점수제</option>
+            <option>샤프 점수제</option>
+          </select>
+        </label>
+        <label className="competition-create-capital">
+          <span>시작 자본</span>
+          <span className="competition-create-money"><b aria-hidden="true">$</b><input aria-label="시작 자본" inputMode="numeric" defaultValue="10,000" /></span>
+        </label>
+      </fieldset>
+
+      <footer>
+        <p><Info size={14} aria-hidden="true" />대회를 만든 뒤에도 시작 전까지 설정을 수정할 수 있습니다.</p>
+        <div>
+          <button type="button" className="button button-secondary" onClick={onClose}>취소</button>
+          <button type="submit" className="button button-primary">대회 만들기</button>
+        </div>
+      </footer>
+    </form>
+  </div>;
+}
+
+export function RoomsView({ visualVariant = 'default' }) {
   const [query, setQuery] = useState('');
   const [scoreFilter, setScoreFilter] = useState('all');
   const [sizeFilter, setSizeFilter] = useState('all');
   const [participationFilter, setParticipationFilter] = useState('all');
-  const [officialParticipationFilter, setOfficialParticipationFilter] = useState('all');
   const [roomSort, setRoomSort] = useState({ key: 'joined', dir: 'desc' });
   const [page, setPage] = useState(1);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [officialSeasonOpen, setOfficialSeasonOpen] = useState(false);
   const [focusedRoom, setFocusedRoom] = useState(competitionRooms[0]);
   const [sortMetric, setSortMetric] = useState('score');
-  const visibleOfficialCompetitions = officialCompetitions.filter((competition) => (
-    officialParticipationFilter === 'all'
-    || (officialParticipationFilter === 'joined' && competition.standingTone !== 'inactive')
-    || (officialParticipationFilter === 'unjoined' && competition.standingTone === 'inactive')
-  ));
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const visibleRooms = useMemo(() => sortRooms(competitionRooms.filter((room) => {
     const matchesQuery = room.name.toLowerCase().includes(query.trim().toLowerCase());
     const matchesScore = scoreFilter === 'all' || room.score === scoreFilter;
@@ -798,6 +1025,14 @@ export function RoomsView() {
     : b[activeMetric.id] - a[activeMetric.id]), [activeMetric]);
   const myEntry = rankedEntries.find((entry) => entry.mine);
   const myPosition = myEntry ? rankedEntries.indexOf(myEntry) + 1 : null;
+  const detailDescription = selectedRoom
+    ? competitionDetailDescriptions[selectedRoom.name]
+      ?? `${selectedRoom.name} 참가 봇을 동일한 시장 데이터와 체결 조건에서 비교하는 모의투자 대회입니다.`
+    : '';
+  const scoringHelp = selectedRoom
+    ? rankingCalculationHelp[selectedRoom.ranking]
+      ?? '대회에서 정한 수익성과 위험 지표를 합산해 최종 점수를 계산합니다.'
+    : '';
 
   if (selectedRoom) return <Localized><div className="page competition-page competition-detail-page">
     <section aria-label={`${selectedRoom.name} 상세 페이지`}>
@@ -805,23 +1040,40 @@ export function RoomsView() {
       <header className="competition-detail-heading">
         <div><p>COMPETITION DETAIL</p><h1>{selectedRoom.name}</h1></div>
       </header>
-      <div className="competition-detail-summary">
-        <span><small>운영자</small><strong>{selectedRoom.host}</strong></span>
-        <span><small>기간</small><strong>{`${selectedRoom.start} – ${selectedRoom.end}`}</strong></span>
-        <span><small>참여 봇</small><strong>{selectedRoom.official ? selectedRoom.bots : selectedRoom.joined}개</strong></span>
-        <span><small>채점 방식</small><strong>{selectedRoom.ranking}</strong></span>
-      </div>
       <div className="competition-detail-guide">
-        <div><Bot size={17} /><span><strong>봇끼리 공정하게 비교합니다.</strong><small>사용자 대신 익명 봇만 순위에 표시됩니다.</small></span></div>
+        <div className="competition-detail-guide-icon"><Bot size={22} aria-hidden="true" /><Info size={12} aria-hidden="true" /></div>
+        <div className="competition-detail-guide-copy">
+          <h2>{selectedRoom.name} 대회 안내</h2>
+          <p>{detailDescription}</p>
+          <small>모든 참가 봇은 동일한 시장 데이터와 체결 조건을 적용받습니다.</small>
+        </div>
+      </div>
+      <div className="competition-detail-summary">
+        <span><UserRound size={18} aria-hidden="true" /><span><small>운영자</small><strong>{selectedRoom.host}</strong></span></span>
+        <span><CalendarDays size={18} aria-hidden="true" /><span><small>기간</small><strong>{`${selectedRoom.start} – ${selectedRoom.end}`}</strong></span></span>
+        <span><Bot size={18} aria-hidden="true" /><span><small>참여 봇</small><strong>{selectedRoom.official ? selectedRoom.bots : selectedRoom.joined}개</strong></span></span>
+        <span className="is-scoring">
+          <ShieldCheck size={18} aria-hidden="true" />
+          <span>
+            <small>채점 방식</small>
+            <strong>{selectedRoom.ranking}<span className="competition-scoring-help">
+              <button type="button" aria-label={`${selectedRoom.ranking} 계산 방식 보기`} aria-describedby="competition-scoring-tooltip">
+                <CircleHelp size={14} aria-hidden="true" />
+              </button>
+              <span id="competition-scoring-tooltip" role="tooltip">{scoringHelp}</span>
+            </span></strong>
+          </span>
+        </span>
       </div>
 
       {/* The conditions every entry shares. Without these the ranking is a bare
           list of numbers and there is no way to tell what was held equal. */}
-      <div className="competition-conditions" aria-label={`${selectedRoom.name} 공통 조건`}>
-        {competitionConditions.map((condition) => <div key={condition.label}>
-          <small>{condition.label}</small>
+      <div className="competition-conditions" role="list" aria-label={`${selectedRoom.name} 공통 조건`}>
+        {competitionConditions.map((condition) => <div role="listitem" key={condition.label}>
+          <condition.icon size={18} aria-hidden="true" />
+          <span><small>{condition.label}</small>
           <strong>{condition.value}</strong>
-          <em>{condition.detail}</em>
+          <em>{condition.detail}</em></span>
         </div>)}
       </div>
 
@@ -846,7 +1098,7 @@ export function RoomsView() {
           <span className={entry.return >= 0 ? 'positive' : 'negative'}>{entry.return > 0 ? '+' : ''}{entry.return.toFixed(2)}%</span>
         </div>)}
       </div>
-      <p className="competition-ranking-note">순위는 선택한 지표만으로 다시 계산합니다. 어떤 지표가 더 좋은 전략을 뜻하는지는 제품이 판단하지 않습니다.</p>
+      <p className="competition-ranking-note"><Info size={14} aria-hidden="true" />순위는 선택한 지표만으로 다시 계산합니다. 어떤 지표가 더 좋은 전략을 뜻하는지는 제품이 판단하지 않습니다.</p>
     </section>
   </div></Localized>;
 
@@ -870,12 +1122,12 @@ export function RoomsView() {
     </section>
   </div></Localized>;
 
-  return <Localized><div className="page competition-page competition-lobby-page">
-    <PageHeading eyebrow="BOT COMPETITION" title="모의투자" description="같은 규칙에서 봇을 비교하고, 참여할 대회를 빠르게 선택하세요." actions={<Button kind="primary" icon={Plus}>대회 만들기</Button>} />
+  return <Localized><div className={`page competition-page competition-lobby-page${visualVariant === 'image' ? ' competition-concept-v2' : ''}`}>
+    <PageHeading eyebrow="BOT COMPETITION" title="모의투자" description="같은 규칙에서 봇을 비교하고, 참여할 대회를 빠르게 선택하세요." actions={<Button kind="primary" icon={Plus} onClick={() => setCreateDialogOpen(true)}>대회 만들기</Button>} />
+    {createDialogOpen && <CompetitionCreateDialog onClose={() => setCreateDialogOpen(false)} />}
 
-    {/* Official competitions are visible at once in a responsive grid. Each
-        card remains the navigation target, so no duplicate overview action or
-        horizontal carousel is necessary. */}
+    {/* The lobby gives one official competition a clear focus while the two
+        nearest choices on either side preserve context without a large frame. */}
     <section className="official-showcase" aria-labelledby="official-showcase-title">
       <header>
         <div>
@@ -883,20 +1135,8 @@ export function RoomsView() {
           <h2 id="official-showcase-title">공식 대회</h2>
           <p>{`I2S 운영팀이 직접 운영합니다 · 진행 중 ${officialCompetitions.length}개 · 참여 봇 ${officialBotsTotal}개`}</p>
         </div>
-        <div className="official-participation-filter" role="group" aria-label="공식 대회 참여 상태 필터">
-          {[
-            { id: 'all', label: '전체', count: officialParticipationCounts.all },
-            { id: 'joined', label: '참가', count: officialParticipationCounts.joined },
-            { id: 'unjoined', label: '미참가', count: officialParticipationCounts.unjoined },
-          ].map((filter) => <button
-            type="button"
-            key={filter.id}
-            aria-pressed={officialParticipationFilter === filter.id}
-            onClick={() => setOfficialParticipationFilter(filter.id)}
-          >{`${filter.label} ${filter.count}`}</button>)}
-        </div>
       </header>
-      <OfficialCompetitionGrid competitions={visibleOfficialCompetitions} onSelect={setSelectedRoom} />
+      <OfficialCompetitionCarousel onSelect={setSelectedRoom} visualVariant={visualVariant} />
     </section>
 
     <div className="competition-lobby-grid">

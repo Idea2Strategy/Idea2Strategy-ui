@@ -192,6 +192,7 @@ function ProductApp() {
     <Route path="/bots" element={<BotsView />} />
     <Route path="/backtests" element={<BacktestView />} />
     <Route path="/competition" element={<RoomsView />} />
+    <Route path="/competition-v2" element={<RoomsView visualVariant="image" />} />
     <Route path="/notifications" element={<NotificationsView setPage={setPage} />} />
     <Route path="/help" element={<HelpView />} />
     <Route path="/account" element={<AccountView
