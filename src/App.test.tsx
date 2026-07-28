@@ -92,6 +92,8 @@ describe('Signal product UI', () => {
 
     expect(screen.getByTestId('dashboard-bot-icon-Atlas 07')).toHaveAttribute('data-icon', 'analytical');
     expect(screen.getByTestId('dashboard-bot-icon-Atlas 07')).toHaveAttribute('data-color', 'blue');
+    expect(screen.getByTestId('chart-launch-bot-icon-Atlas 07')).toHaveAttribute('data-icon', 'analytical');
+    expect(screen.getByTestId('chart-launch-bot-icon-Atlas 07')).toHaveAttribute('data-color', 'blue');
   });
 
   test('separates personal and competition performance without mixing their bots', async () => {
@@ -116,7 +118,8 @@ describe('Signal product UI', () => {
     const oldestLaunch = within(performance).getByRole('button', { name: 'Atlas 07 운용 시작 정보' });
     expect(oldestLaunch).toHaveClass('is-edge-start');
     expect(oldestLaunch).toHaveStyle({ left: '0%' });
-    expect(oldestLaunch.querySelector('.lucide-bot')).toBeInTheDocument();
+    expect(screen.getByTestId('chart-launch-bot-icon-Atlas 07')).toHaveAttribute('data-icon', 'focus');
+    expect(screen.getByTestId('chart-launch-bot-icon-Atlas 07')).toHaveAttribute('data-color', 'gray');
     expect(within(performance).getByRole('tooltip', { name: 'Atlas 07 운용 시작 상세' })).toHaveTextContent('07.08 · 이 날부터 성과에 포함');
     expect(within(performance).getByRole('button', { name: 'Pair Lab 운용 시작 정보' })).toHaveClass('is-edge-end');
     expect(within(performance).queryByText('Pair Lab 운용 시작', { selector: '.dashboard-chart-marker' })).not.toBeInTheDocument();

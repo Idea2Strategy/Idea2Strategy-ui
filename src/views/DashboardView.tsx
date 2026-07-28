@@ -178,6 +178,7 @@ export function DashboardView({ setPage, botIcons = DEFAULT_BOT_ICONS }: Dashboa
       name: one.bot.name,
       index: one.startIndex,
       kind: one.startIndex === 0 && one.bot.startDaysAgo > days ? 'before-range' : 'start',
+      appearance: botIcons[one.bot.name] ?? FALLBACK_BOT_ICON,
     }));
 
     // Chain-linked daily returns, excluding capital injected on launch days:
@@ -206,7 +207,7 @@ export function DashboardView({ setPage, botIcons = DEFAULT_BOT_ICONS }: Dashboa
       today: points[points.length - 1] / points[points.length - 2] - 1,
       drawdown: worst,
     };
-  }, [included, period, scopedBots]);
+  }, [botIcons, included, period, scopedBots]);
 
   return <Localized><div className="page dashboard-page">
     <header className="page-heading dashboard-heading">

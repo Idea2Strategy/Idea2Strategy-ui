@@ -1,12 +1,14 @@
 import { useId, useRef, useState } from 'react';
 import type { FocusEvent, KeyboardEvent, MouseEvent } from 'react';
-import { Bot } from 'lucide-react';
 import { useLanguage } from '../lib/i18n';
+import { BotGlyph, FALLBACK_BOT_ICON } from './BotGlyph';
+import type { BotIconSelection } from './BotGlyph';
 
 export interface LaunchMark {
   name: string;
   index: number;
   kind?: 'start' | 'before-range';
+  appearance?: BotIconSelection;
 }
 
 export interface EquityChartProps {
@@ -177,7 +179,10 @@ export function EquityChart({
           if (['ArrowLeft', 'ArrowRight'].includes(event.key)) event.stopPropagation();
         }}
       >
-        <Bot size={16} aria-hidden="true" />
+        <BotGlyph
+          selection={launch.appearance ?? FALLBACK_BOT_ICON}
+          testId={`chart-launch-bot-icon-${launch.name}`}
+        />
         <span
           id={tooltipId}
           role="tooltip"
