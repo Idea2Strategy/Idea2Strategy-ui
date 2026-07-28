@@ -107,6 +107,50 @@ interface TopbarProps {
   setUpdown: (updown: Updown) => void;
 }
 
+// Flag geometry adapted from lipis/flag-icons (MIT),
+// Copyright (c) 2013 Panayiotis Lipiridis.
+function MarketFlag({ country }: { country: Updown }) {
+  if (country === 'us') return <svg className="nav-market-flag flag-us" viewBox="0 0 640 480" aria-hidden="true">
+    <defs>
+      <marker id="nav-us-star" markerHeight="30" markerWidth="30">
+        <path fill="#fff" d="m14 0 9 27L0 10h28L5 27z" />
+      </marker>
+    </defs>
+    <path fill="#bd3d44" d="M0 0h640v480H0" />
+    <path stroke="#fff" strokeWidth="37" d="M0 55.3h640M0 129h640M0 203h640M0 277h640M0 351h640M0 425h640" />
+    <path fill="#192f5d" d="M0 0h364.8v258.5H0" />
+    <path fill="none" markerMid="url(#nav-us-star)" d="m0 0 16 11h61 61 61 61 60L47 37h61 61 60 61L16 63h61 61 61 61 60L47 89h61 61 60 61L16 115h61 61 61 61 60L47 141h61 61 60 61L16 166h61 61 61 61 60L47 192h61 61 60 61L16 218h61 61 61 61 60z" />
+  </svg>;
+
+  return <svg className="nav-market-flag flag-kr" viewBox="0 0 640 480" aria-hidden="true">
+    <path fill="#fff" d="M0 0h640v480H0z" />
+    <g fillRule="evenodd" transform="translate(89.8 .4)scale(.9375)">
+      <g transform="rotate(-56.3 361.6 -101.3)scale(10.66667)">
+        <g data-trigram="geon">
+          <path fill="#000001" d="M-6-26H6v2H-6Zm0 3H6v2H-6Zm0 3H6v2H-6Z" />
+        </g>
+        <g data-trigram="gon">
+          <path fill="#000001" d="M-6 18H6v2H-6Zm0 3H6v2H-6Zm0 3H6v2H-6Z" />
+          <path stroke="#fff" d="M0 17v10" />
+        </g>
+        <path fill="#cd2e3a" d="M0-12a12 12 0 0 1 0 24Z" />
+        <path fill="#0047a0" d="M0-12a12 12 0 0 0 0 24A6 6 0 0 0 0 0Z" />
+        <circle cy="-6" r="6" fill="#cd2e3a" />
+      </g>
+      <g transform="rotate(-123.7 191.2 62.2)scale(10.66667)">
+        <g data-trigram="gam">
+          <path fill="#000001" d="M-6-26H6v2H-6Zm0 3H6v2H-6Zm0 3H6v2H-6Z" />
+          <path stroke="#fff" d="M0-23.5v3" />
+        </g>
+        <g data-trigram="ri">
+          <path fill="#000001" d="M-6 18H6v2H-6Zm0 3H6v2H-6Zm0 3H6v2H-6Z" />
+          <path stroke="#fff" d="M0 17v3.5m0 3v3" />
+        </g>
+      </g>
+    </g>
+  </svg>;
+}
+
 function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarProps) {
   const { language, setLanguage } = useLanguage();
   const [openPanel, setOpenPanel] = useState<string | null>(null);
@@ -144,20 +188,29 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarPro
       </div>
       <button className={`icon-button ${page === 'help' ? 'active' : ''}`} aria-label="도움말" onClick={() => setPage('help')}><CircleHelp size={17} /></button>
       <button className="icon-button" aria-label={theme === 'light' ? '다크 모드' : '라이트 모드'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}</button>
-      <label className="language-select">
-        <span className="sr-only">상승·하락 색상 선택</span>
-        <select aria-label="상승·하락 색상 선택" value={updown} onChange={(event) => setUpdown(event.target.value as Updown)}>
-          <option value="kr">상승 빨강</option>
-          <option value="us">상승 초록</option>
-        </select>
-      </label>
-      <label className="language-select">
-        <span className="sr-only">언어 선택</span>
-        <select aria-label="언어 선택" value={language} onChange={(event) => setLanguage(event.target.value as 'ko' | 'en')}>
-          <option value="ko">KO</option>
-          <option value="en">EN</option>
-        </select>
-      </label>
+      <div className="nav-market-control">
+        <span className="nav-market-control-icon" title="상승·하락 색상"><Palette size={14} aria-hidden="true" /></span>
+        <div className="nav-segmented-toggle nav-market-toggle" role="group" aria-label="상승·하락 색상 선택" data-value={updown}>
+          <button
+            type="button"
+            aria-label="미국식 · 상승 초록, 하락 빨강"
+            aria-pressed={updown === 'us'}
+            title="미국식 · 상승 초록, 하락 빨강"
+            onClick={() => setUpdown('us')}
+          ><MarketFlag country="us" /></button>
+          <button
+            type="button"
+            aria-label="한국식 · 상승 빨강, 하락 파랑"
+            aria-pressed={updown === 'kr'}
+            title="한국식 · 상승 빨강, 하락 파랑"
+            onClick={() => setUpdown('kr')}
+          ><MarketFlag country="kr" /></button>
+        </div>
+      </div>
+      <div className="nav-segmented-toggle nav-language-toggle" role="group" aria-label="언어 선택" data-value={language}>
+        <button type="button" aria-label="한국어" aria-pressed={language === 'ko'} onClick={() => setLanguage('ko')}>KO</button>
+        <button type="button" aria-label="English" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>EN</button>
+      </div>
       <button className={`signal-user ${page === 'account' ? 'active' : ''}`} aria-label="내 계정" onClick={() => setPage('account')}>KIM <i /></button>
     </div>
   </header></Localized>;

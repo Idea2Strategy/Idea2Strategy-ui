@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test } from 'vitest';
 import { App } from './App';
+
+const balancedStyles = readFileSync(resolve(process.cwd(), 'src/styles/balanced.css'), 'utf8');
 
 describe('Signal product UI', () => {
   beforeEach(() => {
@@ -185,7 +189,9 @@ describe('Signal product UI', () => {
     const user = userEvent.setup();
     const { unmount } = render(<App />);
 
-    await user.selectOptions(screen.getByRole('combobox', { name: '언어 선택' }), 'en');
+    const languageToggle = screen.getByRole('group', { name: '언어 선택' });
+    expect(within(languageToggle).getByRole('button', { name: '한국어' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(within(languageToggle).getByRole('button', { name: 'English' }));
     expect(screen.getByRole('heading', { name: 'Welcome back, KIM' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New strategy' })).not.toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute('lang', 'en');
@@ -195,8 +201,47 @@ describe('Signal product UI', () => {
 
     unmount();
     render(<App />);
-    expect(screen.getByRole('combobox', { name: 'Language' })).toHaveValue('en');
+    expect(within(screen.getByRole('group', { name: 'Language' })).getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('heading', { name: 'Bot operations' })).toBeInTheDocument();
+  });
+
+  test('uses compact segmented toggles for the market colour convention and language', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const colourToggle = screen.getByRole('group', { name: '상승·하락 색상 선택' });
+    const koreanColours = within(colourToggle).getByRole('button', { name: '한국식 · 상승 빨강, 하락 파랑' });
+    const usColours = within(colourToggle).getByRole('button', { name: '미국식 · 상승 초록, 하락 빨강' });
+
+    expect(koreanColours).toHaveAttribute('aria-pressed', 'true');
+    expect(usColours).toHaveAttribute('aria-pressed', 'false');
+    expect(colourToggle.parentElement?.querySelector('.nav-market-control-icon')).toBeInTheDocument();
+    const koreanFlag = koreanColours.querySelector('.nav-market-flag.flag-kr');
+    expect(koreanFlag).toBeInTheDocument();
+    expect(koreanFlag).toHaveAttribute('viewBox', '0 0 640 480');
+    expect(koreanFlag?.querySelectorAll('[data-trigram]')).toHaveLength(4);
+    expect(usColours.querySelector('.nav-market-flag.flag-us')).toBeInTheDocument();
+    expect(within(colourToggle).getAllByRole('button')).toHaveLength(2);
+    expect(colourToggle.querySelector('.nav-market-icon')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: '상승·하락 색상 선택' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: '언어 선택' })).not.toBeInTheDocument();
+
+    expect(balancedStyles).not.toMatch(
+      /\.signal-product-nav \.nav-market-toggle > button:hover \.nav-market-flag\s*\{[^}]*transform:/s,
+    );
+    expect(balancedStyles).not.toMatch(
+      /\.signal-product-nav \.nav-market-toggle > button\[aria-pressed="true"\] \.nav-market-flag\s*\{[^}]*filter:/s,
+    );
+    expect(balancedStyles).toMatch(
+      /\.signal-product-nav \.nav-segmented-toggle::before\s*\{[^}]*display:\s*none/s,
+    );
+    expect(balancedStyles).toMatch(
+      /\.signal-product-nav \.nav-segmented-toggle > button\[aria-pressed="true"\]\s*\{[^}]*border-color:\s*var\(--line-strong\);[^}]*background:\s*var\(--surface\)/s,
+    );
+
+    await user.click(usColours);
+    expect(usColours).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('app-shell')).toHaveAttribute('data-updown', 'us');
   });
 
   test('uses one heading composition and one active navigation rule on every primary page', async () => {
