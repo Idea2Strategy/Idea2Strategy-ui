@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, Bell, CircleHelp, Moon, Palette, Search, Sun, TrendingUp, X } from 'lucide-react';
+import { ArrowRight, Bell, CircleHelp, Moon, Palette, Search, Sun, X } from 'lucide-react';
 import i2sLogo from './assets/i2s-logo.svg';
 import { bots, notifications, rooms, strategies } from './data/mockData';
 import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation';
@@ -107,6 +107,24 @@ interface TopbarProps {
   setUpdown: (updown: Updown) => void;
 }
 
+function MarketFlag({ country }: { country: Updown }) {
+  if (country === 'us') return <svg className="nav-market-flag flag-us" viewBox="0 0 24 16" aria-hidden="true">
+    <rect x=".5" y=".5" width="23" height="15" rx="2" fill="#fff" stroke="#d7dbe2" />
+    <path d="M.5 1.7h23v1.2H.5zm0 2.4h23v1.2H.5zm0 2.4h23v1.2H.5zm0 2.4h23v1.2H.5zm0 2.4h23v1.2H.5zm0 2.4h23v1.2H.5" fill="#d64045" />
+    <path d="M.5.5h10v8.4H.5z" fill="#31558f" />
+    <path d="M2.2 2h.1m2-0h.1m2-0h.1m2-0h.1M3.2 3.6h.1m2-0h.1m2-0h.1M2.2 5.2h.1m2-0h.1m2-0h.1m2-0h.1M3.2 6.8h.1m2-0h.1m2-0h.1" stroke="#fff" strokeWidth=".9" strokeLinecap="round" />
+  </svg>;
+
+  return <svg className="nav-market-flag flag-kr" viewBox="0 0 24 16" aria-hidden="true">
+    <rect x=".5" y=".5" width="23" height="15" rx="2" fill="#fff" stroke="#d7dbe2" />
+    <g transform="rotate(-33 12 8)">
+      <circle cx="12" cy="8" r="3.35" fill="#1456a0" />
+      <path d="M8.65 8a3.35 3.35 0 0 1 6.7 0c0-1.85-3.35-1.85-3.35 0S8.65 9.85 8.65 8Z" fill="#cd2e3a" />
+      <path d="M3.5 4.4h3.7m-3.7 1h3.7m-3.7 1h3.7M16.8 9.6h3.7m-3.7 1h3.7m-3.7 1h3.7" stroke="#17191d" strokeWidth=".55" />
+    </g>
+  </svg>;
+}
+
 function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarProps) {
   const { language, setLanguage } = useLanguage();
   const [openPanel, setOpenPanel] = useState<string | null>(null);
@@ -144,21 +162,24 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarPro
       </div>
       <button className={`icon-button ${page === 'help' ? 'active' : ''}`} aria-label="도움말" onClick={() => setPage('help')}><CircleHelp size={17} /></button>
       <button className="icon-button" aria-label={theme === 'light' ? '다크 모드' : '라이트 모드'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}</button>
-      <div className="nav-segmented-toggle nav-market-toggle" role="group" aria-label="상승·하락 색상 선택" data-value={updown}>
-        <button
-          type="button"
-          aria-label="한국식 · 상승 빨강, 하락 파랑"
-          aria-pressed={updown === 'kr'}
-          title="한국식 · 상승 빨강, 하락 파랑"
-          onClick={() => setUpdown('kr')}
-        ><TrendingUp className="nav-market-icon convention-kr" size={15} aria-hidden="true" /></button>
-        <button
-          type="button"
-          aria-label="미국식 · 상승 초록, 하락 빨강"
-          aria-pressed={updown === 'us'}
-          title="미국식 · 상승 초록, 하락 빨강"
-          onClick={() => setUpdown('us')}
-        ><TrendingUp className="nav-market-icon convention-us" size={15} aria-hidden="true" /></button>
+      <div className="nav-market-control">
+        <span className="nav-market-control-icon" title="상승·하락 색상"><Palette size={14} aria-hidden="true" /></span>
+        <div className="nav-segmented-toggle nav-market-toggle" role="group" aria-label="상승·하락 색상 선택" data-value={updown}>
+          <button
+            type="button"
+            aria-label="미국식 · 상승 초록, 하락 빨강"
+            aria-pressed={updown === 'us'}
+            title="미국식 · 상승 초록, 하락 빨강"
+            onClick={() => setUpdown('us')}
+          ><MarketFlag country="us" /></button>
+          <button
+            type="button"
+            aria-label="한국식 · 상승 빨강, 하락 파랑"
+            aria-pressed={updown === 'kr'}
+            title="한국식 · 상승 빨강, 하락 파랑"
+            onClick={() => setUpdown('kr')}
+          ><MarketFlag country="kr" /></button>
+        </div>
       </div>
       <div className="nav-segmented-toggle nav-language-toggle" role="group" aria-label="언어 선택" data-value={language}>
         <button type="button" aria-label="한국어" aria-pressed={language === 'ko'} onClick={() => setLanguage('ko')}>KO</button>

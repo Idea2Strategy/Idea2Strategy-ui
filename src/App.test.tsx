@@ -211,9 +211,11 @@ describe('Signal product UI', () => {
 
     expect(koreanColours).toHaveAttribute('aria-pressed', 'true');
     expect(usColours).toHaveAttribute('aria-pressed', 'false');
-    expect(koreanColours.querySelector('.nav-market-icon')).toBeInTheDocument();
-    expect(usColours.querySelector('.nav-market-icon')).toBeInTheDocument();
-    expect(colourToggle.querySelector('.nav-market-colours')).not.toBeInTheDocument();
+    expect(colourToggle.parentElement?.querySelector('.nav-market-control-icon')).toBeInTheDocument();
+    expect(koreanColours.querySelector('.nav-market-flag.flag-kr')).toBeInTheDocument();
+    expect(usColours.querySelector('.nav-market-flag.flag-us')).toBeInTheDocument();
+    expect(within(colourToggle).getAllByRole('button')).toHaveLength(2);
+    expect(colourToggle.querySelector('.nav-market-icon')).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: '상승·하락 색상 선택' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: '언어 선택' })).not.toBeInTheDocument();
 
