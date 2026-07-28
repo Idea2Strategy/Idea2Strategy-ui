@@ -212,7 +212,10 @@ describe('Signal product UI', () => {
     expect(koreanColours).toHaveAttribute('aria-pressed', 'true');
     expect(usColours).toHaveAttribute('aria-pressed', 'false');
     expect(colourToggle.parentElement?.querySelector('.nav-market-control-icon')).toBeInTheDocument();
-    expect(koreanColours.querySelector('.nav-market-flag.flag-kr')).toBeInTheDocument();
+    const koreanFlag = koreanColours.querySelector('.nav-market-flag.flag-kr');
+    expect(koreanFlag).toBeInTheDocument();
+    expect(koreanFlag).toHaveAttribute('viewBox', '0 0 640 480');
+    expect(koreanFlag?.querySelectorAll('[data-trigram]')).toHaveLength(4);
     expect(usColours.querySelector('.nav-market-flag.flag-us')).toBeInTheDocument();
     expect(within(colourToggle).getAllByRole('button')).toHaveLength(2);
     expect(colourToggle.querySelector('.nav-market-icon')).not.toBeInTheDocument();

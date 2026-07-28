@@ -107,20 +107,46 @@ interface TopbarProps {
   setUpdown: (updown: Updown) => void;
 }
 
+// Flag geometry adapted from lipis/flag-icons (MIT),
+// Copyright (c) 2013 Panayiotis Lipiridis.
 function MarketFlag({ country }: { country: Updown }) {
-  if (country === 'us') return <svg className="nav-market-flag flag-us" viewBox="0 0 24 16" aria-hidden="true">
-    <rect x=".5" y=".5" width="23" height="15" rx="2" fill="#fff" stroke="#d7dbe2" />
-    <path d="M.5 1.7h23v1.2H.5zm0 2.4h23v1.2H.5zm0 2.4h23v1.2H.5zm0 2.4h23v1.2H.5zm0 2.4h23v1.2H.5zm0 2.4h23v1.2H.5" fill="#d64045" />
-    <path d="M.5.5h10v8.4H.5z" fill="#31558f" />
-    <path d="M2.2 2h.1m2-0h.1m2-0h.1m2-0h.1M3.2 3.6h.1m2-0h.1m2-0h.1M2.2 5.2h.1m2-0h.1m2-0h.1m2-0h.1M3.2 6.8h.1m2-0h.1m2-0h.1" stroke="#fff" strokeWidth=".9" strokeLinecap="round" />
+  if (country === 'us') return <svg className="nav-market-flag flag-us" viewBox="0 0 640 480" aria-hidden="true">
+    <defs>
+      <marker id="nav-us-star" markerHeight="30" markerWidth="30">
+        <path fill="#fff" d="m14 0 9 27L0 10h28L5 27z" />
+      </marker>
+    </defs>
+    <path fill="#bd3d44" d="M0 0h640v480H0" />
+    <path stroke="#fff" strokeWidth="37" d="M0 55.3h640M0 129h640M0 203h640M0 277h640M0 351h640M0 425h640" />
+    <path fill="#192f5d" d="M0 0h364.8v258.5H0" />
+    <path fill="none" markerMid="url(#nav-us-star)" d="m0 0 16 11h61 61 61 61 60L47 37h61 61 60 61L16 63h61 61 61 61 60L47 89h61 61 60 61L16 115h61 61 61 61 60L47 141h61 61 60 61L16 166h61 61 61 61 60L47 192h61 61 60 61L16 218h61 61 61 61 60z" />
   </svg>;
 
-  return <svg className="nav-market-flag flag-kr" viewBox="0 0 24 16" aria-hidden="true">
-    <rect x=".5" y=".5" width="23" height="15" rx="2" fill="#fff" stroke="#d7dbe2" />
-    <g transform="rotate(-33 12 8)">
-      <circle cx="12" cy="8" r="3.35" fill="#1456a0" />
-      <path d="M8.65 8a3.35 3.35 0 0 1 6.7 0c0-1.85-3.35-1.85-3.35 0S8.65 9.85 8.65 8Z" fill="#cd2e3a" />
-      <path d="M3.5 4.4h3.7m-3.7 1h3.7m-3.7 1h3.7M16.8 9.6h3.7m-3.7 1h3.7m-3.7 1h3.7" stroke="#17191d" strokeWidth=".55" />
+  return <svg className="nav-market-flag flag-kr" viewBox="0 0 640 480" aria-hidden="true">
+    <path fill="#fff" d="M0 0h640v480H0z" />
+    <g fillRule="evenodd" transform="translate(89.8 .4)scale(.9375)">
+      <g transform="rotate(-56.3 361.6 -101.3)scale(10.66667)">
+        <g data-trigram="geon">
+          <path fill="#000001" d="M-6-26H6v2H-6Zm0 3H6v2H-6Zm0 3H6v2H-6Z" />
+        </g>
+        <g data-trigram="gon">
+          <path fill="#000001" d="M-6 18H6v2H-6Zm0 3H6v2H-6Zm0 3H6v2H-6Z" />
+          <path stroke="#fff" d="M0 17v10" />
+        </g>
+        <path fill="#cd2e3a" d="M0-12a12 12 0 0 1 0 24Z" />
+        <path fill="#0047a0" d="M0-12a12 12 0 0 0 0 24A6 6 0 0 0 0 0Z" />
+        <circle cy="-6" r="6" fill="#cd2e3a" />
+      </g>
+      <g transform="rotate(-123.7 191.2 62.2)scale(10.66667)">
+        <g data-trigram="gam">
+          <path fill="#000001" d="M-6-26H6v2H-6Zm0 3H6v2H-6Zm0 3H6v2H-6Z" />
+          <path stroke="#fff" d="M0-23.5v3" />
+        </g>
+        <g data-trigram="ri">
+          <path fill="#000001" d="M-6 18H6v2H-6Zm0 3H6v2H-6Zm0 3H6v2H-6Z" />
+          <path stroke="#fff" d="M0 17v3.5m0 3v3" />
+        </g>
+      </g>
     </g>
   </svg>;
 }

@@ -428,12 +428,19 @@
   left:0;
   height:100%;
 }
+.signal-product-nav .nav-market-toggle > button {
+  display:grid;
+  place-items:center;
+  line-height:0;
+}
 .signal-product-nav .nav-language-toggle { --segment-width:34px; }
 .signal-product-nav .nav-market-flag {
-  width:19px;
-  height:13px;
+  width:18px;
+  height:13.5px;
+  display:block;
+  margin:auto;
   overflow:visible;
-  border-radius:3px;
+  border-radius:2px;
   box-shadow:0 0 0 1px color-mix(in srgb,var(--text) 10%,transparent);
   transition:transform var(--motion-fast),filter var(--motion-fast),opacity var(--motion-fast);
 }
