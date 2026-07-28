@@ -462,6 +462,7 @@ function BacktestComparisonChart({ bot, benchmarks }: { bot: BacktestBot; benchm
         data-testid="backtest-bot-emphasis"
         data-bot={bot.name}
         aria-hidden="true"
+        transform="translate(0 1.2)"
         vectorEffect="non-scaling-stroke"
       />
       <polyline

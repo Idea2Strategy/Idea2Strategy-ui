@@ -2308,10 +2308,11 @@
   stroke-linejoin: round;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.bot-emphasis {
-  stroke: color-mix(in srgb, var(--text) 56%, var(--surface));
-  stroke-width: 3.75;
-  opacity: .9;
+  stroke: var(--text);
+  stroke-width: 2.75;
+  opacity: .28;
 }
+.theme-dark .backtest-chart-line.bot-emphasis { opacity: .5; }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.bot {
   stroke: var(--accent);
   stroke-width: 2.75;
