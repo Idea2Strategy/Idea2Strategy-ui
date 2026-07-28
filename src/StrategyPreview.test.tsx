@@ -253,6 +253,58 @@ describe('Basic editor partition preview chart', () => {
     expect(frame.querySelectorAll('polyline')).toHaveLength(1);
   });
 
+  test('points buy arrows up under the fill and sell arrows down over it', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
+
+    /*
+      주식 차트의 관례: 매수는 체결 지점 아래에서 위를 향하고, 매도는 위에서
+      아래를 향한다. SVG는 y가 아래로 커지므로 "위를 향한다"는 꼭짓점 y가 밑변
+      y보다 작다는 뜻이다.
+    */
+    const corners = (marker: Element) => marker.getAttribute('points')!
+      .split(' ')
+      .map((point) => point.split(',').map(Number))
+      .map(([x, y]) => ({ x, y }));
+
+    /* 같은 x에 있는 종가 선의 y. 화살표는 이 선을 넘어오면 안 된다. */
+    const lineAt = (x: number) => {
+      const points = screen.getByTestId('strategy-preview-canvas')
+        .querySelector('.strategy-preview-line')!
+        .getAttribute('points')!
+        .split(' ')
+        .map((point) => point.split(',').map(Number));
+      return points.reduce((best, point) => Math.abs(point[0] - x) < Math.abs(best[0] - x) ? point : best, points[0])[1];
+    };
+
+    screen.getAllByTestId('preview-marker-buy').forEach((marker) => {
+      const [apex, left, right] = corners(marker);
+      expect(apex.y).toBeLessThan(left.y);
+      expect(left.y).toBe(right.y);
+      expect(apex.y).toBeGreaterThan(lineAt(apex.x));
+      // 곁눈질로 보이는 크기여야 한다: 종가 선(1.6)보다 확실히 크다.
+      expect(right.x - left.x).toBeGreaterThanOrEqual(8);
+      expect(left.y - apex.y).toBeGreaterThanOrEqual(8);
+    });
+    screen.getAllByTestId('preview-marker-sell').forEach((marker) => {
+      const [apex, left, right] = corners(marker);
+      expect(apex.y).toBeGreaterThan(left.y);
+      expect(left.y).toBe(right.y);
+      expect(apex.y).toBeLessThan(lineAt(apex.x));
+    });
+
+    // 화살표가 커져도 차트 영역을 벗어나 잘리지 않는다.
+    const viewHeight = Number(screen.getByTestId('strategy-preview-canvas').querySelector('svg')!.getAttribute('viewBox')!.split(' ')[3]);
+    [...screen.getAllByTestId('preview-marker-buy'), ...screen.getAllByTestId('preview-marker-sell')].forEach((marker) => {
+      corners(marker).forEach(({ y }) => {
+        expect(y).toBeGreaterThan(0);
+        expect(y).toBeLessThan(viewHeight);
+      });
+    });
+  });
+
   test('offers only the symbols the partition trades', async () => {
     const user = userEvent.setup();
     render(<BasicEditor goBack={() => {}} />);

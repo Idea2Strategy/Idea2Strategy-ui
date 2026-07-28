@@ -7214,10 +7214,20 @@ small.dashboard-bot-scope {
   stroke-width: 1.6;
 }
 .strategy-preview-end { fill: var(--text); stroke: var(--surface); stroke-width: 1.5; }
-/* 신호 화살표: 방향은 모양으로, 종류는 매수·매도 의미색으로 구분한다. */
+/*
+  신호 화살표: 방향은 모양으로, 종류는 매수·매도 의미색으로 구분한다.
+  종가 선이나 다른 화살표와 겹쳐도 형태가 살아 있어야 하므로 배경색 테두리를
+  둘러 띄운다. paint-order로 테두리를 칠 아래에 깔아 색이 얇아지지 않게 한다.
+*/
+.strategy-preview-marker {
+  stroke: var(--surface);
+  stroke-width: 2;
+  paint-order: stroke fill;
+}
 .strategy-preview-marker.is-buy { fill: var(--buy-block-color); }
 .strategy-preview-marker.is-sell { fill: var(--sell-block-color); }
-.strategy-preview-marker.is-dimmed { fill: var(--text-faint); opacity: .38; }
+/* 강조하지 않은 플로우도 왕복 흐름을 읽을 만큼은 남긴다. */
+.strategy-preview-marker.is-dimmed { fill: var(--text-faint); opacity: .5; }
 .strategy-preview-last {
   position: absolute;
   right: var(--space-2);

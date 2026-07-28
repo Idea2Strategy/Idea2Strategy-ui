@@ -24,9 +24,20 @@ const CARD_HEIGHT = 264;
 /* SVG 좌표계. 카드가 늘어나도 선 굵기는 유지하고 도형만 늘어난다. */
 const VIEW_WIDTH = 300;
 const VIEW_HEIGHT = 110;
-const PAD_X = 7;
-const PAD_TOP = 15;
-const PAD_BOTTOM = 15;
+const PAD_X = 9;
+const PAD_TOP = 20;
+const PAD_BOTTOM = 20;
+
+/*
+  신호 화살표.
+
+  주식 차트의 관례를 그대로 따른다. 매수는 체결 지점 아래에서 위를 향하고,
+  매도는 위에서 아래를 향한다. 가격 움직임을 가리지 않도록 살짝 띄우되, 곁눈질로
+  보이도록 선 굵기보다 확실히 큰 크기를 준다.
+*/
+const MARKER_HALF_WIDTH = 5;
+const MARKER_HEIGHT = 9;
+const MARKER_GAP = 4;
 
 /*
   화면 밖으로 나가 다시 잡을 수 없게 되는 일이 없도록 항상 안쪽으로 당긴다.
@@ -199,18 +210,28 @@ export function StrategyPreviewChart({
         <polyline className="strategy-preview-line" points={geometry.line} vectorEffect="non-scaling-stroke" />
         {preview.markers.map((marker) => {
           const dimmed = focusedFlowId !== null && marker.flowId !== focusedFlowId;
-          const x = geometry.xFor(marker.index);
-          const y = geometry.yFor(preview.candles[marker.index].close);
-          /* 매수는 선 아래, 매도는 선 위에 두어 겹치지 않게 한다. */
-          const tip = marker.side === 'buy' ? y + 5 : y - 5;
-          const base = marker.side === 'buy' ? tip + 6 : tip - 6;
+          /* 신호는 다음 봉 시가에 체결되므로, 화살표도 조건이 걸린 봉이 아니라
+             실제로 사고팔린 지점에 찍는다. 값도 그 체결가다. */
+          const fillIndex = Math.min(marker.index + 1, preview.candles.length - 1);
+          const x = geometry.xFor(fillIndex);
+          /* 기준선은 체결가와 주변 종가 중 화살표가 놓이는 쪽 끝이다. 체결가만
+             보고 띄우면 그 구간에서 선이 화살표를 넘어와 매수가 선 위에 찍히는
+             일이 생긴다. 매수는 늘 아래, 매도는 늘 위여야 한다. */
+          const nearby = [
+            marker.price,
+            ...preview.candles.slice(Math.max(0, fillIndex - 1), fillIndex + 2).map((candle) => candle.close),
+          ].map(geometry.yFor);
+          const y = marker.side === 'buy' ? Math.max(...nearby) : Math.min(...nearby);
+          const tip = marker.side === 'buy' ? y + MARKER_GAP : y - MARKER_GAP;
+          const base = marker.side === 'buy' ? tip + MARKER_HEIGHT : tip - MARKER_HEIGHT;
           return <polygon
             key={`${marker.side}-${marker.index}`}
             className={`strategy-preview-marker is-${marker.side} ${dimmed ? 'is-dimmed' : ''}`}
             data-testid={`preview-marker-${marker.side}`}
             data-flow={marker.flowId}
-            points={`${x},${tip} ${x - 3.4},${base} ${x + 3.4},${base}`}
-          ><title>{t(`${marker.flowLabel} · ${marker.reason}`)}</title></polygon>;
+            vectorEffect="non-scaling-stroke"
+            points={`${x},${tip} ${x - MARKER_HALF_WIDTH},${base} ${x + MARKER_HALF_WIDTH},${base}`}
+          ><title>{t(`${marker.flowLabel} · ${marker.reason} · ${money(marker.price)}`)}</title></polygon>;
         })}
         <circle className="strategy-preview-end" cx={geometry.last.x} cy={geometry.last.y} r="2.6" vectorEffect="non-scaling-stroke" />
       </svg>
