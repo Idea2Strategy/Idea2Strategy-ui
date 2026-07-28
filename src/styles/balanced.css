@@ -6507,10 +6507,10 @@
   padding:0;
   transform:translateX(-50%);
   border:0;
-  border-radius:var(--radius-sm);
+  border-radius:0;
   color:var(--accent);
-  background:var(--accent-soft);
-  box-shadow:0 4px 12px rgba(0,0,0,.12);
+  background:transparent;
+  box-shadow:none;
   cursor:help;
 }
 .dashboard-chart-marker:hover,
@@ -6518,7 +6518,9 @@
   color:var(--accent);
   outline:none;
 }
-.dashboard-chart-marker:focus-visible { box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent),0 4px 12px rgba(0,0,0,.12); }
+.dashboard-chart-marker:focus-visible .bot-icon-glyph {
+  filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 72%,transparent));
+}
 .dashboard-chart-marker .bot-icon-glyph {
   width:24px;
   height:24px;
