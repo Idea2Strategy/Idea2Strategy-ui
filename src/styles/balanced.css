@@ -6696,6 +6696,10 @@
   color:var(--accent);
   background:var(--accent-soft);
 }
+.dashboard-bot-icon .bot-icon-glyph {
+  width:24px;
+  height:24px;
+}
 .dashboard-bot-name { display:grid; gap:5px; justify-items:start; }
 .dashboard-bot-name strong { font-size:var(--fs-control); }
 .dashboard-bot-name small { color:var(--text-faint); font-size:var(--fs-micro); }

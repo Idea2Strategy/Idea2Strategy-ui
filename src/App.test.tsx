@@ -80,6 +80,20 @@ describe('Signal product UI', () => {
     expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
   });
 
+  test('shows each bot custom icon on the home dashboard after it is changed', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '봇' }));
+    await user.click(screen.getByRole('button', { name: 'Atlas 07 아이콘 설정' }));
+    await user.click(within(screen.getByRole('group', { name: '아이콘 모양' })).getByRole('button', { name: '분석형 봇 아이콘' }));
+    await user.click(within(screen.getByRole('group', { name: '분석형 봇 아이콘 색상 선택' })).getByRole('button', { name: '분석형 봇 아이콘 파란색 적용' }));
+    await user.click(screen.getByRole('button', { name: '홈' }));
+
+    expect(screen.getByTestId('dashboard-bot-icon-Atlas 07')).toHaveAttribute('data-icon', 'analytical');
+    expect(screen.getByTestId('dashboard-bot-icon-Atlas 07')).toHaveAttribute('data-color', 'blue');
+  });
+
   test('separates personal and competition performance without mixing their bots', async () => {
     const user = userEvent.setup();
     render(<App />);

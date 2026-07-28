@@ -4,21 +4,17 @@ import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyho
 import { Button, DataTable, EmptyState, PageHeading, Status, TabPanel, Tabs } from '../components/common';
 import { EquityChart } from '../components/EquityChart';
 import { LiveExecutionChart } from '../components/LiveExecutionChart';
+import {
+  BOT_ICON_COLORS,
+  BOT_ICON_OPTIONS,
+  BotGlyph,
+  DEFAULT_BOT_ICONS,
+  FALLBACK_BOT_ICON,
+} from '../components/BotGlyph';
+import type { BotIconMap, BotIconSelection } from '../components/BotGlyph';
 import { dateLabels, money, percent, signedMoney, walkSeries } from '../lib/equitySim';
 import { bots } from '../data/mockData';
 import { Localized } from '../lib/i18n';
-import botAdaptive from '../assets/bots/bot-adaptive.svg';
-import botAggressive from '../assets/bots/bot-aggressive.svg';
-import botAnalytical from '../assets/bots/bot-analytical.svg';
-import botBalanced from '../assets/bots/bot-balanced.svg';
-import botConfident from '../assets/bots/bot-confident.svg';
-import botDefensive from '../assets/bots/bot-defensive.svg';
-import botFocus from '../assets/bots/bot-focus.svg';
-import botHappy from '../assets/bots/bot-happy.svg';
-import botHighGrowth from '../assets/bots/bot-high-growth.svg';
-import botNormal from '../assets/bots/bot-normal.svg';
-import botOpportunistic from '../assets/bots/bot-opportunistic.svg';
-import botRelaxed from '../assets/bots/bot-relaxed.svg';
 import {
   getBasicSectionLayout,
   getDefaultBasicCardPosition,
@@ -278,77 +274,6 @@ const botDetails: Record<string, BotDetail> = {
 
 /* Theme-aware categorical tones for the composition bar segments. */
 const COMPOSITION_TONES = ['var(--tone-data)', 'var(--tone-indicator)', 'var(--tone-universe)', 'var(--tone-return)', 'var(--tone-sharpe)'];
-
-interface BotIconOption {
-  id: string;
-  label: string;
-  src: string;
-}
-
-interface BotIconColor {
-  id: string;
-  label: string;
-  value: string;
-}
-
-interface BotIconSelection {
-  iconId: string;
-  colorId: string;
-}
-
-/* The 12 repository-owned bot drawings are always presented as a 4 × 3 grid. */
-const BOT_ICON_OPTIONS: BotIconOption[] = [
-  { id: 'focus', label: '집중형 봇', src: botFocus },
-  { id: 'aggressive', label: '공격형 봇', src: botAggressive },
-  { id: 'balanced', label: '균형형 봇', src: botBalanced },
-  { id: 'defensive', label: '방어형 봇', src: botDefensive },
-  { id: 'relaxed', label: '릴렉스형 봇', src: botRelaxed },
-  { id: 'high-growth', label: '고성장형 봇', src: botHighGrowth },
-  { id: 'analytical', label: '분석형 봇', src: botAnalytical },
-  { id: 'adaptive', label: '적응형 봇', src: botAdaptive },
-  { id: 'confident', label: '자신감형 봇', src: botConfident },
-  { id: 'happy', label: '행복한 봇', src: botHappy },
-  { id: 'normal', label: '기본형 봇', src: botNormal },
-  { id: 'opportunistic', label: '기회포착형 봇', src: botOpportunistic },
-];
-
-const BOT_ICON_COLORS: BotIconColor[] = [
-  { id: 'gray', label: '회색', value: '#565958' },
-  { id: 'light-gray', label: '연한 회색', value: '#a6a59f' },
-  { id: 'brown', label: '갈색', value: '#9d725b' },
-  { id: 'yellow', label: '노란색', value: '#c59636' },
-  { id: 'orange', label: '주황색', value: '#d17526' },
-  { id: 'green', label: '초록색', value: '#5d8f70' },
-  { id: 'blue', label: '파란색', value: '#5686bd' },
-  { id: 'purple', label: '보라색', value: '#8769b6' },
-  { id: 'pink', label: '분홍색', value: '#b65b89' },
-  { id: 'red', label: '빨간색', value: '#c35b50' },
-];
-
-const FALLBACK_BOT_ICON: BotIconSelection = { iconId: 'normal', colorId: 'gray' };
-const DEFAULT_BOT_ICONS: Record<string, BotIconSelection> = {
-  'Atlas 07': { iconId: 'focus', colorId: 'gray' },
-  'Room Beta': { iconId: 'aggressive', colorId: 'red' },
-  'Pair Lab': { iconId: 'relaxed', colorId: 'blue' },
-};
-
-function BotGlyph({ selection, testId }: { selection: BotIconSelection; testId?: string }): ReactNode {
-  const icon = BOT_ICON_OPTIONS.find((option) => option.id === selection.iconId) ?? BOT_ICON_OPTIONS[0];
-  const color = BOT_ICON_COLORS.find((option) => option.id === selection.colorId) ?? BOT_ICON_COLORS[0];
-  const style = {
-    '--bot-icon-mask': `url("${icon.src}")`,
-    '--bot-icon-color': color.value,
-  } as CSSProperties;
-
-  return <span
-    className="bot-icon-glyph"
-    aria-hidden="true"
-    data-testid={testId}
-    data-icon={icon.id}
-    data-color={color.id}
-    style={style}
-  />;
-}
 
 /*
   Decision-log filters. The default shows fills only — the log's day-to-day
@@ -817,7 +742,12 @@ function StrategyLayoutModal({ botName, detail, layout, onClose, onSave }: Strat
   never told in two places. Budget-cap deferrals are normal operation (the bot
   retries next evaluation) and are recorded there, never escalated.
 */
-export function BotsView(): ReactNode {
+interface BotsViewProps {
+  botIcons?: BotIconMap;
+  onBotIconChange?: (botName: string, selection: BotIconSelection) => void;
+}
+
+export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: BotsViewProps = {}): ReactNode {
   const [filter, setFilter] = useState<FilterId>('personal');
   const [selectedName, setSelectedName] = useState<string>(botList[0].name);
   const [tab, setTab] = useState<TabId>('overview');
@@ -825,7 +755,8 @@ export function BotsView(): ReactNode {
   const [savedLayouts, setSavedLayouts] = useState<Record<string, SnapshotLayout>>(
     () => Object.fromEntries(Object.entries(botDetails).map(([name, item]) => [name, cloneLayout(item.snapshot.layout)])),
   );
-  const [botIcons, setBotIcons] = useState<Record<string, BotIconSelection>>(DEFAULT_BOT_ICONS);
+  const [localBotIcons, setLocalBotIcons] = useState<BotIconMap>(DEFAULT_BOT_ICONS);
+  const botIcons = controlledBotIcons ?? localBotIcons;
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [colorVariantsOpen, setColorVariantsOpen] = useState(false);
   const [pendingIconId, setPendingIconId] = useState(FALLBACK_BOT_ICON.iconId);
@@ -833,6 +764,14 @@ export function BotsView(): ReactNode {
   const [logScope, setLogScope] = useState<LogScope>('fills');
   const [logPeriod, setLogPeriod] = useState<LogPeriod>('all');
   const [decisionSymbol, setDecisionSymbol] = useState('');
+
+  const changeBotIcon = (botName: string, selection: BotIconSelection) => {
+    if (onBotIconChange) {
+      onBotIconChange(botName, selection);
+      return;
+    }
+    setLocalBotIcons((current) => ({ ...current, [botName]: selection }));
+  };
 
   const visibleBots = botList.filter((bot) => matchesBotFilter(bot, filter));
   const selected = visibleBots.find((bot) => bot.name === selectedName) ?? visibleBots[0] ?? null;
@@ -1044,10 +983,7 @@ export function BotsView(): ReactNode {
                             aria-pressed={active}
                             className={active ? 'active' : ''}
                             onClick={() => {
-                              setBotIcons((current) => ({
-                                ...current,
-                                [selected.name]: { iconId: icon.id, colorId: color.id },
-                              }));
+                              changeBotIcon(selected.name, { iconId: icon.id, colorId: color.id });
                               setIconPickerOpen(false);
                               setColorVariantsOpen(false);
                             }}

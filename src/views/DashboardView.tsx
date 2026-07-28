@@ -2,13 +2,14 @@ import { useMemo, useRef, useState } from 'react';
 import type { ComponentType, FocusEvent, ReactNode } from 'react';
 import {
   ArrowRight,
-  Bot,
   CalendarClock,
   ChevronDown,
   Trophy,
   X,
 } from 'lucide-react';
 import { Button, Status } from '../components/common';
+import { BotGlyph, DEFAULT_BOT_ICONS, FALLBACK_BOT_ICON } from '../components/BotGlyph';
+import type { BotIconMap } from '../components/BotGlyph';
 import { EquityChart } from '../components/EquityChart';
 import type { LaunchMark } from '../components/EquityChart';
 import { dateLabels, money, percent, signedMoney, walkSeries } from '../lib/equitySim';
@@ -43,6 +44,7 @@ interface HomeTask {
 
 interface DashboardViewProps {
   setPage: (page: PageId) => void;
+  botIcons?: BotIconMap;
 }
 
 const botList = bots as BotRecord[];
@@ -116,7 +118,7 @@ const botTone = (state: string): 'positive' | 'info' | 'warning' =>
 const isBotInScope = (bot: BotRecord, scope: PerformanceScope): boolean =>
   scope === 'personal' ? bot.room === '개인 봇' : bot.room !== '개인 봇';
 
-export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
+export function DashboardView({ setPage, botIcons = DEFAULT_BOT_ICONS }: DashboardViewProps): ReactNode {
   const [period, setPeriod] = useState<PeriodKey>('lifetime');
   const [performanceScope, setPerformanceScope] = useState<PerformanceScope>('personal');
   const [included, setIncluded] = useState<Set<string>>(
@@ -329,7 +331,12 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
           </header>
           <div className="dashboard-bot-list">
             {botList.map((bot) => <button key={bot.name} onClick={() => setPage('bots')}>
-              <span className="dashboard-bot-icon" aria-hidden="true"><Bot size={16} /></span>
+              <span className="dashboard-bot-icon" aria-hidden="true">
+                <BotGlyph
+                  selection={botIcons[bot.name] ?? FALLBACK_BOT_ICON}
+                  testId={`dashboard-bot-icon-${bot.name}`}
+                />
+              </span>
               {/* Competition entries keep the personal label's format; only
                   the colour and the tiny trophy differ. */}
               <span className="dashboard-bot-name">
