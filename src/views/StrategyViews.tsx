@@ -1783,7 +1783,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       <span className="editor-trash-icon"><Trash2 size={18} aria-hidden="true" /></span>
       <span className="editor-trash-copy"><strong>{trashItemLabel} 버리기</strong><small>여기에 놓으면 삭제됩니다</small></span>
     </div>}
-    {saveFeedback && <div className={`editor-save-toast tone-${saveFeedback.tone}`} role="alert" aria-atomic="true">
+    {saveFeedback && <div className={`editor-save-toast is-bottom-center tone-${saveFeedback.tone}`} role="alert" aria-atomic="true">
       <span aria-hidden="true">{saveFeedback.tone === 'positive' ? <Check size={16} /> : <TriangleAlert size={16} />}</span>
       <div><strong>{saveFeedback.title}</strong><small>{saveFeedback.detail}</small></div>
       <button type="button" aria-label="저장 알림 닫기" onClick={() => setSaveFeedback(null)}><X size={14} /></button>

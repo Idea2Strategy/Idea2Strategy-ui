@@ -656,6 +656,7 @@ describe('Basic editor strategy explanations', () => {
 
       const toast = screen.getByRole('alert');
       expect(toast).toHaveClass('editor-save-toast');
+      expect(toast).toHaveClass('is-bottom-center');
       expect(toast).toHaveTextContent('출시 가능 상태로 저장했습니다.');
 
       act(() => {
