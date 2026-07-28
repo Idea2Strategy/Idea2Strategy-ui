@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test } from 'vitest';
-import { RoomsView } from './views/OperationsViews.jsx';
+import { RoomsView } from './views/OperationsViews';
 
 describe('Competition lobby', () => {
   test('opens a compact competition creation dialog without helper copy', async () => {

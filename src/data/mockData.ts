@@ -1,7 +1,52 @@
-export const strategies = [
-  { name: 'Opening Range Flow', mode: 'Basic', state: '검증 완료', updated: '07.23 09:41 ET', blocks: 7, backtest: '가능' },
+export interface StrategySummary {
+  name: string;
+  mode: 'Basic' | 'Pro';
+  state: string;
+  updated: string;
+  blocks: number;
+  backtest: string;
+}
+
+export interface BotSummary {
+  name: string;
+  state: string;
+  capital: string;
+  change: string;
+  strategies: number;
+  room: string;
+  labels: string[];
+  startDaysAgo: number;
+  startedAt: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  kind: string;
+  severity: 'action' | 'info' | 'success';
+  target?: string;
+  title: string;
+  detail: string;
+  time: string;
+  unread: boolean;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  bot: string;
+  score: number;
+  return: number;
+  drawdown: number;
+  sharpe: number;
+  volatility: number;
+  winRate: number;
+  trades: number;
+  mine: boolean;
+}
+
+export const strategies: StrategySummary[] = [
+  { name: 'Opening Range Flow', mode: 'Basic', state: '출시 가능', updated: '07.23 09:41 ET', blocks: 7, backtest: '가능' },
   { name: 'Pair Spread Monitor', mode: 'Pro', state: '미완성', updated: '07.22 15:18 ET', blocks: 14, backtest: '가능' },
-  { name: 'Volume Regime Draft', mode: 'Pro', state: '임시 저장', updated: '07.21 11:05 ET', blocks: 11, backtest: '데이터 확인' },
+  { name: 'Volume Regime Draft', mode: 'Pro', state: '미완성', updated: '07.21 11:05 ET', blocks: 11, backtest: '데이터 확인' },
 ];
 
 export const templates = [
@@ -16,12 +61,12 @@ export const templates = [
   bots launched inside a chart window enter the aggregate as a capital-inflow
   step, never as fake performance.
 */
-export const bots = [
-  { name: 'Atlas 07', state: '실행 중', capital: '$24,892.40', change: '+1.84%', strategies: 2, room: '개인 봇', labels: ['개인'], startDaysAgo: 380 },
-  { name: 'Room Beta', state: '평가 중', capital: '$10,184.12', change: '+1.84%', strategies: 1, room: 'Momentum Lab', labels: ['대회'], startDaysAgo: 45 },
+export const bots: BotSummary[] = [
+  { name: 'Atlas 07', state: '실행 중', capital: '$10,540.00', change: '+5.40%', strategies: 2, room: '개인 봇', labels: ['개인'], startDaysAgo: 380, startedAt: '2025.07.08 09:30 ET' },
+  { name: 'Room Beta', state: '평가 중', capital: '$10,490.00', change: '+4.90%', strategies: 1, room: 'Momentum Lab', labels: ['대회'], startDaysAgo: 45, startedAt: '2026.06.08 09:30 ET' },
   /* A budget-cap deferral is part of normal operation — the bot retries on the
      next evaluation — so it is not an attention state. */
-  { name: 'Pair Lab', state: '실행 중', capital: '$18,940.08', change: '-0.38%', strategies: 2, room: '개인 봇', labels: ['개인', '페어'], startDaysAgo: 18 },
+  { name: 'Pair Lab', state: '실행 중', capital: '$9,790.00', change: '-2.10%', strategies: 2, room: '개인 봇', labels: ['개인', '페어'], startDaysAgo: 18, startedAt: '2026.07.05 09:30 ET' },
 ];
 
 export const positions = [
@@ -51,7 +96,7 @@ export const rooms = [
   by whichever one the person cares about, rather than presenting a single
   composite score as the one true answer.
 */
-export const leaderboard = [
+export const leaderboard: LeaderboardEntry[] = [
   { rank: 1, bot: 'Bot 3F9A', score: 82.41, return: 4.18, drawdown: -1.08, sharpe: 1.94, volatility: 8.4, winRate: 61.2, trades: 48, mine: false },
   { rank: 2, bot: 'Room Beta', score: 80.92, return: 3.84, drawdown: -0.94, sharpe: 2.08, volatility: 7.1, winRate: 58.7, trades: 31, mine: true },
   { rank: 3, bot: 'Bot 8C21', score: 78.07, return: 3.58, drawdown: -1.44, sharpe: 1.62, volatility: 9.8, winRate: 55.4, trades: 62, mine: false },
@@ -69,7 +114,7 @@ export const leaderboard = [
   renewal deadline). Routine engine events — budget-cap deferrals, data
   checks — are info: the bot handles them itself on the next evaluation.
 */
-export const notifications = [
+export const notifications: NotificationItem[] = [
   { id: 'n-0', kind: '조치 필요', severity: 'action', target: 'home', title: 'Atlas 07 계속 실행 확인', detail: '무소속 봇은 기한 전에 연장해야 계속 실행됩니다 · 08.10까지 (D-18)', time: '오늘', unread: true },
   { id: 'n-1', kind: '데이터', severity: 'info', target: 'bots', title: 'Pair Lab 데이터 확인', detail: '새 주문 평가를 보류하고 기존 상태를 유지합니다. 다음 평가에서 재시도합니다.', time: '4분 전', unread: true },
   { id: 'n-2', kind: '체결', severity: 'success', target: 'bots', title: 'Atlas 07 · SPY 전량 체결', detail: '12주 · 평균 $634.06 · 수수료 $15.22', time: '18분 전', unread: false },
@@ -85,7 +130,7 @@ export const monthlyFailures = [
   { label: '예산 상한 도달', value: 31 },
 ];
 
-export const ticker = [
+export const ticker: Array<[string, string, string]> = [
   ['S&P 500', '6,377.82', '+0.41%'],
   ['NASDAQ', '21,028.14', '+0.63%'],
   ['VIX', '15.26', '-2.18%'],

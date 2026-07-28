@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test } from 'vitest';
-import { App } from './App.jsx';
+import { App } from './App';
 
 describe('Signal product UI', () => {
   beforeEach(() => {
@@ -37,6 +37,9 @@ describe('Signal product UI', () => {
     expect(editorSurface).toContainElement(screen.getByRole('region', { name: 'Basic 전략 캔버스' }));
     expect(screen.queryByTestId('strategy-editor-subnav')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Basic 편집기' })).toHaveClass('active');
+    const editorPage = screen.getByTestId('basic-editor-workspace').closest('.editor-shell-page');
+    expect(editorPage).not.toBeNull();
+    expect(editorSurface.firstElementChild).toHaveClass('strategy-editor-scroll');
 
     unmount();
     window.history.replaceState({}, '', '/strategies/new/pro');
@@ -46,18 +49,91 @@ describe('Signal product UI', () => {
     expect(screen.queryByText(/샘플 데이터/)).not.toBeInTheDocument();
   });
 
+  test('moves to bot operations after launching a personal bot', async () => {
+    const user = userEvent.setup();
+    window.history.replaceState({}, '', '/strategies/new/basic');
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
+    const dialog = screen.getByRole('dialog', { name: '개인 운용 봇 출시' });
+    await user.type(within(dialog).getByRole('textbox', { name: '봇 이름' }), 'Momentum Scout');
+    await user.type(within(dialog).getByRole('textbox', { name: '봇 설명' }), 'RSI 반등 전략을 운용합니다.');
+    await user.click(within(dialog).getByRole('button', { name: '봇 출시하기' }));
+
+    expect(window.location.pathname).toBe('/bots');
+    expect(screen.getByRole('heading', { name: '봇 운영 센터' })).toBeInTheDocument();
+  });
+
   test('opens on the home dashboard and returns home when the brand is clicked', async () => {
     const user = userEvent.setup();
     render(<App />);
 
     expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '새 전략' })).not.toBeInTheDocument();
     expect(screen.getByText('확인이 필요한 작업')).toBeInTheDocument();
-    expect(screen.getByText('전체 성과')).toBeInTheDocument();
+    expect(screen.getByText('운용 성과')).toBeInTheDocument();
+    expect(screen.queryByText('전체 성과')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '전략' }));
     expect(screen.getByRole('heading', { name: '전략' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Idea2Strategy 홈' }));
     expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
+  });
+
+  test('separates personal and competition performance without mixing their bots', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const performance = screen.getByRole('region', { name: '운용 성과' });
+    const scope = within(performance).getByRole('group', { name: '성과 유형' });
+    const personal = within(scope).getByRole('button', { name: '개인 운용' });
+    const competition = within(scope).getByRole('button', { name: '대회 참가' });
+    const botFilter = within(performance).getByRole('button', { name: '합산에 포함할 봇 선택' });
+    expect(personal).toHaveAttribute('aria-pressed', 'true');
+    expect(competition).toHaveAttribute('aria-pressed', 'false');
+    expect(performance).toHaveTextContent('개인 운용 봇의 시간가중 성과');
+    expect(within(performance).getByText('시간가중수익률')).toBeInTheDocument();
+    expect(within(performance).getByRole('img', { name: '개인 운용 봇의 시간가중수익률 차트' })).toBeInTheDocument();
+    const periodGroup = within(performance).getByRole('group', { name: '성과 기간' });
+    expect(scope).toHaveClass('dashboard-chart-control');
+    expect(botFilter.closest('.dashboard-chart-control')).not.toBeNull();
+    expect(periodGroup).toHaveClass('dashboard-chart-control');
+    expect(within(periodGroup).getByRole('button', { name: '전체' })).toHaveAttribute('aria-pressed', 'true');
+    const oldestLaunch = within(performance).getByRole('button', { name: 'Atlas 07 운용 시작 정보' });
+    expect(oldestLaunch).toHaveClass('is-edge-start');
+    expect(oldestLaunch).toHaveStyle({ left: '0%' });
+    expect(oldestLaunch.querySelector('.lucide-bot')).toBeInTheDocument();
+    expect(within(performance).getByRole('tooltip', { name: 'Atlas 07 운용 시작 상세' })).toHaveTextContent('07.08 · 이 날부터 성과에 포함');
+    expect(within(performance).getByRole('button', { name: 'Pair Lab 운용 시작 정보' })).toHaveClass('is-edge-end');
+    expect(within(performance).queryByText('Pair Lab 운용 시작', { selector: '.dashboard-chart-marker' })).not.toBeInTheDocument();
+    expect(performance).toHaveTextContent('‘운용 시작’은 실제 시작일이고, ‘이전부터 운용’은 선택 기간보다 먼저 시작된 봇입니다.');
+    for (const annotation of performance.querySelectorAll('.dashboard-chart-peak')) {
+      expect(annotation).toHaveTextContent('%');
+    }
+
+    await user.click(within(periodGroup).getByRole('button', { name: '1개월' }));
+    expect(within(performance).getByRole('button', { name: 'Atlas 07 이전부터 운용 정보' })).toBeInTheDocument();
+    expect(within(performance).getByRole('tooltip', { name: 'Atlas 07 이전부터 운용 상세' })).toHaveTextContent('선택 기간 이전에 시작');
+    expect(within(performance).getByRole('button', { name: 'Pair Lab 운용 시작 정보' })).toBeInTheDocument();
+
+    await user.click(within(performance).getByRole('button', { name: '합산에 포함할 봇 선택' }));
+    let botPicker = within(performance).getByRole('group', { name: '합산에 포함할 봇 선택' });
+    expect(within(botPicker).queryByText('라벨로 선택')).not.toBeInTheDocument();
+    expect(within(botPicker).getByText('봇 개별 선택')).toBeInTheDocument();
+    expect(within(botPicker).getByText('Atlas 07')).toBeInTheDocument();
+    expect(within(botPicker).getAllByText('Pair Lab').length).toBeGreaterThan(0);
+    expect(within(botPicker).queryByText('Room Beta')).not.toBeInTheDocument();
+
+    await user.click(competition);
+    expect(competition).toHaveAttribute('aria-pressed', 'true');
+    expect(performance).toHaveTextContent('대회 참가 봇의 시간가중 성과');
+    expect(within(performance).getByText('봇 1/1 포함')).toBeInTheDocument();
+    await user.click(within(performance).getByRole('button', { name: '합산에 포함할 봇 선택' }));
+    botPicker = within(performance).getByRole('group', { name: '합산에 포함할 봇 선택' });
+    expect(within(botPicker).getAllByText('Room Beta').length).toBeGreaterThan(0);
+    expect(within(botPicker).queryByText('Atlas 07')).not.toBeInTheDocument();
+    expect(within(botPicker).queryByText('Pair Lab')).not.toBeInTheDocument();
+    expect(performance).toHaveTextContent('개인 운용과 대회 성과는 합산하지 않습니다.');
   });
 
   test('removes admin and watchlist entry points and opens security inside My account', async () => {
@@ -77,7 +153,7 @@ describe('Signal product UI', () => {
 
     await user.selectOptions(screen.getByRole('combobox', { name: '언어 선택' }), 'en');
     expect(screen.getByRole('heading', { name: 'Welcome back, KIM' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'New strategy' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New strategy' })).not.toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute('lang', 'en');
     await user.click(screen.getByRole('button', { name: 'Bots' }));
     expect(screen.getByRole('heading', { name: 'Bot operations' })).toBeInTheDocument();
@@ -198,6 +274,27 @@ describe('Signal product UI', () => {
     expect(screen.queryByText('Opening Range Flow')).not.toBeInTheDocument();
   });
 
+  test('uses only launchable and incomplete strategy states', async () => {
+    const user = userEvent.setup();
+    render(<App initialVariant="balanced" />);
+    await user.click(screen.getByRole('button', { name: '전략' }));
+
+    const stateLabels = Array.from(document.querySelectorAll('[data-testid^="strategy-row-"] .status'))
+      .map((element) => element.textContent);
+    expect(stateLabels).toEqual(['출시 가능', '미완성', '미완성']);
+    expect(screen.getByTestId('strategy-counts')).toHaveTextContent('출시 가능 1');
+    expect(screen.getByTestId('strategy-counts')).toHaveTextContent('미완성 2');
+    expect(screen.queryByText('검증 완료')).not.toBeInTheDocument();
+    expect(screen.queryByText('임시 저장')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '준비 완료' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '확인 필요' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '출시 가능' }));
+    expect(screen.getByText('Opening Range Flow')).toBeInTheDocument();
+    expect(screen.queryByText('Pair Spread Monitor')).not.toBeInTheDocument();
+    expect(screen.queryByText('Volume Regime Draft')).not.toBeInTheDocument();
+  });
+
   test('removes blocks and copy actions from the strategy home and imports only during creation', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
@@ -239,7 +336,7 @@ describe('Signal product UI', () => {
   test('uses unfinished terminology instead of input-needed terminology', () => {
     render(<App initialVariant="balanced" />);
     fireEvent.click(screen.getByRole('button', { name: '전략' }));
-    expect(screen.getByText('미완성')).toBeInTheDocument();
+    expect(screen.getAllByText('미완성').length).toBeGreaterThan(0);
     expect(screen.queryByText('입력 필요')).not.toBeInTheDocument();
   });
 

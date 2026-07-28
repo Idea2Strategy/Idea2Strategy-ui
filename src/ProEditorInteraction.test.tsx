@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { ProEditor } from './views/StrategyViews.jsx';
-import { LanguageProvider } from './lib/i18n.jsx';
+import { ProEditor } from './views/StrategyViews';
+import { LanguageProvider } from './lib/i18n';
 
 const graphTools = () => within(screen.getByRole('group', { name: '그래프 도구' }));
 

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="#ffffff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" role="img" aria-labelledby="bot-opportunistic-title">
+  <title id="bot-opportunistic-title">기회포착형 봇</title>
+  <path d="M32 11V7"/>
+  <circle cx="32" cy="3.5" r="3.5" fill="#ffffff" stroke="none"/>
+  <rect x="6" y="11" width="52" height="48" rx="12"/>
+  <path d="M6 27H3v18h3M58 27h3v18h-3"/>
+  <path d="M17 31.5h9"/>
+  <ellipse cx="42.5" cy="31.5" rx="4.25" ry="7.5" fill="#ffffff" stroke="none"/>
+  <path d="M22 44.5c4 5 16 5 20 0"/>
+</svg>

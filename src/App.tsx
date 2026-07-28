@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Bell, CircleHelp, Moon, Palette, Search, Sun, X } from 'lucide-react';
 import i2sLogo from './assets/i2s-logo.svg';
-import { bots, notifications, rooms, strategies } from './data/mockData.js';
-import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation.js';
-import { LanguageProvider, Localized, useLanguage } from './lib/i18n.jsx';
-import { BasicEditor, ProEditor, StrategyHome } from './views/StrategyViews.jsx';
-import { BacktestView, RoomsView } from './views/OperationsViews.jsx';
+import { bots, notifications, rooms, strategies } from './data/mockData';
+import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation';
+import type { PageId } from './lib/navigation';
+import { LanguageProvider, Localized, useLanguage } from './lib/i18n';
+import { BasicEditor, ProEditor, StrategyHome } from './views/StrategyViews';
+import { BacktestView, RoomsView } from './views/OperationsViews';
 import { BotsView } from './views/BotsView';
-import { AccountView, HelpView, NotificationsView } from './views/SupportViews.jsx';
+import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
 import { DashboardView } from './views/DashboardView';
-import { DesignConceptLab } from './views/DesignConceptLab.jsx';
+import { DesignConceptLab } from './views/DesignConceptLab';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
@@ -21,21 +23,29 @@ import './styles/concepts.css';
   looked like the product's main search affordance but had no behaviour at all,
   which is exactly the pattern the interaction audit rules out.
 */
-const searchTargets = [
+interface SearchTarget {
+  kind: string;
+  label: string;
+  page: PageId;
+}
+
+const searchTargets: SearchTarget[] = [
   ...navItems.map((item) => ({ kind: '화면', label: item.label, page: item.id })),
-  { kind: '화면', label: '내 계정', page: 'account' },
-  { kind: '화면', label: '알림', page: 'notifications' },
-  { kind: '화면', label: '도움말', page: 'help' },
-  ...strategies.map((strategy) => ({ kind: '전략', label: strategy.name, page: 'strategy' })),
-  ...bots.map((bot) => ({ kind: '봇', label: bot.name, page: 'bots' })),
-  ...rooms.map((room) => ({ kind: '대회', label: room.name, page: 'rooms' })),
+  { kind: '화면', label: '내 계정', page: 'account' as const },
+  { kind: '화면', label: '알림', page: 'notifications' as const },
+  { kind: '화면', label: '도움말', page: 'help' as const },
+  ...strategies.map((strategy) => ({ kind: '전략', label: strategy.name, page: 'strategy' as const })),
+  ...bots.map((bot) => ({ kind: '봇', label: bot.name, page: 'bots' as const })),
+  ...rooms.map((room) => ({ kind: '대회', label: room.name, page: 'rooms' as const })),
 ];
 
-function GlobalSearch({ setPage }) {
+type SetPage = (page: PageId) => void;
+
+function GlobalSearch({ setPage }: { setPage: SetPage }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const { t } = useLanguage();
-  const wrapRef = useRef(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   const matches = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -45,13 +55,13 @@ function GlobalSearch({ setPage }) {
       .slice(0, 6);
   }, [query, t]);
 
-  const choose = (target) => {
+  const choose = (target: SearchTarget) => {
     setPage(target.page);
     setQuery('');
     setOpen(false);
   };
 
-  return <div className="global-search-anchor" ref={wrapRef} onBlur={(event) => {
+  return <div className="global-search-anchor" ref={wrapRef} onBlur={(event: FocusEvent<HTMLDivElement>) => {
     if (!wrapRef.current?.contains(event.relatedTarget)) setOpen(false);
   }}>
     <label className="global-search">
@@ -63,7 +73,7 @@ function GlobalSearch({ setPage }) {
         value={query}
         onChange={(event) => { setQuery(event.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
-        onKeyDown={(event) => {
+        onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
           if (event.key === 'Escape') { setQuery(''); setOpen(false); }
           if (event.key === 'Enter' && matches.length > 0) choose(matches[0]);
         }}
@@ -83,11 +93,23 @@ function GlobalSearch({ setPage }) {
   </div>;
 }
 
-function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }) {
+type Theme = 'dark' | 'light';
+type Updown = 'kr' | 'us';
+
+interface TopbarProps {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+  page: PageId;
+  setPage: SetPage;
+  updown: Updown;
+  setUpdown: (updown: Updown) => void;
+}
+
+function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarProps) {
   const { language, setLanguage } = useLanguage();
-  const [openPanel, setOpenPanel] = useState(null);
-  const labels = { home: 'HOME', strategy: 'STRATEGIES', bots: 'BOTS', backtest: 'BACKTEST', rooms: 'COMPETITION' };
-  const togglePanel = (panel) => setOpenPanel((current) => current === panel ? null : panel);
+  const [openPanel, setOpenPanel] = useState<string | null>(null);
+  const labels: Partial<Record<PageId, string>> = { home: 'HOME', strategy: 'STRATEGIES', bots: 'BOTS', backtest: 'BACKTEST', rooms: 'COMPETITION' };
+  const togglePanel = (panel: string) => setOpenPanel((current) => current === panel ? null : panel);
   const unreadCount = notifications.filter((item) => item.unread).length;
 
   return <Localized><header className="app-topbar signal-product-nav">
@@ -122,14 +144,14 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }) {
       <button className="icon-button" aria-label={theme === 'light' ? '다크 모드' : '라이트 모드'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}</button>
       <label className="language-select">
         <span className="sr-only">상승·하락 색상 선택</span>
-        <select aria-label="상승·하락 색상 선택" value={updown} onChange={(event) => setUpdown(event.target.value)}>
+        <select aria-label="상승·하락 색상 선택" value={updown} onChange={(event) => setUpdown(event.target.value as Updown)}>
           <option value="kr">상승 빨강</option>
           <option value="us">상승 초록</option>
         </select>
       </label>
       <label className="language-select">
         <span className="sr-only">언어 선택</span>
-        <select aria-label="언어 선택" value={language} onChange={(event) => setLanguage(event.target.value)}>
+        <select aria-label="언어 선택" value={language} onChange={(event) => setLanguage(event.target.value as 'ko' | 'en')}>
           <option value="ko">KO</option>
           <option value="en">EN</option>
         </select>
@@ -143,7 +165,16 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }) {
   Colour templates: each swaps only the brand accent (per theme, in
   tokens.css). The dot previews the accent the current theme would get.
 */
-const paletteTemplates = [
+type PaletteId = 'teal' | 'blue' | 'violet' | 'green' | 'amber' | 'rose';
+
+interface PaletteTemplate {
+  id: PaletteId;
+  label: string;
+  dark: string;
+  light: string;
+}
+
+const paletteTemplates: PaletteTemplate[] = [
   { id: 'teal', label: '틸', dark: '#5ecfca', light: '#0e7476' },
   { id: 'blue', label: '블루', dark: '#8fb3ff', light: '#2563eb' },
   { id: 'violet', label: '바이올렛', dark: '#bda4ff', light: '#6d4bc4' },
@@ -155,15 +186,15 @@ const paletteTemplates = [
 function ProductApp() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState<Theme>('dark');
   const [timezone, setTimezone] = useState('et');
   const [reduceMotion, setReduceMotion] = useState(false);
   // Up/down colour convention: Korean charts paint gains red and losses blue,
   // US charts the opposite hues. Korean is the default for this product.
-  const [updown, setUpdown] = useState('kr');
-  const [palette, setPalette] = useState(() => {
+  const [updown, setUpdown] = useState<Updown>('kr');
+  const [palette, setPalette] = useState<PaletteId>(() => {
     const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('i2s-palette') : null;
-    return paletteTemplates.some((template) => template.id === saved) ? saved : 'teal';
+    return paletteTemplates.some((template) => template.id === saved) ? (saved as PaletteId) : 'teal';
   });
   useEffect(() => {
     localStorage.setItem('i2s-palette', palette);
@@ -177,17 +208,17 @@ function ProductApp() {
   const strategyMode = strategyModeFromPathname(location.pathname);
   const isStrategyEditor = page === 'strategy' && strategyMode !== 'home';
 
-  const setPage = (next) => {
+  const setPage: SetPage = (next) => {
     navigate(pagePaths[next] ?? pagePaths.home);
   };
-  const openEditor = (mode) => {
+  const openEditor = (mode: 'basic' | 'pro') => {
     navigate(`/strategies/new/${mode}`);
   };
 
   const content = <Routes>
-    <Route path="/" element={<DashboardView setPage={setPage} openEditor={openEditor} />} />
+    <Route path="/" element={<DashboardView setPage={setPage} />} />
     <Route path="/strategies" element={<StrategyHome openEditor={openEditor} />} />
-    <Route path="/strategies/new/basic" element={<BasicEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} />} />
+    <Route path="/strategies/new/basic" element={<BasicEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
     <Route path="/strategies/new/pro" element={<ProEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} />} />
     <Route path="/bots" element={<BotsView />} />
     <Route path="/backtests" element={<BacktestView />} />
@@ -222,7 +253,7 @@ function ProductApp() {
       <Topbar theme={theme} setTheme={setTheme} page={page} setPage={setPage} updown={updown} setUpdown={setUpdown} />
       {isStrategyEditor
         ? <div className="strategy-editor-surface" data-testid="strategy-editor-surface">
-          <div className="page-scroll">{content}</div>
+          <div className="page-scroll strategy-editor-scroll">{content}</div>
         </div>
         : <div className="page-scroll">{content}</div>}
     </div>
@@ -234,14 +265,18 @@ function ProductApp() {
         aria-label={`${template.label} 템플릿`}
         aria-pressed={palette === template.id}
         className={palette === template.id ? 'active' : ''}
-        style={{ '--swatch': theme === 'light' ? template.light : template.dark }}
+        style={{ '--swatch': theme === 'light' ? template.light : template.dark } as CSSProperties}
         onClick={() => setPalette(template.id)}
       />)}
     </div></Localized>
   </main>;
 }
 
-export function App() {
+/*
+  `initialVariant` is a legacy entry point kept for the test suite: both former
+  variants resolve to the same Signal product shell, so the value is unused.
+*/
+export function App(_props: { initialVariant?: string } = {}) {
   return <LanguageProvider><BrowserRouter><Routes>
     <Route path="/concepts/*" element={<DesignConceptLab />} />
     <Route path="*" element={<ProductApp />} />

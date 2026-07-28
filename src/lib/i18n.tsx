@@ -1,9 +1,18 @@
 import { Children, cloneElement, createContext, isValidElement, useContext, useEffect, useMemo, useState } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
-const LanguageContext = createContext(null);
+export type Language = 'ko' | 'en';
+
+export interface LanguageContextValue {
+  language: Language;
+  setLanguage: (language: Language) => void;
+  t: (text: string) => string;
+}
+
+const LanguageContext = createContext<LanguageContextValue | null>(null);
 const STORAGE_KEY = 'i2s-language';
 
-const english = {
+const english: Record<string, string> = {
   'Signal 주요 메뉴': 'Signal primary navigation',
   'Idea2Strategy 홈': 'Idea2Strategy home',
   '반갑습니다, 김전략님': 'Welcome back, KIM',
@@ -24,6 +33,26 @@ const english = {
   '이어 만들기': 'Continue editing',
   '나머지 봇과 전략은 정상입니다.': 'All other bots and strategies are healthy.',
   '전체 성과': 'Total performance',
+  '운용 성과': 'Operating performance',
+  '성과 유형': 'Performance type',
+  '개인 운용 봇의 시간가중 성과': 'Time-weighted performance of personal bots',
+  '대회 참가 봇의 시간가중 성과': 'Time-weighted performance of competition bots',
+  '개인 운용 봇의 시간가중수익률 차트': 'Chart of personal bots’ time-weighted return',
+  '대회 참가 봇의 시간가중수익률 차트': 'Chart of competition bots’ time-weighted return',
+  '대회 참가': 'Competition',
+  '시간가중수익률': 'Time-weighted return',
+  '운용 손익': 'Operating P&L',
+  '현재 자산': 'Current equity',
+  '선택 봇 수': 'Selected bots',
+  '시작일 보정': 'Start-date adjustment',
+  '운용 시작': 'operation started',
+  '이전부터 운용': 'running before this period',
+  '상세': 'details',
+  '운용 시작 시점': 'Operation start',
+  '선택 기간 이전에 시작': 'Started before the selected period',
+  '이 날부터 성과에 포함': 'Included in performance from this date',
+  '기간 시작부터 성과에 포함': 'Included in performance from the start of the period',
+  '선택한 봇을 하나의 운용 묶음으로 보고, 시작 자금 유입은 수익에서 제외한 시간가중수익률입니다. ‘운용 시작’은 실제 시작일이고, ‘이전부터 운용’은 선택 기간보다 먼저 시작된 봇입니다. 개인 운용과 대회 성과는 합산하지 않습니다.': 'The selected bots are treated as one portfolio, using time-weighted return that excludes initial funding from profit. “Operation started” marks the actual launch date, while “running before this period” means the bot started before the selected range. Personal and competition performance are never combined.',
   '운용 중인 봇의 가상자산 합계': 'Combined simulated equity of running bots',
   '비교 기준': 'Benchmark',
   '비교 안 함': 'No benchmark',
@@ -177,6 +206,7 @@ const english = {
   '모든 상태': 'All statuses',
   '준비 완료': 'Ready',
   '확인 필요': 'Needs review',
+  '출시 가능': 'Ready to launch',
   '검증 완료': 'Validated',
   '임시 저장': 'Draft',
   '미완성': 'Incomplete',
@@ -283,6 +313,19 @@ const english = {
   '저장됨': 'Saved',
   '미저장 변경': 'Unsaved changes',
   '검증': 'Validate',
+  '개인 봇 출시': 'Launch personal bot',
+  '개인 운용 봇': 'Personal bot',
+  '전략을 검증하고 바로 출시해요.': 'Validate the strategy and launch it right away.',
+  '개인 운용 봇 출시': 'Launch personal bot',
+  '전략을 실행할 봇의 이름과 설명을 정해 주세요.': 'Choose a name and description for the bot that will run this strategy.',
+  '봇 설명': 'Bot description',
+  '예: Momentum Scout': 'e.g. Momentum Scout',
+  '봇 목록에서 쉽게 찾을 수 있는 이름을 입력해 주세요.': 'Enter a name that is easy to find in your bot list.',
+  '이 봇이 어떤 전략으로 운용되는지 간단히 설명해 주세요.': 'Briefly describe the strategy this bot will run.',
+  '개인 운용으로 시작합니다': 'Starts as a personal bot',
+  '출시 후 봇 운영 화면에서 상태를 확인할 수 있어요.': 'You can check its status on the bot operations screen after launch.',
+  '봇 출시하기': 'Launch bot',
+  '출시 창 닫기': 'Close launch dialog',
   '블록 검색': 'Search blocks',
   'RSI, 가격, 체결량': 'RSI, price, volume',
   '이동평균': 'Moving average',
@@ -494,14 +537,36 @@ const english = {
   '검색어를 지우거나 종류·기간 필터를 넓히면 나머지 기록을 볼 수 있습니다.': 'Clear the search or widen the type and period filters to see the rest.',
   '캔들 차트와 매수 매도 기록': 'candlestick chart with buy and sell marks',
   '기록': 'Log',
-  '이모지 설정': 'bot emoji setting',
-  '봇 이모지 선택': 'Choose a bot emoji',
-  '집중': 'Focused',
-  '공격적': 'Aggressive',
-  '균형': 'Balanced',
-  '방어적': 'Defensive',
-  '릴렉스': 'Relaxed',
-  '고성장': 'High growth',
+  '아이콘 설정': 'bot icon setting',
+  '봇 아이콘 선택': 'Choose a bot icon',
+  '아이콘 모양': 'Icon shape',
+  '아이콘 색상': 'Icon color',
+  '색상 선택': 'Choose a color',
+  '적용': 'Apply',
+  '색상': 'Color',
+  '집중형 봇 아이콘': 'Focused bot icon',
+  '공격형 봇 아이콘': 'Aggressive bot icon',
+  '균형형 봇 아이콘': 'Balanced bot icon',
+  '방어형 봇 아이콘': 'Defensive bot icon',
+  '릴렉스형 봇 아이콘': 'Relaxed bot icon',
+  '고성장형 봇 아이콘': 'High-growth bot icon',
+  '분석형 봇 아이콘': 'Analytical bot icon',
+  '적응형 봇 아이콘': 'Adaptive bot icon',
+  '자신감형 봇 아이콘': 'Confident bot icon',
+  '행복한 봇 아이콘': 'Happy bot icon',
+  '기본형 봇 아이콘': 'Default bot icon',
+  '기회포착형 봇 아이콘': 'Opportunistic bot icon',
+  '회색': 'Gray',
+  '연한 회색': 'Light gray',
+  '갈색': 'Brown',
+  '노란색': 'Yellow',
+  '민트색': 'Mint',
+  '초록색': 'Green',
+  '파란색': 'Blue',
+  '보라색': 'Purple',
+  '분홍색': 'Pink',
+  '빨간색': 'Red',
+  '주황색': 'Orange',
   '투자 중': 'Invested',
   '현금': 'Cash',
   '평가 금액 기준': 'At market value',
@@ -627,13 +692,16 @@ const english = {
   '전략과 설정은 서버에 저장되지 않습니다': 'Strategies and settings are not saved to a server',
 
   // Full sentences that were only partly rewritten because no exact key existed
-  '트레이딩 봇별 누적 수익률을 같은 기간의 S&P 500과 직접 비교합니다.': 'Compare each trading bot\u2019s cumulative return against the S&P 500 over the same period.',
+  '트레이딩 봇별 누적 수익률을 같은 기간의 주요 시장 지수와 직접 비교합니다.': 'Compare each trading bot\u2019s cumulative return against major market indices over the same period.',
   '휠 확대·축소 · 좌우 드래그 · 가격축 상하 드래그 · 더블클릭 초기화': 'Wheel to zoom · drag sideways to pan · drag the price axis vertically · double-click to reset',
   '차트에 표시된 개별 체결': 'Individual fills shown on the chart',
   '조정 가격 · 미국 동부 시각': 'Adjusted prices · US Eastern time',
   '조정주가 · USD': 'Adjusted price · USD',
   '종목별 체결 차트': 'Fills by symbol',
   '봇 선택': 'Select a bot',
+  '시장 지수': 'Market indices',
+  '비교 지표 선택': 'Select comparison indices',
+  '지표 표시': 'Show index',
   'S&P 500 대비': 'vs S&P 500',
   '시장 기준선': 'Market baseline',
   '선택한 봇': 'Selected bot',
@@ -737,7 +805,6 @@ const english = {
   '30명': '30 people', '20명': '20 people', '10명': '10 people', '8명': '8 people',
   '24개': '24', '8개': '8', '5개': '5', '3개': '3',
   // New home features
-  '라벨로 선택': 'By label',
   '봇 개별 선택': 'Individual bots',
   '개인': 'Personal',
   '대회': 'Competition',
@@ -749,6 +816,16 @@ const english = {
 
   // Bot strategy snapshot
   '전략 스냅샷': 'Strategy snapshot',
+  '전략 구성 보기': 'View strategy layout',
+  '전략 구성 닫기': 'Close strategy layout',
+  '현재 봇 전용 배치': 'Layout for this bot',
+  '이 배치는 현재 봇의 스냅샷 화면에만 적용되며 전략 내용에는 영향을 주지 않습니다.': 'This layout applies only to this bot’s snapshot and does not affect the strategy.',
+  '빈 공간 드래그: 화면 이동 · 블록 드래그: 위치 변경': 'Drag empty space to pan · Drag blocks to reposition',
+  '전략 구성 확대/축소': 'Strategy layout zoom',
+  '축소': 'Zoom out',
+  '확대': 'Zoom in',
+  '배율 초기화': 'Reset zoom',
+  '배치 저장': 'Save layout',
   '전략 실행 순서': 'strategy execution order',
   '원본 수정됨': 'Source edited',
   '원본 삭제됨': 'Source deleted',
@@ -757,6 +834,7 @@ const english = {
   '원본 전략은 삭제되었습니다. 봇은 이 스냅샷대로 계속 동작합니다.': 'The source strategy has been deleted. The bot keeps running this snapshot.',
   '원본 전략이 출시 이후 바뀌지 않았습니다.': 'The source strategy has not changed since launch.',
   '출시 시점의 스냅샷이며, 배치 좌표가 아닌 실행 순서 기준으로 표시합니다.': 'This is the launch-time snapshot, shown in execution order rather than canvas layout.',
+  '간략 보기에서는 실행 순서 기준으로 표시합니다. 전략 구성 보기에서 저장된 배치를 확인할 수 있습니다.': 'The compact view follows execution order. Open the strategy layout to see its saved positions.',
   '스냅샷 2026.06.08 09:30 ET': 'Snapshot taken 2026.06.08 09:30 ET',
   '스냅샷 2026.06.11 09:30 ET': 'Snapshot taken 2026.06.11 09:30 ET',
   '스냅샷 2026.07.05 09:30 ET': 'Snapshot taken 2026.07.05 09:30 ET',
@@ -888,12 +966,12 @@ const english = {
 
 const entries = Object.entries(english).sort(([a], [b]) => b.length - a.length);
 
-function translateString(value, language) {
+function translateString(value: string, language: Language): string {
   if (language === 'ko' || typeof value !== 'string') return value;
   return entries.reduce((result, [source, target]) => result.replaceAll(source, target), value);
 }
 
-function localizeValue(value, language, propName = '') {
+function localizeValue(value: unknown, language: Language, propName = ''): unknown {
   if (typeof value === 'string') {
     if (['className', 'id', 'href', 'src', 'value', 'name', 'type', 'role'].includes(propName)) return value;
     return translateString(value, language);
@@ -916,18 +994,18 @@ function localizeValue(value, language, propName = '') {
     });
   }
   if (isValidElement(value)) {
-    const props = {};
-    for (const [key, item] of Object.entries(value.props)) props[key] = localizeValue(item, language, key);
-    return cloneElement(value, props);
+    const props: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value.props as Record<string, unknown>)) props[key] = localizeValue(item, language, key);
+    return cloneElement(value as ReactElement<Record<string, unknown>>, props);
   }
   if (value && typeof value === 'object' && value.constructor === Object) {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, localizeValue(item, language, key)]));
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, localizeValue(item, language, key)]));
   }
   return value;
 }
 
-export function LanguageProvider({ children }) {
-  const [language, setLanguage] = useState(() => {
+export function LanguageProvider({ children }: { children?: ReactNode }) {
+  const [language, setLanguage] = useState<Language>(() => {
     if (typeof window === 'undefined') return 'ko';
     return window.localStorage.getItem(STORAGE_KEY) === 'en' ? 'en' : 'ko';
   });
@@ -935,20 +1013,20 @@ export function LanguageProvider({ children }) {
     window.localStorage.setItem(STORAGE_KEY, language);
     document.documentElement.lang = language;
   }, [language]);
-  const value = useMemo(() => ({
+  const value = useMemo<LanguageContextValue>(() => ({
     language,
     setLanguage,
-    t: (text) => translateString(text, language),
+    t: (text: string) => translateString(text, language),
   }), [language]);
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
 
-export function useLanguage() {
+export function useLanguage(): LanguageContextValue {
   const context = useContext(LanguageContext);
-  return context ?? { language: 'ko', setLanguage: () => {}, t: (text) => text };
+  return context ?? { language: 'ko', setLanguage: () => {}, t: (text: string) => text };
 }
 
-export function Localized({ children }) {
+export function Localized({ children }: { children?: ReactNode }) {
   const { language } = useLanguage();
-  return Children.map(children, (child) => localizeValue(child, language));
+  return Children.map(children, (child) => localizeValue(child, language)) as ReactNode;
 }

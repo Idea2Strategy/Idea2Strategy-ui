@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import {
   AlertTriangle,
   BellRing,
@@ -14,17 +15,35 @@ import {
   Search,
   UserRound,
 } from 'lucide-react';
-import { Button, EmptyState, PageHeading, Panel, Status } from '../components/common.jsx';
-import { notifications as seedNotifications } from '../data/mockData.js';
-import { Localized, useLanguage } from '../lib/i18n.jsx';
+import { Button, EmptyState, PageHeading, Panel, Status } from '../components/common';
+import type { StatusTone } from '../components/common';
+import { notifications as seedNotifications } from '../data/mockData';
+import type { NotificationItem } from '../data/mockData';
+import type { PageId } from '../lib/navigation';
+import { Localized, useLanguage } from '../lib/i18n';
+import type { Language } from '../lib/i18n';
 
-const severityMeta = {
+type Severity = NotificationItem['severity'];
+type SeverityFilterId = Severity | 'all';
+
+interface SeverityMeta {
+  icon: LucideIcon;
+  label: string;
+  tone: StatusTone;
+}
+
+interface SeverityFilter {
+  id: SeverityFilterId;
+  label: string;
+}
+
+const severityMeta: Record<Severity, SeverityMeta> = {
   action: { icon: AlertTriangle, label: '조치 필요', tone: 'warning' },
   success: { icon: CheckCircle2, label: '완료', tone: 'positive' },
   info: { icon: Info, label: '정보', tone: 'neutral' },
 };
 
-const severityFilters = [
+const severityFilters: SeverityFilter[] = [
   { id: 'all', label: '전체' },
   { id: 'action', label: '조치 필요' },
   { id: 'success', label: '완료' },
@@ -39,9 +58,13 @@ const severityFilters = [
   nowhere. Read state, severity filtering and navigation to the owning screen all
   live here; the popover now links into it.
 */
-export function NotificationsView({ setPage }) {
-  const [items, setItems] = useState(seedNotifications);
-  const [severity, setSeverity] = useState('all');
+interface NotificationsViewProps {
+  setPage?: (page: PageId) => void;
+}
+
+export function NotificationsView({ setPage }: NotificationsViewProps) {
+  const [items, setItems] = useState<NotificationItem[]>(seedNotifications);
+  const [severity, setSeverity] = useState<SeverityFilterId>('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
 
   const visible = useMemo(() => items.filter((item) => {
@@ -51,9 +74,9 @@ export function NotificationsView({ setPage }) {
 
   const unreadCount = items.filter((item) => item.unread).length;
   const markAllRead = () => setItems((current) => current.map((item) => ({ ...item, unread: false })));
-  const openItem = (item) => {
+  const openItem = (item: NotificationItem) => {
     setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, unread: false } : entry));
-    if (item.target && setPage) setPage(item.target);
+    if (item.target && setPage) setPage(item.target as PageId);
   };
 
   return <Localized><div className="page narrow-page notifications-page">
@@ -113,7 +136,13 @@ export function NotificationsView({ setPage }) {
   </div></Localized>;
 }
 
-const helpTopics = [
+interface HelpTopic {
+  id: string;
+  title: string;
+  body: string;
+}
+
+const helpTopics: HelpTopic[] = [
   {
     id: 'strategy',
     title: '전략을 만들고 검사하기',
@@ -141,7 +170,12 @@ const helpTopics = [
   },
 ];
 
-const glossary = [
+interface GlossaryEntry {
+  term: string;
+  detail: string;
+}
+
+const glossary: GlossaryEntry[] = [
   { term: '누적 수익률', detail: '기간 시작 시점을 0%로 두고, 현재까지 자산이 늘거나 줄어든 비율입니다.' },
   { term: '최대 낙폭 (MDD)', detail: '기간 중 자산이 가장 높았던 시점에서 가장 낮은 시점까지 떨어진 폭입니다. 위험을 보는 대표 지표입니다.' },
   { term: '샤프 지수', detail: '같은 수익률이라도 오르내림이 심했다면 낮아집니다. 변동성 대비 성과를 보는 값입니다.' },
@@ -154,7 +188,13 @@ const glossary = [
   { term: '유니버스', detail: '전략이 평가 대상으로 삼는 종목의 집합입니다.' },
 ];
 
-const orderStates = [
+interface OrderStateEntry {
+  state: string;
+  detail: string;
+  tone: StatusTone;
+}
+
+const orderStates: OrderStateEntry[] = [
   { state: '접수', detail: '서버가 주문 요청을 받았고 아직 체결되지 않은 상태입니다.', tone: 'neutral' },
   { state: '부분 체결', detail: '주문 수량 중 일부만 체결되었습니다.', tone: 'neutral' },
   { state: '체결', detail: '주문 수량이 모두 체결되었습니다.', tone: 'positive' },
@@ -235,7 +275,12 @@ export function HelpView() {
   </div></Localized>;
 }
 
-const timezoneOptions = [
+interface TimezoneOption {
+  id: string;
+  label: string;
+}
+
+const timezoneOptions: TimezoneOption[] = [
   { id: 'kst', label: 'KST · 한국 시각' },
   { id: 'et', label: 'ET · 미국 동부 시각' },
   { id: 'both', label: 'ET · KST 병기' },
@@ -249,7 +294,21 @@ const timezoneOptions = [
   preferences — had no home at all. The display controls are wired to the live
   app state rather than being decorative.
 */
-export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMotion, setReduceMotion, updown = 'kr', setUpdown = () => {} }) {
+type Theme = 'dark' | 'light';
+type Updown = 'kr' | 'us';
+
+interface AccountViewProps {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
+  timezone: string;
+  setTimezone: (timezone: string) => void;
+  reduceMotion: boolean;
+  setReduceMotion: (reduceMotion: boolean) => void;
+  updown?: Updown;
+  setUpdown?: (updown: Updown) => void;
+}
+
+export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMotion, setReduceMotion, updown = 'kr', setUpdown = () => {} }: AccountViewProps) {
   const { language, setLanguage } = useLanguage();
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [actionAlerts, setActionAlerts] = useState(true);
@@ -295,14 +354,14 @@ export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMoti
         <div className="settings-fields">
           <label>
             <span>테마</span>
-            <select aria-label="테마 선택" value={theme} onChange={(event) => setTheme(event.target.value)}>
+            <select aria-label="테마 선택" value={theme} onChange={(event) => setTheme(event.target.value as Theme)}>
               <option value="dark">다크</option>
               <option value="light">라이트</option>
             </select>
           </label>
           <label>
             <span>언어</span>
-            <select aria-label="화면 언어 선택" value={language} onChange={(event) => setLanguage(event.target.value)}>
+            <select aria-label="화면 언어 선택" value={language} onChange={(event) => setLanguage(event.target.value as Language)}>
               <option value="ko">한국어</option>
               <option value="en">English</option>
             </select>
@@ -315,7 +374,7 @@ export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMoti
           </label>
           <label>
             <span>상승·하락 색상</span>
-            <select aria-label="상승·하락 색상 선택" value={updown} onChange={(event) => setUpdown(event.target.value)}>
+            <select aria-label="상승·하락 색상 선택" value={updown} onChange={(event) => setUpdown(event.target.value as Updown)}>
               <option value="kr">한국식 · 상승 빨강, 하락 파랑</option>
               <option value="us">미국식 · 상승 초록, 하락 빨강</option>
             </select>
