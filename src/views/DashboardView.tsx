@@ -83,11 +83,11 @@ const PERIODS: Record<PeriodKey, { label: string; days: number | null }> = {
   quarter: { label: '3개월', days: 91 },
 };
 const INITIAL_CAPITAL = 10000;
-const CAPITALS: Record<string, number> = { 'Atlas 07': 10540, 'Room Beta': 10490, 'Pair Lab': 9790 };
+const CAPITALS: Record<string, number> = { 'Atlas 07': 10540, 'Room Beta': 10490, 'Pair Lab': 9790, 'Pulse Grid': 10120 };
 const LIFETIME_RETURNS: Record<string, number> = Object.fromEntries(
   Object.entries(CAPITALS).map(([name, capital]) => [name, capital / INITIAL_CAPITAL - 1]),
 );
-const DAILY_VOL: Record<string, number> = { 'Atlas 07': .011, 'Room Beta': .009, 'Pair Lab': .005 };
+const DAILY_VOL: Record<string, number> = { 'Atlas 07': .011, 'Room Beta': .009, 'Pair Lab': .005, 'Pulse Grid': .007 };
 const SAMPLE_END_DATE = Date.UTC(2026, 6, 23);
 const percentPoint = (value: number): string => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 

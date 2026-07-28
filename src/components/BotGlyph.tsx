@@ -65,6 +65,7 @@ export const DEFAULT_BOT_ICONS: BotIconMap = {
   'Atlas 07': { iconId: 'focus', colorId: 'gray' },
   'Room Beta': { iconId: 'aggressive', colorId: 'red' },
   'Pair Lab': { iconId: 'relaxed', colorId: 'blue' },
+  'Pulse Grid': { iconId: 'analytical', colorId: 'purple' },
 };
 
 export const BOT_ICON_STORAGE_KEY = 'i2s-bot-icons';

@@ -129,7 +129,7 @@ const botList = bots as BotRecord[];
 /* ---------- Data ------------------------------------------------------------ */
 
 const SAMPLE_END_DATE = Date.UTC(2026, 6, 23);
-const CAPITALS: Record<string, number> = { 'Atlas 07': 10540, 'Room Beta': 10490, 'Pair Lab': 9790 };
+const CAPITALS: Record<string, number> = { 'Atlas 07': 10540, 'Room Beta': 10490, 'Pair Lab': 9790, 'Pulse Grid': 10120 };
 
 /*
   Per-bot operating detail. Selecting a bot drives every panel — a chart that
@@ -267,6 +267,40 @@ const botDetails: Record<string, BotDetail> = {
         { id: 'condition', tone: 'condition', category: '조건', name: '스프레드 이탈', value: '|z| 2 초과', note: '분기 · 방향별 2갈래' },
         { id: 'risk', tone: 'risk', category: '위험관리', name: '예산 상한', value: '$18,000' },
         { id: 'order', tone: 'order', category: '주문 실행', name: '페어 주문', value: '양방향 · 시장가' },
+      ],
+    },
+  },
+  'Pulse Grid': {
+    strategy: 'Volume Pulse Filter · v1',
+    monthReturn: .012,
+    dailyVol: .007,
+    cash: '$10,120.00',
+    cashShare: 100,
+    invested: '$0.00',
+    positions: [],
+    events: [
+      { kind: 'note', tone: 'muted', time: '07.23 10:06 ET', title: '거래량 조건 미충족 · 주문 없음', detail: 'SPY 거래량이 20일 평균의 1.5배 미만입니다.' },
+      { kind: 'fill', time: '07.16 14:20 ET', side: '매도', symbol: 'SPY', quantity: '8주', price: '$632.18', partition: '그래프 · 거래량 청산', rule: '거래량 모멘텀 약화 → 전량 매도' },
+      { kind: 'fill', time: '07.08 10:10 ET', side: '매수', symbol: 'SPY', quantity: '8주', price: '$624.42', partition: '그래프 · 거래량 진입', rule: '거래량 20일 평균 1.5배 돌파 → 시장가 매수' },
+    ],
+    snapshot: {
+      mode: 'Pro',
+      version: 'v1',
+      takenAt: '2026.07.03 13:45 ET',
+      plain: 'SPY 거래량이 20일 평균의 1.5배를 넘고 가격 모멘텀이 양수일 때 진입하며, 거래량이 약해지면 전량 매도합니다.',
+      layout: {
+        universe: { x: 40, y: 140 },
+        market: { x: 290, y: 140 },
+        volume: { x: 540, y: 140 },
+        condition: { x: 790, y: 140 },
+        order: { x: 1040, y: 140 },
+      },
+      steps: [
+        { id: 'universe', tone: 'universe', category: '유니버스', name: '직접 선택', value: 'SPY' },
+        { id: 'market', tone: 'data', category: '시장 데이터', name: '가격·거래량', value: '1시간봉' },
+        { id: 'volume', tone: 'indicator', category: '지표', name: '거래량 SMA', value: '기간 20' },
+        { id: 'condition', tone: 'condition', category: '조건', name: '거래량 돌파', value: '평균 1.5배 초과' },
+        { id: 'order', tone: 'order', category: '주문 실행', name: '진입·청산', value: '시장가' },
       ],
     },
   },

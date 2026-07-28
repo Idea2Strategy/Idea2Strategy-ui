@@ -67,6 +67,9 @@ export const bots: BotSummary[] = [
   /* A budget-cap deferral is part of normal operation — the bot retries on the
      next evaluation — so it is not an attention state. */
   { name: 'Pair Lab', state: '실행 중', capital: '$9,790.00', change: '-2.10%', strategies: 2, room: '개인 봇', labels: ['개인', '페어'], startDaysAgo: 18, startedAt: '2026.07.05 09:30 ET' },
+  /* Pair Lab보다 이틀 먼저 시작한 봇으로, 홈 성과 차트의 가까운 시작
+     마커가 겹치지 않고 배치되는 상황을 보여준다. */
+  { name: 'Pulse Grid', state: '실행 중', capital: '$10,120.00', change: '+1.20%', strategies: 1, room: '개인 봇', labels: ['개인', '거래량'], startDaysAgo: 20, startedAt: '2026.07.03 13:45 ET' },
 ];
 
 export const positions = [

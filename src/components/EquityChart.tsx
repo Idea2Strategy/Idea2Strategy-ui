@@ -23,6 +23,21 @@ export interface EquityChartProps {
   showRateInTooltip?: boolean;
 }
 
+export const getLaunchMarkerLanes = (positions: number[], collisionDistance = 34): number[] => {
+  const occupiedByLane: number[][] = [];
+  return positions.map((position) => {
+    let lane = occupiedByLane.findIndex(
+      (occupied) => occupied.every((otherPosition) => Math.abs(otherPosition - position) >= collisionDistance),
+    );
+    if (lane === -1) {
+      lane = occupiedByLane.length;
+      occupiedByLane.push([]);
+    }
+    occupiedByLane[lane].push(position);
+    return lane;
+  });
+};
+
 /*
   The shared performance chart (Home aggregate and per-bot overview), kept to the
   grammar of consumer brokerage charts:
@@ -92,6 +107,8 @@ export function EquityChart({
     setHoverIndex((current) => Math.min(Math.max((current ?? values.length - 1) + step, 0), values.length - 1));
   };
   const xTicks = [0, Math.round((values.length - 1) / 3), Math.round(((values.length - 1) * 2) / 3), values.length - 1];
+  const launchPositions = launches.map((launch) => xFor(launch.index));
+  const launchLanes = getLaunchMarkerLanes(launchPositions);
 
   return <div className="dashboard-chart-box"><div
     ref={frameRef}
@@ -154,11 +171,8 @@ export function EquityChart({
     ><i className="sr-only">{t('최저')} </i>{format(minValue)}</span>}
 
     {launches.map((launch, launchIndex) => {
-      const position = (xFor(launch.index) / width) * 100;
-      const lane = launches
-        .slice(0, launchIndex)
-        .filter((other) => other.index === launch.index)
-        .length;
+      const position = (launchPositions[launchIndex] / width) * 100;
+      const lane = launchLanes[launchIndex];
       const edgeClass = position <= 10 ? 'is-edge-start' : position >= 90 ? 'is-edge-end' : '';
       const status = launch.kind === 'before-range' ? t('이전부터 운용') : t('운용 시작');
       const tooltipId = `${clipId}-launch-${launchIndex}`;
@@ -171,6 +185,7 @@ export function EquityChart({
         key={launch.name}
         className={`dashboard-chart-marker ${edgeClass}`}
         style={{ left: `${position}%`, bottom: `${2 + lane * 36}px` }}
+        data-lane={lane}
         aria-label={`${launch.name} ${status} ${t('정보')}`}
         aria-describedby={tooltipId}
         onFocus={(event) => event.stopPropagation()}
