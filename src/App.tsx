@@ -144,20 +144,26 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarPro
       </div>
       <button className={`icon-button ${page === 'help' ? 'active' : ''}`} aria-label="도움말" onClick={() => setPage('help')}><CircleHelp size={17} /></button>
       <button className="icon-button" aria-label={theme === 'light' ? '다크 모드' : '라이트 모드'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}</button>
-      <label className="language-select">
-        <span className="sr-only">상승·하락 색상 선택</span>
-        <select aria-label="상승·하락 색상 선택" value={updown} onChange={(event) => setUpdown(event.target.value as Updown)}>
-          <option value="kr">상승 빨강</option>
-          <option value="us">상승 초록</option>
-        </select>
-      </label>
-      <label className="language-select">
-        <span className="sr-only">언어 선택</span>
-        <select aria-label="언어 선택" value={language} onChange={(event) => setLanguage(event.target.value as 'ko' | 'en')}>
-          <option value="ko">KO</option>
-          <option value="en">EN</option>
-        </select>
-      </label>
+      <div className="nav-segmented-toggle nav-market-toggle" role="group" aria-label="상승·하락 색상 선택" data-value={updown}>
+        <button
+          type="button"
+          aria-label="한국식 · 상승 빨강, 하락 파랑"
+          aria-pressed={updown === 'kr'}
+          title="한국식 · 상승 빨강, 하락 파랑"
+          onClick={() => setUpdown('kr')}
+        ><span className="nav-market-colours convention-kr" aria-hidden="true"><i /><i /></span></button>
+        <button
+          type="button"
+          aria-label="미국식 · 상승 초록, 하락 빨강"
+          aria-pressed={updown === 'us'}
+          title="미국식 · 상승 초록, 하락 빨강"
+          onClick={() => setUpdown('us')}
+        ><span className="nav-market-colours convention-us" aria-hidden="true"><i /><i /></span></button>
+      </div>
+      <div className="nav-segmented-toggle nav-language-toggle" role="group" aria-label="언어 선택" data-value={language}>
+        <button type="button" aria-label="한국어" aria-pressed={language === 'ko'} onClick={() => setLanguage('ko')}>KO</button>
+        <button type="button" aria-label="English" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>EN</button>
+      </div>
       <button className={`signal-user ${page === 'account' ? 'active' : ''}`} aria-label="내 계정" onClick={() => setPage('account')}>KIM <i /></button>
     </div>
   </header></Localized>;

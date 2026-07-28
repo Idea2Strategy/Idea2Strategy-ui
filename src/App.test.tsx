@@ -185,7 +185,9 @@ describe('Signal product UI', () => {
     const user = userEvent.setup();
     const { unmount } = render(<App />);
 
-    await user.selectOptions(screen.getByRole('combobox', { name: '언어 선택' }), 'en');
+    const languageToggle = screen.getByRole('group', { name: '언어 선택' });
+    expect(within(languageToggle).getByRole('button', { name: '한국어' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(within(languageToggle).getByRole('button', { name: 'English' }));
     expect(screen.getByRole('heading', { name: 'Welcome back, KIM' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New strategy' })).not.toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute('lang', 'en');
@@ -195,8 +197,26 @@ describe('Signal product UI', () => {
 
     unmount();
     render(<App />);
-    expect(screen.getByRole('combobox', { name: 'Language' })).toHaveValue('en');
+    expect(within(screen.getByRole('group', { name: 'Language' })).getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('heading', { name: 'Bot operations' })).toBeInTheDocument();
+  });
+
+  test('uses compact segmented toggles for the market colour convention and language', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const colourToggle = screen.getByRole('group', { name: '상승·하락 색상 선택' });
+    const koreanColours = within(colourToggle).getByRole('button', { name: '한국식 · 상승 빨강, 하락 파랑' });
+    const usColours = within(colourToggle).getByRole('button', { name: '미국식 · 상승 초록, 하락 빨강' });
+
+    expect(koreanColours).toHaveAttribute('aria-pressed', 'true');
+    expect(usColours).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByRole('combobox', { name: '상승·하락 색상 선택' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: '언어 선택' })).not.toBeInTheDocument();
+
+    await user.click(usColours);
+    expect(usColours).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('app-shell')).toHaveAttribute('data-updown', 'us');
   });
 
   test('uses one heading composition and one active navigation rule on every primary page', async () => {
