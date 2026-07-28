@@ -1,13 +1,11 @@
 import { useMemo, useRef, useState } from 'react';
-import type { ComponentType, FocusEvent, ReactNode } from 'react';
+import type { FocusEvent, ReactNode } from 'react';
 import {
   ArrowRight,
-  CalendarClock,
   ChevronDown,
   Trophy,
-  X,
 } from 'lucide-react';
-import { Button, Status } from '../components/common';
+import { Status } from '../components/common';
 import { BotGlyph, DEFAULT_BOT_ICONS, FALLBACK_BOT_ICON } from '../components/BotGlyph';
 import type { BotIconMap } from '../components/BotGlyph';
 import { EquityChart } from '../components/EquityChart';
@@ -33,35 +31,12 @@ interface BotRecord {
   startDaysAgo: number;
 }
 
-interface HomeTask {
-  id: string;
-  icon: ComponentType<{ size?: number | string; 'aria-hidden'?: boolean | 'true' }>;
-  tone: 'warning' | 'neutral';
-  title: string;
-  detail: string;
-  action: string;
-}
-
 interface DashboardViewProps {
   setPage: (page: PageId) => void;
   botIcons?: BotIconMap;
 }
 
 const botList = bots as BotRecord[];
-
-/*
-  Only items that are user-actionable AND time-bound qualify as Home tasks.
-  Routine engine events — rejected orders, unmet conditions — are not tasks: a
-  running bot's strategy is locked, so there is nothing to act on, and they are
-  frequent by design. They live in the bot's decision log and in notifications.
-  Unfinished drafts are the strategy page's concern, not Home's.
-
-  A task resolves in place: the action asks for confirmation, and once
-  confirmed the banner is gone — a handled task must not keep nagging.
-*/
-const INITIAL_TASKS: HomeTask[] = [
-  { id: 'extend-atlas', icon: CalendarClock, tone: 'warning', title: 'Atlas 07 계속 실행 확인', detail: '무소속 봇은 기한 전에 연장해야 계속 실행됩니다 · 08.10까지 (D-18)', action: '연장하기' },
-];
 
 /*
   Per-bot equity curves: a seeded random walk, one point per trading day,
@@ -125,22 +100,12 @@ export function DashboardView({ setPage, botIcons = DEFAULT_BOT_ICONS }: Dashboa
     () => new Set(botList.filter((bot) => isBotInScope(bot, 'personal')).map((bot) => bot.name)),
   );
   const [filterOpen, setFilterOpen] = useState(false);
-  const [taskList, setTaskList] = useState<HomeTask[]>(INITIAL_TASKS);
-  const [confirming, setConfirming] = useState<HomeTask | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
-  const allClear = taskList.length === 0;
   const scopedBots = useMemo(
     () => botList.filter((bot) => isBotInScope(bot, performanceScope)),
     [performanceScope],
   );
   const scopeLabel = performanceScope === 'personal' ? '개인 운용' : '대회 참가';
-
-  const confirmExtension = () => {
-    if (!confirming) return;
-    const finished = confirming;
-    setTaskList((current) => current.filter((task) => task.id !== finished.id));
-    setConfirming(null);
-  };
 
   const toggleBot = (name: string) => {
     setIncluded((current) => {
@@ -214,42 +179,9 @@ export function DashboardView({ setPage, botIcons = DEFAULT_BOT_ICONS }: Dashboa
       <div>
         <p className="eyebrow">HOME</p>
         <h1>반갑습니다, 김전략님</h1>
-        <p className="page-description">
-          {allClear
-            ? '봇 3개가 정상 운영 중이에요. 오늘은 확인할 일이 없습니다.'
-            : `봇 3개가 정상 운영 중이에요. 아래 ${taskList.length}가지만 확인하면 됩니다.`}
-        </p>
+        <p className="page-description">봇 3개가 정상 운영 중이에요.</p>
       </div>
     </header>
-
-    {/* Slim banners, one line each — an inbox, not a hero panel. When there is
-        nothing to check, the section does not exist: an empty inbox rendering
-        "all clear" would still be claiming attention, and the situation
-        sentence in the heading already says today needs nothing. */}
-    {!allClear && <section className="dashboard-alerts" aria-label="확인이 필요한 작업">
-      <h2 className="dashboard-alerts-label">확인이 필요한 작업<b>{taskList.length}</b></h2>
-      {taskList.map((task) => {
-        const Icon = task.icon;
-        return <button key={task.id} className={`dashboard-alert tone-${task.tone}`} onClick={() => setConfirming(task)}>
-          <Icon size={15} aria-hidden="true" />
-          <span><strong>{task.title}</strong><small>{task.detail}</small></span>
-          <b>{task.action}<ArrowRight size={13} /></b>
-        </button>;
-      })}
-    </section>}
-
-    {confirming && <div className="strategy-dialog-backdrop" onMouseDown={() => setConfirming(null)}>
-      <section role="dialog" aria-modal="true" aria-label="연장 확인" className="strategy-create-dialog dashboard-confirm-dialog" onMouseDown={(event) => event.stopPropagation()}>
-        <header>
-          <div><h2>Atlas 07 계속 실행을 연장하시겠습니까?</h2><p>기한이 30일 연장됩니다. 서버가 요청을 접수한 시각 기준으로 계산합니다.</p></div>
-          <button aria-label="연장 확인 닫기" onClick={() => setConfirming(null)}><X size={18} /></button>
-        </header>
-        <footer className="dashboard-confirm-actions">
-          <Button onClick={() => setConfirming(null)}>취소</Button>
-          <Button kind="primary" onClick={confirmExtension}>연장하기</Button>
-        </footer>
-      </section>
-    </div>}
 
     <div className="dashboard-context-row">
       <section className="dashboard-section" aria-label="운용 성과">

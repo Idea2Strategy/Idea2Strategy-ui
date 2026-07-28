@@ -70,7 +70,8 @@ describe('Signal product UI', () => {
 
     expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '새 전략' })).not.toBeInTheDocument();
-    expect(screen.getByText('확인이 필요한 작업')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '확인이 필요한 작업' })).not.toBeInTheDocument();
+    expect(screen.getByText('봇 3개가 정상 운영 중이에요.')).toBeInTheDocument();
     expect(screen.getByText('운용 성과')).toBeInTheDocument();
     expect(screen.queryByText('전체 성과')).not.toBeInTheDocument();
 

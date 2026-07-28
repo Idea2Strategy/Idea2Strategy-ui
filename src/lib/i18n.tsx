@@ -24,7 +24,6 @@ const english: Record<string, string> = {
   '주문 1 · 전략 1': '1 order · 1 strategy',
   '대회 순위': 'Competition rank',
   'Momentum Lab · 48명': 'Momentum Lab · 48 participants',
-  '확인이 필요한 작업': 'Actions required',
   '운영에 영향을 주는 항목만 모았습니다': 'Only items affecting operations',
   'Pair Lab 주문 거절': 'Pair Lab order rejected',
   '예산 상한을 초과해 주문이 생성되지 않았습니다.': 'No order was created because it exceeded the budget cap.',

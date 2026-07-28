@@ -6236,19 +6236,9 @@
   color:var(--accent);
   border-color:color-mix(in srgb,var(--accent) 36%,var(--line));
 }
-/*
-  Home is one focal panel with quiet, borderless context under it. The page
-  states the situation in the description sentence; the only bordered surface
-  is the list of things to act on, so there is exactly one place to look first.
-*/
 /* Home keeps the same page width as every other screen — the container never
-   changes size between pages. Hierarchy comes from the single bordered panel,
-   and the standard width shortens the page by letting the two quiet sections
-   sit side by side. */
-/* Home reuses the standard page-heading treatment — same divider, same
-   margins as every other page. Below it: the alert unit (label + banners, 8px
-   apart), then a full 32px section break before the context row. */
-.dashboard-alerts { margin-bottom:var(--space-6); }
+   changes size between pages. The standard width shortens the page by letting
+   the performance and bot context sections sit side by side. */
 .dashboard-context-row {
   display:grid;
   grid-template-columns:minmax(0,1.5fr) minmax(360px,1fr);
@@ -6257,69 +6247,6 @@
 }
 .dashboard-context-row > * { min-width:0; }
 .dashboard-side { display:grid; gap:var(--space-5); }
-.dashboard-page .page-heading { margin-bottom:0; }
-
-/* Action items are slim, tinted banners — an inbox, not a hero panel. Two
-   warnings must not make the whole page read like an error screen. */
-.dashboard-alerts { display:grid; gap:var(--space-2); }
-.dashboard-alerts-label {
-  display:flex;
-  align-items:center;
-  gap:var(--space-2);
-  margin:0;
-  color:var(--text-faint);
-  font:650 var(--fs-caption)/1.4 var(--font-sans);
-}
-.dashboard-alerts-label b {
-  min-width:18px;
-  height:18px;
-  display:grid;
-  place-items:center;
-  border-radius:99px;
-  color:var(--warning);
-  background:var(--warning-soft);
-  font:700 var(--fs-micro)/1 var(--font-mono);
-}
-.dashboard-alert {
-  min-height:48px;
-  display:grid;
-  grid-template-columns:16px minmax(0,1fr) auto;
-  align-items:center;
-  gap:var(--space-3);
-  padding:var(--space-2) var(--space-4);
-  border:1px solid transparent;
-  border-radius:var(--radius-sm);
-  color:var(--text);
-  background:var(--surface-2);
-  cursor:pointer;
-  text-align:left;
-}
-.dashboard-alert.tone-warning {
-  border-color:color-mix(in srgb,var(--warning) 26%,transparent);
-  background:var(--warning-soft);
-}
-.dashboard-alert.tone-warning > svg { color:var(--warning); }
-.dashboard-alert.tone-neutral > svg { color:var(--text-soft); }
-.dashboard-alert:hover { border-color:color-mix(in srgb,var(--warning) 44%,transparent); }
-.dashboard-alert.tone-neutral:hover { border-color:var(--line-strong); }
-.dashboard-alert > span { display:flex; align-items:baseline; gap:var(--space-2); min-width:0; }
-.dashboard-alert strong { font-size:var(--fs-control); white-space:nowrap; }
-.dashboard-alert small {
-  overflow:hidden;
-  color:var(--text-soft);
-  font-size:var(--fs-caption);
-  text-overflow:ellipsis;
-  white-space:nowrap;
-}
-.dashboard-alert > b {
-  display:flex;
-  align-items:center;
-  gap:var(--space-1);
-  color:var(--accent);
-  font-size:var(--fs-caption);
-  font-weight:700;
-  white-space:nowrap;
-}
 
 .dashboard-section { display:grid; }
 .dashboard-section-head {
@@ -6698,15 +6625,6 @@
   outline-offset:2px;
 }
 
-.dashboard-confirm-dialog { width:min(440px,calc(100vw - 32px)); }
-.dashboard-confirm-dialog header h2 { font-size:var(--fs-card); }
-.dashboard-confirm-actions {
-  display:flex;
-  justify-content:flex-end;
-  gap:var(--space-2);
-  padding:var(--space-4);
-  border-top:1px solid var(--line);
-}
 .dashboard-return-summary { display:grid; gap:var(--space-1); }
 .dashboard-return-summary > span {
   color:var(--text-faint);
@@ -6851,7 +6769,6 @@ small.dashboard-bot-scope {
   .dashboard-chart-controls { flex-wrap:wrap; }
   .dashboard-bot-list > button { grid-template-columns:32px minmax(0,1fr) auto; }
   .dashboard-bot-list .dashboard-bot-figures { display:none; }
-  .dashboard-alert small { display:none; }
   .dashboard-chart-stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-3) var(--space-4); }
   .dashboard-chart-frame { height:180px; }
 }
