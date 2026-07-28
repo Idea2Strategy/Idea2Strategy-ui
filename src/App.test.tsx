@@ -205,6 +205,13 @@ describe('Signal product UI', () => {
     expect(screen.getByRole('heading', { name: 'Bot operations' })).toBeInTheDocument();
   });
 
+  test('does not show a global search box in the top navigation', () => {
+    render(<App />);
+
+    expect(screen.queryByRole('searchbox', { name: '전체 검색' })).not.toBeInTheDocument();
+    expect(document.querySelector('.signal-product-nav .global-search-anchor')).not.toBeInTheDocument();
+  });
+
   test('uses compact segmented toggles for the market colour convention and language', async () => {
     const user = userEvent.setup();
     render(<App />);
