@@ -6470,21 +6470,6 @@
   height:22px;
   filter:drop-shadow(0 1px 1px var(--surface));
 }
-.dashboard-chart-cluster-count {
-  position:absolute;
-  top:-8px;
-  right:-8px;
-  min-width:17px;
-  height:17px;
-  display:grid;
-  place-items:center;
-  padding:0 4px;
-  border:2px solid var(--surface);
-  border-radius:999px;
-  color:var(--surface);
-  background:var(--text);
-  font:800 9px/1 var(--font-mono);
-}
 .dashboard-chart-launch-tooltip {
   position:absolute;
   z-index:12;
