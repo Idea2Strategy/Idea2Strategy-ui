@@ -13,9 +13,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .app-main { min-width: 0; display: flex; flex-direction: column; }
 .app-topbar { height: 66px; position: sticky; top: 0; z-index: 15; display: flex; align-items: center; gap: 16px; padding: 0 28px; background: color-mix(in srgb, var(--surface) 91%, transparent); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
 .icon-button { width: 35px; height: 35px; border: 1px solid var(--line); display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--surface); cursor: pointer; }
-.global-search { width: min(270px, 24vw); height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text-faint); background: var(--surface-2); }
-.global-search input, .search-box input, .palette-search input, .node-picker input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--text); background: transparent; }
-.global-search kbd, .search-box kbd { color: var(--text-faint); border: 1px solid var(--line); border-radius: 6px; padding: 2px 5px; font: 10px var(--font-mono); }
+.search-box input, .palette-search input, .node-picker input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--text); background: transparent; }
+.search-box kbd { color: var(--text-faint); border: 1px solid var(--line); border-radius: 6px; padding: 2px 5px; font: 10px var(--font-mono); }
 .topbar-spacer { flex: 1; }
 .top-actions { display: flex; gap: 8px; }
 .topbar-popover-anchor { position: relative; }
@@ -639,7 +638,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 
 @media (max-width: 1180px) { .stats-grid.four { grid-template-columns: repeat(2, 1fr); }.editor-layout { grid-template-columns: 180px minmax(500px, 1fr); }.editor-inspector { display: none; }.pro-editor-shell { grid-template-columns: 54px minmax(650px, 1fr); }.node-inspector { display: none; }.scratch-workspace { padding: 35px 25px; gap: 20px; } }
-@media (max-width: 800px) { .app-shell { grid-template-columns: 68px minmax(0,1fr); }.app-topbar { padding: 0 14px; }.global-search kbd { display: none; }.global-search { width: 100%; }.topbar-popover { position: fixed; top: 58px; right: 10px; left: auto; width: min(330px, calc(100vw - 78px)); }.page { padding: 24px 16px 50px; }.page-heading { align-items: flex-start; flex-direction: column; }.page-actions { flex-wrap: wrap; }.stats-grid.three,
+@media (max-width: 800px) { .app-shell { grid-template-columns: 68px minmax(0,1fr); }.app-topbar { padding: 0 14px; }.topbar-popover { position: fixed; top: 58px; right: 10px; left: auto; width: min(330px, calc(100vw - 78px)); }.page { padding: 24px 16px 50px; }.page-heading { align-items: flex-start; flex-direction: column; }.page-actions { flex-wrap: wrap; }.stats-grid.three,
 .stats-grid.four,
 .content-grid,
 .settings-grid { grid-template-columns: 1fr; }.official-competitions > div { grid-template-columns: 1fr; }.competition-ranking { margin-left: 16px; overflow-x: auto; }.span-2, .span-3 { grid-column: span 1; }.editor-layout, .pro-editor-shell { display: block; min-height: 480px; }.editor-palette,

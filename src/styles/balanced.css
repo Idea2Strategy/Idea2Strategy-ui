@@ -206,7 +206,6 @@
 @media (max-width: 720px) {
   .variant-balanced { grid-template-columns: 58px minmax(0, 1fr); }
   .variant-balanced .app-topbar { padding-inline: 12px; }
-  .variant-balanced .global-search { width: min(260px, 60vw); }
   .variant-balanced .balanced-strategy-home { padding: 26px 14px 50px; }
   .strategy-hero { align-items: center; }
   .strategy-hero p { max-width: 250px; }
@@ -295,16 +294,6 @@
 .signal-product-nav > nav button.active { color:var(--accent); }
 .signal-product-nav > nav button.active::after { transform:scaleX(1); }
 .signal-nav-tools { display:flex; align-items:center; justify-content:flex-end; gap:6px; }
-.signal-product-nav .global-search {
-  width:154px;
-  height:34px;
-  padding:0 9px;
-}
-.signal-product-nav .global-search input {
-  width:100%;
-  font:700 10px var(--font-mono);
-  letter-spacing:.06em;
-}
 .signal-product-nav .icon-button,
 .signal-product-nav .signal-terminal-switch {
   width:34px;
@@ -1793,7 +1782,6 @@
 
 @media (max-width: 1120px) {
   .signal-product-brand strong { display:none; }
-  .signal-product-nav .global-search { display:none; }
 }
 
 @media (max-width: 800px) {
@@ -1829,17 +1817,6 @@
   background: color-mix(in srgb, var(--surface) 94%, transparent);
   backdrop-filter: blur(18px);
 }
-.variant-balanced[data-design="signal-studio"] .global-search {
-  height: 38px;
-  border-color: var(--line);
-  border-radius: 4px;
-  background: var(--surface-2);
-}
-.variant-balanced[data-design="signal-studio"] .global-search:focus-within {
-  border-color: color-mix(in srgb,var(--accent) 52%,var(--line));
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-.variant-balanced[data-design="signal-studio"] .global-search kbd,
 .variant-balanced[data-design="signal-studio"] .icon-button {
   border-color: var(--line);
   border-radius: 4px;
@@ -4710,7 +4687,6 @@
 }
 .signal-product-nav > nav button:focus-visible::after { transform:scaleX(1); }
 .signal-nav-tools { justify-self:end; }
-.variant-balanced[data-design="signal-studio"] .signal-product-nav .global-search,
 .variant-balanced[data-design="signal-studio"] .signal-product-nav .icon-button,
 .variant-balanced[data-design="signal-studio"] .signal-product-nav .nav-market-control,
 .variant-balanced[data-design="signal-studio"] .signal-product-nav .nav-language-toggle,
@@ -4787,10 +4763,6 @@
   padding:var(--space-3) var(--space-4);
 }
 
-@media (max-width: 1380px) {
-  .signal-product-nav .global-search { display:none; }
-}
-
 @media (max-width: 1120px) {
   .variant-balanced[data-design="signal-studio"] .signal-product-nav {
     grid-template-columns:auto 1fr auto;
@@ -4854,43 +4826,6 @@
   .competition-conditions > div:first-child { border-top: 0; }
   .competition-ranking-tools { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
 }
-
-/* Global search results */
-.global-search-anchor { position: relative; }
-.global-search-results {
-  width: min(320px, 70vw);
-  position: absolute;
-  z-index: 90;
-  top: calc(100% + 8px);
-  right: 0;
-  display: grid;
-  overflow: hidden;
-  padding: var(--space-1);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-overlay);
-}
-.global-search-results > button {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 40px;
-  padding: 0 var(--space-2);
-  border: 0;
-  border-radius: var(--radius-xs);
-  color: var(--text);
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-}
-.global-search-results > button:hover,
-.global-search-results > button:focus-visible { background: var(--accent-soft); }
-.global-search-results small { color: var(--text-faint); font: 700 var(--fs-micro) var(--font-mono); }
-.global-search-results strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-control); }
-.global-search-results svg { color: var(--text-faint); }
-.global-search-results p { margin: 0; padding: var(--space-3); color: var(--text-faint); font-size: var(--fs-caption); }
 
 .notifications-popover > footer { border-top: 1px solid var(--line); padding: var(--space-1); }
 .notifications-popover > footer button {
