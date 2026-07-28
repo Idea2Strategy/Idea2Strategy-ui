@@ -647,6 +647,28 @@ describe('Basic editor strategy explanations', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  test('shows save feedback as a toast and dismisses it automatically', () => {
+    vi.useFakeTimers();
+    try {
+      render(<BasicEditor goBack={() => {}} />);
+
+      fireEvent.click(screen.getByRole('button', { name: '저장' }));
+
+      const toast = screen.getByRole('alert');
+      expect(toast).toHaveClass('editor-save-toast');
+      expect(toast).toHaveClass('is-bottom-center');
+      expect(toast).toHaveTextContent('출시 가능 상태로 저장했습니다.');
+
+      act(() => {
+        vi.advanceTimersByTime(2_000);
+      });
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('marks a buy strategy incomplete when it contains no condition blocks', () => {
     render(<BasicEditor goBack={() => {}} />);
 
