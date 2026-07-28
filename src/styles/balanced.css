@@ -8580,9 +8580,13 @@ small.dashboard-bot-scope {
   justify-self: start;
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-bots {
-  display: flex;
-  align-items: baseline;
-  margin-left: 14px;
+  min-height: 42px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  margin-left: 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-period b,
 .variant-balanced[data-design="signal-studio"] .competition-board-bots strong {
@@ -8613,8 +8617,20 @@ small.dashboard-bot-scope {
   gap: 7px;
 }
 .variant-balanced[data-design="signal-studio"] .competition-progress-copy {
+  display: grid;
+  gap: 2px;
   justify-self: end;
+  color: var(--text-faint);
+  font: 7px var(--font-mono);
+  line-height: 1;
   white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .competition-progress-copy::before {
+  content: attr(data-label);
+}
+.variant-balanced[data-design="signal-studio"] .competition-progress-copy strong {
+  color: var(--text);
+  font: 800 18px/1 var(--font-mono);
 }
 .variant-balanced[data-design="signal-studio"] .competition-progress {
   grid-column: 1 / -1;

@@ -2200,7 +2200,13 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                         <b className={competition.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${competition.remainingDays}`}</b>
                       </span>
                     </span>
-                    <small className="competition-progress-copy">{`진행률 ${competition.progress}%`}</small>
+                    <small
+                      className="competition-progress-copy"
+                      data-label="진행률"
+                      aria-label={`진행률 ${competition.progress}%`}
+                    >
+                      <strong>{`${competition.progress}%`}</strong>
+                    </small>
                     <span
                       className="competition-progress"
                       data-room-status={competition.status}
@@ -2211,7 +2217,10 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                       aria-valuenow={competition.progress}
                     ><i style={{ width: `${competition.progress}%` }} /></span>
                   </span>
-                  <span className="competition-board-bots"><strong>{`${competition.bots} BOT`}</strong></span>
+                  <span className="competition-board-bots">
+                    <small>참여 봇</small>
+                    <strong>{`${competition.bots} BOT`}</strong>
+                  </span>
                   <ArrowUpRight size={15} aria-hidden="true" />
                 </button>
               </div>;

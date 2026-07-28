@@ -177,12 +177,12 @@ describe('Competition lobby', () => {
     expect(within(roomButtons[0]).getByText('모집 중')).toBeInTheDocument();
     expect(within(roomButtons[0]).queryByText('모집 마감')).not.toBeInTheDocument();
     expect(within(roomButtons[0]).queryByText('모집 마감까지')).not.toBeInTheDocument();
-    expect(within(roomButtons[0]).getByText('진행률 18%')).toBeInTheDocument();
+    expect(within(roomButtons[0]).getByLabelText('진행률 18%')).toBeInTheDocument();
     expect(within(roomButtons[0]).queryByRole('tooltip')).not.toBeInTheDocument();
     expect(within(roomButtons[1]).getByText('대회 진행 중')).toBeInTheDocument();
     expect(within(roomButtons[1]).queryByText('대회 종료')).not.toBeInTheDocument();
     expect(within(roomButtons[1]).queryByText('대회 마감까지')).not.toBeInTheDocument();
-    expect(within(roomButtons[1]).getByText('진행률 72%')).toBeInTheDocument();
+    expect(within(roomButtons[1]).getByLabelText('진행률 72%')).toBeInTheDocument();
     expect(within(roomButtons[1]).getByRole('progressbar', { name: 'Risk Control Cup 진행률' })).toBeInTheDocument();
     expect(within(roomButtons[1]).getByRole('tooltip')).toHaveTextContent('공식 대회는 대회 진행 중에도 참가할 수 있습니다.');
     expect(within(results).queryByText('◆ 공식 대회')).not.toBeInTheDocument();
