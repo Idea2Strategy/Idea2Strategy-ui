@@ -457,6 +457,14 @@ function BacktestComparisonChart({ bot, benchmarks }: { bot: BacktestBot; benchm
         vectorEffect="non-scaling-stroke"
       />)}
       <polyline
+        className="backtest-chart-line bot-emphasis"
+        points={toPolyline(botPoints)}
+        data-testid="backtest-bot-emphasis"
+        data-bot={bot.name}
+        aria-hidden="true"
+        vectorEffect="non-scaling-stroke"
+      />
+      <polyline
         className="backtest-chart-line bot"
         points={toPolyline(botPoints)}
         data-testid="backtest-bot-series"
