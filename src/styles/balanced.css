@@ -7109,31 +7109,32 @@ small.dashboard-bot-scope {
 /*
   전략 미리보기 PiP 창.
 
-  편집 캔버스가 아니라 화면에 고정으로 떠서, 캔버스를 옮기거나 확대해도 자리를
-  지키고 사용자가 그립을 잡아 원하는 위치로 옮긴다. 참고용이므로 의도적으로
-  작게 유지하고 종가 라인·신호·한 줄 요약만 담는다.
+  편집 캔버스가 아니라 화면에 떠서, 캔버스를 옮기거나 확대해도 자리를 지키고
+  그립을 잡아 원하는 위치로 옮긴다. 작지만 글자는 제품 토큰의 최소 크기(11px)
+  이상을 지켜 곁눈질로도 읽히게 한다. 차트는 인라인 SVG 한 장이다.
 */
 .variant-balanced[data-design="signal-studio"] .strategy-preview-card {
   position: fixed;
   z-index: 120;
   display: grid;
-  gap: 6px;
-  padding: 7px 8px 8px;
+  gap: var(--space-2);
+  padding: var(--space-3);
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface) 97%, transparent);
-  box-shadow: 0 18px 40px rgba(var(--shadow-rgb), .26);
-  backdrop-filter: blur(12px);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 20px 44px rgba(var(--shadow-rgb), .28);
+  backdrop-filter: blur(14px);
 }
-.strategy-preview-card-head {
+.strategy-preview-head {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-2);
 }
 .strategy-preview-grip {
   display: grid;
   place-items: center;
-  padding: 1px;
+  padding: 2px;
+  margin-left: -4px;
   border: 0;
   border-radius: var(--radius-xs);
   color: var(--text-faint);
@@ -7143,38 +7144,34 @@ small.dashboard-bot-scope {
 }
 .strategy-preview-grip:hover { color: var(--text); background: var(--surface-3); }
 .strategy-preview-grip:active { cursor: grabbing; }
-.strategy-preview-title {
-  color: var(--text-soft);
-  font: 700 8px var(--font-mono);
-  letter-spacing: .06em;
-}
-.strategy-preview-symbols {
+.strategy-preview-identity {
   display: flex;
-  gap: 2px;
+  align-items: baseline;
+  gap: var(--space-2);
   min-width: 0;
-  margin-left: auto;
+}
+.strategy-preview-identity strong { font: 700 var(--fs-card) var(--font-mono); }
+.strategy-preview-identity small {
   overflow: hidden;
-}
-.strategy-preview-symbols button {
-  min-height: 18px;
-  padding: 0 5px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
   color: var(--text-faint);
-  background: transparent;
-  cursor: pointer;
-  font: 650 8px var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 var(--fs-micro) var(--font-mono);
+  letter-spacing: .04em;
 }
-.strategy-preview-symbols button:hover { color: var(--text); }
-.strategy-preview-symbols button.active {
-  color: var(--accent-ink);
-  border-color: var(--accent);
-  background: var(--accent);
+/* 누적 수익률이 이 창의 유일한 큰 숫자다. */
+.strategy-preview-return {
+  margin-left: auto;
+  color: var(--text-faint);
+  font: 700 var(--fs-card) var(--font-mono);
 }
+.strategy-preview-return.positive { color: var(--gain); }
+.strategy-preview-return.negative { color: var(--loss); }
 .strategy-preview-close {
   display: grid;
   place-items: center;
-  padding: 2px;
+  padding: 3px;
+  margin-right: -4px;
   border: 0;
   border-radius: var(--radius-xs);
   color: var(--text-faint);
@@ -7182,69 +7179,109 @@ small.dashboard-bot-scope {
   cursor: pointer;
 }
 .strategy-preview-close:hover { color: var(--text); background: var(--surface-3); }
-.strategy-preview-frame {
-  height: 132px;
-  border-radius: var(--radius-xs);
-  overflow: hidden;
-  background: var(--surface);
+/* 종목이 둘 이상일 때만 나오는 세그먼트 컨트롤. */
+.strategy-preview-symbols {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
 }
-/* 신호를 만든 플로우 목록. 카드에서 유일하게 상호작용하는 정보 영역이다. */
+.strategy-preview-symbols button {
+  flex: 1;
+  min-height: 22px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+  font: 650 var(--fs-micro) var(--font-mono);
+}
+.strategy-preview-symbols button:hover { color: var(--text); }
+.strategy-preview-symbols button.active { color: var(--accent-ink); background: var(--accent); }
+.strategy-preview-frame {
+  position: relative;
+  height: 120px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+.strategy-preview-frame > svg { width: 100%; height: 100%; display: block; }
+.strategy-preview-line {
+  fill: none;
+  stroke: var(--text-soft);
+  stroke-width: 1.6;
+}
+.strategy-preview-end { fill: var(--text); stroke: var(--surface); stroke-width: 1.5; }
+/* 신호 화살표: 방향은 모양으로, 종류는 매수·매도 의미색으로 구분한다. */
+.strategy-preview-marker.is-buy { fill: var(--buy-block-color); }
+.strategy-preview-marker.is-sell { fill: var(--sell-block-color); }
+.strategy-preview-marker.is-dimmed { fill: var(--text-faint); opacity: .38; }
+.strategy-preview-last {
+  position: absolute;
+  right: var(--space-2);
+  top: var(--space-1);
+  color: var(--text-faint);
+  font: 600 var(--fs-micro) var(--font-mono);
+}
+/* 신호를 만든 플로우. 카드에서 유일하게 상호작용하는 정보 영역이다. */
 .strategy-preview-flows {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
+  gap: var(--space-1);
 }
 .strategy-preview-flows button {
   display: flex;
   align-items: center;
-  gap: 3px;
-  min-height: 18px;
-  padding: 0 5px;
+  gap: 5px;
+  min-height: 22px;
+  padding: 0 var(--space-2);
   border: 1px solid var(--line);
   border-radius: 99px;
   color: var(--text-soft);
   background: transparent;
   cursor: pointer;
-  font-size: 8px;
+  font-size: var(--fs-micro);
   font-weight: 650;
 }
-.strategy-preview-flows button i { font-style: normal; font-size: 7px; }
-.strategy-preview-flows button b { color: var(--text-faint); font: 700 8px var(--font-mono); }
-.strategy-preview-flows button.is-buy i { color: var(--buy-block-color); }
-.strategy-preview-flows button.is-sell i { color: var(--sell-block-color); }
+.strategy-preview-flows button i {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+}
+.strategy-preview-flows button.is-buy i { background: var(--buy-block-color); }
+.strategy-preview-flows button.is-sell i { background: var(--sell-block-color); }
+.strategy-preview-flows button b { color: var(--text-faint); font: 700 var(--fs-micro) var(--font-mono); }
 .strategy-preview-flows button:hover { border-color: var(--line-strong); color: var(--text); }
-.strategy-preview-flows button.is-buy.active {
-  color: var(--buy-block-color);
-  border-color: color-mix(in srgb, var(--buy-block-color) 58%, transparent);
-  background: color-mix(in srgb, var(--buy-block-color) 12%, transparent);
+.strategy-preview-flows button.active {
+  color: var(--text);
+  border-color: var(--line-strong);
+  background: var(--surface-3);
 }
-.strategy-preview-flows button.is-sell.active {
-  color: var(--sell-block-color);
-  border-color: color-mix(in srgb, var(--sell-block-color) 58%, transparent);
-  background: color-mix(in srgb, var(--sell-block-color) 12%, transparent);
-}
-.strategy-preview-flows button.active b { color: inherit; }
-.strategy-preview-focus {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-soft);
-}
-.strategy-preview-card-foot {
+.strategy-preview-flows button.active b { color: var(--text); }
+/* 한 줄 요약. 플로우를 강조하면 그 플로우의 조건 문장으로 바뀐다. */
+.strategy-preview-note {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
   color: var(--text-faint);
-  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-micro);
+  line-height: 1.4;
 }
-.strategy-preview-counts { display: flex; gap: 5px; }
-.strategy-preview-counts b { font: 700 9px var(--font-mono); }
-.strategy-preview-counts .is-buy { color: var(--buy-block-color); }
-.strategy-preview-counts .is-sell { color: var(--sell-block-color); }
-.strategy-preview-card-foot > span:nth-of-type(2) { font: 700 9px var(--font-mono); }
-.strategy-preview-card-foot small { margin-left: auto; font-size: 8px; white-space: nowrap; }
-.strategy-preview-card-foot .strategy-preview-warning { color: var(--warning); }
+.strategy-preview-note b { margin-left: 2px; color: var(--text-soft); font: 700 var(--fs-micro) var(--font-mono); }
+.strategy-preview-note em { margin-left: auto; font-style: normal; }
+.strategy-preview-warning {
+  margin: 0;
+  color: var(--warning);
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+}
 @media (max-width: 800px) {
   .variant-balanced[data-design="signal-studio"] .strategy-preview-card { display: none; }
 }

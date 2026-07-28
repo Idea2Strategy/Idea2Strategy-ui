@@ -201,33 +201,16 @@ export const generatePreviewCandles = (
   return candles;
 };
 
-export interface PreviewTimeframe {
-  label: string;
-  seconds: number;
-}
-
-const TIMEFRAME_PATTERNS: Array<{ match: RegExp; timeframe: PreviewTimeframe }> = [
-  { match: /(^|\D)1\s*m(in)?\b|1분/i, timeframe: { label: '1분봉', seconds: 60 } },
-  { match: /(^|\D)5\s*m(in)?\b|5분/i, timeframe: { label: '5분봉', seconds: 300 } },
-  { match: /(^|\D)15\s*m(in)?\b|15분/i, timeframe: { label: '15분봉', seconds: 900 } },
-  { match: /(^|\D)1\s*h\b|60분|1시간/i, timeframe: { label: '1시간봉', seconds: 3600 } },
-  { match: /(^|\D)1\s*d\b|일봉/i, timeframe: { label: '1일봉', seconds: 86400 } },
-];
-
 /*
-  미리보기의 시간 단위는 전략이 이미 선언하고 있다. 데이터·시간 블록에 적힌
-  봉을 그대로 쓰면 사용자가 차트에서 단위를 다시 고를 필요가 없고, 편집기와
-  차트가 다른 봉을 보는 일도 생기지 않는다.
+  미리보기 기간은 최근 1개월 고정이다. 참고용으로 흐름만 보는 창이므로 기간·봉
+  선택을 두지 않고, 한 달 안에 신호가 여러 번 오가는 해상도(거래시간 1시간
+  간격, 약 150봉)로 고정한다.
 */
-export const timeframeFromBlocks = (blocks: PreviewBlock[]): PreviewTimeframe => {
-  for (const block of blocks) {
-    if (block.tone !== 'data' && block.tone !== 'time') continue;
-    const text = `${block.label} ${block.value ?? ''}`;
-    const found = TIMEFRAME_PATTERNS.find((pattern) => pattern.match.test(text));
-    if (found) return found.timeframe;
-  }
-  return { label: '1시간봉', seconds: 3600 };
-};
+export const PREVIEW_WINDOW = {
+  label: '최근 1개월',
+  seconds: 3600,
+  count: 150,
+} as const;
 
 /* ---------- 지표 계산 ---------------------------------------------------- */
 
@@ -685,8 +668,9 @@ export const buildOverlays = (blocks: PreviewBlock[], candles: PreviewCandle[]):
 
 export interface PreviewInput {
   symbol: string;
-  timeframeSeconds: number;
   flows: PreviewFlow[];
+  /* 기본은 고정 1개월 창. 테스트에서만 다른 해상도를 확인한다. */
+  timeframeSeconds?: number;
   candleCount?: number;
 }
 
@@ -702,9 +686,9 @@ const emptySummary: PreviewSummary = {
 
 export const evaluateStrategyPreview = ({
   symbol,
-  timeframeSeconds,
   flows,
-  candleCount = 180,
+  timeframeSeconds = PREVIEW_WINDOW.seconds,
+  candleCount = PREVIEW_WINDOW.count,
 }: PreviewInput): StrategyPreview => {
   const candles = generatePreviewCandles(symbol, timeframeSeconds, candleCount);
   const unsupported = new Set<string>();

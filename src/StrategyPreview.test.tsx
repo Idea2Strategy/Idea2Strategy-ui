@@ -2,14 +2,15 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test } from 'vitest';
 import { BasicEditor } from './views/StrategyViews';
+import { LanguageProvider } from './lib/i18n';
 import {
+  PREVIEW_WINDOW,
   bollinger,
   evaluateStrategyPreview,
   identifyIndicator,
   parseSignalRule,
   rsi,
   splitPartitionSymbols,
-  timeframeFromBlocks,
 } from './lib/strategyPreview';
 import type { PreviewBlock, PreviewFlow } from './lib/strategyPreview';
 
@@ -72,13 +73,10 @@ describe('strategy preview engine', () => {
   });
 
   test('turns the default RSI partition into alternating buy and sell signals', () => {
-    const preview = evaluateStrategyPreview({
-      symbol: 'AAPL',
-      timeframeSeconds: 3600,
-      flows: flowsOf(BUY_BLOCKS, SELL_BLOCKS),
-    });
+    const preview = evaluateStrategyPreview({ symbol: 'AAPL', flows: flowsOf(BUY_BLOCKS, SELL_BLOCKS) });
 
-    expect(preview.candles).toHaveLength(180);
+    // The window is fixed at one month, so callers pass no period at all.
+    expect(preview.candles).toHaveLength(PREVIEW_WINDOW.count);
     expect(preview.summary.buyCount).toBeGreaterThan(0);
     expect(preview.summary.sellCount).toBeGreaterThan(0);
     // A position must be opened before it can be closed, so sides alternate.
@@ -148,13 +146,6 @@ describe('strategy preview engine', () => {
     expect(preview.overlays.find((overlay) => overlay.name.startsWith('RSI'))?.pane).toBe('lower');
     expect(preview.overlays.find((overlay) => overlay.name.startsWith('Bollinger'))?.pane).toBe('price');
     expect(preview.overlays.find((overlay) => overlay.name.startsWith('Bollinger'))?.lines).toHaveLength(3);
-  });
-
-  test('takes the chart bar from the data block the strategy already declares', () => {
-    expect(timeframeFromBlocks(BUY_BLOCKS)).toEqual({ label: '1분봉', seconds: 60 });
-    expect(timeframeFromBlocks([{ label: '다음 봉 체결', value: '5분', tone: 'time' }])).toEqual({ label: '5분봉', seconds: 300 });
-    // No bar anywhere in the partition: fall back to a readable default.
-    expect(timeframeFromBlocks(SELL_BLOCKS)).toEqual({ label: '1시간봉', seconds: 3600 });
   });
 
   test('attributes every signal to the flow that produced it', () => {
@@ -244,16 +235,22 @@ describe('Basic editor partition preview chart', () => {
     expect(panel.style.left).not.toBe(draggedLeft);
   });
 
-  test('draws a single price line instead of candles or indicator panes', async () => {
+  test('draws one inline price line with buy and sell arrows, no chart library', async () => {
     const user = userEvent.setup();
     render(<BasicEditor goBack={() => {}} />);
 
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
 
-    // The preview keeps only what a glance needs: line, signals, one summary.
-    expect(screen.getByTestId('strategy-preview-canvas')).toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: '미리보기 시간 단위' })).not.toBeInTheDocument();
-    expect(screen.getByTestId('preview-buy-count')).toBeInTheDocument();
+    /* 인라인 SVG 한 장이라 캔버스 없이도 선과 신호를 그대로 확인할 수 있다.
+       매수·매도를 함께 보여주는 것이 이 창의 존재 이유다. */
+    const frame = screen.getByTestId('strategy-preview-canvas');
+    const line = frame.querySelector('.strategy-preview-line');
+    expect(frame.querySelector('canvas')).toBeNull();
+    expect(line?.getAttribute('points')?.split(' ')).toHaveLength(PREVIEW_WINDOW.count);
+    expect(screen.getAllByTestId('preview-marker-buy').length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId('preview-marker-sell').length).toBeGreaterThan(0);
+    // No indicator panes: overlays belong to the backtest screen.
+    expect(frame.querySelectorAll('polyline')).toHaveLength(1);
   });
 
   test('offers only the symbols the partition trades', async () => {
@@ -271,14 +268,15 @@ describe('Basic editor partition preview chart', () => {
     expect(within(symbols).getByRole('button', { name: 'AAPL 미리보기' })).toHaveAttribute('aria-pressed', 'false');
   });
 
-  test('follows the bar declared by the strategy instead of asking again', async () => {
+  test('states the fixed one-month window and offers no period control', async () => {
     const user = userEvent.setup();
     render(<BasicEditor goBack={() => {}} />);
 
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
 
-    // The partition opens with a 1m BAR data block, so the preview uses it.
-    expect(screen.getByText('1분봉')).toBeInTheDocument();
+    // 기간은 최근 1개월 고정이다. 고를 것이 없으므로 컨트롤도 두지 않는다.
+    expect(screen.getByText(PREVIEW_WINDOW.label)).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: '미리보기 기간 선택' })).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: '미리보기 시간 단위' })).not.toBeInTheDocument();
   });
 
@@ -297,7 +295,8 @@ describe('Basic editor partition preview chart', () => {
     // Emphasising a flow explains that flow's rule without hiding the round trip.
     await user.click(buyFlow);
     expect(buyFlow).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByText(/RSI\(14\) 30 하향 돌파/)).toBeInTheDocument();
+    // 같은 문장이 신호 툴팁에도 붙으므로 요약 줄로 범위를 좁혀 확인한다.
+    expect(screen.getByTestId('preview-note')).toHaveTextContent(/RSI\(14\) 30 하향 돌파/);
     expect(screen.getByTestId('preview-flow-primary-sell')).toBeInTheDocument();
 
     await user.click(buyFlow);
@@ -328,7 +327,7 @@ describe('Basic editor partition preview chart', () => {
     render(<BasicEditor goBack={() => {}} />);
 
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
-    expect(screen.getByTestId('preview-buy-count')).not.toHaveTextContent('▲ 0');
+    expect(screen.getByTestId('preview-buy-count')).not.toHaveTextContent('매수 0');
 
     /* A threshold this tight can never be crossed, so the count has to fall to
        zero — the chart is reading the live block value, not a snapshot. */
@@ -337,8 +336,26 @@ describe('Basic editor partition preview chart', () => {
     await user.clear(valueInput);
     await user.type(valueInput, '2');
 
-    expect(screen.getByTestId('preview-buy-count')).toHaveTextContent('▲ 0');
-    expect(screen.getByText('완료된 매매 없음')).toBeInTheDocument();
+    expect(screen.getByTestId('preview-buy-count')).toHaveTextContent('매수 0');
+    expect(screen.getByTestId('preview-sell-count')).toHaveTextContent('매도 0');
+    // 완료된 매매가 없으면 수익률은 판단할 수 없으므로 숫자를 꾸며내지 않는다.
+    expect(screen.getByTestId('preview-return')).toHaveTextContent('—');
+  });
+
+  test('translates the whole card into the English locale', async () => {
+    window.localStorage.setItem('i2s-language', 'en');
+    const user = userEvent.setup();
+    render(<LanguageProvider><BasicEditor goBack={() => {}} /></LanguageProvider>);
+
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 Strategy preview' }));
+    expect(screen.getByRole('group', { name: 'Flows behind the signals' })).toBeInTheDocument();
+    expect(screen.getByTestId('preview-buy-count')).toHaveTextContent('Buy');
+
+    /* 조건 문장은 엔진이 만든 문자열이라 prop 번역이 닿지 않는다. 여기서 한글이
+       남으면 카드 안에서 직접 번역하는 경로가 끊긴 것이다. */
+    await user.click(screen.getByTestId('preview-flow-primary-buy'));
+    expect(screen.getByTestId('preview-note')).toHaveTextContent('RSI(14) 30 crosses down');
+    window.localStorage.clear();
   });
 
   test('closes the preview without leaving the editor', async () => {

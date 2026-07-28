@@ -970,6 +970,25 @@ const english: Record<string, string> = {
   '회색 계단선은 투입 원금이며, 봇 시작(세로 점선)마다 함께 올라갑니다. 기간 수익률은 자금 유입을 제외하고 계산합니다.': 'The grey stepped line is invested principal; it rises with each bot launch (dotted vertical lines). The period return excludes inflows.',
   '자금 유입을 제외한 값입니다. 봇 시작 시점은 세로 점선으로 표시합니다.': 'Inflows are excluded. Bot launches are marked with dotted vertical lines.',
   '세로 점선은 봇 시작(자금 투입) 시점입니다. 기간 수익률은 자금 유입을 제외하고 계산합니다.': 'Dotted vertical lines mark bot launches (capital inflows). The period return excludes inflows.',
+
+  /* 파티션 전략 미리보기 창. */
+  '전략 미리보기': 'Strategy preview',
+  '미리보기 위치 이동': 'Move the preview window',
+  '미리보기 닫기': 'Close the preview',
+  '미리보기 종목 선택': 'Select the preview symbol',
+  '미리보기': 'preview',
+  '신호를 만든 플로우': 'Flows behind the signals',
+  '신호만 강조': 'signals only',
+  '최근 1개월 종가와 신호': 'closing prices and signals over the past month',
+  /* '최근 1개월'은 백테스트 기간 칩에 이미 있다. */
+  '계산할 수 있는 지표 블록이 없어요': 'No indicator block here can be evaluated',
+  '블록은 계산에서 제외했어요': 'blocks are excluded from the calculation',
+  '상향 돌파': 'crosses up',
+  '하향 돌파': 'crosses down',
+  '종가가': 'Close',
+  '시그널선': 'the signal line',
+  '0선': 'zero',
+  '거래량이 평균의': 'Volume vs average',
 };
 
 const entries = Object.entries(english).sort(([a], [b]) => b.length - a.length);
