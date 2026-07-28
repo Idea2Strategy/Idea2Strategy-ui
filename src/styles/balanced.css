@@ -7107,135 +7107,142 @@ small.dashboard-bot-scope {
 }
 
 /*
-  파티션 미리보기 차트. 편집 캔버스 위에 바닥 도크로 떠서 좌우 라이브러리
-  패널 사이에 자리한다. 편집을 멈추지 않고 시세 위의 매수·매도 시점을 보는
-  것이 목적이라 별도 페이지나 모달로 분리하지 않는다.
+  파티션 전략 미리보기 카드.
+
+  자연어 설명 노트와 같은 자리·같은 성격으로 파티션 오른쪽에 붙는다. 블록을
+  고치면서 곁눈질로 신호 변화를 보는 참고용이라 의도적으로 작고 단순하게
+  유지한다. 툴바·거래량·상세 지표 목록은 넣지 않으며, 자세한 분석은 백테스트
+  화면이 담당한다.
 */
-.variant-balanced[data-design="signal-studio"] .strategy-preview-panel {
+.variant-balanced[data-design="signal-studio"] .strategy-preview-card {
   position: absolute;
-  z-index: 42;
-  right: 336px;
-  bottom: 22px;
-  left: 286px;
+  z-index: 14;
+  top: 96px;
+  left: calc(100% + 14px);
+  width: 296px;
   display: grid;
-  gap: 10px;
-  padding: 12px 14px 10px;
-  border: 1px solid color-mix(in srgb, var(--line-strong) 82%, transparent);
-  border-top: 3px solid var(--accent);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
-  box-shadow: 0 24px 60px rgba(var(--shadow-rgb), .26);
-  backdrop-filter: blur(18px);
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line-strong);
+  border-left: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 97%, transparent);
+  box-shadow: 0 14px 32px rgba(var(--shadow-rgb), .2);
 }
-.strategy-preview-head {
+.strategy-preview-card-head {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-4);
+  align-items: center;
+  gap: 6px;
 }
-.strategy-preview-head > div { display: grid; gap: 3px; }
-.strategy-preview-kicker {
-  color: var(--accent);
-  font: 700 var(--fs-micro)/1 var(--font-mono);
-  letter-spacing: .08em;
-}
-.strategy-preview-head h3 { margin: 0; font-size: var(--fs-card); letter-spacing: -.01em; }
-.strategy-preview-controls { display: flex; align-items: center; gap: var(--space-2); }
-.strategy-preview-symbols,
-.strategy-preview-timeframes {
+.strategy-preview-symbols {
   display: flex;
   gap: 2px;
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  min-width: 0;
+  overflow: hidden;
 }
-.strategy-preview-symbols button,
-.strategy-preview-timeframes button {
-  min-height: 24px;
-  padding: 0 var(--space-2);
+.strategy-preview-symbols button {
+  min-height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+  font: 650 8px var(--font-mono);
+}
+.strategy-preview-symbols button:hover { color: var(--text); }
+.strategy-preview-symbols button.active {
+  color: var(--accent-ink);
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.strategy-preview-bar {
+  margin-left: auto;
+  color: var(--text-faint);
+  font: 600 8px var(--font-mono);
+}
+.strategy-preview-close {
+  display: grid;
+  place-items: center;
+  padding: 2px;
   border: 0;
   border-radius: var(--radius-xs);
   color: var(--text-faint);
   background: transparent;
   cursor: pointer;
-  font: 650 var(--fs-micro) var(--font-mono);
 }
-.strategy-preview-symbols button:hover,
-.strategy-preview-timeframes button:hover { color: var(--text); }
-.strategy-preview-symbols button.active,
-.strategy-preview-timeframes button.active { color: var(--accent-ink); background: var(--accent); }
-.strategy-preview-close {
-  display: grid;
-  place-items: center;
-  padding: 5px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  color: var(--text-faint);
-  background: var(--surface-2);
-  cursor: pointer;
-}
-.strategy-preview-close:hover { color: var(--text); border-color: var(--line-strong); }
-/* 두 줄 규칙 요약: 지금 무엇을 계산했는지가 차트보다 먼저 읽혀야 한다. */
-.strategy-preview-rules {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px var(--space-4);
-}
-.strategy-preview-rules p {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  min-width: 0;
-  color: var(--text-soft);
-  font-size: var(--fs-caption);
-}
-.strategy-preview-rules b {
-  flex: 0 0 auto;
-  padding: 1px 6px;
-  border-radius: var(--radius-xs);
-  color: #fff;
-  font: 700 var(--fs-micro) var(--font-sans);
-}
-.strategy-preview-rules .is-buy b { background: var(--buy-block-color); }
-.strategy-preview-rules .is-sell b { background: var(--sell-block-color); }
+.strategy-preview-close:hover { color: var(--text); background: var(--surface-3); }
 .strategy-preview-frame {
-  height: 260px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  height: 168px;
+  border-radius: var(--radius-xs);
   overflow: hidden;
   background: var(--surface);
 }
-.strategy-preview-summary {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin: 0;
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--line);
+/* 신호를 만든 플로우 목록. 카드에서 유일하게 상호작용하는 정보 영역이다. */
+.strategy-preview-flows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
 }
-.strategy-preview-summary > div { display: grid; gap: 2px; }
-.strategy-preview-summary dt { color: var(--text-faint); font-size: var(--fs-micro); }
-.strategy-preview-summary dd { margin: 0; font: 700 var(--fs-control) var(--font-mono); }
-.strategy-preview-foot {
+.strategy-preview-flows button {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 3px;
+  min-height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  color: var(--text-soft);
+  background: transparent;
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 650;
+}
+.strategy-preview-flows button i { font-style: normal; font-size: 7px; }
+.strategy-preview-flows button b { color: var(--text-faint); font: 700 8px var(--font-mono); }
+.strategy-preview-flows button.is-buy i { color: var(--buy-block-color); }
+.strategy-preview-flows button.is-sell i { color: var(--sell-block-color); }
+.strategy-preview-flows button:hover { border-color: var(--line-strong); color: var(--text); }
+.strategy-preview-flows button.is-buy.active {
+  color: var(--buy-block-color);
+  border-color: color-mix(in srgb, var(--buy-block-color) 58%, transparent);
+  background: color-mix(in srgb, var(--buy-block-color) 12%, transparent);
+}
+.strategy-preview-flows button.is-sell.active {
+  color: var(--sell-block-color);
+  border-color: color-mix(in srgb, var(--sell-block-color) 58%, transparent);
+  background: color-mix(in srgb, var(--sell-block-color) 12%, transparent);
+}
+.strategy-preview-flows button.active b { color: inherit; }
+.strategy-preview-focus {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-soft);
+}
+.strategy-preview-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--text-faint);
-  font-size: var(--fs-micro);
-  line-height: 1.5;
+  font-size: 9px;
 }
-.strategy-preview-warning { color: var(--warning); }
-.variant-balanced[data-design="signal-studio"] .section-preview-button.active {
-  color: var(--accent-ink);
-  border-color: var(--accent);
-  background: var(--accent);
+.strategy-preview-counts { display: flex; gap: 5px; }
+.strategy-preview-counts b { font: 700 9px var(--font-mono); }
+.strategy-preview-counts .is-buy { color: var(--buy-block-color); }
+.strategy-preview-counts .is-sell { color: var(--sell-block-color); }
+.strategy-preview-card-foot > span:nth-of-type(2) { font: 700 9px var(--font-mono); }
+/* 지표 이름은 공간이 남을 때만 보이고, 카드 폭을 늘리지 않는다. */
+.strategy-preview-card-foot small {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 8px;
 }
-@media (max-width: 1180px) {
-  .variant-balanced[data-design="signal-studio"] .strategy-preview-panel { right: 22px; left: 22px; }
-  .strategy-preview-frame { height: 210px; }
-}
+.strategy-preview-card-foot .strategy-preview-warning { color: var(--warning); }
 @media (max-width: 800px) {
-  .variant-balanced[data-design="signal-studio"] .strategy-preview-panel { display: none; }
+  .variant-balanced[data-design="signal-studio"] .strategy-preview-card { display: none; }
 }

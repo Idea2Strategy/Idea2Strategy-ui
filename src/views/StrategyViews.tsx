@@ -17,6 +17,7 @@ import type { StrategySummary } from '../data/mockData';
 import { Button, PageHeading, Panel, Status } from '../components/common';
 import { StrategyPreviewChart } from '../components/StrategyPreviewChart';
 import { splitPartitionSymbols } from '../lib/strategyPreview';
+import type { PreviewFlow } from '../lib/strategyPreview';
 import { Localized } from '../lib/i18n';
 import {
   getBasicSectionLayout,
@@ -1215,9 +1216,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     만들고 차트가 그 자리에서 다시 계산된다.
   */
   const previewSection = sections.find((section) => section.id === previewSectionId) ?? null;
-  const previewSectionNumber = previewSection
-    ? String(sections.findIndex((section) => section.id === previewSection.id) + 1).padStart(2, '0')
-    : '';
   const previewSymbols = useMemo(
     () => {
       const symbols = previewSection ? splitPartitionSymbols(previewSection.symbol) : [];
@@ -1225,14 +1223,23 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     },
     [previewSection],
   );
-  const previewBuyBlocks = useMemo(
-    () => (previewSection?.cards.buy ?? []).flatMap((cardId) => cardBlocks[cardId] ?? []),
-    [cardBlocks, previewSection],
-  );
-  const previewSellBlocks = useMemo(
-    () => (previewSection?.cards.sell ?? []).flatMap((cardId) => cardBlocks[cardId] ?? []),
-    [cardBlocks, previewSection],
-  );
+  /*
+    컨테이너 하나가 미리보기의 플로우 하나다. 여러 매수 컨테이너를 한 벌로
+    합치면 어느 컨테이너가 주문을 만들었는지 알 수 없고, 두 번째 컨테이너의
+    조건은 계산에서 빠진다. 이름은 카드 헤더에 보이는 제목을 그대로 쓴다.
+  */
+  const previewFlows = useMemo<PreviewFlow[]>(() => {
+    if (!previewSection) return [];
+    const sides: Side[] = ['buy', 'sell'];
+    return sides.flatMap((side) => previewSection.cards[side].map((cardId, index) => ({
+      id: cardId,
+      label: previewSection.cards[side].length > 1
+        ? `${side === 'buy' ? '매수' : '매도'} ${index + 1}`
+        : (side === 'buy' ? '매수' : '매도'),
+      side,
+      blocks: cardBlocks[cardId] ?? [],
+    })));
+  }, [cardBlocks, previewSection]);
 
   const addStrategyCard = (sectionId: string, side: Side) => {
     const section = sections.find((item) => item.id === sectionId)!;
@@ -1724,11 +1731,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
               data-testid={`strategy-${section.id}`}
               aria-label={`PARTITION ${sectionNumber}`}
               style={{ left: section.x, top: section.y, width: sectionLayout.width, height: sectionLayout.height }}
-              /* 파티션을 누르면 선택과 함께 그 파티션의 미리보기 차트가 열린다. */
-              onClick={() => {
-                setActiveSectionId(section.id);
-                setPreviewSectionId(section.id);
-              }}
+              onClick={() => setActiveSectionId(section.id)}
               onPointerDown={(event) => beginSectionAreaMove(event, section)}
               onDragOver={(event) => {
                 if (libraryDrag?.type === 'template') {
@@ -1757,14 +1760,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
                   <button onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={13} /> 매도 컨테이너 추가</button>
                   <button
                     className={`section-preview-button ${previewSectionId === section.id ? 'active' : ''}`}
-                    aria-label={`PARTITION ${sectionNumber} 미리보기 차트`}
+                    aria-label={`PARTITION ${sectionNumber} 전략 미리보기`}
                     aria-pressed={previewSectionId === section.id}
                     onClick={(event) => {
                       event.stopPropagation();
                       setActiveSectionId(section.id);
                       setPreviewSectionId((current) => current === section.id ? null : section.id);
                     }}
-                  ><CandlestickChart size={13} /> 차트로 확인</button>
+                  ><CandlestickChart size={13} /> 전략 미리보기</button>
                 </div>
               </header>
               <div className="section-strategy-grid">
@@ -1776,6 +1779,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
                 ><TriangleAlert size={18} /><strong>매수 컨테이너가 필요해요</strong><span>필수 항목 · 추가해야 출시할 수 있어요</span></button>}
                 {section.cards.sell.length === 0 && <button className="optional-sell-slot" onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={18} /><strong>매도 컨테이너 추가</strong><span>선택 사항 · 없어도 저장할 수 있어요</span></button>}
               </div>
+              {/* 자연어 설명처럼 파티션 옆에 붙어, 블록을 고치는 동안 곁눈질로
+                  신호 변화를 확인한다. */}
+              {previewSectionId === section.id && <StrategyPreviewChart
+                partitionLabel={`PARTITION ${sectionNumber}`}
+                symbols={previewSymbols}
+                flows={previewFlows}
+                onClose={() => setPreviewSectionId(null)}
+              />}
             </article>;
           })}
           </div>
@@ -1807,13 +1818,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         </div>
       </aside>
     </div>
-    {previewSection && <StrategyPreviewChart
-      partitionLabel={`PARTITION ${previewSectionNumber}`}
-      symbols={previewSymbols}
-      buyBlocks={previewBuyBlocks}
-      sellBlocks={previewSellBlocks}
-      onClose={() => setPreviewSectionId(null)}
-    />}
     {trashItemLabel && <div
       ref={(element) => { trashZoneRef.current = element; }}
       className={`editor-trash-zone ${cardMove || sectionMove ? 'is-pointer-trash' : ''} ${trashReady ? 'is-ready' : ''}`}

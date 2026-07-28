@@ -4,57 +4,32 @@ import {
   CandlestickSeries,
   ColorType,
   CrosshairMode,
-  HistogramSeries,
   LineSeries,
   LineStyle,
   createChart,
   createSeriesMarkers,
   type CandlestickData,
-  type HistogramData,
   type IChartApi,
   type LineData,
   type SeriesMarker,
   type Time,
   type UTCTimestamp,
 } from 'lightweight-charts';
-import { evaluateStrategyPreview } from '../lib/strategyPreview';
-import type { PreviewBlock } from '../lib/strategyPreview';
-import { Localized } from '../lib/i18n';
+import { evaluateStrategyPreview, timeframeFromBlocks } from '../lib/strategyPreview';
+import type { PreviewFlow } from '../lib/strategyPreview';
+import { useLanguage } from '../lib/i18n';
 
 export interface StrategyPreviewChartProps {
   partitionLabel: string;
   symbols: string[];
-  buyBlocks: PreviewBlock[];
-  sellBlocks: PreviewBlock[];
+  flows: PreviewFlow[];
   onClose: () => void;
 }
-
-type TimeframeId = '1m' | '5m' | '1h' | '1d';
-
-const TIMEFRAMES: Array<{ id: TimeframeId; label: string; seconds: number }> = [
-  { id: '1m', label: '1분', seconds: 60 },
-  { id: '5m', label: '5분', seconds: 300 },
-  { id: '1h', label: '1시간', seconds: 3600 },
-  { id: '1d', label: '1일', seconds: 86400 },
-];
 
 /* 오버레이 선 색은 카테고리 톤에서 가져와 라이트·다크 모두에서 대비를 지킨다. */
 const OVERLAY_COLOR_VARS = ['--tone-indicator', '--tone-data', '--tone-return', '--tone-sharpe'];
 
 const isJsdom = (): boolean => typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('jsdom');
-
-/* 캔버스는 CSS 함수를 해석하지 못하므로 투명도를 직접 계산해 넘긴다. */
-const withAlpha = (color: string, alpha: number): string => {
-  const rgb = color.match(/rgba?\(([^)]+)\)/);
-  if (rgb) {
-    const [red, green, blue] = rgb[1].split(',').map((part) => Number.parseFloat(part));
-    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-  }
-  const hex = color.replace('#', '');
-  if (hex.length !== 6) return color;
-  const value = Number.parseInt(hex, 16);
-  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
-};
 
 const readColors = (element: HTMLElement) => {
   const style = getComputedStyle(element);
@@ -66,254 +41,253 @@ const readColors = (element: HTMLElement) => {
     line: value('--line-strong', '#3a4548'),
     buy: value('--buy-block-color', 'rgb(240, 66, 81)'),
     sell: value('--sell-block-color', 'rgb(67, 145, 255)'),
+    muted: value('--text-faint', '#869495'),
     overlays: OVERLAY_COLOR_VARS.map((name, index) => value(name, ['#a78bfa', '#38bdf8', '#e4b76a', '#b69ae2'][index])),
   };
 };
 
-const formatPercent = (value: number): string => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+const formatPercent = (value: number): string => `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
 
 /*
-  파티션 구성 그대로 시세 위에 매수·매도 시점을 그리는 미리보기.
+  파티션 옆에 붙는 작은 참고용 미리보기.
 
-  블록을 추가하거나 값을 바꾸면 부모가 새 blocks 배열을 내려주고, 신호가 다시
-  계산되어 마커와 지표가 그 자리에서 갱신된다. 사용자는 저장이나 백테스트를
-  거치지 않고도 자기 조건이 언제 걸리는지 눈으로 확인할 수 있다.
+  블록을 고치는 동안 곁눈질로 확인하는 것이 목적이라 최소 정보만 둔다. 시간
+  단위는 전략이 선언한 데이터 블록에서 그대로 가져오고, 종목만 고를 수 있게 한다.
+
+  매수와 매도를 한 화면에 함께 두는 것이 핵심이다. 플로우를 하나씩 따로 보면
+  "싸게 사서 비싸게 파는" 한 바퀴가 보이지 않기 때문에, 파티션 전체를 그린 뒤
+  각 신호에 어느 플로우가 만든 것인지 이름을 붙인다. 플로우 칩을 누르면 그
+  플로우의 신호만 진하게 남고 나머지는 흐려지므로, 한 바퀴를 유지한 채로 특정
+  플로우만 골라 볼 수 있다.
 */
 export function StrategyPreviewChart({
   partitionLabel,
   symbols,
-  buyBlocks,
-  sellBlocks,
+  flows,
   onClose,
 }: StrategyPreviewChartProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const [timeframe, setTimeframe] = useState<TimeframeId>('1h');
+  const { t } = useLanguage();
   const [symbol, setSymbol] = useState(symbols[0] ?? 'AAPL');
+  const [focusedFlowId, setFocusedFlowId] = useState<string | null>(null);
 
   /* 파티션 종목이 바뀌면 선택을 유효한 값으로 되돌린다. */
   useEffect(() => {
     if (symbols.length > 0 && !symbols.includes(symbol)) setSymbol(symbols[0]);
   }, [symbol, symbols]);
+  /* 플로우를 지우면 강조도 함께 해제한다. */
+  useEffect(() => {
+    if (focusedFlowId && !flows.some((flow) => flow.id === focusedFlowId)) setFocusedFlowId(null);
+  }, [flows, focusedFlowId]);
 
-  const seconds = TIMEFRAMES.find((item) => item.id === timeframe)?.seconds ?? 3600;
-  const preview = useMemo(
-    () => evaluateStrategyPreview({ symbol, timeframeSeconds: seconds, buyBlocks, sellBlocks }),
-    [buyBlocks, sellBlocks, seconds, symbol],
+  const timeframe = useMemo(
+    () => timeframeFromBlocks(flows.flatMap((flow) => flow.blocks)),
+    [flows],
   );
+  const preview = useMemo(
+    () => evaluateStrategyPreview({ symbol, timeframeSeconds: timeframe.seconds, flows, candleCount: 120 }),
+    [flows, symbol, timeframe.seconds],
+  );
+  /* 플로우가 한쪽에 하나뿐이면 이름을 붙여도 새 정보가 없다. */
+  const showFlowNames = preview.flows.filter((flow) => flow.side === 'buy').length > 1
+    || preview.flows.filter((flow) => flow.side === 'sell').length > 1;
 
   useEffect(() => {
     const container = frameRef.current;
     if (!container || isJsdom()) return undefined;
-    /* 차트 라이브러리가 실패해도 편집기는 계속 쓸 수 있어야 하므로, 실패를
-       화면과 콘솔에 남기고 편집 흐름은 막지 않는다. */
+    /* 차트 라이브러리가 실패해도 편집은 계속돼야 하므로 실패를 기록만 한다. */
     try {
-    container.dataset.chart = 'mounting';
+      container.dataset.chart = 'mounting';
+      const colors = readColors(container);
+      const chart = createChart(container, {
+        autoSize: true,
+        layout: {
+          background: { type: ColorType.Solid, color: colors.background },
+          textColor: colors.text,
+          fontFamily: 'Pretendard, Inter, sans-serif',
+          fontSize: 9,
+          panes: { separatorColor: colors.grid, separatorHoverColor: colors.line, enableResize: false },
+        },
+        grid: { vertLines: { visible: false }, horzLines: { color: colors.grid, style: LineStyle.Dotted } },
+        crosshair: { mode: CrosshairMode.Magnet },
+        rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.14, bottom: 0.14 } },
+        timeScale: {
+          borderVisible: false,
+          timeVisible: timeframe.seconds < 86400,
+          secondsVisible: false,
+          rightOffset: 2,
+          barSpacing: 3,
+          minBarSpacing: 1,
+        },
+        handleScale: { axisPressedMouseMove: false },
+        localization: { priceFormatter: (price: number) => `${price.toFixed(0)}` },
+      });
+      chartRef.current = chart;
 
-    const colors = readColors(container);
-    const chart = createChart(container, {
-      autoSize: true,
-      layout: {
-        background: { type: ColorType.Solid, color: colors.background },
-        textColor: colors.text,
-        fontFamily: 'Pretendard, Inter, sans-serif',
-        fontSize: 11,
-        panes: { separatorColor: colors.line, separatorHoverColor: colors.line, enableResize: true },
-      },
-      grid: {
-        vertLines: { color: colors.grid, style: LineStyle.Dotted },
-        horzLines: { color: colors.grid, style: LineStyle.Dotted },
-      },
-      crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: colors.grid, scaleMargins: { top: 0.1, bottom: 0.22 } },
-      timeScale: {
-        borderColor: colors.grid,
-        timeVisible: timeframe !== '1d',
-        secondsVisible: false,
-        rightOffset: 4,
-        barSpacing: 7,
-        minBarSpacing: 1,
-      },
-      localization: { priceFormatter: (price: number) => `$${price.toFixed(2)}` },
-    });
-    chartRef.current = chart;
+      const candleSeries = chart.addSeries(CandlestickSeries, {
+        upColor: colors.buy,
+        downColor: colors.sell,
+        borderUpColor: colors.buy,
+        borderDownColor: colors.sell,
+        wickUpColor: colors.buy,
+        wickDownColor: colors.sell,
+        priceLineVisible: false,
+        lastValueVisible: false,
+      });
+      candleSeries.setData(preview.candles.map((candle): CandlestickData<Time> => ({
+        time: candle.time as UTCTimestamp,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+      })));
 
-    const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: colors.buy,
-      downColor: colors.sell,
-      borderUpColor: colors.buy,
-      borderDownColor: colors.sell,
-      wickUpColor: colors.buy,
-      wickDownColor: colors.sell,
-      priceLineVisible: false,
-    });
-    candleSeries.setData(preview.candles.map((candle): CandlestickData<Time> => ({
-      time: candle.time as UTCTimestamp,
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-    })));
-
-    const volumeSeries = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: 'volume' },
-      priceScaleId: 'volume',
-      lastValueVisible: false,
-      priceLineVisible: false,
-    });
-    volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.86, bottom: 0 } });
-    volumeSeries.setData(preview.candles.map((candle): HistogramData<Time> => ({
-      time: candle.time as UTCTimestamp,
-      value: candle.volume,
-      color: withAlpha(candle.close >= candle.open ? colors.buy : colors.sell, 0.26),
-    })));
-
-    /* 가격축 오버레이는 캔들과 같은 칸, 0~100 계열은 아래 칸에 그린다. */
-    let overlayColorIndex = 0;
-    let lowerPaneIndex = 1;
-    preview.overlays.forEach((overlay) => {
-      const paneIndex = overlay.pane === 'price' ? 0 : lowerPaneIndex;
-      if (overlay.pane === 'lower') lowerPaneIndex += 1;
-      overlay.lines.forEach((line) => {
-        const color = colors.overlays[overlayColorIndex % colors.overlays.length];
-        overlayColorIndex += 1;
-        const series = chart.addSeries(LineSeries, {
-          color,
-          lineWidth: 1,
-          priceLineVisible: false,
-          lastValueVisible: overlay.pane === 'lower',
-          crosshairMarkerVisible: false,
-          title: line.name,
-        }, paneIndex);
-        series.setData(line.values.reduce<LineData<Time>[]>((points, value, index) => {
-          if (value !== null) points.push({ time: preview.candles[index].time as UTCTimestamp, value });
-          return points;
-        }, []));
-        if (overlay.pane === 'lower' && overlay.guides) {
-          overlay.guides.forEach((guide) => series.createPriceLine({
-            price: guide,
-            color: colors.line,
+      /* 오실레이터는 아래 얇은 판 하나에만 모아 그린다. 작은 카드에 판을 여러
+         개 쌓으면 캔들이 사라져 미리보기의 의미가 없어진다. */
+      let overlayColorIndex = 0;
+      let lowerPaneUsed = false;
+      preview.overlays.forEach((overlay) => {
+        if (overlay.pane === 'lower' && lowerPaneUsed) return;
+        const paneIndex = overlay.pane === 'price' ? 0 : 1;
+        if (overlay.pane === 'lower') lowerPaneUsed = true;
+        overlay.lines.forEach((line) => {
+          const color = colors.overlays[overlayColorIndex % colors.overlays.length];
+          overlayColorIndex += 1;
+          const series = chart.addSeries(LineSeries, {
+            color,
             lineWidth: 1,
-            lineStyle: LineStyle.Dashed,
-            axisLabelVisible: true,
-            title: '',
-          }));
-        }
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+          }, paneIndex);
+          series.setData(line.values.reduce<LineData<Time>[]>((points, value, index) => {
+            if (value !== null) points.push({ time: preview.candles[index].time as UTCTimestamp, value });
+            return points;
+          }, []));
+          if (overlay.pane === 'lower' && overlay.guides) {
+            overlay.guides.forEach((guide) => series.createPriceLine({
+              price: guide,
+              color: colors.grid,
+              lineWidth: 1,
+              lineStyle: LineStyle.Dashed,
+              axisLabelVisible: false,
+              title: '',
+            }));
+          }
+        });
+        if (overlay.pane === 'lower') chart.panes()[1]?.setHeight(46);
       });
-      if (overlay.pane === 'lower') {
-        chart.panes()[paneIndex]?.setHeight(88);
-      }
-    });
 
-    const markers: SeriesMarker<Time>[] = preview.markers.map((marker) => ({
-      time: preview.candles[marker.index].time as UTCTimestamp,
-      position: marker.side === 'buy' ? 'belowBar' : 'aboveBar',
-      color: marker.side === 'buy' ? colors.buy : colors.sell,
-      shape: marker.side === 'buy' ? 'arrowUp' : 'arrowDown',
-      text: marker.side === 'buy' ? '매수' : '매도',
-    }));
-    createSeriesMarkers(candleSeries, markers);
-    chart.timeScale().fitContent();
-    container.dataset.chart = 'ready';
-
-    const themeRoot = container.closest('.variant-balanced');
-    const themeObserver = themeRoot ? new MutationObserver(() => {
-      const next = readColors(container);
-      chart.applyOptions({
-        layout: { background: { type: ColorType.Solid, color: next.background }, textColor: next.text },
-        grid: { vertLines: { color: next.grid }, horzLines: { color: next.grid } },
-        rightPriceScale: { borderColor: next.grid },
-        timeScale: { borderColor: next.grid },
+      /* 강조된 플로우가 있으면 나머지 신호는 흐리게 남긴다. 지우지 않는 이유는
+         한 바퀴(매수 → 매도)의 흐름이 계속 보여야 하기 때문이다. */
+      const markers: SeriesMarker<Time>[] = preview.markers.map((marker) => {
+        const dimmed = focusedFlowId !== null && marker.flowId !== focusedFlowId;
+        return {
+          time: preview.candles[marker.index].time as UTCTimestamp,
+          position: marker.side === 'buy' ? 'belowBar' : 'aboveBar',
+          color: dimmed ? colors.muted : (marker.side === 'buy' ? colors.buy : colors.sell),
+          shape: marker.side === 'buy' ? 'arrowUp' : 'arrowDown',
+          text: showFlowNames && !dimmed ? marker.flowLabel : '',
+          size: dimmed ? 0.6 : 1,
+        };
       });
-      candleSeries.applyOptions({
-        upColor: next.buy,
-        downColor: next.sell,
-        borderUpColor: next.buy,
-        borderDownColor: next.sell,
-        wickUpColor: next.buy,
-        wickDownColor: next.sell,
-      });
-    }) : null;
-    themeObserver?.observe(themeRoot!, { attributes: true, attributeFilter: ['class', 'data-palette'] });
+      createSeriesMarkers(candleSeries, markers);
+      chart.timeScale().fitContent();
+      container.dataset.chart = 'ready';
 
-    return () => {
-      themeObserver?.disconnect();
-      chart.remove();
-      chartRef.current = null;
-    };
+      const themeRoot = container.closest('.variant-balanced');
+      const themeObserver = themeRoot ? new MutationObserver(() => {
+        const next = readColors(container);
+        chart.applyOptions({
+          layout: { background: { type: ColorType.Solid, color: next.background }, textColor: next.text },
+          grid: { horzLines: { color: next.grid } },
+        });
+        candleSeries.applyOptions({
+          upColor: next.buy,
+          downColor: next.sell,
+          borderUpColor: next.buy,
+          borderDownColor: next.sell,
+          wickUpColor: next.buy,
+          wickDownColor: next.sell,
+        });
+      }) : null;
+      themeObserver?.observe(themeRoot!, { attributes: true, attributeFilter: ['class', 'data-palette'] });
+
+      return () => {
+        themeObserver?.disconnect();
+        chart.remove();
+        chartRef.current = null;
+      };
     } catch (error) {
       container.dataset.chart = `error: ${error instanceof Error ? error.message : String(error)}`;
       console.error('[strategy preview] 차트를 그리지 못했습니다.', error);
       return undefined;
     }
-  }, [preview, timeframe]);
+  }, [focusedFlowId, preview, showFlowNames, timeframe.seconds]);
 
   const { summary } = preview;
+  const focusedFlow = preview.flows.find((flow) => flow.id === focusedFlowId) ?? null;
 
-  return <Localized><section
-    className="strategy-preview-panel"
-    role="region"
-    aria-label={`${partitionLabel} 전략 미리보기 차트`}
+  return <aside
+    className="strategy-preview-card"
+    aria-label={t(`${partitionLabel} 전략 미리보기`)}
     data-testid="strategy-preview-panel"
-    /* 캔버스 팬·확대 제스처가 차트로 넘어오지 않도록 여기서 멈춘다. */
+    /* 캔버스 팬·확대와 파티션 선택 제스처가 카드로 번지지 않게 막는다. */
     onPointerDown={(event) => event.stopPropagation()}
+    onClick={(event) => event.stopPropagation()}
     onWheel={(event) => event.stopPropagation()}
   >
-    <header className="strategy-preview-head">
-      <div>
-        <span className="strategy-preview-kicker">전략 미리보기 · 예시 시세</span>
-        <h3>{`${partitionLabel} · ${symbol}`}</h3>
+    <header className="strategy-preview-card-head">
+      <div className="strategy-preview-symbols" role="group" aria-label={t('미리보기 종목 선택')}>
+        {symbols.map((item) => <button
+          key={item}
+          type="button"
+          aria-label={t(`${item} 미리보기`)}
+          aria-pressed={symbol === item}
+          className={symbol === item ? 'active' : ''}
+          onClick={() => setSymbol(item)}
+        >{item}</button>)}
       </div>
-      <div className="strategy-preview-controls">
-        <div className="strategy-preview-symbols" role="group" aria-label="미리보기 종목 선택">
-          {symbols.map((item) => <button
-            key={item}
-            type="button"
-            aria-label={`${item} 미리보기`}
-            aria-pressed={symbol === item}
-            className={symbol === item ? 'active' : ''}
-            onClick={() => setSymbol(item)}
-          >{item}</button>)}
-        </div>
-        <div className="strategy-preview-timeframes" role="group" aria-label="미리보기 시간 단위">
-          {TIMEFRAMES.map((item) => <button
-            key={item.id}
-            type="button"
-            aria-label={`${item.label} 봉`}
-            aria-pressed={timeframe === item.id}
-            className={timeframe === item.id ? 'active' : ''}
-            onClick={() => setTimeframe(item.id)}
-          >{item.label}</button>)}
-        </div>
-        <button type="button" className="strategy-preview-close" aria-label="미리보기 닫기" onClick={onClose}><X size={15} /></button>
-      </div>
+      <span className="strategy-preview-bar">{timeframe.label}</span>
+      <button type="button" className="strategy-preview-close" aria-label={t('미리보기 닫기')} onClick={onClose}><X size={12} /></button>
     </header>
-
-    <div className="strategy-preview-rules">
-      <p className="is-buy"><b>매수</b>{preview.buyRule ? preview.markers.find((marker) => marker.side === 'buy')?.reason ?? '조건 계산됨' : '계산할 수 있는 지표 블록이 없어요'}</p>
-      <p className="is-sell"><b>매도</b>{preview.sellRule ? preview.markers.find((marker) => marker.side === 'sell')?.reason ?? '조건 계산됨' : '계산할 수 있는 지표 블록이 없어요'}</p>
-    </div>
 
     <div ref={frameRef} className="strategy-preview-frame" data-testid="strategy-preview-canvas" />
 
-    <dl className="strategy-preview-summary" aria-label="미리보기 신호 요약">
-      <div><dt>매수 신호</dt><dd data-testid="preview-buy-count">{`${summary.buyCount}회`}</dd></div>
-      <div><dt>매도 신호</dt><dd data-testid="preview-sell-count">{`${summary.sellCount}회`}</dd></div>
-      <div><dt>완료 매매</dt><dd>{`${summary.tradeCount}회`}</dd></div>
-      <div><dt>승률</dt><dd>{summary.winRate === null ? '—' : `${summary.winRate.toFixed(0)}%`}</dd></div>
-      <div>
-        <dt>누적 수익률</dt>
-        <dd className={summary.totalReturnPct >= 0 ? 'positive' : 'negative'}>
-          {summary.tradeCount === 0 ? '—' : formatPercent(summary.totalReturnPct)}
-        </dd>
-      </div>
-    </dl>
+    {/* 어느 플로우가 몇 번 주문을 만들었는지. 누르면 그 플로우만 진하게 남는다. */}
+    <div className="strategy-preview-flows" role="group" aria-label={t('신호를 만든 플로우')}>
+      {preview.flows.map((flow) => <button
+        key={flow.id}
+        type="button"
+        className={`is-${flow.side} ${focusedFlowId === flow.id ? 'active' : ''}`}
+        aria-label={t(`${flow.label} 신호만 강조`)}
+        aria-pressed={focusedFlowId === flow.id}
+        data-testid={`preview-flow-${flow.id}`}
+        title={flow.description ?? t('계산할 수 있는 지표 블록이 없어요')}
+        onClick={() => setFocusedFlowId((current) => current === flow.id ? null : flow.id)}
+      >
+        <i aria-hidden="true">{flow.side === 'buy' ? '▲' : '▼'}</i>
+        {flow.label}
+        <b>{flow.rule ? flow.count : '—'}</b>
+      </button>)}
+    </div>
 
-    <footer className="strategy-preview-foot">
-      {preview.unsupported.length > 0 && <span className="strategy-preview-warning">
-        {`${preview.unsupported.join(', ')} 블록은 아직 미리보기에서 계산하지 않아요`}
-      </span>}
-      <span>블록을 바꾸면 이 화면에서 바로 다시 계산합니다. 실제 시장 데이터가 아닌 예시 시세입니다.</span>
+    <footer className="strategy-preview-card-foot">
+      {focusedFlow
+        ? <span className="strategy-preview-focus">{focusedFlow.description ?? t('계산할 수 있는 지표 블록이 없어요')}</span>
+        : <>
+          <span className="strategy-preview-counts">
+            <b className="is-buy" data-testid="preview-buy-count">{`▲ ${summary.buyCount}`}</b>
+            <b className="is-sell" data-testid="preview-sell-count">{`▼ ${summary.sellCount}`}</b>
+          </span>
+          <span className={summary.totalReturnPct >= 0 ? 'positive' : 'negative'}>
+            {summary.tradeCount === 0 ? t('완료된 매매 없음') : formatPercent(summary.totalReturnPct)}
+          </span>
+        </>}
+      {preview.unsupported.length > 0 && <small className="strategy-preview-warning">
+        {t(`${preview.unsupported.join(', ')} 계산 제외`)}
+      </small>}
     </footer>
-  </section></Localized>;
+  </aside>;
 }

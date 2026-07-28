@@ -58,12 +58,35 @@ export interface SignalRule {
   target?: string;
 }
 
+/*
+  한 파티션 안의 컨테이너(플로우) 하나. 매수 플로우가 여러 개면 어느 플로우가
+  이번 매수를 만들었는지가 판단에 필요한 정보이므로, 미리보기는 플로우를 합치지
+  않고 각각 평가한 뒤 신호에 출처를 남긴다.
+*/
+export interface PreviewFlow {
+  id: string;
+  label: string;
+  side: SignalSide;
+  blocks: PreviewBlock[];
+}
+
 export interface PreviewMarker {
   index: number;
   time: number;
   side: SignalSide;
   price: number;
   reason: string;
+  flowId: string;
+  flowLabel: string;
+}
+
+export interface FlowSummary {
+  id: string;
+  label: string;
+  side: SignalSide;
+  count: number;
+  rule: SignalRule | null;
+  description: string | null;
 }
 
 export interface PreviewTrade {
@@ -102,8 +125,7 @@ export interface PreviewSummary {
 
 export interface StrategyPreview {
   candles: PreviewCandle[];
-  buyRule: SignalRule | null;
-  sellRule: SignalRule | null;
+  flows: FlowSummary[];
   /* 블록은 있으나 미리보기 계산을 지원하지 않는 지표 이름. */
   unsupported: string[];
   markers: PreviewMarker[];
@@ -158,8 +180,10 @@ export const generatePreviewCandles = (
     const time = end - (count - 1 - index) * timeframeSeconds;
     noise += (random() - 0.5) * 0.004;
     noise = Math.max(-0.05, Math.min(0.05, noise));
-    const swing = Math.sin((index / 26) * Math.PI * 2 + phase) * 0.02
-      + Math.sin((index / 71) * Math.PI * 2 + phase * 1.7) * 0.032;
+    /* 주기는 봉 수 기준이다. 작은 카드가 보여주는 120봉 안에서도 과매수·과매도가
+       여러 번 오가야 한 바퀴(매수 → 매도)를 눈으로 확인할 수 있다. */
+    const swing = Math.sin((index / 17) * Math.PI * 2 + phase) * 0.022
+      + Math.sin((index / 44) * Math.PI * 2 + phase * 1.7) * 0.03;
     const close = reference * (1 + swing + noise);
     const open = index === 0 ? close * (1 - (random() - 0.5) * 0.004) : candles[index - 1].close;
     const spread = reference * (0.0009 + random() * 0.0022);
@@ -175,6 +199,34 @@ export const generatePreviewCandles = (
   }
 
   return candles;
+};
+
+export interface PreviewTimeframe {
+  label: string;
+  seconds: number;
+}
+
+const TIMEFRAME_PATTERNS: Array<{ match: RegExp; timeframe: PreviewTimeframe }> = [
+  { match: /(^|\D)1\s*m(in)?\b|1분/i, timeframe: { label: '1분봉', seconds: 60 } },
+  { match: /(^|\D)5\s*m(in)?\b|5분/i, timeframe: { label: '5분봉', seconds: 300 } },
+  { match: /(^|\D)15\s*m(in)?\b|15분/i, timeframe: { label: '15분봉', seconds: 900 } },
+  { match: /(^|\D)1\s*h\b|60분|1시간/i, timeframe: { label: '1시간봉', seconds: 3600 } },
+  { match: /(^|\D)1\s*d\b|일봉/i, timeframe: { label: '1일봉', seconds: 86400 } },
+];
+
+/*
+  미리보기의 시간 단위는 전략이 이미 선언하고 있다. 데이터·시간 블록에 적힌
+  봉을 그대로 쓰면 사용자가 차트에서 단위를 다시 고를 필요가 없고, 편집기와
+  차트가 다른 봉을 보는 일도 생기지 않는다.
+*/
+export const timeframeFromBlocks = (blocks: PreviewBlock[]): PreviewTimeframe => {
+  for (const block of blocks) {
+    if (block.tone !== 'data' && block.tone !== 'time') continue;
+    const text = `${block.label} ${block.value ?? ''}`;
+    const found = TIMEFRAME_PATTERNS.find((pattern) => pattern.match.test(text));
+    if (found) return found.timeframe;
+  }
+  return { label: '1시간봉', seconds: 3600 };
 };
 
 /* ---------- 지표 계산 ---------------------------------------------------- */
@@ -634,8 +686,7 @@ export const buildOverlays = (blocks: PreviewBlock[], candles: PreviewCandle[]):
 export interface PreviewInput {
   symbol: string;
   timeframeSeconds: number;
-  buyBlocks: PreviewBlock[];
-  sellBlocks: PreviewBlock[];
+  flows: PreviewFlow[];
   candleCount?: number;
 }
 
@@ -652,17 +703,22 @@ const emptySummary: PreviewSummary = {
 export const evaluateStrategyPreview = ({
   symbol,
   timeframeSeconds,
-  buyBlocks,
-  sellBlocks,
+  flows,
   candleCount = 180,
 }: PreviewInput): StrategyPreview => {
   const candles = generatePreviewCandles(symbol, timeframeSeconds, candleCount);
-  const buyParsed = parseSignalRule(buyBlocks);
-  const sellParsed = parseSignalRule(sellBlocks);
-  const buySeries = buyParsed.rule ? buildRuleSeries(buyParsed.rule, candles) : null;
-  const sellSeries = sellParsed.rule ? buildRuleSeries(sellParsed.rule, candles) : null;
-  const overlays = buildOverlays([...buyBlocks, ...sellBlocks], candles);
-  const unsupported = [...new Set([...buyParsed.unsupported, ...sellParsed.unsupported])];
+  const unsupported = new Set<string>();
+  /* 플로우별로 규칙을 따로 만든다. 여러 매수 플로우의 블록을 한 벌로 합치면
+     첫 지표만 남아 나머지 플로우의 판단이 사라진다. */
+  const evaluated = flows.map((flow) => {
+    const parsed = parseSignalRule(flow.blocks);
+    parsed.unsupported.forEach((label) => unsupported.add(label));
+    const series = parsed.rule ? buildRuleSeries(parsed.rule, candles) : null;
+    return { flow, rule: parsed.rule, series };
+  });
+  const buyFlows = evaluated.filter((item) => item.flow.side === 'buy');
+  const sellFlows = evaluated.filter((item) => item.flow.side === 'sell');
+  const overlays = buildOverlays(flows.flatMap((flow) => flow.blocks), candles);
 
   const markers: PreviewMarker[] = [];
   const trades: PreviewTrade[] = [];
@@ -676,27 +732,50 @@ export const evaluateStrategyPreview = ({
      보여주면 실제보다 유리한 결과가 된다.
   */
   const fillPriceAt = (index: number): number => candles[index + 1]?.open ?? candles[index].close;
+  /* 같은 봉에서 여러 플로우가 동시에 조건을 만족하면 파티션 안의 순서가 앞선
+     플로우가 주문을 만든다. 실제 실행에서도 하나의 포지션만 열리므로 미리보기도
+     같은 규칙을 따른다. */
+  const firstTriggered = (candidates: typeof evaluated, index: number) =>
+    candidates.find((item) => item.series !== null && crossedAt(item.series, index));
 
   candles.forEach((candle, index) => {
-    if (!holding && buySeries && crossedAt(buySeries, index)) {
+    if (!holding) {
+      const triggered = firstTriggered(buyFlows, index);
+      if (!triggered) return;
       holding = true;
       entryIndex = index;
       entryPrice = fillPriceAt(index);
-      markers.push({ index, time: candle.time, side: 'buy', price: entryPrice, reason: buySeries.description });
+      markers.push({
+        index,
+        time: candle.time,
+        side: 'buy',
+        price: entryPrice,
+        reason: triggered.series!.description,
+        flowId: triggered.flow.id,
+        flowLabel: triggered.flow.label,
+      });
       return;
     }
-    if (holding && sellSeries && crossedAt(sellSeries, index)) {
-      holding = false;
-      const exitPrice = fillPriceAt(index);
-      markers.push({ index, time: candle.time, side: 'sell', price: exitPrice, reason: sellSeries.description });
-      trades.push({
-        entryIndex,
-        exitIndex: index,
-        entryPrice,
-        exitPrice,
-        returnPct: ((exitPrice / entryPrice) - 1) * 100,
-      });
-    }
+    const triggered = firstTriggered(sellFlows, index);
+    if (!triggered) return;
+    holding = false;
+    const exitPrice = fillPriceAt(index);
+    markers.push({
+      index,
+      time: candle.time,
+      side: 'sell',
+      price: exitPrice,
+      reason: triggered.series!.description,
+      flowId: triggered.flow.id,
+      flowLabel: triggered.flow.label,
+    });
+    trades.push({
+      entryIndex,
+      exitIndex: index,
+      entryPrice,
+      exitPrice,
+      returnPct: ((exitPrice / entryPrice) - 1) * 100,
+    });
   });
 
   const buyCount = markers.filter((marker) => marker.side === 'buy').length;
@@ -716,9 +795,15 @@ export const evaluateStrategyPreview = ({
 
   return {
     candles,
-    buyRule: buyParsed.rule,
-    sellRule: sellParsed.rule,
-    unsupported,
+    flows: evaluated.map(({ flow, rule, series }) => ({
+      id: flow.id,
+      label: flow.label,
+      side: flow.side,
+      count: markers.filter((marker) => marker.flowId === flow.id).length,
+      rule,
+      description: series?.description ?? null,
+    })),
+    unsupported: [...unsupported],
     markers,
     overlays,
     summary,
