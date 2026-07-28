@@ -1,12 +1,14 @@
 import { useId, useRef, useState } from 'react';
 import type { FocusEvent, KeyboardEvent, MouseEvent } from 'react';
-import { Bot } from 'lucide-react';
 import { useLanguage } from '../lib/i18n';
+import { BotGlyph, FALLBACK_BOT_ICON } from './BotGlyph';
+import type { BotIconSelection } from './BotGlyph';
 
 export interface LaunchMark {
   name: string;
   index: number;
   kind?: 'start' | 'before-range';
+  appearance?: BotIconSelection;
 }
 
 export interface EquityChartProps {
@@ -20,6 +22,24 @@ export interface EquityChartProps {
   ariaLabel: string;
   showRateInTooltip?: boolean;
 }
+
+export const getLaunchMarkerClusters = (positions: number[], collisionDistance = 34): number[][] => {
+  const sorted = positions
+    .map((position, index) => ({ index, position }))
+    .sort((left, right) => left.position - right.position);
+
+  return sorted.reduce<number[][]>((clusters, marker) => {
+    const current = clusters.at(-1);
+    const previousIndex = current?.at(-1);
+    if (current && previousIndex !== undefined
+      && marker.position - positions[previousIndex] < collisionDistance) {
+      current.push(marker.index);
+    } else {
+      clusters.push([marker.index]);
+    }
+    return clusters;
+  }, []);
+};
 
 /*
   The shared performance chart (Home aggregate and per-bot overview), kept to the
@@ -90,6 +110,8 @@ export function EquityChart({
     setHoverIndex((current) => Math.min(Math.max((current ?? values.length - 1) + step, 0), values.length - 1));
   };
   const xTicks = [0, Math.round((values.length - 1) / 3), Math.round(((values.length - 1) * 2) / 3), values.length - 1];
+  const launchPositions = launches.map((launch) => xFor(launch.index));
+  const launchClusters = getLaunchMarkerClusters(launchPositions);
 
   return <div className="dashboard-chart-box"><div
     ref={frameRef}
@@ -151,25 +173,28 @@ export function EquityChart({
       style={{ left: `${clampPct((xFor(minIndex) / width) * 100)}%`, top: `${(yFor(minValue) / height) * 100}%` }}
     ><i className="sr-only">{t('최저')} </i>{format(minValue)}</span>}
 
-    {launches.map((launch, launchIndex) => {
-      const position = (xFor(launch.index) / width) * 100;
-      const lane = launches
-        .slice(0, launchIndex)
-        .filter((other) => other.index === launch.index)
-        .length;
+    {launchClusters.map((cluster, clusterIndex) => {
+      const clusterLaunches = cluster.map((launchIndex) => launches[launchIndex]);
+      const position = (
+        cluster.reduce((sum, launchIndex) => sum + launchPositions[launchIndex], 0)
+        / cluster.length
+        / width
+      ) * 100;
+      const isCluster = clusterLaunches.length > 1;
       const edgeClass = position <= 10 ? 'is-edge-start' : position >= 90 ? 'is-edge-end' : '';
-      const status = launch.kind === 'before-range' ? t('이전부터 운용') : t('운용 시작');
-      const tooltipId = `${clipId}-launch-${launchIndex}`;
-      const tooltipTitle = launch.kind === 'before-range' ? t('선택 기간 이전에 시작') : t('운용 시작 시점');
-      const tooltipDetail = launch.kind === 'before-range'
-        ? t('기간 시작부터 성과에 포함')
-        : `${dates[launch.index]} · ${t('이 날부터 성과에 포함')}`;
+      const firstLaunch = clusterLaunches[0];
+      const status = firstLaunch.kind === 'before-range' ? t('이전부터 운용') : t('운용 시작');
+      const tooltipId = `${clipId}-launch-cluster-${clusterIndex}`;
+      const markerLabel = isCluster
+        ? `${firstLaunch.name} ${t('외')} ${clusterLaunches.length - 1}${t('개 봇 운용 시작 정보')}`
+        : `${firstLaunch.name} ${status} ${t('정보')}`;
       return <button
         type="button"
-        key={launch.name}
-        className={`dashboard-chart-marker ${edgeClass}`}
-        style={{ left: `${position}%`, bottom: `${2 + lane * 36}px` }}
-        aria-label={`${launch.name} ${status} ${t('정보')}`}
+        key={clusterLaunches.map((launch) => launch.name).join('-')}
+        className={`dashboard-chart-marker ${isCluster ? 'is-cluster' : ''} ${edgeClass}`}
+        style={{ left: `${position}%` }}
+        data-cluster-size={clusterLaunches.length}
+        aria-label={markerLabel}
         aria-describedby={tooltipId}
         onFocus={(event) => event.stopPropagation()}
         onMouseMove={(event) => event.stopPropagation()}
@@ -177,16 +202,40 @@ export function EquityChart({
           if (['ArrowLeft', 'ArrowRight'].includes(event.key)) event.stopPropagation();
         }}
       >
-        <Bot size={16} aria-hidden="true" />
+        <span className="dashboard-chart-cluster-icons" aria-hidden="true">
+          {clusterLaunches.slice(0, 2).map((launch) => <BotGlyph
+            key={launch.name}
+            selection={launch.appearance ?? FALLBACK_BOT_ICON}
+            testId={`chart-launch-bot-icon-${launch.name}`}
+          />)}
+          {isCluster && <span className="dashboard-chart-cluster-count">{clusterLaunches.length}</span>}
+        </span>
         <span
           id={tooltipId}
           role="tooltip"
-          aria-label={`${launch.name} ${status} ${t('상세')}`}
-          className="dashboard-chart-launch-tooltip"
+          aria-label={isCluster
+            ? `${clusterLaunches.length}${t('개 봇 운용 시작 상세')}`
+            : `${firstLaunch.name} ${status} ${t('상세')}`}
+          className={`dashboard-chart-launch-tooltip ${isCluster ? 'is-cluster' : ''}`}
         >
-          <strong>{launch.name}</strong>
-          <span>{tooltipTitle}</span>
-          <small>{tooltipDetail}</small>
+          {isCluster && <span className="dashboard-chart-cluster-title">
+            {clusterLaunches.length}{t('개 봇의 시작 시점')}
+          </span>}
+          {clusterLaunches.map((launch) => {
+            const tooltipTitle = launch.kind === 'before-range'
+              ? t('선택 기간 이전에 시작')
+              : t('운용 시작 시점');
+            const tooltipDetail = launch.kind === 'before-range'
+              ? t('기간 시작부터 성과에 포함')
+              : `${dates[launch.index]} · ${t('이 날부터 성과에 포함')}`;
+            return <span className="dashboard-chart-cluster-row" key={launch.name}>
+              {isCluster && <BotGlyph selection={launch.appearance ?? FALLBACK_BOT_ICON} />}
+              <span>
+                <strong>{launch.name}</strong>
+                <small>{tooltipTitle} · {tooltipDetail}</small>
+              </span>
+            </span>;
+          })}
         </span>
       </button>;
     })}

@@ -13,6 +13,8 @@ import { BotsView } from './views/BotsView';
 import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
 import { DashboardView } from './views/DashboardView';
 import { DesignConceptLab } from './views/DesignConceptLab';
+import { BOT_ICON_STORAGE_KEY, loadBotIcons } from './components/BotGlyph';
+import type { BotIconMap, BotIconSelection } from './components/BotGlyph';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
@@ -189,6 +191,7 @@ function ProductApp() {
   const [theme, setTheme] = useState<Theme>('dark');
   const [timezone, setTimezone] = useState('et');
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [botIcons, setBotIcons] = useState<BotIconMap>(loadBotIcons);
   // Up/down colour convention: Korean charts paint gains red and losses blue,
   // US charts the opposite hues. Korean is the default for this product.
   const [updown, setUpdown] = useState<Updown>('kr');
@@ -199,6 +202,9 @@ function ProductApp() {
   useEffect(() => {
     localStorage.setItem('i2s-palette', palette);
   }, [palette]);
+  useEffect(() => {
+    localStorage.setItem(BOT_ICON_STORAGE_KEY, JSON.stringify(botIcons));
+  }, [botIcons]);
   // html carries the theme too, so body and the overscroll area match the shell
   // instead of showing the dark default behind a light page.
   useEffect(() => {
@@ -214,13 +220,16 @@ function ProductApp() {
   const openEditor = (mode: 'basic' | 'pro') => {
     navigate(`/strategies/new/${mode}`);
   };
+  const changeBotIcon = (botName: string, selection: BotIconSelection) => {
+    setBotIcons((current) => ({ ...current, [botName]: selection }));
+  };
 
   const content = <Routes>
-    <Route path="/" element={<DashboardView setPage={setPage} />} />
+    <Route path="/" element={<DashboardView setPage={setPage} botIcons={botIcons} />} />
     <Route path="/strategies" element={<StrategyHome openEditor={openEditor} />} />
     <Route path="/strategies/new/basic" element={<BasicEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
     <Route path="/strategies/new/pro" element={<ProEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} />} />
-    <Route path="/bots" element={<BotsView />} />
+    <Route path="/bots" element={<BotsView botIcons={botIcons} onBotIconChange={changeBotIcon} />} />
     <Route path="/backtests" element={<BacktestView />} />
     <Route path="/competition" element={<RoomsView />} />
     <Route path="/competition-v2" element={<RoomsView visualVariant="image" />} />
