@@ -305,12 +305,12 @@ const BLOCK_LIBRARY: BlockLibraryCategory[] = [
 
 const INITIAL_CARD_META: Record<string, CardMeta> = {
   'primary-buy': {
-    title: '매수 전략',
+    title: '매수 컨테이너',
     detail: '가격 갱신 · 종목별 평가',
     explanation: '새로운 1분봉이 완성되고, RSI가 30 아래로 내려오면 전략 예산의 25%로 시장가 매수 후보를 만듭니다.',
   },
   'primary-sell': {
-    title: '매도 전략',
+    title: '매도 컨테이너',
     detail: '포지션 상태 · 종목별 평가',
     explanation: '포지션을 보유한 상태에서 RSI가 70 위로 올라가면 보유 수량 100%의 매도 후보를 만듭니다.',
   },
@@ -748,18 +748,18 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         id: 'strategy-no-section',
         sectionId: null,
         cardId: null,
-        message: '매수 블록이 포함된 섹션을 하나 이상 만들어 주세요.',
+        message: '매수 컨테이너가 포함된 파티션을 하나 이상 만들어 주세요.',
       }];
     }
 
     return sections.flatMap((section, sectionIndex): ValidationIssue[] => {
-      const sectionLabel = `SECTION ${String(sectionIndex + 1).padStart(2, '0')}`;
+      const sectionLabel = `PARTITION ${String(sectionIndex + 1).padStart(2, '0')}`;
       if (section.cards.buy.length === 0) {
         return [{
           id: `${section.id}-no-buy`,
           sectionId: section.id,
           cardId: null,
-          message: `${sectionLabel}에 매수 블록이 필요합니다.`,
+          message: `${sectionLabel}에 매수 컨테이너가 필요합니다.`,
         }];
       }
       return section.cards.buy
@@ -768,7 +768,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           id: `${cardId}-empty`,
           sectionId: section.id,
           cardId,
-          message: `${sectionLabel}의 매수 블록에 조건 블록을 하나 이상 추가해 주세요.`,
+          message: `${sectionLabel}의 매수 컨테이너에 조건 블록을 하나 이상 추가해 주세요.`,
         }));
     });
   }, [cardBlocks, sections]);
@@ -969,7 +969,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         tone: 'indicator',
       }],
     }));
-    setAnnouncement(`${side === 'buy' ? '매수' : '매도'} 전략에 이동평균 조건을 추가했습니다.`);
+    setAnnouncement(`${side === 'buy' ? '매수' : '매도'} 컨테이너에 이동평균 조건을 추가했습니다.`);
   };
 
   const applyTemplate = (template: StrategyTemplate, targetSectionId: string = activeSectionId) => {
@@ -988,12 +988,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       ...current,
       [buyCardId]: {
         title: template.buyTitle ?? `${template.name} 매수`,
-        detail: `${template.category} 템플릿 · 쉬운 시작`,
+        detail: `${template.category} 패키지 · 쉬운 시작`,
         explanation: `${template.description} 매수 조건을 만족하면 주문 후보를 만듭니다.`,
       },
       [sellCardId]: {
         title: template.sellTitle ?? `${template.name} 매도`,
-        detail: `${template.category} 템플릿 · 자동 청산`,
+        detail: `${template.category} 패키지 · 자동 청산`,
         explanation: `${template.description} 반대 신호가 나오면 보유 포지션을 정리합니다.`,
       },
     }));
@@ -1014,12 +1014,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       : section));
     setSelectedCardId(buyCardId);
     setActiveSectionId(targetSection.id);
-    setAnnouncement(`${template.name} 템플릿의 매수·매도 블록을 ${targetSection.id.replace('section-', 'SECTION ')}에 추가했습니다.`);
+    setAnnouncement(`${template.name} 패키지의 매수·매도 컨테이너를 ${targetSection.id.replace('section-', 'PARTITION ')}에 추가했습니다.`);
   };
 
   const addLibraryBlock = (label: string, tone: BlockTone, targetCardId: string | null = selectedCardId, targetIndex?: number) => {
     if (!targetCardId || !cardBlocks[targetCardId]) {
-      setAnnouncement('먼저 블록을 넣을 매수 또는 매도 전략을 선택해 주세요.');
+      setAnnouncement('먼저 블록을 넣을 매수 또는 매도 컨테이너를 선택해 주세요.');
       return;
     }
     const nextCount = customBlockCount + 1;
@@ -1033,7 +1033,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       return { ...current, [targetCardId]: nextBlocks };
     });
     setSelectedCardId(targetCardId);
-    setAnnouncement(`${label} 블록을 대상 전략에 추가했습니다.`);
+    setAnnouncement(`${label} 블록을 대상 컨테이너에 추가했습니다.`);
   };
 
   const startLibraryDrag = (event: DragEvent<HTMLButtonElement>, payload: LibraryDragPayload) => {
@@ -1090,7 +1090,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     setDraggedCard(null);
     setCardMove(null);
     setTrashReady(false);
-    setAnnouncement('전략을 삭제했습니다.');
+    setAnnouncement('컨테이너를 삭제했습니다.');
   };
 
   const deleteSection = (sectionId: string) => {
@@ -1213,7 +1213,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     setCardMeta((current) => ({
       ...current,
       [cardId]: {
-        title: `${side === 'buy' ? '매수' : '매도'} 전략`,
+        title: `${side === 'buy' ? '매수' : '매도'} 컨테이너`,
         detail: '직접 구성 · 블록을 추가해 보세요',
         explanation: `오른쪽 BLOCKS에서 조건을 골라 ${side === 'buy' ? '매수' : '매도'} 규칙을 구성합니다.`,
       },
@@ -1231,7 +1231,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       : item));
     setActiveSectionId(sectionId);
     setSelectedCardId(cardId);
-    setAnnouncement(`${sectionId.replace('section-', 'SECTION ')}에 ${side === 'buy' ? '매수' : '매도'} 블록을 추가했습니다.`);
+    setAnnouncement(`${sectionId.replace('section-', 'PARTITION ')}에 ${side === 'buy' ? '매수' : '매도'} 컨테이너를 추가했습니다.`);
   };
 
   const startCardDrag = (event: DragEvent<HTMLDivElement>, sectionId: string, side: Side, cardId: string) => {
@@ -1249,7 +1249,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     if (!draggedCard || draggedBlock) return;
     const sourceSection = sections.find((section) => section.id === draggedCard.sectionId)!;
     if (draggedCard.side === 'buy' && sourceSection.cards.buy.length === 1 && sourceSection.id !== targetSectionId) {
-      setAnnouncement('각 섹션에는 매수 블록이 하나 이상 필요합니다.');
+      setAnnouncement('각 파티션에는 매수 컨테이너가 하나 이상 필요합니다.');
       setDraggedCard(null);
       return;
     }
@@ -1438,7 +1438,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       setCardMeta((current) => ({
         ...current,
         [buyCardId]: {
-          title: '매수 전략',
+          title: '매수 컨테이너',
           detail: '직접 구성 · 블록을 추가해 보세요',
           explanation: '오른쪽 BLOCKS에서 조건을 골라 매수 규칙을 구성합니다.',
         },
@@ -1457,7 +1457,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       }]);
       setActiveSectionId(sectionId);
       setSelectedCardId(buyCardId);
-      setAnnouncement(`SECTION ${String(sectionNumber).padStart(2, '0')}을 만들었습니다. 매수 블록이 기본으로 포함됩니다.`);
+      setAnnouncement(`PARTITION ${String(sectionNumber).padStart(2, '0')}을 만들었습니다. 매수 컨테이너가 기본으로 포함됩니다.`);
     }
     if (drawStart) setDrawMode(false);
     setDrawStart(null);
@@ -1509,7 +1509,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     const sideLabel = side === 'buy' ? '매수' : '매도';
     const terminalValue = side === 'buy' ? 'MARKET' : '100%';
     const meta = cardMeta[cardId] ?? {
-      title: `${sideLabel} 전략`,
+      title: `${sideLabel} 컨테이너`,
       detail: '직접 구성 · 블록을 추가해 보세요',
       explanation: `오른쪽 BLOCKS에서 조건을 골라 ${sideLabel} 규칙을 구성합니다.`,
     };
@@ -1547,12 +1547,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         className="strategy-card-move-handle"
         type="button"
         draggable="false"
-        aria-label={`${sideLabel} 전략 자유 이동${isPrimary ? '' : ` ${cardIndex + 1}`}`}
+        aria-label={`${sideLabel} 컨테이너 자유 이동${isPrimary ? '' : ` ${cardIndex + 1}`}`}
         onPointerDown={(event) => beginCardMove(event, section, cardId)}
       ><GripVertical size={14} /><span>MOVE</span></button>
       <button
         className="strategy-container-header"
-        aria-label={`${sideLabel} 전략 자연어 설명${isPrimary ? '' : ` ${cardIndex + 1}`}`}
+        aria-label={`${sideLabel} 컨테이너 자연어 설명${isPrimary ? '' : ` ${cardIndex + 1}`}`}
         aria-expanded={isExplained}
         aria-controls={explanationId}
         onClick={() => {
@@ -1561,7 +1561,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           toggleGroup(cardId);
         }}
       ><span className="container-symbol">{side === 'buy' ? 'B' : 'S'}</span><div><strong>{meta.title}</strong><small>{meta.detail}</small>{isSelected && <em className="strategy-target-badge">블록 대상</em>}{invalidCardIds.has(cardId) && <em className="strategy-validation-badge">조건 필요</em>}</div><span>{cardBlocks[cardId].length + 1} BLOCKS</span></button>
-      <div id={explanationId} className="block-stack" data-testid={stackTestId} aria-label={`${sideLabel} 전략 규칙 흐름`} onDragOver={(event) => {
+      <div id={explanationId} className="block-stack" data-testid={stackTestId} aria-label={`${sideLabel} 컨테이너 규칙 흐름`} onDragOver={(event) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = libraryDrag?.type === 'block' ? 'copy' : 'move';
       }} onDrop={(event) => {
@@ -1577,7 +1577,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   const trashItemLabel = draggedBlock
     ? '블록'
     : (draggedCard || cardMove)
-      ? '전략'
+      ? '컨테이너'
       : sectionMove
         ? '파티션'
         : null;
@@ -1628,14 +1628,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           </div>
         </section>
         <aside className="editor-palette template-library-panel panel floating-editor-panel" data-testid="basic-templates-panel">
-          <div className="palette-title"><span>TEMPLATES</span><Sparkles size={15} /></div>
+          <div className="palette-title"><span>PACKAGES</span><Sparkles size={15} /></div>
           <p className="library-intro">잘 몰라도 괜찮아요. 원하는 방식을 고르면 매수와 매도 규칙을 함께 만들어 드려요.</p>
-          <label className="palette-search"><Search size={14} /><input aria-label="템플릿 검색" placeholder="RSI, 추세, 돌파" value={templateQuery} onChange={(event) => setTemplateQuery(event.target.value)} /></label>
+          <label className="palette-search"><Search size={14} /><input aria-label="패키지 검색" placeholder="RSI, 추세, 돌파" value={templateQuery} onChange={(event) => setTemplateQuery(event.target.value)} /></label>
           <div className="template-list">
             {filteredTemplates.map((template) => <button
               key={template.id}
               className={`template-card ${libraryDrag?.type === 'template' && libraryDrag.template.id === template.id ? 'is-library-dragging' : ''}`}
-              aria-label={`${template.name} 템플릿 적용`}
+              aria-label={`${template.name} 패키지 적용`}
               draggable
               onDragStart={(event) => startLibraryDrag(event, { type: 'template', template })}
               onDragEnd={finishLibraryDrag}
@@ -1648,7 +1648,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           </div>
           <div className="library-target">
             <span>추가 위치</span>
-            <strong>SECTION {activeSectionId.replace('section-', '').padStart(2, '0')}</strong>
+            <strong>PARTITION {activeSectionId.replace('section-', '').padStart(2, '0')}</strong>
             <small>클릭하거나 원하는 파티션으로 드래그하세요.</small>
           </div>
         </aside>
@@ -1663,9 +1663,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         } as CSSProperties}
       >
         <div className="cursor-dot-spotlight" data-testid="cursor-dot-spotlight" aria-hidden="true" />
-        <div className="section-draw-controls" role="group" aria-label="섹션 도구">
-          <button className={`floating-editor-button ${drawMode ? 'active' : ''}`} aria-label="섹션 그리기" aria-pressed={drawMode} onClick={() => setDrawMode((current) => !current)}><Plus size={14} /> 섹션 그리기</button>
-          <span>{drawMode ? '빈 공간을 드래그해 섹션을 만드세요' : `${sections.length}개 섹션 · 휠: 확대/축소 · 파티션 드래그: 이동`}</span>
+        <div className="section-draw-controls" role="group" aria-label="파티션 도구">
+          <button className={`floating-editor-button ${drawMode ? 'active' : ''}`} aria-label="파티션 그리기" aria-pressed={drawMode} onClick={() => setDrawMode((current) => !current)}><Plus size={14} /> 파티션 그리기</button>
+          <span>{drawMode ? '빈 공간을 드래그해 파티션을 만드세요' : `${sections.length}개 파티션 · 휠: 확대/축소 · 파티션 드래그: 이동`}</span>
         </div>
         <div className="floating-zoom-controls" role="group" aria-label="캔버스 확대/축소">
           <button className="floating-editor-button" aria-label="축소" disabled={zoom <= .5} onClick={() => setZoom((current) => Math.max(.5, Number((current - .1).toFixed(1))))}>−</button>
@@ -1692,7 +1692,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
               key={section.id}
               className={`strategy-section-frame ${activeSectionId === section.id ? 'is-selected' : ''} ${invalidSectionIds.has(section.id) ? 'has-validation-error' : ''} ${draggedCard ? 'is-card-drop-ready' : ''} ${sectionMove?.sectionId === section.id ? 'is-section-moving' : ''} ${libraryDrag?.type === 'template' ? 'is-template-drop-ready' : ''}`}
               data-testid={`strategy-${section.id}`}
-              aria-label={`SECTION ${sectionNumber}`}
+              aria-label={`PARTITION ${sectionNumber}`}
               style={{ left: section.x, top: section.y, width: sectionLayout.width, height: sectionLayout.height }}
               onClick={() => setActiveSectionId(section.id)}
               onPointerDown={(event) => beginSectionAreaMove(event, section)}
@@ -1712,22 +1712,22 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
               <i className="section-corner corner-top-left" aria-hidden="true" />
               <i className="section-corner corner-top-right" aria-hidden="true" />
               <header className="strategy-section-header">
-                <button className="section-move-handle" data-testid={`${section.id}-move-handle`} aria-label={`SECTION ${sectionNumber} 이동`} onPointerDown={(event) => beginSectionMove(event, section)}><GripVertical size={16} /></button>
-                <div className="section-identity"><span>SECTION {sectionNumber}</span><strong>{section.symbol}</strong><small>매수 {section.cards.buy.length} · 매도 {section.cards.sell.length}</small></div>
+                <button className="section-move-handle" data-testid={`${section.id}-move-handle`} aria-label={`PARTITION ${sectionNumber} 이동`} onPointerDown={(event) => beginSectionMove(event, section)}><GripVertical size={16} /></button>
+                <div className="section-identity"><span>PARTITION {sectionNumber}</span><strong>{section.symbol}</strong><small>매수 {section.cards.buy.length} · 매도 {section.cards.sell.length}</small></div>
                 <div className="section-settings">
-                  <label><span>종목</span><select aria-label={`SECTION ${sectionNumber} 종목`} value={section.symbol} onChange={(event) => updateSection(section.id, { symbol: event.target.value })}><option>종목 선택</option><option>AAPL</option><option>MSFT</option><option>SPY</option><option>NVDA</option><option>AAPL · MSFT · SPY</option></select></label>
-                  <label><span>전체 자본 대비</span><span className="section-allocation"><input type="number" min="1" max="100" aria-label={`SECTION ${sectionNumber} 전체 자본 대비 투자비율`} value={section.allocation} onChange={(event) => updateSection(section.id, { allocation: Number(event.target.value) })} /><b>%</b></span></label>
+                  <label><span>종목</span><select aria-label={`PARTITION ${sectionNumber} 종목`} value={section.symbol} onChange={(event) => updateSection(section.id, { symbol: event.target.value })}><option>종목 선택</option><option>AAPL</option><option>MSFT</option><option>SPY</option><option>NVDA</option><option>AAPL · MSFT · SPY</option></select></label>
+                  <label><span>전체 자본 대비</span><span className="section-allocation"><input type="number" min="1" max="100" aria-label={`PARTITION ${sectionNumber} 전체 자본 대비 투자비율`} value={section.allocation} onChange={(event) => updateSection(section.id, { allocation: Number(event.target.value) })} /><b>%</b></span></label>
                 </div>
-                <div className="section-card-actions"><button onClick={() => addStrategyCard(section.id, 'buy')}><Plus size={13} /> 매수 블록 추가</button><button onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={13} /> 매도 블록 추가</button></div>
+                <div className="section-card-actions"><button onClick={() => addStrategyCard(section.id, 'buy')}><Plus size={13} /> 매수 컨테이너 추가</button><button onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={13} /> 매도 컨테이너 추가</button></div>
               </header>
               <div className="section-strategy-grid">
                 {section.cardOrder.map((cardId, cardIndex) => renderStrategyCard(section, section.cards.buy.includes(cardId) ? 'buy' : 'sell', cardId, cardIndex))}
                 {section.cards.buy.length === 0 && <button
                   className="required-buy-slot"
-                  aria-label={`SECTION ${sectionNumber} 필수 매수 블록 추가`}
+                  aria-label={`PARTITION ${sectionNumber} 필수 매수 컨테이너 추가`}
                   onClick={() => addStrategyCard(section.id, 'buy')}
-                ><TriangleAlert size={18} /><strong>매수 블록이 필요해요</strong><span>필수 항목 · 추가해야 출시할 수 있어요</span></button>}
-                {section.cards.sell.length === 0 && <button className="optional-sell-slot" onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={18} /><strong>매도 블록 추가</strong><span>선택 사항 · 없어도 저장할 수 있어요</span></button>}
+                ><TriangleAlert size={18} /><strong>매수 컨테이너가 필요해요</strong><span>필수 항목 · 추가해야 출시할 수 있어요</span></button>}
+                {section.cards.sell.length === 0 && <button className="optional-sell-slot" onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={18} /><strong>매도 컨테이너 추가</strong><span>선택 사항 · 없어도 저장할 수 있어요</span></button>}
               </div>
             </article>;
           })}
@@ -1738,8 +1738,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         <div className="inspector-title"><span>BLOCKS</span><Boxes size={15} /></div>
         <div className="block-library-target">
           <span>블록을 넣을 곳</span>
-          <strong>{cardMeta[selectedCardId!]?.title ?? '전략을 선택해 주세요'}</strong>
-          <small>클릭하거나 원하는 전략 카드로 드래그하세요.</small>
+          <strong>{cardMeta[selectedCardId!]?.title ?? '컨테이너를 선택해 주세요'}</strong>
+          <small>클릭하거나 원하는 컨테이너로 드래그하세요.</small>
         </div>
         <label className="palette-search"><Search size={14} /><input aria-label="블록 검색" placeholder="MACD, 조건, 손절" value={blockQuery} onChange={(event) => setBlockQuery(event.target.value)} /></label>
         <div className="block-category-list">

@@ -259,7 +259,7 @@ describe('Signal product UI', () => {
     await user.click(screen.getByRole('button', { name: 'Basic으로 시작' }));
     await user.hover(screen.getByTestId('buy-rsi-block'));
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '매수 전략 자연어 설명' }));
+    await user.click(screen.getByRole('button', { name: '매수 컨테이너 자연어 설명' }));
     const explanations = screen.getAllByRole('note');
     expect(explanations).toHaveLength(4);
     expect(explanations[0]).toHaveTextContent('1분봉');
