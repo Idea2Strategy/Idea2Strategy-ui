@@ -25,7 +25,12 @@ describe('Basic editor strategy explanations', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('전략을 검증하고 바로 출시해요.');
     expect(screen.queryByRole('button', { name: '검증' })).not.toBeInTheDocument();
     expect(screen.getByTestId('basic-editor-workspace')).toHaveClass('full-editor-workspace');
-    expect(screen.getByTestId('basic-templates-panel')).toHaveClass('floating-editor-panel');
+    const leftRail = screen.getByTestId('basic-editor-left-rail');
+    const completeness = screen.getByRole('region', { name: '전략 완성도' });
+    const templates = screen.getByTestId('basic-templates-panel');
+    expect(leftRail.firstElementChild).toBe(completeness);
+    expect(leftRail).toContainElement(templates);
+    expect(templates).toHaveClass('floating-editor-panel');
     expect(screen.getByTestId('basic-block-library')).toHaveClass('floating-editor-panel');
   });
 

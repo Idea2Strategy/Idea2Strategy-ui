@@ -325,6 +325,29 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   display: block;
   overflow: hidden;
 }
+.basic-editor-left-rail {
+  position: absolute;
+  z-index: 12;
+  top: 66px;
+  bottom: 18px;
+  left: 18px;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+.basic-editor-left-rail .basic-validation-summary {
+  position: relative;
+  z-index: 1;
+  top: auto;
+  left: auto;
+  width: 100%;
+  max-width: none;
+  flex: 0 0 auto;
+  transform: none;
+  pointer-events: auto;
+}
 .variant-balanced[data-design="signal-studio"] .editor-shell-page .basic-canvas,
 .variant-balanced[data-design="signal-studio"] .editor-shell-page .pro-canvas {
   position: absolute;
@@ -367,6 +390,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .editor-shell-page .editor-palette {
   left: 18px;
   width: 250px;
+}
+.variant-balanced[data-design="signal-studio"] .editor-shell-page .basic-editor-left-rail .template-library-panel {
+  position: relative;
+  top: auto;
+  left: auto;
+  width: 100%;
+  max-height: none;
+  min-height: 0;
+  flex: 1;
+  pointer-events: auto;
 }
 .editor-shell-page .editor-inspector {
   right: 18px;

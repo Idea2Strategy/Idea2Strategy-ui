@@ -1600,47 +1600,49 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         </div>
       </div>
     </div>
-    <section
-      className={`basic-validation-summary ${isLaunchable ? 'is-launchable' : 'is-incomplete'}`}
-      role="region"
-      aria-label="전략 완성도"
-      aria-live="polite"
-    >
-      <span className="basic-validation-icon" aria-hidden="true">
-        {isLaunchable ? <Check size={15} /> : <TriangleAlert size={15} />}
-      </span>
-      <div>
-        <strong>{isLaunchable ? '출시 가능한 전략' : '미완성 전략'}</strong>
-        <small>{isLaunchable ? '현재 필수 조건을 모두 만족합니다.' : '아래 조건을 만족해야 출시가 가능합니다.'}</small>
-        {!isLaunchable && <ul>{validationIssues.map((issue) => <li key={issue.id}>{issue.message}</li>)}</ul>}
-      </div>
-    </section>
     <div className="editor-layout basic-layout full-editor-workspace" data-testid="basic-editor-workspace">
-      <aside className="editor-palette template-library-panel panel floating-editor-panel" data-testid="basic-templates-panel">
-        <div className="palette-title"><span>TEMPLATES</span><Sparkles size={15} /></div>
-        <p className="library-intro">잘 몰라도 괜찮아요. 원하는 방식을 고르면 매수와 매도 규칙을 함께 만들어 드려요.</p>
-        <label className="palette-search"><Search size={14} /><input aria-label="템플릿 검색" placeholder="RSI, 추세, 돌파" value={templateQuery} onChange={(event) => setTemplateQuery(event.target.value)} /></label>
-        <div className="template-list">
-          {filteredTemplates.map((template) => <button
-            key={template.id}
-            className={`template-card ${libraryDrag?.type === 'template' && libraryDrag.template.id === template.id ? 'is-library-dragging' : ''}`}
-            aria-label={`${template.name} 템플릿 적용`}
-            draggable
-            onDragStart={(event) => startLibraryDrag(event, { type: 'template', template })}
-            onDragEnd={finishLibraryDrag}
-            onClick={() => applyTemplate(template)}
-          >
-            <span className={`template-icon tone-${template.category}`}><Sparkles size={14} /></span>
-            <span><strong>{template.name}</strong><small>{template.description}</small></span>
-            <Plus size={14} />
-          </button>)}
-        </div>
-        <div className="library-target">
-          <span>추가 위치</span>
-          <strong>SECTION {activeSectionId.replace('section-', '').padStart(2, '0')}</strong>
-          <small>클릭하거나 원하는 파티션으로 드래그하세요.</small>
-        </div>
-      </aside>
+      <div className="basic-editor-left-rail" data-testid="basic-editor-left-rail">
+        <section
+          className={`basic-validation-summary ${isLaunchable ? 'is-launchable' : 'is-incomplete'}`}
+          role="region"
+          aria-label="전략 완성도"
+          aria-live="polite"
+        >
+          <span className="basic-validation-icon" aria-hidden="true">
+            {isLaunchable ? <Check size={15} /> : <TriangleAlert size={15} />}
+          </span>
+          <div>
+            <strong>{isLaunchable ? '출시 가능한 전략' : '미완성 전략'}</strong>
+            <small>{isLaunchable ? '현재 필수 조건을 모두 만족합니다.' : '아래 조건을 만족해야 출시가 가능합니다.'}</small>
+            {!isLaunchable && <ul>{validationIssues.map((issue) => <li key={issue.id}>{issue.message}</li>)}</ul>}
+          </div>
+        </section>
+        <aside className="editor-palette template-library-panel panel floating-editor-panel" data-testid="basic-templates-panel">
+          <div className="palette-title"><span>TEMPLATES</span><Sparkles size={15} /></div>
+          <p className="library-intro">잘 몰라도 괜찮아요. 원하는 방식을 고르면 매수와 매도 규칙을 함께 만들어 드려요.</p>
+          <label className="palette-search"><Search size={14} /><input aria-label="템플릿 검색" placeholder="RSI, 추세, 돌파" value={templateQuery} onChange={(event) => setTemplateQuery(event.target.value)} /></label>
+          <div className="template-list">
+            {filteredTemplates.map((template) => <button
+              key={template.id}
+              className={`template-card ${libraryDrag?.type === 'template' && libraryDrag.template.id === template.id ? 'is-library-dragging' : ''}`}
+              aria-label={`${template.name} 템플릿 적용`}
+              draggable
+              onDragStart={(event) => startLibraryDrag(event, { type: 'template', template })}
+              onDragEnd={finishLibraryDrag}
+              onClick={() => applyTemplate(template)}
+            >
+              <span className={`template-icon tone-${template.category}`}><Sparkles size={14} /></span>
+              <span><strong>{template.name}</strong><small>{template.description}</small></span>
+              <Plus size={14} />
+            </button>)}
+          </div>
+          <div className="library-target">
+            <span>추가 위치</span>
+            <strong>SECTION {activeSectionId.replace('section-', '').padStart(2, '0')}</strong>
+            <small>클릭하거나 원하는 파티션으로 드래그하세요.</small>
+          </div>
+        </aside>
+      </div>
       <section
         className="editor-canvas basic-canvas"
         aria-label="Basic 전략 캔버스"
