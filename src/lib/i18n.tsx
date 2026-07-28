@@ -33,6 +33,7 @@ const english: Record<string, string> = {
   '나머지 봇과 전략은 정상입니다.': 'All other bots and strategies are healthy.',
   '전체 성과': 'Total performance',
   '운용 성과': 'Operating performance',
+  '시간가중 운용 수익률': 'Time-weighted operating return',
   '성과 유형': 'Performance type',
   '개인 운용 봇의 시간가중 성과': 'Time-weighted performance of personal bots',
   '대회 참가 봇의 시간가중 성과': 'Time-weighted performance of competition bots',

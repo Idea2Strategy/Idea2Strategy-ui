@@ -72,7 +72,7 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('button', { name: '새 전략' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: '확인이 필요한 작업' })).not.toBeInTheDocument();
     expect(screen.getByText('봇 3개가 정상 운영 중이에요.')).toBeInTheDocument();
-    expect(screen.getByText('운용 성과')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '시간가중 운용 수익률' })).toBeInTheDocument();
     expect(screen.queryByText('전체 성과')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '전략' }));
@@ -108,8 +108,9 @@ describe('Signal product UI', () => {
     const botFilter = within(performance).getByRole('button', { name: '합산에 포함할 봇 선택' });
     expect(personal).toHaveAttribute('aria-pressed', 'true');
     expect(competition).toHaveAttribute('aria-pressed', 'false');
-    expect(performance).toHaveTextContent('개인 운용 봇의 시간가중 성과');
-    expect(within(performance).getByText('시간가중수익률')).toBeInTheDocument();
+    expect(within(performance).getByRole('heading', { name: '시간가중 운용 수익률' })).toBeInTheDocument();
+    expect(within(performance).queryByText('운용 성과')).not.toBeInTheDocument();
+    expect(within(performance).queryByText('시간가중수익률')).not.toBeInTheDocument();
     const returnInfo = within(performance).getByRole('button', { name: '시간가중수익률 설명' });
     const returnInfoTooltip = within(performance).getByRole('tooltip', { name: '시간가중수익률 설명' });
     expect(returnInfo).toHaveTextContent('?');
@@ -159,7 +160,7 @@ describe('Signal product UI', () => {
 
     await user.click(competition);
     expect(competition).toHaveAttribute('aria-pressed', 'true');
-    expect(performance).toHaveTextContent('대회 참가 봇의 시간가중 성과');
+    expect(performance).not.toHaveTextContent('대회 참가 봇의 시간가중 성과');
     expect(within(performance).getByText('봇 1/1 포함')).toBeInTheDocument();
     await user.click(within(performance).getByRole('button', { name: '합산에 포함할 봇 선택' }));
     botPicker = within(performance).getByRole('group', { name: '합산에 포함할 봇 선택' });
