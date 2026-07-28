@@ -8325,6 +8325,15 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .competition-board-head.is-official-head {
   background: color-mix(in srgb, #9A742E 5%, var(--surface));
 }
+.variant-balanced[data-design="signal-studio"] .competition-board-head.is-official-head,
+.variant-balanced[data-design="signal-studio"] .competition-board-row.is-official > button {
+  grid-template-columns:
+    minmax(112px, .58fr)
+    minmax(190px, 1fr)
+    minmax(260px, 1.65fr)
+    minmax(64px, .34fr)
+    16px;
+}
 .variant-balanced[data-design="signal-studio"] .competition-board-head.is-official-head > span {
   color: var(--text-faint);
   font: 700 8px var(--font-mono);
@@ -8565,6 +8574,11 @@ small.dashboard-bot-scope {
   display: grid;
   gap: 3px;
 }
+.variant-balanced[data-design="signal-studio"] .is-general-section .competition-board-period {
+  min-width: 100px;
+  align-content: center;
+  justify-self: start;
+}
 .variant-balanced[data-design="signal-studio"] .competition-board-bots {
   display: flex;
   align-items: baseline;
@@ -8657,6 +8671,10 @@ small.dashboard-bot-scope {
     grid-template-columns: 118px minmax(190px, 1.35fr) 124px 55px 14px;
     gap: 8px;
     padding-inline: 12px;
+  }
+  .variant-balanced[data-design="signal-studio"] .competition-board-head.is-official-head,
+  .variant-balanced[data-design="signal-studio"] .competition-board-row.is-official > button {
+    grid-template-columns: 102px minmax(174px, 1fr) minmax(210px, 1.45fr) 55px 14px;
   }
 }
 
