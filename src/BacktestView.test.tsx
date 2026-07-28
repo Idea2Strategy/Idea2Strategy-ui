@@ -7,6 +7,30 @@ import { BacktestView } from './views/OperationsViews';
 const balancedStyles = readFileSync('src/styles/balanced.css', 'utf8');
 
 describe('BacktestView', () => {
+  test('loads when the browser does not support Array.prototype.toSorted', () => {
+    const arrayPrototype = Array.prototype as typeof Array.prototype & {
+      toSorted?: typeof Array.prototype.toSorted;
+    };
+    const originalToSorted = arrayPrototype.toSorted;
+
+    Object.defineProperty(arrayPrototype, 'toSorted', {
+      configurable: true,
+      value: undefined,
+      writable: true,
+    });
+
+    try {
+      expect(() => render(<BacktestView />)).not.toThrow();
+      expect(screen.getByRole('heading', { name: '봇 백테스트' })).toBeInTheDocument();
+    } finally {
+      Object.defineProperty(arrayPrototype, 'toSorted', {
+        configurable: true,
+        value: originalToSorted,
+        writable: true,
+      });
+    }
+  });
+
   test('compares the selected trading bot with the S&P 500 benchmark', async () => {
     const user = userEvent.setup();
     render(<BacktestView />);

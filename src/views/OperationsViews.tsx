@@ -914,7 +914,7 @@ export function BacktestView() {
         ? chartExecutionIdSet.has(execution.id)
         : (!executionStartDate || execution.date >= executionStartDate)
           && (!executionEndDate || execution.date <= executionEndDate))
-      .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp));
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   }, [chartExecutionFilterIds, executionEndDate, executionStartDate, selectedInstrument]);
   const executionPageCount = Math.max(1, Math.ceil(filteredExecutions.length / executionPageSize));
   const currentExecutionPage = Math.min(executionPage, executionPageCount);
