@@ -350,12 +350,14 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('heading', { name: 'OFFICAL' })).not.toBeInTheDocument();
     const search = screen.getByRole('searchbox', { name: '대회 검색' });
     await user.type(search, 'ETF Disc');
-    expect(
-      screen.getByRole('complementary', { name: 'ETF Discipline 순위' }),
-    ).toBeInTheDocument();
+    const results = screen.getByRole('list', { name: '대회 탐색 결과' });
+    expect(within(results).getByRole('button', { name: 'ETF Discipline 열기' })).toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'ETF Discipline 순위' })).not.toBeInTheDocument();
     expect(screen.queryByText('Momentum Lab')).not.toBeInTheDocument();
 
     await user.clear(search);
+    const progress = screen.getByRole('group', { name: '진행 상태' });
+    await user.click(within(progress).getByRole('radio', { name: '대회 진행 중' }));
     await user.click(screen.getByRole('button', { name: 'Momentum Lab 열기' }));
     expect(screen.getByText('Room Beta')).toBeInTheDocument();
   });

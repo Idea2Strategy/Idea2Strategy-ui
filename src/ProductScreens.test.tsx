@@ -587,11 +587,17 @@ describe('Account settings', () => {
 });
 
 describe('Competition ranking', () => {
+  const openMomentumLab = async (user: ReturnType<typeof userEvent.setup>) => {
+    const progress = screen.getByRole('group', { name: '진행 상태' });
+    await user.click(within(progress).getByRole('radio', { name: '대회 진행 중' }));
+    await user.click(screen.getByRole('button', { name: 'Momentum Lab 열기' }));
+  };
+
   test('the ranking is re-sorted by the metric the person chooses', async () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    await user.click(screen.getByRole('button', { name: 'Momentum Lab 열기' }));
+    await openMomentumLab(user);
 
     const ranking = screen.getByLabelText('Momentum Lab 봇 순위');
     const names = () => [...ranking.querySelectorAll('div > span:nth-child(2)')].map((el) => el.textContent.replace('내 봇', '').trim());
@@ -609,7 +615,7 @@ describe('Competition ranking', () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    await user.click(screen.getByRole('button', { name: 'Momentum Lab 열기' }));
+    await openMomentumLab(user);
     await user.selectOptions(screen.getByRole('combobox', { name: '정렬 지표 선택' }), 'volatility');
 
     const ranking = screen.getByLabelText('Momentum Lab 봇 순위');
@@ -621,7 +627,7 @@ describe('Competition ranking', () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    await user.click(screen.getByRole('button', { name: 'Momentum Lab 열기' }));
+    await openMomentumLab(user);
 
     const conditions = screen.getByLabelText('Momentum Lab 공통 조건');
     expect(within(conditions).getAllByRole('listitem')).toHaveLength(4);
