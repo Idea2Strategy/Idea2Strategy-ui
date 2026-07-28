@@ -17,7 +17,7 @@ describe('BacktestView', () => {
     expect(atlasButton).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('img', { name: 'Atlas 07와 시장 지수 누적 수익률 비교' })).toBeInTheDocument();
     expect(screen.getByTestId('backtest-bot-emphasis')).toHaveAttribute('data-bot', 'Atlas 07');
-    expect(screen.getByTestId('backtest-bot-emphasis')).toHaveAttribute('transform', 'translate(0 1.2)');
+    expect(screen.getByTestId('backtest-bot-emphasis')).toHaveAttribute('transform', 'translate(0 1.6)');
     expect(screen.getByTestId('backtest-bot-series')).toHaveAttribute('data-bot', 'Atlas 07');
     expect(screen.getByTestId('backtest-benchmark-series-sp500')).toHaveAttribute('data-benchmark', 'S&P 500');
 
@@ -342,8 +342,8 @@ describe('BacktestView chart interactions', () => {
     expect(balancedStyles).toMatch(/\.backtest-chart-line\.benchmark\.nasdaq\s*\{[^}]*stroke:\s*var\(--info\)/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-legend \.russell\s*\{[^}]*--benchmark-color:\s*var\(--tone-condition\)/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-line\.benchmark\.russell\s*\{[^}]*stroke:\s*var\(--tone-condition\)/s);
-    expect(balancedStyles).toMatch(/\.backtest-chart-line\.bot-emphasis\s*\{[^}]*stroke:\s*var\(--text\)[^}]*stroke-width:\s*2\.75[^}]*opacity:\s*\.28/s);
-    expect(balancedStyles).toMatch(/\.theme-dark \.backtest-chart-line\.bot-emphasis\s*\{[^}]*opacity:\s*\.5/s);
+    expect(balancedStyles).toMatch(/\.backtest-chart-line\.bot-emphasis\s*\{[^}]*stroke:\s*var\(--text\)[^}]*stroke-width:\s*3\.25[^}]*opacity:\s*\.45/s);
+    expect(balancedStyles).toMatch(/\.theme-dark \.backtest-chart-line\.bot-emphasis\s*\{[^}]*opacity:\s*\.72/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-line\.bot\s*\{[^}]*stroke:\s*var\(--accent\)[^}]*stroke-width:\s*2\.75/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-line\.benchmark\s*\{[^}]*stroke-width:\s*1\.5[^}]*opacity:\s*\.8/s);
     expect(balancedStyles).not.toMatch(/\.backtest-chart-line\.bot\s*\{[^}]*filter:/s);
