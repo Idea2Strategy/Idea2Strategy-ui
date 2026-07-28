@@ -6506,7 +6506,7 @@
   place-items:center;
   padding:0;
   transform:translateX(-50%);
-  border:1px solid color-mix(in srgb,var(--accent) 22%,var(--line));
+  border:0;
   border-radius:var(--radius-sm);
   color:var(--accent);
   background:var(--accent-soft);
@@ -6515,7 +6515,6 @@
 }
 .dashboard-chart-marker:hover,
 .dashboard-chart-marker:focus-visible {
-  border-color:color-mix(in srgb,var(--accent) 48%,var(--line));
   color:var(--accent);
   outline:none;
 }
