@@ -356,44 +356,32 @@
   background:var(--surface-2);
 }
 .signal-product-nav .nav-segmented-toggle::before {
-  content:"";
-  position:absolute;
-  z-index:-1;
-  top:3px;
-  left:3px;
-  width:var(--segment-width);
-  height:calc(100% - 6px);
-  border:1px solid var(--line-strong);
-  border-radius:4px;
-  background:var(--surface);
-  box-shadow:0 1px 3px color-mix(in srgb,var(--bg) 30%,transparent);
-  transform:translateX(0);
-  transition:transform var(--motion-base);
-}
-.signal-product-nav .nav-market-toggle[data-value="kr"]::before,
-.signal-product-nav .nav-segmented-toggle[data-value="en"]::before {
-  transform:translateX(100%);
+  content:none;
+  display:none;
 }
 .signal-product-nav .nav-segmented-toggle > button {
   min-width:0;
+  width:100%;
   height:100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  display:grid;
+  place-items:center;
   padding:0;
-  border:0;
+  border:1px solid transparent;
   border-radius:4px;
   color:var(--text-faint);
   background:transparent;
   cursor:pointer;
   font:700 9px/1 var(--font-mono);
-  transition:color var(--motion-fast),opacity var(--motion-fast);
+  transition:color var(--motion-fast),border-color var(--motion-fast),background var(--motion-fast);
 }
 .signal-product-nav .nav-segmented-toggle > button:hover {
   color:var(--text);
 }
 .signal-product-nav .nav-segmented-toggle > button[aria-pressed="true"] {
+  border-color:var(--line-strong);
   color:var(--text);
+  background:var(--surface);
+  box-shadow:0 1px 3px color-mix(in srgb,var(--bg) 30%,transparent);
 }
 .signal-product-nav .nav-segmented-toggle > button:focus-visible {
   outline-offset:0;
@@ -423,17 +411,7 @@
   border:0;
   background:transparent;
 }
-.signal-product-nav .nav-market-toggle::before {
-  top:0;
-  left:0;
-  height:100%;
-  box-shadow:none;
-}
 .signal-product-nav .nav-market-toggle > button {
-  width:var(--segment-width);
-  height:100%;
-  display:grid;
-  place-items:center;
   line-height:0;
 }
 .signal-product-nav .nav-language-toggle { --segment-width:34px; }
@@ -458,10 +436,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .signal-product-nav .nav-segmented-toggle::before,
+  .signal-product-nav .nav-segmented-toggle > button,
   .signal-product-nav .nav-market-flag { transition:none; }
 }
-.reduce-motion .signal-product-nav .nav-segmented-toggle::before,
+.reduce-motion .signal-product-nav .nav-segmented-toggle > button,
 .reduce-motion .signal-product-nav .nav-market-flag { transition:none; }
 
 /* design.md consistency contract */

@@ -233,7 +233,10 @@ describe('Signal product UI', () => {
       /\.signal-product-nav \.nav-market-toggle > button\[aria-pressed="true"\] \.nav-market-flag\s*\{[^}]*filter:/s,
     );
     expect(balancedStyles).toMatch(
-      /\.signal-product-nav \.nav-market-toggle::before\s*\{[^}]*box-shadow:\s*none/s,
+      /\.signal-product-nav \.nav-segmented-toggle::before\s*\{[^}]*display:\s*none/s,
+    );
+    expect(balancedStyles).toMatch(
+      /\.signal-product-nav \.nav-segmented-toggle > button\[aria-pressed="true"\]\s*\{[^}]*border-color:\s*var\(--line-strong\);[^}]*background:\s*var\(--surface\)/s,
     );
 
     await user.click(usColours);
