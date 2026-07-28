@@ -8378,7 +8378,9 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .competition-board-section-title h3 {
   margin: 0;
   color: var(--text);
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 1;
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-section-title select {
   margin-left: auto;
@@ -8391,13 +8393,18 @@ small.dashboard-bot-scope {
   font-size: 9px;
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-section.is-official-section {
-  border-top: 1px solid var(--line);
+  border-top: 0;
+  background: var(--surface);
 }
 .variant-balanced[data-design="signal-studio"] .is-official-section .competition-board-section-title {
-  background: color-mix(in srgb, var(--surface-2) 46%, var(--surface));
+  min-height: auto;
+  padding: 16px 16px 15px;
+  border-bottom: 0;
+  background: transparent;
 }
 .variant-balanced[data-design="signal-studio"] .is-official-section .competition-board-section-title h3 {
-  color: #9A742E;
+  color: var(--text);
+  font-size: 15px;
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-section.is-general-section {
   border-top: 1px solid var(--line);
@@ -8554,12 +8561,13 @@ small.dashboard-bot-scope {
   font-size: 8px;
   white-space: nowrap;
 }
-.variant-balanced[data-design="signal-studio"] .competition-board-period,
-.variant-balanced[data-design="signal-studio"] .competition-board-bots {
+.variant-balanced[data-design="signal-studio"] .competition-board-period {
   display: grid;
   gap: 3px;
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-bots {
+  display: flex;
+  align-items: baseline;
   margin-left: 14px;
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-period b,
@@ -8582,9 +8590,13 @@ small.dashboard-bot-scope {
   row-gap: 5px;
 }
 .variant-balanced[data-design="signal-studio"] .competition-deadline {
+  display: grid;
+  gap: 3px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-deadline-line {
   display: flex;
-  align-items: baseline;
-  gap: 5px;
+  align-items: center;
+  gap: 7px;
 }
 .variant-balanced[data-design="signal-studio"] .competition-progress-copy {
   justify-self: end;
@@ -8602,6 +8614,9 @@ small.dashboard-bot-scope {
   display: block;
   border-radius: inherit;
   background: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-progress[data-room-status="recruiting"] > i {
+  background: #C3913E;
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-row > button > svg {
   color: var(--text-faint);

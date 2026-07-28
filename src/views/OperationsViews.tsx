@@ -2155,11 +2155,7 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
         </fieldset>
       </aside>
 
-      <section className="competition-board" aria-labelledby="competition-screener-title">
-        <header>
-          <h2 id="competition-screener-title">대회 게시판</h2>
-        </header>
-
+      <section className="competition-board" aria-label="대회 게시판">
         <div className="competition-board-list" role="list" aria-label="대회 탐색 결과">
           <section
             className="competition-board-section is-official-section"
@@ -2179,7 +2175,6 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
             {orderedOfficialCompetitions.map((competition, index) => {
               const tooltipId = `official-running-tooltip-${index}`;
               const isRunning = competition.status === 'running';
-              const deadlineLabel = isRunning ? '대회 종료' : '모집 마감';
               return <div className="competition-board-row is-official" role="listitem" key={competition.name}>
                 <button
                   type="button"
@@ -2191,22 +2186,24 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                   <span className="competition-board-name">
                     <span>
                       <strong>{competition.name}</strong>
-                      <span className="competition-room-status-wrap">
-                        <b className="competition-room-status" data-room-status={competition.status}>{officialStatusLabels[competition.status]}</b>
-                        {isRunning && <span className="competition-status-tooltip" id={tooltipId} role="tooltip">
-                          공식 대회는 대회 진행 중에도 참가할 수 있습니다.
-                        </span>}
-                      </span>
                     </span>
                   </span>
                   <span className="competition-board-period is-official-progress">
                     <span className="competition-deadline">
-                      <small>{deadlineLabel}</small>
-                      <b className={competition.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${competition.remainingDays}`}</b>
+                      <span className="competition-deadline-line">
+                        <span className="competition-room-status-wrap">
+                          <b className="competition-room-status" data-room-status={competition.status}>{officialStatusLabels[competition.status]}</b>
+                          {isRunning && <span className="competition-status-tooltip" id={tooltipId} role="tooltip">
+                            공식 대회는 대회 진행 중에도 참가할 수 있습니다.
+                          </span>}
+                        </span>
+                        <b className={competition.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${competition.remainingDays}`}</b>
+                      </span>
                     </span>
                     <small className="competition-progress-copy">{`진행률 ${competition.progress}%`}</small>
                     <span
                       className="competition-progress"
+                      data-room-status={competition.status}
                       role="progressbar"
                       aria-label={`${competition.name} 진행률`}
                       aria-valuemin={0}
@@ -2214,7 +2211,7 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                       aria-valuenow={competition.progress}
                     ><i style={{ width: `${competition.progress}%` }} /></span>
                   </span>
-                  <span className="competition-board-bots"><strong>{competition.bots}</strong><small>BOT</small></span>
+                  <span className="competition-board-bots"><strong>{`${competition.bots} BOT`}</strong></span>
                   <ArrowUpRight size={15} aria-hidden="true" />
                 </button>
               </div>;
@@ -2258,8 +2255,9 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                 <span className="competition-board-name"><strong>{room.name}</strong></span>
                 <span className="competition-board-period">
                   <b className={room.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${room.remainingDays}`}</b>
+                  <small>{room.status === 'running' ? '대회 마감까지' : '모집 마감까지'}</small>
                 </span>
-                <span className="competition-board-bots"><strong>{room.joined}</strong><small>BOT</small></span>
+                <span className="competition-board-bots"><strong>{`${room.joined} BOT`}</strong></span>
                 <ArrowUpRight size={15} aria-hidden="true" />
               </button>
             </div>)}

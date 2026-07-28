@@ -142,6 +142,7 @@ describe('Competition lobby', () => {
     render(<RoomsView />);
 
     const board = screen.getByRole('region', { name: '대회 게시판' });
+    expect(within(board).queryByRole('heading', { name: '대회 게시판' })).not.toBeInTheDocument();
     const headers = within(board).getAllByRole('button', { name: /정렬/ });
     expect(headers.map((header) => header.getAttribute('aria-label'))).toEqual([
       '채점 방식 정렬',
@@ -174,11 +175,13 @@ describe('Competition lobby', () => {
     expect(roomButtons[1]).toHaveAccessibleName('공식 대회 Risk Control Cup 열기');
     expect(roomButtons[2]).toHaveAccessibleName('공식 대회 I2S Summer League 열기');
     expect(within(roomButtons[0]).getByText('모집 중')).toBeInTheDocument();
-    expect(within(roomButtons[0]).getByText('모집 마감')).toBeInTheDocument();
+    expect(within(roomButtons[0]).queryByText('모집 마감')).not.toBeInTheDocument();
+    expect(within(roomButtons[0]).queryByText('모집 마감까지')).not.toBeInTheDocument();
     expect(within(roomButtons[0]).getByText('진행률 18%')).toBeInTheDocument();
     expect(within(roomButtons[0]).queryByRole('tooltip')).not.toBeInTheDocument();
     expect(within(roomButtons[1]).getByText('대회 진행 중')).toBeInTheDocument();
-    expect(within(roomButtons[1]).getByText('대회 종료')).toBeInTheDocument();
+    expect(within(roomButtons[1]).queryByText('대회 종료')).not.toBeInTheDocument();
+    expect(within(roomButtons[1]).queryByText('대회 마감까지')).not.toBeInTheDocument();
     expect(within(roomButtons[1]).getByText('진행률 72%')).toBeInTheDocument();
     expect(within(roomButtons[1]).getByRole('progressbar', { name: 'Risk Control Cup 진행률' })).toBeInTheDocument();
     expect(within(roomButtons[1]).getByRole('tooltip')).toHaveTextContent('공식 대회는 대회 진행 중에도 참가할 수 있습니다.');
@@ -186,6 +189,7 @@ describe('Competition lobby', () => {
     expect(within(roomButtons[0]).queryByText('07.21–08.01')).not.toBeInTheDocument();
     expect(roomButtons[3]).toHaveAccessibleName('Golden Cross Club 열기');
     expect(within(roomButtons[3]).getByText('D-25')).toBeInTheDocument();
+    expect(within(roomButtons[3]).getByText('모집 마감까지')).toBeInTheDocument();
   });
 
   test('uses participation-size blocks instead of a range slider', async () => {
