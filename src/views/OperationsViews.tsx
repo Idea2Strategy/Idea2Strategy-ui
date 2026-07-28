@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { ArrowLeft, ArrowUpRight, Bot, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Coins, Maximize2, Minimize2, PencilLine, Plus, Search, Trash2, Trophy, X } from 'lucide-react';
-import { Button, DataTable, EmptyState, MetricRow, PageHeading, Panel, Status } from '../components/common.jsx';
-import { leaderboard } from '../data/mockData.js';
-import { Localized, useLanguage } from '../lib/i18n.jsx';
+import { Button, DataTable, EmptyState, MetricRow, PageHeading, Panel, Status, type DataTableColumn } from '../components/common';
+import { leaderboard, type LeaderboardEntry } from '../data/mockData';
+import { Localized, useLanguage } from '../lib/i18n';
 
-const backtestBenchmarks = [
+interface Benchmark {
+  id: string;
+  name: string;
+  return: string;
+  values: number[];
+}
+
+const backtestBenchmarks: Benchmark[] = [
   {
     id: 'sp500',
     name: 'S&P 500',
@@ -29,7 +37,17 @@ const backtestBenchmark = backtestBenchmarks[0];
 
 const backtestPeriods = ['2023 Q3', '2023 Q4', '2024 Q1', '2024 Q2', '2024 Q3', '2024 Q4', '2025 Q1', '2025 Q2', '2025 Q3', '2025 Q4', '2026 Q1', '2026 Q2'];
 
-const backtestBots = [
+interface BacktestBot {
+  name: string;
+  strategy: string;
+  return: string;
+  alpha: string;
+  drawdown: string;
+  trades: number;
+  values: number[];
+}
+
+const backtestBots: BacktestBot[] = [
   {
     name: 'Atlas 07',
     strategy: 'Opening Range Flow',
@@ -107,29 +125,29 @@ const backtestBots = [
 const candleTimes = ['09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '09:30', '10:00', '10:30', '11:00'];
 const calendarWeekdays = ['일', '월', '화', '수', '목', '금', '토'];
 
-function formatCalendarDate(date) {
+function formatCalendarDate(date: string): string {
   if (!date) return '';
   const [year, month, day] = date.split('-');
   return `${year}. ${month}. ${day}.`;
 }
 
-function calendarDateLabel(date) {
+function calendarDateLabel(date: string): string {
   const [year, month, day] = date.split('-').map(Number);
   return `${year}년 ${month}월 ${day}일`;
 }
 
-function calendarMonthLabel(monthKey) {
+function calendarMonthLabel(monthKey: string): string {
   const [year, month] = monthKey.split('-').map(Number);
   return `${year}년 ${month}월`;
 }
 
-function shiftCalendarMonth(monthKey, offset) {
+function shiftCalendarMonth(monthKey: string, offset: number): string {
   const [year, month] = monthKey.split('-').map(Number);
   const shifted = new Date(Date.UTC(year, month - 1 + offset, 1));
   return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-function calendarDatesForMonth(monthKey) {
+function calendarDatesForMonth(monthKey: string): (string | null)[] {
   const [year, month] = monthKey.split('-').map(Number);
   const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -142,7 +160,47 @@ function calendarDatesForMonth(monthKey) {
   });
 }
 
-function makeInstrument(symbol, name, basePrice, changes, executionSpecs) {
+type ExecutionSide = '매수' | '매도';
+
+interface ExecutionSpec {
+  index: number;
+  side: ExecutionSide;
+  quantity: number;
+  partial?: boolean;
+}
+
+interface Candle {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+type Execution = {
+  id: string;
+  index: number;
+  date: string;
+  timestamp: string;
+  time: string;
+  symbol: string;
+  side: ExecutionSide;
+  quantity: string;
+  price: string;
+  value: string;
+  fee: string;
+  result: string;
+};
+
+interface Instrument {
+  symbol: string;
+  name: string;
+  candles: Candle[];
+  executions: Execution[];
+}
+
+function makeInstrument(symbol: string, name: string, basePrice: number, changes: number[], executionSpecs: ExecutionSpec[]): Instrument {
   let previousClose = basePrice;
   const candles = changes.map((change, index) => {
     const open = previousClose;
@@ -180,7 +238,7 @@ function makeInstrument(symbol, name, basePrice, changes, executionSpecs) {
   return { symbol, name, candles, executions };
 }
 
-const botInstruments = {
+const botInstruments: Record<string, Instrument[]> = {
   'Atlas 07': [
     makeInstrument('SPY', 'SPDR S&P 500 ETF', 549.2, [1.6, -2.2, 3.1, 1.4, -1.1, 2.8, 1.2, -2.4, 3.8, 2.1, -1.5, 2.7, 1.8, .9, -2.1, 3.4, 1.2, 2.5], [{ index: 2, side: '매수', quantity: 12 }, { index: 10, side: '매도', quantity: 5 }, { index: 15, side: '매수', quantity: 8 }]),
     makeInstrument('AAPL', 'Apple Inc.', 224.8, [-.8, 1.4, 2.1, -1.2, .9, 1.8, -.7, 2.4, -1.6, .8, 1.3, -2.1, 2.8, 1.1, -.9, 1.7, .6, 1.2], [{ index: 1, side: '매수', quantity: 10 }, { index: 8, side: '매도', quantity: 6 }, { index: 13, side: '매수', quantity: 4 }]),
@@ -206,21 +264,22 @@ Object.assign(botInstruments, {
   'Mean Revert': botInstruments['Pair Lab'],
 });
 
-const chartTimeframes = ['1시간', '4시간', '1일', '주봉', '달봉', '년봉'];
-const timeframeCandleCounts = { '1시간': 48, '4시간': 38, '1일': 200, '주봉': 24, '달봉': 18, '년봉': 12 };
-const timeframeVisibleCandleCounts = { '1시간': 60, '4시간': 60, '1일': 60, '주봉': 60, '달봉': 60, '년봉': 60 };
+const chartTimeframes = ['1시간', '4시간', '1일', '주봉', '달봉', '년봉'] as const;
+type Timeframe = (typeof chartTimeframes)[number];
+const timeframeCandleCounts: Record<Timeframe, number> = { '1시간': 48, '4시간': 38, '1일': 200, '주봉': 24, '달봉': 18, '년봉': 12 };
+const timeframeVisibleCandleCounts: Record<Timeframe, number> = { '1시간': 60, '4시간': 60, '1일': 60, '주봉': 60, '달봉': 60, '년봉': 60 };
 
-function toIsoDate(date) {
+function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function addUtcDays(date, days) {
+function addUtcDays(date: Date, days: number): Date {
   const nextDate = new Date(date);
   nextDate.setUTCDate(nextDate.getUTCDate() + days);
   return nextDate;
 }
 
-function tradingDayDate(index) {
+function tradingDayDate(index: number): Date {
   const date = new Date(Date.UTC(2025, 9, 24));
   let remainingDays = index;
   while (remainingDays > 0) {
@@ -231,7 +290,13 @@ function tradingDayDate(index) {
   return date;
 }
 
-function timeframeCandleMeta(timeframe, index) {
+interface TimeframeCandleMeta {
+  label: string;
+  rangeStart: string;
+  rangeEnd: string;
+}
+
+function timeframeCandleMeta(timeframe: Timeframe, index: number): TimeframeCandleMeta {
   if (timeframe === '1시간') {
     const date = addUtcDays(new Date(Date.UTC(2026, 6, 15)), Math.floor(index / 7));
     const isoDate = toIsoDate(date);
@@ -279,7 +344,12 @@ function timeframeCandleMeta(timeframe, index) {
   };
 }
 
-function candlesForTimeframe(candles, timeframe) {
+interface TimeframeCandle extends Candle {
+  rangeStart: string;
+  rangeEnd: string;
+}
+
+function candlesForTimeframe(candles: Candle[], timeframe: Timeframe): TimeframeCandle[] {
   const count = timeframeCandleCounts[timeframe];
   const sourceLastIndex = candles.length - 1;
   const sourceRange = Math.max(...candles.map((candle) => candle.high)) - Math.min(...candles.map((candle) => candle.low));
@@ -312,7 +382,7 @@ function candlesForTimeframe(candles, timeframe) {
   });
 }
 
-function simpleMovingAverage(candles, period) {
+function simpleMovingAverage(candles: Candle[], period: number): (number | null)[] {
   return candles.map((_, index) => {
     if (index < period - 1) return null;
     const window = candles.slice(index - period + 1, index + 1);
@@ -320,25 +390,25 @@ function simpleMovingAverage(candles, period) {
   });
 }
 
-function exponentialMovingAverage(candles, period) {
+function exponentialMovingAverage(candles: Candle[], period: number): number[] {
   const multiplier = 2 / (period + 1);
-  return candles.reduce((values, candle, index) => {
+  return candles.reduce<number[]>((values, candle, index) => {
     const previous = index === 0 ? candle.close : values[index - 1];
     values.push(candle.close * multiplier + previous * (1 - multiplier));
     return values;
   }, []);
 }
 
-function comparisonPoints(values, width, height, min, max, padX = 18, padY = 18) {
+function comparisonPoints(values: number[], width: number, height: number, min: number, max: number, padX = 18, padY = 18): [number, number][] {
   const range = max - min || 1;
-  return values.map((value, index) => [
+  return values.map((value, index): [number, number] => [
     padX + (index / (values.length - 1)) * (width - padX * 2),
     height - padY - ((value - min) / range) * (height - padY * 2),
   ]);
 }
 
-function BacktestComparisonChart({ bot, benchmarks }) {
-  const [hoveredIndex, setHoveredIndex] = useState(null);
+function BacktestComparisonChart({ bot, benchmarks }: { bot: BacktestBot; benchmarks: Benchmark[] }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const width = 820;
   const height = 280;
   const combined = [...bot.values, ...benchmarks.flatMap((benchmark) => benchmark.values)];
@@ -349,16 +419,16 @@ function BacktestComparisonChart({ bot, benchmarks }) {
     ...benchmark,
     points: comparisonPoints(benchmark.values, width, height, min, max),
   }));
-  const toPolyline = (points) => points.map(([x, y]) => `${x},${y}`).join(' ');
+  const toPolyline = (points: [number, number][]) => points.map(([x, y]) => `${x},${y}`).join(' ');
   const zeroY = height - 18 - ((0 - min) / (max - min)) * (height - 36);
   const activeBotPoint = hoveredIndex === null ? null : botPoints[hoveredIndex];
-  const setIndexFromPointer = (event) => {
+  const setIndexFromPointer = (event: ReactMouseEvent<HTMLDivElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect();
     const normalizedX = Math.min(Math.max((event.clientX - bounds.left) / (bounds.width || 1), 18 / width), 1 - (18 / width));
     const ratio = (normalizedX - (18 / width)) / (1 - (36 / width));
     setHoveredIndex(Math.round(ratio * (bot.values.length - 1)));
   };
-  const moveIndexWithKeyboard = (event) => {
+  const moveIndexWithKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
     event.preventDefault();
     const direction = event.key === 'ArrowRight' ? 1 : -1;
@@ -368,7 +438,7 @@ function BacktestComparisonChart({ bot, benchmarks }) {
   return <div
     className="backtest-comparison-chart"
     data-testid="backtest-comparison-chart"
-    tabIndex="0"
+    tabIndex={0}
     onMouseMove={setIndexFromPointer}
     onMouseLeave={() => setHoveredIndex(null)}
     onFocus={() => setHoveredIndex((current) => current ?? bot.values.length - 1)}
@@ -396,14 +466,14 @@ function BacktestComparisonChart({ bot, benchmarks }) {
       {benchmarkSeries.map((benchmark) => <circle
         key={benchmark.id}
         className={`backtest-chart-end benchmark ${benchmark.id}`}
-        cx={benchmark.points.at(-1)[0]}
-        cy={benchmark.points.at(-1)[1]}
+        cx={benchmark.points.at(-1)![0]}
+        cy={benchmark.points.at(-1)![1]}
         r="4"
         vectorEffect="non-scaling-stroke"
       />)}
-      <circle className="backtest-chart-end bot" cx={botPoints.at(-1)[0]} cy={botPoints.at(-1)[1]} r="5" vectorEffect="non-scaling-stroke" />
+      <circle className="backtest-chart-end bot" cx={botPoints.at(-1)![0]} cy={botPoints.at(-1)![1]} r="5" vectorEffect="non-scaling-stroke" />
       {hoveredIndex !== null && <>
-        <line className="backtest-chart-hover-line" x1={activeBotPoint[0]} x2={activeBotPoint[0]} y1="18" y2={height - 18} vectorEffect="non-scaling-stroke" />
+        <line className="backtest-chart-hover-line" x1={activeBotPoint![0]} x2={activeBotPoint![0]} y1="18" y2={height - 18} vectorEffect="non-scaling-stroke" />
         {benchmarkSeries.map((benchmark) => <circle
           key={benchmark.id}
           className={`backtest-chart-hover-point benchmark ${benchmark.id}`}
@@ -412,13 +482,13 @@ function BacktestComparisonChart({ bot, benchmarks }) {
           r="5"
           vectorEffect="non-scaling-stroke"
         />)}
-        <circle className="backtest-chart-hover-point bot" cx={activeBotPoint[0]} cy={activeBotPoint[1]} r="6" vectorEffect="non-scaling-stroke" />
+        <circle className="backtest-chart-hover-point bot" cx={activeBotPoint![0]} cy={activeBotPoint![1]} r="6" vectorEffect="non-scaling-stroke" />
       </>}
     </svg>
     {hoveredIndex !== null && <div
       className={`backtest-chart-tooltip ${hoveredIndex < 2 ? 'edge-left' : hoveredIndex > bot.values.length - 3 ? 'edge-right' : ''}`}
       role="tooltip"
-      style={{ left: `${(activeBotPoint[0] / width) * 100}%` }}
+      style={{ left: `${(activeBotPoint![0] / width) * 100}%` }}
     >
       <strong>{backtestPeriods[hoveredIndex]}</strong>
       <span className="bot"><i />{bot.name}<b>{bot.values[hoveredIndex] > 0 ? '+' : ''}{bot.values[hoveredIndex].toFixed(1)}%</b></span>
@@ -428,22 +498,57 @@ function BacktestComparisonChart({ bot, benchmarks }) {
   </div>;
 }
 
-function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange }) {
+interface ChartVisibleRange {
+  startDate: string;
+  endDate: string;
+  executionIds: string[];
+}
+
+type ChartIndicatorId = 'sma' | 'ema';
+type ChartDragMode = 'panning' | 'scaling';
+
+interface ChartDrawingPoint {
+  index: number;
+  price: number;
+}
+
+interface ChartDrawing {
+  start: ChartDrawingPoint;
+  end: ChartDrawingPoint;
+}
+
+interface ChartInteraction {
+  mode: ChartDragMode;
+  pointerId: number;
+  startX: number;
+  startY: number;
+  startView: number;
+  startScale: number;
+  startOffset: number;
+}
+
+interface BacktestCandlestickChartProps {
+  instrument: Instrument;
+  timeframe: Timeframe;
+  onVisibleRangeChange?: (range: ChartVisibleRange) => void;
+}
+
+function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange }: BacktestCandlestickChartProps) {
   const displayCandles = useMemo(() => candlesForTimeframe(instrument.candles, timeframe), [instrument.candles, timeframe]);
   const defaultVisibleCount = Math.min(timeframeVisibleCandleCounts[timeframe], displayCandles.length);
-  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [viewStart, setViewStart] = useState(() => Math.max(0, timeframeCandleCounts[timeframe] - timeframeVisibleCandleCounts[timeframe]));
   const [visibleCount, setVisibleCount] = useState(defaultVisibleCount);
   const [priceScale, setPriceScale] = useState(1);
   const [priceOffset, setPriceOffset] = useState(0);
-  const [dragMode, setDragMode] = useState(null);
+  const [dragMode, setDragMode] = useState<ChartDragMode | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [activeIndicators, setActiveIndicators] = useState([]);
+  const [activeIndicators, setActiveIndicators] = useState<ChartIndicatorId[]>([]);
   const [drawingMode, setDrawingMode] = useState(false);
-  const [drawingDraft, setDrawingDraft] = useState(null);
-  const [drawings, setDrawings] = useState([]);
-  const canvasRef = useRef(null);
-  const interactionRef = useRef(null);
+  const [drawingDraft, setDrawingDraft] = useState<ChartDrawingPoint | null>(null);
+  const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const interactionRef = useRef<ChartInteraction | null>(null);
   const indicatorValues = useMemo(() => ({
     sma: simpleMovingAverage(displayCandles, 20),
     ema: exponentialMovingAverage(displayCandles, 20),
@@ -480,10 +585,10 @@ function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange 
   const domainMin = domainMiddle - domainHalfRange;
   const domainMax = domainMiddle + domainHalfRange;
   const maxVolume = Math.max(...visibleCandles.map((candle) => candle.volume));
-  const priceToY = (price) => chartBottom - ((price - domainMin) / (domainMax - domainMin)) * (chartBottom - chartTop);
-  const yToPrice = (y) => domainMax - ((y - chartTop) / (chartBottom - chartTop)) * (domainMax - domainMin);
-  const xForIndex = (index) => left + candleStep * index + candleStep / 2;
-  const xForDisplayIndex = (index) => xForIndex(index - safeViewStart);
+  const priceToY = (price: number) => chartBottom - ((price - domainMin) / (domainMax - domainMin)) * (chartBottom - chartTop);
+  const yToPrice = (y: number) => domainMax - ((y - chartTop) / (chartBottom - chartTop)) * (domainMax - domainMin);
+  const xForIndex = (index: number) => left + candleStep * index + candleStep / 2;
+  const xForDisplayIndex = (index: number) => xForIndex(index - safeViewStart);
   const activeIndex = Math.min(hoveredIndex ?? visibleCandles.length - 1, visibleCandles.length - 1);
   const activeCandle = visibleCandles[activeIndex];
   const activeUp = activeCandle.close >= activeCandle.open;
@@ -495,7 +600,7 @@ function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange 
       executionIds: visibleExecutionIds,
     });
   }, [onVisibleRangeChange, visibleExecutionKey, visibleRangeEnd, visibleRangeStart]);
-  const setIndexFromPointer = (event) => {
+  const setIndexFromPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (interactionRef.current) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - bounds.left) / (bounds.width || 1)) * width;
@@ -505,14 +610,14 @@ function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange 
     }
     setHoveredIndex(Math.min(Math.max(Math.floor((x - left) / candleStep), 0), visibleCandles.length - 1));
   };
-  const getChartPoint = (event) => {
-    const bounds = event.currentTarget.getBoundingClientRect();
+  const getChartPoint = (event: ReactPointerEvent<HTMLDivElement> | ReactMouseEvent<HTMLDivElement> | WheelEvent) => {
+    const bounds = (event.currentTarget as HTMLDivElement).getBoundingClientRect();
     return {
       x: ((event.clientX - bounds.left) / (bounds.width || 1)) * width,
       y: ((event.clientY - bounds.top) / (bounds.height || 1)) * height,
     };
   };
-  const startInteraction = (event) => {
+  const startInteraction = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== undefined && event.button !== 0) return;
     const point = getChartPoint(event);
     if (drawingMode && point.x >= left && point.x < width - right && point.y >= chartTop && point.y <= chartBottom) {
@@ -545,7 +650,7 @@ function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange 
     setHoveredIndex(null);
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
-  const continueInteraction = (event) => {
+  const continueInteraction = (event: ReactPointerEvent<HTMLDivElement>) => {
     const interaction = interactionRef.current;
     if (!interaction || interaction.pointerId !== event.pointerId) {
       setIndexFromPointer(event);
@@ -563,13 +668,13 @@ function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange 
       setPriceScale(Math.min(3, Math.max(.4, nextScale)));
     }
   };
-  const stopInteraction = (event) => {
+  const stopInteraction = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!interactionRef.current) return;
     event.currentTarget.releasePointerCapture?.(interactionRef.current.pointerId);
     interactionRef.current = null;
     setDragMode(null);
   };
-  const zoomTimeline = (event) => {
+  const zoomTimeline = (event: WheelEvent) => {
     event.preventDefault();
     event.stopPropagation();
     const point = getChartPoint(event);
@@ -601,7 +706,7 @@ function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange 
   useEffect(() => {
     if (!isFullscreen) return undefined;
     const previousOverflow = document.body.style.overflow;
-    const exitOnEscape = (event) => {
+    const exitOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setIsFullscreen(false);
     };
     document.body.style.overflow = 'hidden';
@@ -612,12 +717,12 @@ function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange 
     };
   }, [isFullscreen]);
 
-  const toggleIndicator = (indicator) => {
+  const toggleIndicator = (indicator: ChartIndicatorId) => {
     setActiveIndicators((current) => current.includes(indicator)
       ? current.filter((item) => item !== indicator)
       : [...current, indicator]);
   };
-  const indicatorPoints = (indicator) => visibleCandles.map((_, index) => {
+  const indicatorPoints = (indicator: ChartIndicatorId) => visibleCandles.map((_, index) => {
     const value = indicatorValues[indicator][safeViewStart + index];
     return value === null || value === undefined ? null : `${xForIndex(index)},${priceToY(value)}`;
   }).filter(Boolean).join(' ');
@@ -767,18 +872,18 @@ export function BacktestView() {
   const [botQuery, setBotQuery] = useState('');
   const [symbolQuery, setSymbolQuery] = useState('');
   const [symbolModalOpen, setSymbolModalOpen] = useState(false);
-  const [timeframe, setTimeframe] = useState('1일');
-  const [activeBenchmarkIds, setActiveBenchmarkIds] = useState([backtestBenchmark.id]);
+  const [timeframe, setTimeframe] = useState<Timeframe>('1일');
+  const [activeBenchmarkIds, setActiveBenchmarkIds] = useState<string[]>([backtestBenchmark.id]);
   const [executionStartDate, setExecutionStartDate] = useState('');
   const [executionEndDate, setExecutionEndDate] = useState('');
   const [executionPage, setExecutionPage] = useState(1);
   const [executionPageSize, setExecutionPageSize] = useState(10);
   const [executionCalendarOpen, setExecutionCalendarOpen] = useState(false);
-  const [executionCalendarPhase, setExecutionCalendarPhase] = useState('start');
+  const [executionCalendarPhase, setExecutionCalendarPhase] = useState<'start' | 'end' | 'complete'>('start');
   const [executionCalendarMonth, setExecutionCalendarMonth] = useState('2026-07');
   const [executionLogOpen, setExecutionLogOpen] = useState(false);
-  const [chartVisibleRange, setChartVisibleRange] = useState(null);
-  const [chartExecutionFilterIds, setChartExecutionFilterIds] = useState(null);
+  const [chartVisibleRange, setChartVisibleRange] = useState<ChartVisibleRange | null>(null);
+  const [chartExecutionFilterIds, setChartExecutionFilterIds] = useState<string[] | null>(null);
   const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
   const filteredBacktestBots = useMemo(() => {
     const query = botQuery.trim().toLowerCase();
@@ -808,7 +913,7 @@ export function BacktestView() {
   const visibleExecutions = filteredExecutions.slice(executionPageOffset, executionPageOffset + executionPageSize);
   const executionRangeStart = filteredExecutions.length === 0 ? 0 : executionPageOffset + 1;
   const executionRangeEnd = Math.min(executionPageOffset + executionPageSize, filteredExecutions.length);
-  const [, lastExecutionDate] = useMemo(() => selectedInstrument.executions.reduce(
+  const [, lastExecutionDate] = useMemo(() => selectedInstrument.executions.reduce<[string | undefined, string | undefined]>(
     ([first, last], execution) => [
       !first || execution.date < first ? execution.date : first,
       !last || execution.date > last ? execution.date : last,
@@ -819,7 +924,7 @@ export function BacktestView() {
   useEffect(() => {
     if (!symbolModalOpen) return undefined;
     const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event) => {
+    const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setSymbolModalOpen(false);
     };
     document.body.style.overflow = 'hidden';
@@ -831,12 +936,12 @@ export function BacktestView() {
   }, [symbolModalOpen]);
   useEffect(() => {
     if (!executionCalendarOpen) return undefined;
-    const closeOnOutsideClick = (event) => {
-      if (!event.target?.closest?.('.backtest-log-date-filter')) {
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!(event.target as Element | null)?.closest?.('.backtest-log-date-filter')) {
         setExecutionCalendarOpen(false);
       }
     };
-    const closeOnEscape = (event) => {
+    const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setExecutionCalendarOpen(false);
     };
     document.addEventListener('mousedown', closeOnOutsideClick);
@@ -846,12 +951,12 @@ export function BacktestView() {
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [executionCalendarOpen]);
-  const openExecutionCalendar = (preferredDate) => {
+  const openExecutionCalendar = (preferredDate: string) => {
     setExecutionCalendarMonth((preferredDate || executionEndDate || executionStartDate || lastExecutionDate || '2026-07-01').slice(0, 7));
     setExecutionCalendarPhase('start');
     setExecutionCalendarOpen(true);
   };
-  const selectExecutionCalendarDate = (date) => {
+  const selectExecutionCalendarDate = (date: string) => {
     setExecutionPage(1);
     setChartExecutionFilterIds(null);
     if (executionCalendarPhase !== 'end' || !executionStartDate) {
@@ -868,7 +973,7 @@ export function BacktestView() {
     }
     setExecutionCalendarPhase('complete');
   };
-  const resetExecutionLogView = (instrument) => {
+  const resetExecutionLogView = (instrument: Instrument) => {
     const latestExecutionDate = instrument.executions.reduce(
       (latest, execution) => (!latest || execution.date > latest ? execution.date : latest),
       '',
@@ -882,7 +987,7 @@ export function BacktestView() {
     setChartVisibleRange(null);
     setChartExecutionFilterIds(null);
   };
-  const selectBot = (bot) => {
+  const selectBot = (bot: BacktestBot) => {
     const firstInstrument = botInstruments[bot.name][0];
     setSelectedBotName(bot.name);
     setSelectedSymbol(firstInstrument.symbol);
@@ -890,18 +995,18 @@ export function BacktestView() {
     setSymbolModalOpen(false);
     resetExecutionLogView(firstInstrument);
   };
-  const selectInstrument = (instrument) => {
+  const selectInstrument = (instrument: Instrument) => {
     setSelectedSymbol(instrument.symbol);
     setSymbolQuery('');
     setSymbolModalOpen(false);
     resetExecutionLogView(instrument);
   };
-  const toggleBenchmark = (benchmarkId) => {
+  const toggleBenchmark = (benchmarkId: string) => {
     setActiveBenchmarkIds((current) => current.includes(benchmarkId)
       ? current.filter((id) => id !== benchmarkId)
       : [...current, benchmarkId]);
   };
-  const columns = [{ key: 'time', label: '시각 (ET)' }, { key: 'symbol', label: '종목' }, { key: 'side', label: '행동', render: (row) => <span className={row.side === '매수' ? 'buy-text' : 'sell-text'}>{row.side}</span> }, { key: 'quantity', label: '수량' }, { key: 'price', label: '체결가' }, { key: 'value', label: '체결 금액' }, { key: 'fee', label: '수수료' }, { key: 'result', label: '결과' }];
+  const columns: DataTableColumn<Execution>[] = [{ key: 'time', label: '시각 (ET)' }, { key: 'symbol', label: '종목' }, { key: 'side', label: '행동', render: (row) => <span className={row.side === '매수' ? 'buy-text' : 'sell-text'}>{row.side}</span> }, { key: 'quantity', label: '수량' }, { key: 'price', label: '체결가' }, { key: 'value', label: '체결 금액' }, { key: 'fee', label: '수수료' }, { key: 'result', label: '결과' }];
   return <Localized><div className="page backtest-page">
     <PageHeading
       eyebrow="BOT PERFORMANCE"
@@ -1120,7 +1225,7 @@ export function BacktestView() {
                     aria-label={calendarDateLabel(date)}
                     aria-pressed={isStart || isEnd}
                     className={`${isStart ? 'range-start ' : ''}${isEnd ? 'range-end ' : ''}${isInRange ? 'in-range' : ''}`.trim()}
-                    onClick={(event) => selectExecutionCalendarDate(event.currentTarget.dataset.date)}
+                    onClick={(event) => selectExecutionCalendarDate(event.currentTarget.dataset.date as string)}
                   >{Number(date.slice(-2))}</button>;
                 })}
               </div>
@@ -1244,7 +1349,24 @@ export function BacktestView() {
   full year, and up to eight can be live at once — so there is no shared
   "season" frame: every card carries its own period and D-day.
 */
-const officialCompetitions = [
+type CompetitionTone = 'standard' | 'risk' | 'return' | 'sharpe';
+
+interface OfficialCompetition {
+  name: string;
+  bots: number;
+  ranking: string;
+  score: string;
+  duration: string;
+  dday: string;
+  tone: CompetitionTone;
+  official: boolean;
+  host: string;
+  start: string;
+  end: string;
+  joined?: number;
+}
+
+const officialCompetitions: OfficialCompetition[] = [
   { name: 'I2S Summer League', bots: 184, ranking: '표준점수제', score: '복합 점수', duration: '3개월', dday: 'D-65', tone: 'standard', official: true, host: 'I2S 운영팀', start: '07.01', end: '09.30' },
   { name: 'Risk Control Cup', bots: 96, ranking: '위험조정 점수제', score: '최대 낙폭', duration: '4주', dday: 'D-15', tone: 'risk', official: true, host: 'I2S 운영팀', start: '07.14', end: '08.11' },
   { name: 'ETF Sprint', bots: 128, ranking: '수익률 점수제', score: '수익률', duration: '2주', dday: 'D-5', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.21', end: '08.01' },
@@ -1254,14 +1376,28 @@ const officialCompetitions = [
 ];
 
 const officialBotsTotal = officialCompetitions.reduce((total, competition) => total + competition.bots, 0);
-const officialLeaderboard = [
+interface OfficialLeaderboardEntry {
+  rank: number;
+  bot: string;
+  score: string;
+  return: string;
+}
+
+const officialLeaderboard: OfficialLeaderboardEntry[] = [
   { rank: 1, bot: 'AlphaCore_7X', score: '9,842.15', return: '+28.47%' },
   { rank: 2, bot: 'QuantumFlow', score: '9,215.63', return: '+22.31%' },
   { rank: 3, bot: 'Nimbus_Algo', score: '8,743.28', return: '+19.84%' },
   { rank: 4, bot: 'VectorEdge', score: '8,201.47', return: '+15.73%' },
   { rank: 5, bot: 'AtlasQuant', score: '7,890.54', return: '+13.29%' },
 ];
-const officialChartSeries = [
+interface OfficialChartSeries {
+  name: string;
+  tone: CompetitionTone;
+  points: string;
+  value: string;
+}
+
+const officialChartSeries: OfficialChartSeries[] = [
   { name: 'I2S Summer League', tone: 'standard', points: '16,221 75,216 135,204 194,187 254,163 313,139 373,118 432,98 492,71 551,52 611,37 670,31 724,28', value: '+24.61%' },
   { name: 'Risk Control Cup', tone: 'risk', points: '16,221 75,219 135,210 194,199 254,181 313,166 373,151 432,136 492,117 551,105 611,91 670,83 724,78', value: '+16.38%' },
   { name: 'ETF Sprint', tone: 'return', points: '16,221 75,220 135,216 194,213 254,204 313,198 373,188 432,178 492,167 551,156 611,147 670,140 724,134', value: '+9.21%' },
@@ -1273,7 +1409,14 @@ const officialChartSeries = [
   `joined` is just how many bots are in right now. `myRank` marks the room the
   person's bot (Room Beta) competes in.
 */
-const makeStandings = (roomIndex, kind, myRank = null) => {
+interface Standing {
+  rank: number;
+  bot: string;
+  value: string;
+  mine: boolean;
+}
+
+const makeStandings = (roomIndex: number, kind: string, myRank: number | null = null): Standing[] => {
   const codes = ['3F9A', '8C21', '11D0', '5E77', '902B', '44AC', '19EE', 'C204', '6B31', '77D8'];
   return Array.from({ length: 5 }, (_, i) => {
     const rank = i + 1;
@@ -1290,7 +1433,21 @@ const makeStandings = (roomIndex, kind, myRank = null) => {
   User-hosted rooms. There is no participant cap (2026-07-26 product rule), so
   there is no capacity bar and no "정원" anywhere — only how many bots joined.
 */
-const competitionRooms = [
+interface CompetitionRoom {
+  name: string;
+  score: string;
+  ranking: string;
+  joined: number;
+  host: string;
+  start: string;
+  end: string;
+  myBot: string | null;
+  standings: Standing[];
+  official?: boolean;
+  bots?: number;
+}
+
+const competitionRooms: CompetitionRoom[] = [
   /* Momentum Lab's standings come from the same leaderboard the detail page
      ranks, so the two screens agree on Room Beta's #2. */
   { name: 'Momentum Lab', score: '복합 점수', ranking: '표준점수제', joined: 8, host: '이서준', start: '07.07', end: '08.04', myBot: 'Room Beta', standings: leaderboard.map((entry) => ({ rank: entry.rank, bot: entry.bot, value: entry.score.toFixed(2), mine: entry.mine })) },
@@ -1309,7 +1466,7 @@ const competitionRooms = [
 const ROOMS_PER_PAGE = 5;
 
 /* 'MM.DD' → comparable number. */
-const monthDay = (value) => {
+const monthDay = (value: string): number => {
   const [month, day] = value.split('.').map(Number);
   return month * 100 + day;
 };
@@ -1319,27 +1476,30 @@ const monthDay = (value) => {
   has a natural first direction: names A→Z, periods closing-soonest first,
   participants biggest room first.
 */
-const sortableColumns = {
+type RoomSortKey = 'name' | 'end' | 'joined';
+type RoomSortDir = 'asc' | 'desc';
+
+const sortableColumns: Record<RoomSortKey, { label: string; firstDir: RoomSortDir }> = {
   name: { label: '대회', firstDir: 'asc' },
   end: { label: '기간', firstDir: 'asc' },
   joined: { label: '참여', firstDir: 'desc' },
 };
 
-const sortRooms = (list, key, dir) => {
+const sortRooms = (list: CompetitionRoom[], key: RoomSortKey, dir: RoomSortDir): CompetitionRoom[] => {
   const sorted = [...list].sort((a, b) => key === 'name'
     ? a.name.localeCompare(b.name)
     : key === 'end' ? monthDay(a.end) - monthDay(b.end) : a.joined - b.joined);
   return dir === 'desc' ? sorted.reverse() : sorted;
 };
 
-const rankingToneByLabel = {
+const rankingToneByLabel: Record<string, CompetitionTone> = {
   표준점수제: 'standard',
   '위험조정 점수제': 'risk',
   '수익률 점수제': 'return',
   '샤프 점수제': 'sharpe',
 };
 
-function CompetitionRankingMethod({ ranking }) {
+function CompetitionRankingMethod({ ranking }: { ranking: string }) {
   // Nested components render after the Localized walk, so translate directly.
   const { t } = useLanguage();
   return <span className="competition-ranking-method">
@@ -1364,7 +1524,7 @@ function OfficialPerformanceChart() {
         {[32, 92, 152, 212].map((y) => <line className="official-chart-gridline" key={y} x1="16" x2="784" y1={y} y2={y} />)}
         {officialChartSeries.map((series) => <g key={series.name} data-chart-tone={series.tone}>
           <polyline className="official-chart-line" points={series.points} />
-          <text className="official-chart-value" x="735" y={Number(series.points.split(' ').at(-1).split(',')[1]) + 4}>{series.value}</text>
+          <text className="official-chart-value" x="735" y={Number(series.points.split(' ').at(-1)!.split(',')[1]) + 4}>{series.value}</text>
         </g>)}
       </svg>
       <div className="official-chart-axis"><span>07.01</span><span>07.29</span><span>08.26</span><span>09.23</span><span>09.30</span></div>
@@ -1392,11 +1552,11 @@ function OfficialLeaderboard() {
   leads as the tone-coloured badge and the same tone edges the card. Stats
   live on the detail page — a stat block on every card read as clutter.
 */
-function OfficialCompetitionGrid({ onSelect, carousel = false }) {
+function OfficialCompetitionGrid({ onSelect, carousel = false }: { onSelect: (competition: OfficialCompetition) => void; carousel?: boolean }) {
   const { t } = useLanguage();
   return <Localized><div className={`official-competition-list competition-card-grid${carousel ? ' is-carousel' : ''}`} role="list">{officialCompetitions.map((competition) =>
     <div role="listitem" key={competition.name}>
-      <article className="competition-discovery-card official-competition-card-tile" data-card-tone={competition.tone} role="button" tabIndex="0" aria-label={`${competition.name} 열기`} onClick={() => onSelect(competition)} onKeyDown={(event) => {
+      <article className="competition-discovery-card official-competition-card-tile" data-card-tone={competition.tone} role="button" tabIndex={0} aria-label={`${competition.name} 열기`} onClick={() => onSelect(competition)} onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
           onSelect(competition);
@@ -1420,7 +1580,16 @@ function OfficialCompetitionGrid({ onSelect, carousel = false }) {
   point: a single composite ranking would read as the product recommending one
   bot over another.
 */
-const rankingMetrics = [
+type RankingMetricId = 'score' | 'return' | 'drawdown' | 'sharpe' | 'volatility' | 'winRate' | 'trades';
+
+interface RankingMetric {
+  id: RankingMetricId;
+  label: string;
+  suffix: string;
+  better: 'high' | 'low';
+}
+
+const rankingMetrics: RankingMetric[] = [
   { id: 'score', label: '점수', suffix: '', better: 'high' },
   { id: 'return', label: '수익률', suffix: '%', better: 'high' },
   { id: 'drawdown', label: '최대 낙폭', suffix: '%', better: 'high' },
@@ -1430,7 +1599,7 @@ const rankingMetrics = [
   { id: 'trades', label: '거래 횟수', suffix: '회', better: 'high' },
 ];
 
-const formatMetric = (entry, metric) => {
+const formatMetric = (entry: LeaderboardEntry, metric: RankingMetric): string => {
   const value = entry[metric.id];
   if (metric.id === 'return' || metric.id === 'winRate') return `${value > 0 ? '+' : ''}${value.toFixed(metric.id === 'return' ? 2 : 1)}${metric.suffix}`;
   if (metric.id === 'drawdown') return `${value.toFixed(2)}${metric.suffix}`;
@@ -1439,7 +1608,13 @@ const formatMetric = (entry, metric) => {
   return value.toFixed(2);
 };
 
-const competitionConditions = [
+interface CompetitionCondition {
+  label: string;
+  value: string;
+  detail: string;
+}
+
+const competitionConditions: CompetitionCondition[] = [
   { label: '시작 자본', value: '$10,000', detail: '모든 참가 봇 동일' },
   { label: '종목 범위', value: '미국 상장 주식 · ETF', detail: '레버리지 상품 제외' },
   { label: '비교 기준', value: 'S&P 500', detail: '같은 기간 지수' },
@@ -1450,19 +1625,19 @@ export function RoomsView() {
   const [query, setQuery] = useState('');
   const [scoreFilter, setScoreFilter] = useState('all');
   const [sizeFilter, setSizeFilter] = useState('all');
-  const [roomSort, setRoomSort] = useState({ key: 'joined', dir: 'desc' });
+  const [roomSort, setRoomSort] = useState<{ key: RoomSortKey; dir: RoomSortDir }>({ key: 'joined', dir: 'desc' });
   const [page, setPage] = useState(1);
-  const [selectedRoom, setSelectedRoom] = useState(null);
+  const [selectedRoom, setSelectedRoom] = useState<OfficialCompetition | CompetitionRoom | null>(null);
   const [officialSeasonOpen, setOfficialSeasonOpen] = useState(false);
-  const [focusedRoom, setFocusedRoom] = useState(competitionRooms[0]);
-  const [sortMetric, setSortMetric] = useState('score');
+  const [focusedRoom, setFocusedRoom] = useState<CompetitionRoom | null>(competitionRooms[0]);
+  const [sortMetric, setSortMetric] = useState<RankingMetricId>('score');
   const visibleRooms = useMemo(() => sortRooms(competitionRooms.filter((room) => {
     const matchesQuery = room.name.toLowerCase().includes(query.trim().toLowerCase());
     const matchesScore = scoreFilter === 'all' || room.score === scoreFilter;
     const matchesSize = sizeFilter === 'all' || (sizeFilter === 'small' ? room.joined <= 10 : room.joined > 10);
     return matchesQuery && matchesScore && matchesSize;
   }), roomSort.key, roomSort.dir), [query, scoreFilter, sizeFilter, roomSort]);
-  const toggleRoomSort = (key) => setRoomSort((current) => ({
+  const toggleRoomSort = (key: RoomSortKey) => setRoomSort((current) => ({
     key,
     dir: current.key === key ? (current.dir === 'asc' ? 'desc' : 'asc') : sortableColumns[key].firstDir,
   }));
@@ -1509,7 +1684,7 @@ export function RoomsView() {
       <div className="competition-ranking-tools">
         <label>
           <span>정렬 지표</span>
-          <select aria-label="정렬 지표 선택" value={sortMetric} onChange={(event) => setSortMetric(event.target.value)}>
+          <select aria-label="정렬 지표 선택" value={sortMetric} onChange={(event) => setSortMetric(event.target.value as RankingMetricId)}>
             {rankingMetrics.map((metric) => <option key={metric.id} value={metric.id}>{metric.label}</option>)}
           </select>
         </label>

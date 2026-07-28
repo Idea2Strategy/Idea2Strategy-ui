@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   ArrowRight, BarChart3, Bell, Bot, ChevronRight, CirclePlus, Clock3,
   Command, LayoutGrid, MoreHorizontal, Play, Search, Settings2, Sparkles,
@@ -6,7 +7,33 @@ import {
 } from 'lucide-react';
 import i2sLogo from '../assets/i2s-logo.svg';
 
-const concepts = [
+type ConceptId = 'atlas' | 'flow' | 'signal' | 'ledger' | 'orbit' | 'tactile';
+type ConceptPage = 'home' | 'strategy' | 'bots' | 'backtest' | 'competition' | 'create';
+type SetConceptPage = (page: ConceptPage) => void;
+
+interface Concept {
+  id: ConceptId;
+  key: string;
+  name: string;
+  note: string;
+}
+
+interface PaletteOption {
+  id: string;
+  label: string;
+  color: string;
+}
+
+interface StrategyEntry {
+  name: string;
+  assets: string;
+  state: string;
+  return: string;
+  updated: string;
+  tone: string;
+}
+
+const concepts: Concept[] = [
   { id: 'atlas', key: 'A', name: 'Atlas Editorial', note: '밝고 선명한 편집형' },
   { id: 'flow', key: 'B', name: 'Flow Canvas', note: '부드럽고 여유로운 캔버스형' },
   { id: 'signal', key: 'C', name: 'Signal Studio', note: '집중도 높은 분석형' },
@@ -15,7 +42,7 @@ const concepts = [
   { id: 'tactile', key: 'F', name: 'Core Interface', note: '고대비 클린 인터페이스' },
 ];
 
-const palettes = {
+const palettes: Record<ConceptId, PaletteOption[]> = {
   atlas: [
     { id: 'mint', label: 'Mint', color: '#49b99a' },
     { id: 'ocean', label: 'Ocean', color: '#448bc1' },
@@ -48,33 +75,57 @@ const palettes = {
   ],
 };
 
-const strategies = [
+const strategies: StrategyEntry[] = [
   { name: '나스닥 추세 추종', assets: 'QQQ · TQQQ', state: '준비 완료', return: '+18.4%', updated: '12분 전', tone: 'lime' },
   { name: '배당 성장 리밸런싱', assets: 'SCHD · VIG', state: '준비 완료', return: '+9.7%', updated: '어제', tone: 'blue' },
   { name: '변동성 돌파 실험', assets: 'SPY · VIXY', state: '미완성', return: '—', updated: '3일 전', tone: 'violet' },
   { name: '반도체 모멘텀', assets: 'NVDA · SOXX', state: '준비 완료', return: '+22.1%', updated: '5일 전', tone: 'orange' },
 ];
 
-const activity = [
+const activity: [string, string, string][] = [
   ['나스닥 추세 추종', '백테스트 완료', '+18.4%'],
   ['S&P 방어형', '봇 실행 중', '정상'],
   ['Summer Alpha', 'Competition', '12위'],
 ];
 
-function Logo({ compact = false }) {
+function Logo({ compact = false }: { compact?: boolean }) {
   return <div className="dc-logo"><img src={i2sLogo} alt="Idea2Strategy" />{!compact && <strong>idea<span>2</span>strategy</strong>}</div>;
 }
 
-function MiniChart({ type = 'up' }) {
+function MiniChart({ type = 'up' }: { type?: 'up' | 'down' }) {
   const points = type === 'up' ? '0,34 22,29 44,31 65,18 86,22 108,7 132,12 158,1' : '0,12 25,18 49,9 75,23 100,19 126,29 158,22';
   return <svg className="dc-sparkline" viewBox="0 0 160 38" aria-hidden="true"><polyline points={points} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
-function StrategySearch({ value, onChange, compact = false }) {
+interface StrategySearchProps {
+  value: string;
+  onChange: (value: string) => void;
+  compact?: boolean;
+}
+
+function StrategySearch({ value, onChange, compact = false }: StrategySearchProps) {
   return <label className={`dc-search ${compact ? 'compact' : ''}`}><Search size={16} /><input type="search" aria-label="전략 검색" value={value} onChange={(event) => onChange(event.target.value)} placeholder="전략 이름이나 종목 검색" /><kbd>⌘ K</kbd></label>;
 }
 
-function AtlasNav({ page, setPage }) {
+interface ConceptNavProps {
+  page: ConceptPage;
+  setPage: SetConceptPage;
+}
+
+interface ConceptHomeProps {
+  setPage: SetConceptPage;
+}
+
+interface ConceptQueryProps {
+  query: string;
+  setQuery: (query: string) => void;
+}
+
+interface ConceptStrategyProps extends ConceptQueryProps {
+  setPage: SetConceptPage;
+}
+
+function AtlasNav({ page, setPage }: ConceptNavProps) {
   return <aside className="atlas-nav">
     <Logo compact />
     <nav aria-label="Atlas 메뉴">
@@ -86,7 +137,7 @@ function AtlasNav({ page, setPage }) {
   </aside>;
 }
 
-function AtlasHome({ setPage }) {
+function AtlasHome({ setPage }: ConceptHomeProps) {
   return <div className="atlas-page">
     <header className="atlas-header"><div><span className="eyebrow">THURSDAY · JUL 23</span><h1>오늘의 투자 흐름</h1><p>필요한 변화만 짧게 확인하세요.</p></div><div className="dc-header-actions"><button><Search /></button><button className="has-dot"><Bell /></button><button className="primary" onClick={() => setPage('strategy')}><CirclePlus /> 새 전략</button></div></header>
     <section className="atlas-hero">
@@ -102,7 +153,7 @@ function AtlasHome({ setPage }) {
   </div>;
 }
 
-function AtlasStrategy({ query, setQuery }) {
+function AtlasStrategy({ query, setQuery }: ConceptQueryProps) {
   return <div className="atlas-page atlas-strategy">
     <header className="atlas-header"><div><span className="eyebrow">STRATEGY LIBRARY</span><h1>나의 전략</h1><p>만든 전략을 찾고, 상태를 확인하고, 이어서 편집하세요.</p></div><button className="primary"><CirclePlus /> 새 전략</button></header>
     <div className="atlas-toolbar"><StrategySearch value={query} onChange={setQuery} /><div><button className="active">전체 4</button><button>준비 완료 3</button><button>미완성 1</button><button aria-label="필터"><Settings2 /></button></div></div>
@@ -110,11 +161,11 @@ function AtlasStrategy({ query, setQuery }) {
   </div>;
 }
 
-function FlowNav({ page, setPage }) {
+function FlowNav({ page, setPage }: ConceptNavProps) {
   return <header className="flow-nav"><Logo /><nav aria-label="Flow 메뉴"><button className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')} aria-label="메인 페이지 보기">홈</button><button className={['strategy', 'create'].includes(page) ? 'active' : ''} onClick={() => setPage('strategy')} aria-label="전략 페이지 보기">전략</button><button className={page === 'bots' ? 'active' : ''} onClick={() => setPage('bots')}>봇</button><button className={page === 'backtest' ? 'active' : ''} onClick={() => setPage('backtest')}>백테스트</button><button className={page === 'competition' ? 'active' : ''} onClick={() => setPage('competition')}>Competition</button></nav><div><button><Search /></button><button><Bell /></button><button className="flow-avatar">김</button></div></header>;
 }
 
-function FlowHome({ setPage }) {
+function FlowHome({ setPage }: ConceptHomeProps) {
   return <div className="flow-page">
     <section className="flow-welcome"><span>좋은 아침이에요, 김전략님</span><h1>시장은 움직이고,<br />전략은 차분하게.</h1><p>3개의 봇이 계획대로 움직이고 있어요.</p><button onClick={() => setPage('strategy')}>전략 둘러보기 <ArrowRight /></button></section>
     <section className="flow-bento">
@@ -126,18 +177,18 @@ function FlowHome({ setPage }) {
   </div>;
 }
 
-function FlowStrategy({ query, setQuery, setPage }) {
+function FlowStrategy({ query, setQuery, setPage }: ConceptStrategyProps) {
   return <div className="flow-page flow-strategy">
     <section className="flow-strategy-heading"><span>전략 캔버스</span><h1>아이디어를<br />다시 이어가세요.</h1><div><StrategySearch value={query} onChange={setQuery} compact /><button className="flow-create" onClick={() => setPage('create')}><CirclePlus /> 새 전략 만들기</button></div></section>
     <section className="flow-gallery"><StrategyList query={query} variant="flow" /></section>
   </div>;
 }
 
-function SignalNav({ page, setPage }) {
+function SignalNav({ page, setPage }: ConceptNavProps) {
   return <header className="signal-nav"><Logo /><nav aria-label="Signal 메뉴"><button className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')} aria-label="메인 페이지 보기">OVERVIEW</button><button className={['strategy', 'create'].includes(page) ? 'active' : ''} onClick={() => setPage('strategy')} aria-label="전략 페이지 보기">STRATEGIES</button><button className={page === 'bots' ? 'active' : ''} onClick={() => setPage('bots')}>BOTS</button><button className={page === 'backtest' ? 'active' : ''} onClick={() => setPage('backtest')}>BACKTEST</button><button className={page === 'competition' ? 'active' : ''} onClick={() => setPage('competition')}>COMPETITION</button></nav><div><button><Command /></button><button className="signal-profile"><i /> KIM</button></div></header>;
 }
 
-function SignalHome({ setPage }) {
+function SignalHome({ setPage }: ConceptHomeProps) {
   return <div className="signal-page">
     <header className="signal-title"><div><span>OVERVIEW / 07.23</span><h1>OPERATING<br />CLEARLY.</h1></div><p>전략 4 · 활성 봇 3<br /><b>모든 시스템 정상</b></p></header>
     <section className="signal-grid">
@@ -149,7 +200,7 @@ function SignalHome({ setPage }) {
   </div>;
 }
 
-function SignalStrategy({ query, setQuery, setPage }) {
+function SignalStrategy({ query, setQuery, setPage }: ConceptStrategyProps) {
   return <div className="signal-page signal-strategy">
     <header className="signal-strategy-header"><div><span>STRATEGY DESK</span><h1>04 / LIBRARY</h1></div><div><StrategySearch value={query} onChange={setQuery} compact /><button onClick={() => setPage('create')}><CirclePlus /> NEW STRATEGY</button></div></header>
     <div className="signal-summary"><span><small>READY</small><strong>03</strong></span><span><small>INCOMPLETE</small><strong>01</strong></span><span><small>AVG. RETURN</small><strong>+16.7%</strong></span><span><small>LAST UPDATED</small><strong>12 MIN</strong></span></div>
@@ -157,11 +208,11 @@ function SignalStrategy({ query, setQuery, setPage }) {
   </div>;
 }
 
-function LedgerNav({ page, setPage }) {
+function LedgerNav({ page, setPage }: ConceptNavProps) {
   return <aside className="ledger-nav"><Logo /><div className="ledger-index">I2S / 05</div><nav aria-label="Ledger 메뉴"><button className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')} aria-label="메인 페이지 보기"><span>01</span>Overview</button><button className={page === 'strategy' ? 'active' : ''} onClick={() => setPage('strategy')} aria-label="전략 페이지 보기"><span>02</span>Strategies</button><button><span>03</span>Bots</button><button><span>04</span>Backtest</button><button><span>05</span>Competition</button></nav><footer><span>SEOUL</span><strong>2026.07.23</strong></footer></aside>;
 }
 
-function LedgerHome({ setPage }) {
+function LedgerHome({ setPage }: ConceptHomeProps) {
   return <div className="ledger-page">
     <header className="ledger-header"><span>DAILY PORTFOLIO / 09:42 KST</span><div><button><Search /></button><button><Bell /></button><button className="ledger-primary" onClick={() => setPage('strategy')}>새 전략 <ArrowRight /></button></div></header>
     <section className="ledger-intro"><div><span>ISSUE NO. 023</span><h1>숫자는 차분하게,<br />결정은 선명하게.</h1></div><p>오늘 확인할 변화는 <b>세 가지</b>입니다.<br />나머지는 계획대로 움직이고 있습니다.</p></section>
@@ -174,7 +225,7 @@ function LedgerHome({ setPage }) {
   </div>;
 }
 
-function LedgerStrategy({ query, setQuery }) {
+function LedgerStrategy({ query, setQuery }: ConceptQueryProps) {
   return <div className="ledger-page ledger-strategy">
     <header className="ledger-header"><span>STRATEGY REGISTER</span><button className="ledger-primary"><CirclePlus /> 새 전략</button></header>
     <section className="ledger-strategy-title"><div><span>04 ENTRIES / PRIVATE</span><h1>전략 장부</h1></div><StrategySearch value={query} onChange={setQuery} compact /></section>
@@ -182,11 +233,11 @@ function LedgerStrategy({ query, setQuery }) {
   </div>;
 }
 
-function OrbitNav({ page, setPage }) {
+function OrbitNav({ page, setPage }: ConceptNavProps) {
   return <header className="orbit-nav"><Logo /><nav aria-label="Orbit 메뉴"><button className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')} aria-label="메인 페이지 보기">Home</button><button className={['strategy', 'create'].includes(page) ? 'active' : ''} onClick={() => setPage('strategy')} aria-label="전략 페이지 보기">Strategy</button><button className={page === 'bots' ? 'active' : ''} onClick={() => setPage('bots')}>Bots</button><button className={page === 'backtest' ? 'active' : ''} onClick={() => setPage('backtest')}>Backtest</button><button className={page === 'competition' ? 'active' : ''} onClick={() => setPage('competition')}>Competition</button></nav><div><button><Search /></button><button><Bell /></button><button className="orbit-avatar">K</button></div></header>;
 }
 
-function OrbitHome({ setPage }) {
+function OrbitHome({ setPage }: ConceptHomeProps) {
   return <div className="orbit-page">
     <section className="orbit-hero"><div className="orbit-copy"><span>SYSTEM STATUS · ALL CLEAR</span><h1>전략이 궤도에<br />있습니다.</h1><p>중요한 신호만 가까이, 나머지는 조용히 운용합니다.</p><button onClick={() => setPage('strategy')}>전략 오비트 열기 <ArrowRight /></button></div><div className="orbit-visual"><div className="orbit-ring ring-one"><i /></div><div className="orbit-ring ring-two"><i /></div><div className="orbit-core"><Logo compact /><strong>+2.84%</strong><span>THIS MONTH</span></div><b className="orbit-tag tag-one">QQQ</b><b className="orbit-tag tag-two">SPY</b><b className="orbit-tag tag-three">NVDA</b></div></section>
     <section className="orbit-cards">
@@ -197,15 +248,15 @@ function OrbitHome({ setPage }) {
   </div>;
 }
 
-function OrbitStrategy({ query, setQuery, setPage }) {
+function OrbitStrategy({ query, setQuery, setPage }: ConceptStrategyProps) {
   return <div className="orbit-page orbit-strategy">
     <header className="orbit-strategy-title"><div><span>PRIVATE WORKSPACE · 04</span><h1>전략 오비트</h1></div><div><StrategySearch value={query} onChange={setQuery} compact /><button onClick={() => setPage('create')}><CirclePlus /> 새 전략</button></div></header>
     <StrategyList query={query} variant="orbit" />
   </div>;
 }
 
-function ConceptBotsPage({ family }) {
-  const [group, setGroup] = useState('personal');
+function ConceptBotsPage({ family }: { family: ConceptId }) {
+  const [group, setGroup] = useState<'personal' | 'competition'>('personal');
   return <div className={`extended-page ${family}-page`}>
     <header className="extended-heading"><div><span>BOT OPERATIONS · 03 ACTIVE</span><h1>봇 운영</h1><p>개인 운용과 대회 참여 봇을 한곳에서 확인합니다.</p></div><button><CirclePlus /> 새 봇 연결</button></header>
     <div className="extended-segment" role="group" aria-label="봇 종류"><button className={group === 'personal' ? 'active' : ''} onClick={() => setGroup('personal')}>개인용</button><button className={group === 'competition' ? 'active' : ''} onClick={() => setGroup('competition')}>대회 참여</button></div>
@@ -215,7 +266,7 @@ function ConceptBotsPage({ family }) {
   </div>;
 }
 
-function ConceptBacktestPage({ family }) {
+function ConceptBacktestPage({ family }: { family: ConceptId }) {
   const [period, setPeriod] = useState('1Y');
   return <div className={`extended-page ${family}-page`}>
     <header className="extended-heading"><div><span>ANALYSIS · S&P 500 BENCHMARK</span><h1>백테스트 분석</h1><p>위기 구간과 주문 로그를 함께 보며 전략을 검증합니다.</p></div><button>결과 내보내기 <ArrowRight /></button></header>
@@ -227,9 +278,9 @@ function ConceptBacktestPage({ family }) {
   </div>;
 }
 
-function ConceptCompetitionPage({ family }) {
+function ConceptCompetitionPage({ family }: { family: ConceptId }) {
   const [query, setQuery] = useState('');
-  const rooms = [['Summer Alpha', '수익률', '148명', 'D-8'], ['Risk Control League', '샤프 지수', '82명', 'D-14'], ['ETF Rotation Cup', 'MDD 보정', '64명', 'D-21']];
+  const rooms: [string, string, string, string][] = [['Summer Alpha', '수익률', '148명', 'D-8'], ['Risk Control League', '샤프 지수', '82명', 'D-14'], ['ETF Rotation Cup', 'MDD 보정', '64명', 'D-21']];
   const filtered = rooms.filter((room) => room[0].toLowerCase().includes(query.toLowerCase()));
   return <div className={`extended-page ${family}-page`}>
     <header className="extended-heading"><div><span>PUBLIC ARENA · 03 OPEN</span><h1>Competition</h1><p>공식 대회와 참여 조건을 비교하고 바로 입장합니다.</p></div><button><Trophy /> 내 대회 보기</button></header>
@@ -239,11 +290,11 @@ function ConceptCompetitionPage({ family }) {
   </div>;
 }
 
-function ConceptCreatePage({ family, setPage }) {
-  const [mode, setMode] = useState('basic');
+function ConceptCreatePage({ family, setPage }: { family: ConceptId; setPage: SetConceptPage }) {
+  const [mode, setMode] = useState<'basic' | 'pro'>('basic');
   const [sell, setSell] = useState(false);
-  const [assets, setAssets] = useState(['QQQ']);
-  const toggleAsset = (asset) => setAssets((current) => current.includes(asset) ? current.filter((item) => item !== asset) : [...current, asset]);
+  const [assets, setAssets] = useState<string[]>(['QQQ']);
+  const toggleAsset = (asset: string) => setAssets((current) => current.includes(asset) ? current.filter((item) => item !== asset) : [...current, asset]);
   return <div className={`extended-page create-page ${family}-page`}>
     <header className="extended-heading"><div><span>NEW STRATEGY · DRAFT</span><h1>새 전략 만들기</h1><p>종목을 먼저 고르고 각 섹션에 매수·매도 조건을 연결합니다.</p></div><button onClick={() => setPage('strategy')}>나가기</button></header>
     <div className="create-mode" role="group" aria-label="전략 생성 방식"><button className={mode === 'basic' ? 'active' : ''} onClick={() => setMode('basic')}><strong>Basic</strong><span>질문에 답하며 만들기</span></button><button className={mode === 'pro' ? 'active' : ''} onClick={() => setMode('pro')}><strong>Pro</strong><span>직접 조건 구성하기</span></button><button><strong>가져오기</strong><span>기존 전략에서 시작</span></button></div>
@@ -255,15 +306,15 @@ function ConceptCreatePage({ family, setPage }) {
   </div>;
 }
 
-function TactileNav({ page, setPage }) {
+function TactileNav({ page, setPage }: ConceptNavProps) {
   return <header className="core-nav"><div className="core-brand"><Logo compact /><span>Core Interface</span></div><nav aria-label="Core Interface 메뉴"><button className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')}><LayoutGrid /> Home</button><button className={page === 'strategy' ? 'active' : ''} onClick={() => setPage('strategy')}><Target /> Strategy</button></nav><div><button><Bell /></button><button><Settings2 /></button><span>K</span></div></header>;
 }
 
-function CoreCard({ title, meta, children }) {
+function CoreCard({ title, meta, children }: { title: string; meta: string; children?: ReactNode }) {
   return <section className="core-section"><header><h2>{title}</h2><span>{meta}</span></header><div className="core-card">{children}</div></section>;
 }
 
-function TactileHome({ setPage }) {
+function TactileHome({ setPage }: ConceptHomeProps) {
   return <div className="core-page">
     <TactileNav page="home" setPage={setPage} />
     <section className="core-intro"><span><i /> REAL-TIME · ENCRYPTED</span><h1>오늘의 전략 신호를<br />한 화면에.</h1><p>운용 흐름, 확인할 주문, 활성 전략을 하나의 조용한 인터페이스로 모았습니다.</p></section>
@@ -275,7 +326,7 @@ function TactileHome({ setPage }) {
   </div>;
 }
 
-function TactileStrategy({ query, setQuery, setPage }) {
+function TactileStrategy({ query, setQuery, setPage }: ConceptStrategyProps) {
   return <div className="core-page">
     <TactileNav page="strategy" setPage={setPage} />
     <section className="core-intro core-strategy-intro"><span><i /> STRATEGY INTERFACE</span><h1>준비된 전략과<br />다음 판단.</h1><div><StrategySearch value={query} onChange={setQuery} compact /><button onClick={() => setPage('home')}>Overview <ArrowRight /></button></div></section>
@@ -284,7 +335,7 @@ function TactileStrategy({ query, setQuery, setPage }) {
   </div>;
 }
 
-function StrategyList({ query, variant }) {
+function StrategyList({ query, variant }: { query: string; variant: ConceptId }) {
   const filtered = useMemo(() => strategies.filter((item) => `${item.name} ${item.assets}`.toLowerCase().includes(query.toLowerCase())), [query]);
   if (!filtered.length) return <div className="dc-empty"><Search /><strong>찾는 전략이 없어요.</strong><span>다른 이름이나 종목으로 검색해 보세요.</span></div>;
 
@@ -296,7 +347,12 @@ function StrategyList({ query, variant }) {
   return <section className="atlas-list"><header><span>전략</span><span>상태</span><span>백테스트</span><span>최근 수정</span><i /></header>{filtered.map((item) => <button className="atlas-row" key={item.name}><span className="atlas-name-cell"><i className={`strategy-dot tone-${item.tone}`} /><span><strong>{item.name}</strong><small>{item.assets}</small></span></span><span><b className={item.state === '미완성' ? 'warn' : ''}>{item.state}</b></span><strong>{item.return}</strong><span><Clock3 /> {item.updated}</span><ArrowRight /></button>)}</section>;
 }
 
-function ExtendedRoute({ family, page, query, setQuery, setPage }) {
+interface ExtendedRouteProps extends ConceptStrategyProps {
+  family: ConceptId;
+  page: ConceptPage;
+}
+
+function ExtendedRoute({ family, page, query, setQuery, setPage }: ExtendedRouteProps) {
   if (page === 'bots') return <ConceptBotsPage family={family} />;
   if (page === 'backtest') return <ConceptBacktestPage family={family} />;
   if (page === 'competition') return <ConceptCompetitionPage family={family} />;
@@ -307,10 +363,10 @@ function ExtendedRoute({ family, page, query, setQuery, setPage }) {
 }
 
 export function DesignConceptLab() {
-  const [concept, setConcept] = useState('atlas');
-  const [page, setPage] = useState('home');
+  const [concept, setConcept] = useState<ConceptId>('atlas');
+  const [page, setPage] = useState<ConceptPage>('home');
   const [query, setQuery] = useState('');
-  const [paletteByConcept, setPaletteByConcept] = useState({
+  const [paletteByConcept, setPaletteByConcept] = useState<Record<ConceptId, string>>({
     atlas: 'mint',
     flow: 'sage',
     signal: 'dark-lime',
@@ -319,10 +375,10 @@ export function DesignConceptLab() {
     tactile: 'core-cyan',
   });
 
-  const current = concepts.find((item) => item.id === concept);
+  const current = concepts.find((item) => item.id === concept) as Concept;
   const activePalette = paletteByConcept[concept];
-  const changePage = (next) => { setPage(next); setQuery(''); };
-  const changePalette = (palette) => setPaletteByConcept((currentPalettes) => ({ ...currentPalettes, [concept]: palette }));
+  const changePage = (next: ConceptPage) => { setPage(next); setQuery(''); };
+  const changePalette = (palette: string) => setPaletteByConcept((currentPalettes) => ({ ...currentPalettes, [concept]: palette }));
 
   return <main className="design-lab">
     <header className="design-lab-bar">

@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from 'react';
 import type { FocusEvent, KeyboardEvent, MouseEvent } from 'react';
 import { Bot } from 'lucide-react';
-import { useLanguage } from '../lib/i18n.jsx';
+import { useLanguage } from '../lib/i18n';
 
 export interface LaunchMark {
   name: string;

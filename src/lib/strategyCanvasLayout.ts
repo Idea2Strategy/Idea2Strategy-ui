@@ -4,17 +4,45 @@ export const BASIC_SECTION_PADDING = 24;
 export const BASIC_STRATEGY_CARD_WIDTH = 260;
 export const BASIC_STRATEGY_CARD_FALLBACK_HEIGHT = 286;
 
-export const getDefaultBasicCardPosition = (index) => ({
+export interface CanvasPoint {
+  x: number;
+  y: number;
+}
+
+export interface CanvasSize {
+  width: number;
+  height: number;
+}
+
+export interface CardMoveGesture {
+  originX: number;
+  originY: number;
+  startX: number;
+  startY: number;
+}
+
+export const getDefaultBasicCardPosition = (index: number): CanvasPoint => ({
   x: BASIC_SECTION_PADDING + (index % 3) * (BASIC_STRATEGY_CARD_WIDTH + 26),
   y: 112 + Math.floor(index / 3) * (BASIC_STRATEGY_CARD_FALLBACK_HEIGHT + 24),
 });
 
-export const getMovedBasicCardPosition = (move, clientX, clientY, zoom) => ({
+export const getMovedBasicCardPosition = (
+  move: CardMoveGesture,
+  clientX: number,
+  clientY: number,
+  zoom: number,
+): CanvasPoint => ({
   x: Math.max(0, move.originX + (clientX - move.startX) / zoom),
   y: Math.max(BASIC_SECTION_HEADER_HEIGHT, move.originY + (clientY - move.startY) / zoom),
 });
 
-export const getStrategyCanvasWheelZoom = (zoom, pan, deltaY, cursorX, cursorY) => {
+export const getStrategyCanvasWheelZoom = (
+  zoom: number,
+  pan: CanvasPoint,
+  deltaY: number,
+  cursorX: number,
+  cursorY: number,
+): { zoom: number; pan: CanvasPoint } | null => {
   const direction = deltaY < 0 ? 1 : -1;
   const nextZoom = Math.max(.5, Math.min(2, Number((zoom + direction * .1).toFixed(1))));
   if (nextZoom === zoom) return null;
@@ -30,7 +58,11 @@ export const getStrategyCanvasWheelZoom = (zoom, pan, deltaY, cursorX, cursorY) 
   };
 };
 
-export const getBasicSectionLayout = (cardIds, getPosition, cardSizes) => {
+export const getBasicSectionLayout = (
+  cardIds: string[],
+  getPosition: (cardId: string, index: number) => CanvasPoint,
+  cardSizes: Record<string, CanvasSize | undefined>,
+): CanvasSize => {
   const bounds = cardIds.reduce((current, cardId, index) => {
     const position = getPosition(cardId, index);
     const size = cardSizes[cardId] ?? {

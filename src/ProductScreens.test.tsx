@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
-import { RoomsView } from './views/OperationsViews.jsx';
+import { RoomsView } from './views/OperationsViews';
 import { BotsView } from './views/BotsView';
-import { AccountView, HelpView, NotificationsView } from './views/SupportViews.jsx';
+import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
 
 describe('Bot operations', () => {
   test('keeps the bot launch action without a manual refresh button', () => {
@@ -333,7 +333,7 @@ describe('Bot operations', () => {
 
     const canvas = screen.getByTestId('snapshot-strategy-canvas');
     const world = canvas.querySelector('.snapshot-layout-world');
-    canvas.getBoundingClientRect = () => ({ left: 0, top: 0 });
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0 } as DOMRect);
 
     const wheel = new WheelEvent('wheel', {
       bubbles: true,

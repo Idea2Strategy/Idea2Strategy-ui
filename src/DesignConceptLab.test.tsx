@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test } from 'vitest';
-import { DesignConceptLab } from './views/DesignConceptLab.jsx';
+import { DesignConceptLab } from './views/DesignConceptLab';
 
 describe('DesignConceptLab', () => {
   test('compares three concepts across main and strategy pages', async () => {

@@ -1,9 +1,18 @@
 import { Children, cloneElement, createContext, isValidElement, useContext, useEffect, useMemo, useState } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
-const LanguageContext = createContext(null);
+export type Language = 'ko' | 'en';
+
+export interface LanguageContextValue {
+  language: Language;
+  setLanguage: (language: Language) => void;
+  t: (text: string) => string;
+}
+
+const LanguageContext = createContext<LanguageContextValue | null>(null);
 const STORAGE_KEY = 'i2s-language';
 
-const english = {
+const english: Record<string, string> = {
   'Signal 주요 메뉴': 'Signal primary navigation',
   'Idea2Strategy 홈': 'Idea2Strategy home',
   '반갑습니다, 김전략님': 'Welcome back, KIM',
@@ -36,10 +45,8 @@ const english = {
   '현재 자산': 'Current equity',
   '선택 봇 수': 'Selected bots',
   '시작일 보정': 'Start-date adjustment',
-  '적용': 'Applied',
   '운용 시작': 'operation started',
   '이전부터 운용': 'running before this period',
-  '정보': 'information',
   '상세': 'details',
   '운용 시작 시점': 'Operation start',
   '선택 기간 이전에 시작': 'Started before the selected period',
@@ -959,12 +966,12 @@ const english = {
 
 const entries = Object.entries(english).sort(([a], [b]) => b.length - a.length);
 
-function translateString(value, language) {
+function translateString(value: string, language: Language): string {
   if (language === 'ko' || typeof value !== 'string') return value;
   return entries.reduce((result, [source, target]) => result.replaceAll(source, target), value);
 }
 
-function localizeValue(value, language, propName = '') {
+function localizeValue(value: unknown, language: Language, propName = ''): unknown {
   if (typeof value === 'string') {
     if (['className', 'id', 'href', 'src', 'value', 'name', 'type', 'role'].includes(propName)) return value;
     return translateString(value, language);
@@ -987,18 +994,18 @@ function localizeValue(value, language, propName = '') {
     });
   }
   if (isValidElement(value)) {
-    const props = {};
-    for (const [key, item] of Object.entries(value.props)) props[key] = localizeValue(item, language, key);
-    return cloneElement(value, props);
+    const props: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value.props as Record<string, unknown>)) props[key] = localizeValue(item, language, key);
+    return cloneElement(value as ReactElement<Record<string, unknown>>, props);
   }
   if (value && typeof value === 'object' && value.constructor === Object) {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, localizeValue(item, language, key)]));
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, localizeValue(item, language, key)]));
   }
   return value;
 }
 
-export function LanguageProvider({ children }) {
-  const [language, setLanguage] = useState(() => {
+export function LanguageProvider({ children }: { children?: ReactNode }) {
+  const [language, setLanguage] = useState<Language>(() => {
     if (typeof window === 'undefined') return 'ko';
     return window.localStorage.getItem(STORAGE_KEY) === 'en' ? 'en' : 'ko';
   });
@@ -1006,20 +1013,20 @@ export function LanguageProvider({ children }) {
     window.localStorage.setItem(STORAGE_KEY, language);
     document.documentElement.lang = language;
   }, [language]);
-  const value = useMemo(() => ({
+  const value = useMemo<LanguageContextValue>(() => ({
     language,
     setLanguage,
-    t: (text) => translateString(text, language),
+    t: (text: string) => translateString(text, language),
   }), [language]);
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 }
 
-export function useLanguage() {
+export function useLanguage(): LanguageContextValue {
   const context = useContext(LanguageContext);
-  return context ?? { language: 'ko', setLanguage: () => {}, t: (text) => text };
+  return context ?? { language: 'ko', setLanguage: () => {}, t: (text: string) => text };
 }
 
-export function Localized({ children }) {
+export function Localized({ children }: { children?: ReactNode }) {
   const { language } = useLanguage();
-  return Children.map(children, (child) => localizeValue(child, language));
+  return Children.map(children, (child) => localizeValue(child, language)) as ReactNode;
 }
