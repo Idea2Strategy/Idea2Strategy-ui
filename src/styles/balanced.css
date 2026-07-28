@@ -2308,9 +2308,9 @@
   stroke-linejoin: round;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.bot-emphasis {
-  stroke: var(--surface);
-  stroke-width: 6;
-  opacity: .88;
+  stroke: color-mix(in srgb, var(--text) 56%, var(--surface));
+  stroke-width: 3.75;
+  opacity: .9;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.bot {
   stroke: var(--accent);

@@ -341,7 +341,7 @@ describe('BacktestView chart interactions', () => {
     expect(balancedStyles).toMatch(/\.backtest-chart-line\.benchmark\.nasdaq\s*\{[^}]*stroke:\s*var\(--info\)/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-legend \.russell\s*\{[^}]*--benchmark-color:\s*var\(--tone-condition\)/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-line\.benchmark\.russell\s*\{[^}]*stroke:\s*var\(--tone-condition\)/s);
-    expect(balancedStyles).toMatch(/\.backtest-chart-line\.bot-emphasis\s*\{[^}]*stroke:\s*var\(--surface\)[^}]*stroke-width:\s*6[^}]*opacity:\s*\.88/s);
+    expect(balancedStyles).toMatch(/\.backtest-chart-line\.bot-emphasis\s*\{[^}]*stroke:\s*color-mix\(in srgb,\s*var\(--text\) 56%,\s*var\(--surface\)\)[^}]*stroke-width:\s*3\.75[^}]*opacity:\s*\.9/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-line\.bot\s*\{[^}]*stroke:\s*var\(--accent\)[^}]*stroke-width:\s*2\.75/s);
     expect(balancedStyles).toMatch(/\.backtest-chart-line\.benchmark\s*\{[^}]*stroke-width:\s*1\.5[^}]*opacity:\s*\.8/s);
     expect(balancedStyles).not.toMatch(/\.backtest-chart-line\.bot\s*\{[^}]*filter:/s);
