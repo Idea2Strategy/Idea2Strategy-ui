@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test } from 'vitest';
 import { App } from './App';
+
+const balancedStyles = readFileSync(resolve(process.cwd(), 'src/styles/balanced.css'), 'utf8');
 
 describe('Signal product UI', () => {
   beforeEach(() => {
@@ -221,6 +225,16 @@ describe('Signal product UI', () => {
     expect(colourToggle.querySelector('.nav-market-icon')).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: '상승·하락 색상 선택' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: '언어 선택' })).not.toBeInTheDocument();
+
+    expect(balancedStyles).not.toMatch(
+      /\.signal-product-nav \.nav-market-toggle > button:hover \.nav-market-flag\s*\{[^}]*transform:/s,
+    );
+    expect(balancedStyles).not.toMatch(
+      /\.signal-product-nav \.nav-market-toggle > button\[aria-pressed="true"\] \.nav-market-flag\s*\{[^}]*filter:/s,
+    );
+    expect(balancedStyles).toMatch(
+      /\.signal-product-nav \.nav-market-toggle::before\s*\{[^}]*box-shadow:\s*none/s,
+    );
 
     await user.click(usColours);
     expect(usColours).toHaveAttribute('aria-pressed', 'true');
