@@ -1,9 +1,66 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, createEvent, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { BasicEditor } from './views/StrategyViews';
 
 describe('Basic editor strategy explanations', () => {
+  test('keeps execution settings out of condition blocks and exposes risk controls', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    expect(screen.queryByTestId('buy-trigger-block')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('buy-budget-block')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('sell-position-block')).not.toBeInTheDocument();
+
+    expect(screen.getByRole('combobox', { name: 'PARTITION 01 기본 봉 주기' })).toHaveValue('1분봉');
+    expect(screen.getByRole('spinbutton', { name: 'PARTITION 01 전체 전략 대비 예산' })).toHaveValue(40);
+    expect(screen.getByRole('button', { name: 'PARTITION 01 종목 관리' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '매수 레인' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '매도 레인' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '위기관리 레인' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 종목 관리' }));
+    const symbolDialog = screen.getByRole('dialog', { name: 'PARTITION 1 종목 관리' });
+    expect(within(symbolDialog).getByRole('spinbutton', { name: 'AAPL 종목별 최대 보유 비율' })).toHaveValue(40);
+    expect(within(symbolDialog).getByRole('spinbutton', { name: 'MSFT 종목별 최대 보유 비율' })).toHaveValue(40);
+    await user.click(within(symbolDialog).getByRole('button', { name: '완료' }));
+
+    await user.click(screen.getByRole('button', { name: '매수 컨테이너 실행 설정' }));
+    const buySettings = within(screen.getByTestId('basic-buy-group')).getByRole('group', { name: '매수 실행 설정' });
+    expect(within(buySettings).getByText('사용 예산')).toBeInTheDocument();
+    expect(within(buySettings).getByRole('spinbutton', { name: '1회 주문 최대' })).toBeInTheDocument();
+    expect(buySettings.querySelector('.settings-natural-summary')).not.toBeInTheDocument();
+    expect(within(buySettings).getByRole('button', { name: '매수 실행 설정 닫기' })).toBeInTheDocument();
+    const additionalBuy = within(buySettings).getByRole('checkbox', { name: '추가 매수 허용' });
+    expect(additionalBuy).not.toBeChecked();
+    await user.click(additionalBuy);
+    expect(within(buySettings).getByRole('spinbutton', { name: '재실행 간격' })).toBeInTheDocument();
+    expect(within(buySettings).getByRole('spinbutton', { name: '한 포지션 최대 진입 횟수' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 위기관리 컨테이너 추가' }));
+    expect(screen.getByRole('region', { name: 'PARTITION 01 위기관리 컨테이너' })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'PARTITION 01 위기관리 컨테이너' })).getByTestId(/order-block/)).toHaveTextContent('전량 청산');
+  });
+
+  test('edits a container name directly from its header and keeps the right panel block-only', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    const rightPanel = screen.getByTestId('basic-block-library');
+    expect(within(rightPanel).queryByText('컨테이너 이름')).not.toBeInTheDocument();
+    expect(within(rightPanel).queryByText('블록을 넣을 곳')).not.toBeInTheDocument();
+    expect(within(rightPanel).queryByText(/클릭하거나 원하는 컨테이너로 드래그하세요/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '매수 컨테이너 이름 편집' }));
+    const titleInput = within(screen.getByTestId('basic-buy-group')).getByRole('textbox', { name: '매수 컨테이너 이름' });
+    await user.clear(titleInput);
+    await user.type(titleInput, '첫 진입');
+    await user.keyboard('{Enter}');
+
+    expect(within(screen.getByTestId('basic-buy-group')).getByText('첫 진입')).toBeInTheDocument();
+    expect(within(rightPanel).queryByDisplayValue('첫 진입')).not.toBeInTheDocument();
+  });
+
   test('uses the full editor workspace without a page title and floats its side panels', () => {
     render(<BasicEditor goBack={() => {}} openEditor={() => {}} />);
 
@@ -34,6 +91,37 @@ describe('Basic editor strategy explanations', () => {
     expect(screen.getByTestId('basic-block-library')).toHaveClass('floating-editor-panel');
   });
 
+  test('collapses and restores the package and block sidebars independently', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    const templates = screen.getByTestId('basic-templates-panel');
+    const blocks = screen.getByTestId('basic-block-library');
+    const templateToggle = within(templates).getByRole('button', { name: '패키지 사이드바 접기' });
+    const blockToggle = within(blocks).getByRole('button', { name: '블록 사이드바 접기' });
+
+    expect(templateToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(blockToggle).toHaveAttribute('aria-expanded', 'true');
+    await user.click(templateToggle);
+    await user.click(blockToggle);
+    expect(templates).toHaveClass('is-collapsed');
+    expect(blocks).toHaveClass('is-collapsed');
+    expect(templates).toHaveAttribute('data-collapse-direction', 'left');
+    expect(blocks).toHaveAttribute('data-collapse-direction', 'right');
+    expect(within(templates).getByRole('button', { name: '패키지 사이드바 펼치기' })).toHaveAttribute('aria-expanded', 'false');
+    expect(within(blocks).getByRole('button', { name: '블록 사이드바 펼치기' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('shows block categories as always-visible dividers instead of dropdowns', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    const blocks = screen.getByTestId('basic-block-library');
+    expect(blocks.querySelector('details')).not.toBeInTheDocument();
+    expect(blocks.querySelectorAll('.block-category-divider').length).toBeGreaterThanOrEqual(5);
+    expect(within(blocks).getByText('가격')).toBeInTheDocument();
+    expect(within(blocks).getByText('위기관리')).toBeInTheDocument();
+  });
+
   test('switches from the floating mode controls', async () => {
     const user = userEvent.setup();
     const openEditor = vi.fn();
@@ -47,6 +135,15 @@ describe('Basic editor strategy explanations', () => {
     const user = userEvent.setup();
     const onLaunchBot = vi.fn();
     render(<BasicEditor goBack={() => {}} openEditor={() => {}} onLaunchBot={onLaunchBot} />);
+
+    const buyRsi = screen.getByTestId('buy-rsi-block');
+    await user.type(within(buyRsi).getByLabelText('RSI 반등 값'), '30');
+    await user.click(within(buyRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
+    await user.click(screen.getByRole('option', { name: '상승' }));
+    const sellRsi = screen.getByTestId('sell-rsi-block');
+    await user.type(within(sellRsi).getByLabelText('RSI 반등 값'), '70');
+    await user.click(within(sellRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
+    await user.click(screen.getByRole('option', { name: '하락' }));
 
     await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
 
@@ -80,13 +177,128 @@ describe('Basic editor strategy explanations', () => {
     expect(screen.getByRole('group', { name: '파티션 도구' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '파티션 그리기' })).toBeInTheDocument();
     expect(screen.getByRole('article', { name: 'PARTITION 01' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '매수 컨테이너 자연어 설명' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '매도 컨테이너 자연어 설명' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '매수 컨테이너 선택' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '매도 컨테이너 선택' })).toBeInTheDocument();
     const blockLibrary = screen.getByTestId('basic-block-library');
     expect(within(blockLibrary).getByText('BLOCKS')).toBeInTheDocument();
-    for (const category of ['데이터', '추세 지표', '모멘텀 지표', '변동성 지표', '거래량 지표', '조건', '논리', '시간·이벤트', '주문', '위험관리']) {
+    for (const category of ['가격', '추세', '반전', '일정', '위기관리']) {
       expect(within(blockLibrary).getByText(category)).toBeInTheDocument();
     }
+    for (const block of ['가격 비교', '가격 변화율', '연속 상승·하락', '평균선 교차', 'RSI 반등', 'MACD 전환', '가격 띠 반전', '정기 실행', '현재 수익률', '보유 기간', '최고 수익률', '고점 대비 하락']) {
+      expect(within(blockLibrary).getByRole('button', { name: `${block} 블록 추가` })).toBeInTheDocument();
+    }
+  });
+
+  test('offers every Basic strategy template from the final specification', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    const templates = screen.getByTestId('basic-templates-panel');
+    for (const template of ['연속 상승·하락', '최근 평균 가격 돌파', '최근 최고 가격 돌파', '장 시작가 대비 상승', '하루 급락 매수', '정기 매수', 'Donchian 돌파', 'RSI 반등', 'SMA 교차', 'MACD 전환', 'Bollinger 반전']) {
+      expect(within(templates).getByRole('button', { name: `${template} 패키지 적용` })).toBeInTheDocument();
+    }
+    expect(within(templates).getByRole('separator', { name: '고급 패키지' })).toBeInTheDocument();
+    expect(within(templates).getByRole('button', { name: '최근 평균 가격 돌파 패키지 적용' })).toHaveAttribute('data-package-group', '가격');
+    expect(within(templates).getByRole('button', { name: 'SMA 교차 패키지 적용' })).toHaveAttribute('data-package-group', '추세');
+    expect(within(templates).getByRole('button', { name: 'RSI 반등 패키지 적용' })).toHaveAttribute('data-package-group', '반전');
+  });
+
+  test('keeps container headers minimal and opens buy settings as a compact overlay', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    const buyCard = screen.getByTestId('basic-buy-group');
+    expect(within(buyCard).queryByText('B')).not.toBeInTheDocument();
+    expect(within(buyCard).queryByText('가격 갱신 · 종목별 평가')).not.toBeInTheDocument();
+    expect(within(buyCard).queryByText('선택됨')).not.toBeInTheDocument();
+    expect(within(buyCard).queryByText(/CONDITIONS/)).not.toBeInTheDocument();
+    expect(within(buyCard.querySelector('.strategy-container-header') as HTMLElement).getByText('예산 40%')).toBeInTheDocument();
+    expect(buyCard.querySelector('.container-quick-meta')).not.toBeInTheDocument();
+
+    await user.click(within(buyCard).getByRole('button', { name: '매수 컨테이너 실행 설정' }));
+    expect(within(buyCard).getByRole('group', { name: '매수 실행 설정' })).toHaveClass('is-popover');
+  });
+
+  test('uses one compact empty drop target without a duplicate add button', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 위기관리 컨테이너 추가' }));
+    const riskCard = screen.getByRole('region', { name: 'PARTITION 01 위기관리 컨테이너' });
+    expect(within(riskCard).getByText('조건 놓기')).toBeInTheDocument();
+    expect(within(riskCard).queryByRole('button', { name: '조건 추가' })).not.toBeInTheDocument();
+  });
+
+  test('uses concise block labels and only offers operators that match the block meaning', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    await user.click(screen.getByRole('button', { name: '연속 상승·하락 패키지 적용' }));
+    const streak = screen.getAllByLabelText(/연속 상승·하락 블록/)[0];
+    expect(within(streak).getByText('연속')).toBeInTheDocument();
+    expect(within(streak).queryByText('연속 상승·하락')).not.toBeInTheDocument();
+
+    await user.click(within(streak).getByRole('combobox', { name: '연속 상승·하락 방향' }));
+    expect(screen.getByRole('option', { name: '상승' })).toHaveClass('tone-up');
+    expect(screen.getByRole('option', { name: '하락' })).toHaveClass('tone-down');
+    expect(screen.queryByRole('option', { name: '>' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: '<' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: '하락' }));
+    expect(within(streak).getByRole('combobox', { name: '연속 상승·하락 방향' })).toHaveTextContent('하락');
+  });
+
+  test('starts every editable field unset without exposing implementation terminology', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    const buyRsi = screen.getByTestId('buy-rsi-block');
+    const unsetRelation = within(buyRsi).getByRole('combobox', { name: 'RSI 반등 방향' });
+    expect(unsetRelation).toHaveAttribute('data-value', '');
+    expect(unsetRelation).toHaveTextContent('선택');
+    expect(unsetRelation).not.toHaveTextContent('-');
+    expect(unsetRelation.querySelector('svg')).not.toBeInTheDocument();
+    expect(unsetRelation.closest('.block-custom-select')).toHaveClass('is-fixed-width');
+    expect(unsetRelation).not.toHaveTextContent('Null');
+    expect(within(buyRsi).getByLabelText('RSI 반등 값')).toHaveValue(null);
+    expect(within(buyRsi).getByLabelText('RSI 반등 값')).toHaveAttribute('placeholder', '입력');
+    expect(within(buyRsi).getByLabelText('RSI 반등 값')).toHaveClass('is-centered-number');
+    expect(within(buyRsi).getByLabelText('RSI 반등 값').closest('.block-number-stepper')).toHaveClass('is-fixed-width');
+    expect(screen.getByRole('button', { name: '개인 봇 출시' })).toHaveAttribute('aria-disabled', 'true');
+
+    await user.click(screen.getByRole('button', { name: '가격 비교 블록 추가' }));
+    const priceBlock = screen.getAllByLabelText('가격 비교 블록. 드래그하거나 Alt와 방향키로 이동').at(-1) as HTMLElement;
+    const relationControl = within(priceBlock).getByRole('combobox', { name: '가격 비교 비교' });
+    const valueControl = within(priceBlock).getByRole('combobox', { name: '가격 비교 값 선택' });
+    expect(relationControl).toHaveAttribute('data-value', '');
+    expect(relationControl.closest('.block-custom-select')).toHaveClass('is-relation-select');
+    expect(valueControl).toHaveAttribute('data-value', '');
+    expect(valueControl.closest('.block-custom-select')).toHaveClass('is-value-select');
+
+    await user.click(screen.getByRole('button', { name: '연속 상승·하락 패키지 적용' }));
+    const packagedStreak = screen.getAllByLabelText('연속 상승·하락 블록. 드래그하거나 Alt와 방향키로 이동').at(-1) as HTMLElement;
+    expect(within(packagedStreak).getByRole('combobox', { name: '연속 상승·하락 방향' })).toHaveAttribute('data-value', '');
+    expect(within(packagedStreak).getByRole('combobox', { name: '연속 상승·하락 값 선택' })).toHaveAttribute('data-value', '');
+  });
+
+  test('uses a candlestick icon for candle-count dropdown values', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    await user.click(screen.getByRole('button', { name: '연속 상승·하락 패키지 적용' }));
+    const streak = screen.getAllByLabelText(/연속 상승·하락 블록/)[0];
+    await user.click(within(streak).getByRole('combobox', { name: '연속 상승·하락 값 선택' }));
+
+    expect(screen.getByRole('option', { name: '2봉' }).querySelector('.lucide-chart-candlestick')).toBeInTheDocument();
+  });
+
+  test('uses an opening-bell icon for the current-session opening price', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    await user.click(screen.getByRole('button', { name: '가격 비교 블록 추가' }));
+    const priceBlock = screen.getAllByLabelText('가격 비교 블록. 드래그하거나 Alt와 방향키로 이동').at(-1) as HTMLElement;
+    await user.click(within(priceBlock).getByRole('combobox', { name: '가격 비교 값 선택' }));
+
+    expect(screen.getByRole('option', { name: '당일 장 시작가' }).querySelector('.lucide-bell-ring')).toBeInTheDocument();
   });
 
   test('adds an RSI buy and sell strategy pair to the selected section from a template', async () => {
@@ -99,8 +311,46 @@ describe('Basic editor strategy explanations', () => {
     expect(section.querySelectorAll('.buy-container')).toHaveLength(2);
     expect(section.querySelectorAll('.sell-container')).toHaveLength(2);
     expect(within(section).getByText('RSI 반등 매수')).toBeInTheDocument();
-    expect(within(section).getByText('RSI 과열 매도')).toBeInTheDocument();
+    expect(within(section).getByText('RSI 하락 매도')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent(/RSI 반등 패키지/);
+  });
+
+  test('builds the advanced Donchian package with confirmed entry, exit, and trailing-risk conditions', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    const packageButton = screen.getByRole('button', { name: 'Donchian 돌파 패키지 적용' });
+    expect(packageButton).toHaveTextContent('매수 2 · 매도 2 · 위기 1');
+    await user.click(packageButton);
+
+    const section = screen.getByTestId('strategy-section-1');
+    expect(section.querySelectorAll('.buy-container')).toHaveLength(2);
+    expect(section.querySelectorAll('.sell-container')).toHaveLength(2);
+    expect(section.querySelectorAll('.risk-container')).toHaveLength(1);
+
+    const buyCard = within(section).getByText('Donchian 상향 돌파').closest('.strategy-card') as HTMLElement;
+    const sellCard = within(section).getByText('Donchian 하향 이탈').closest('.strategy-card') as HTMLElement;
+    const riskCard = within(section).getByText('수익 보호 청산').closest('.strategy-card') as HTMLElement;
+    expect(buyCard.querySelectorAll('.draggable-strategy-block')).toHaveLength(2);
+    expect(sellCard.querySelectorAll('.draggable-strategy-block')).toHaveLength(2);
+    expect(riskCard.querySelectorAll('.draggable-strategy-block')).toHaveLength(2);
+    expect(within(buyCard).getByLabelText(/가격 비교 블록/)).toBeInTheDocument();
+    expect(within(buyCard).getByLabelText(/평균선 교차 블록/)).toBeInTheDocument();
+    expect(within(riskCard).getByLabelText(/최고 수익률 블록/)).toBeInTheDocument();
+    expect(within(riskCard).getByLabelText(/고점 대비 하락 블록/)).toBeInTheDocument();
+  });
+
+  test('uses a risk container for the session-close exit package described as liquidation', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    await user.click(screen.getByRole('button', { name: '장 시작가 대비 상승 패키지 적용' }));
+
+    const section = screen.getByTestId('strategy-section-1');
+    expect(section.querySelectorAll('.sell-container')).toHaveLength(1);
+    expect(section.querySelectorAll('.risk-container')).toHaveLength(1);
+    const riskCard = within(section).getByText('당일 장 마감 청산').closest('.strategy-card') as HTMLElement;
+    expect(within(riskCard).getByLabelText(/보유 기간 블록/)).toBeInTheDocument();
   });
 
   test('drags a template from the library onto a target partition', () => {
@@ -128,18 +378,18 @@ describe('Basic editor strategy explanations', () => {
     const user = userEvent.setup();
     render(<BasicEditor goBack={() => {}} />);
 
-    await user.click(screen.getByRole('button', { name: 'MACD 블록 추가' }));
-    expect(within(screen.getByTestId('basic-buy-stack')).getByText('MACD')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'MACD 전환 블록 추가' }));
+    expect(within(screen.getByTestId('basic-buy-stack')).getByLabelText(/MACD 전환 블록/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '매도 컨테이너 자연어 설명' }));
-    await user.click(screen.getByRole('button', { name: '손절 블록 추가' }));
-    expect(within(screen.getByTestId('basic-sell-stack')).getByText('손절')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '매도 컨테이너 선택' }));
+    await user.click(screen.getByRole('button', { name: '현재 수익률 블록 추가' }));
+    expect(within(screen.getByTestId('basic-sell-stack')).getByLabelText(/현재 수익률 블록/)).toBeInTheDocument();
   });
 
   test('drags a library block onto the chosen strategy card', () => {
     render(<BasicEditor goBack={() => {}} />);
 
-    const block = screen.getByRole('button', { name: 'MACD 블록 추가' });
+    const block = screen.getByRole('button', { name: 'MACD 전환 블록 추가' });
     const sellRsi = screen.getByTestId('sell-rsi-block');
     const sellStack = screen.getByTestId('basic-sell-stack');
     const dataTransfer = { effectAllowed: '', dropEffect: '', setData: vi.fn(), getData: vi.fn() };
@@ -151,23 +401,21 @@ describe('Basic editor strategy explanations', () => {
     expect(dataTransfer.dropEffect).toBe('copy');
     fireEvent.drop(sellRsi, { dataTransfer });
 
-    expect(within(sellStack).getByText('MACD')).toBeInTheDocument();
-    expect(within(screen.getByTestId('basic-buy-stack')).queryByText('MACD')).not.toBeInTheDocument();
+    expect(within(sellStack).getByLabelText(/MACD 전환 블록/)).toBeInTheDocument();
+    expect(within(screen.getByTestId('basic-buy-stack')).queryByLabelText(/MACD 전환 블록/)).not.toBeInTheDocument();
     expect(screen.getByTestId('basic-sell-group')).not.toHaveClass('is-library-drop-ready');
-    expect(screen.getByRole('status')).toHaveTextContent(/MACD 블록을 대상 컨테이너에 추가/);
+    expect(screen.getByRole('status')).toHaveTextContent(/MACD 전환 블록을 대상 컨테이너에 추가/);
   });
 
   test('uses the same block category themes in the canvas and the block library', async () => {
     const user = userEvent.setup();
     render(<BasicEditor goBack={() => {}} />);
 
-    expect(screen.getByTestId('buy-trigger-block').querySelector('.scratch-block')).toHaveClass('block-time');
-    expect(screen.getByTestId('buy-rsi-block').querySelector('.scratch-block')).toHaveClass('block-indicator');
-    expect(screen.getByTestId('buy-budget-block').querySelector('.scratch-block')).toHaveClass('block-risk');
-    expect(screen.getByTestId('sell-position-block').querySelector('.scratch-block')).toHaveClass('block-condition');
+    expect(screen.getByTestId('buy-rsi-block').querySelector('.scratch-block')).toHaveClass('block-condition');
+    expect(screen.getByTestId('sell-rsi-block').querySelector('.scratch-block')).toHaveClass('block-condition');
 
-    await user.click(screen.getByRole('button', { name: 'MACD 블록 추가' }));
-    expect(within(screen.getByTestId('basic-buy-stack')).getByText('MACD').closest('.scratch-block')).toHaveClass('block-indicator');
+    await user.click(screen.getByRole('button', { name: '평균선 교차 블록 추가' }));
+    expect(within(screen.getByTestId('basic-buy-stack')).getByLabelText(/평균선 교차 블록/).querySelector('.scratch-block')).toHaveClass('block-indicator');
   });
 
   test('edits numeric block values with stepper buttons, direct input, and an operator dropdown', async () => {
@@ -175,19 +423,17 @@ describe('Basic editor strategy explanations', () => {
     render(<BasicEditor goBack={() => {}} />);
 
     const buyRsi = screen.getByTestId('buy-rsi-block');
-    const valueInput = within(buyRsi).getByLabelText('RSI 값');
-    const increaseButton = within(buyRsi).getByRole('button', { name: 'RSI 값 증가' });
+    const valueInput = within(buyRsi).getByLabelText('RSI 반등 값');
+    const increaseButton = within(buyRsi).getByRole('button', { name: 'RSI 반등 값 증가' });
     await user.click(increaseButton);
-    expect(valueInput).toHaveValue(31);
+    expect(valueInput).toHaveValue(1);
 
     await user.clear(valueInput);
     await user.type(valueInput, '42');
     expect(valueInput).toHaveValue(42);
-    await user.click(within(buyRsi).getByRole('combobox', { name: 'RSI 연산자' }));
-    await user.click(screen.getByRole('option', { name: '>' }));
+    await user.click(within(buyRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
+    await user.click(screen.getByRole('option', { name: '하락' }));
 
-    await user.click(screen.getByRole('button', { name: '매수 컨테이너 자연어 설명' }));
-    expect(screen.getByRole('note', { name: '2단계 규칙 설명' })).toHaveTextContent('42 초과');
     expect(screen.getByRole('status')).toHaveTextContent('블록 설정을 변경했습니다.');
   });
 
@@ -204,68 +450,18 @@ describe('Basic editor strategy explanations', () => {
       act(() => vi.advanceTimersByTime(900));
       fireEvent.pointerUp(increaseButton, { pointerId: 1 });
 
-      expect(valueInput.valueAsNumber).toBeGreaterThan(31);
+      expect(valueInput.valueAsNumber).toBeGreaterThan(1);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  test('changes state-based block values with a real dropdown', async () => {
+  test('does not open the retired natural-language notes from container headers', async () => {
     const user = userEvent.setup();
     render(<BasicEditor goBack={() => {}} />);
 
-    const position = screen.getByTestId('sell-position-block');
-    const select = within(position).getByRole('combobox', { name: 'POSITION 값 선택' });
-    await user.click(select);
-    await user.click(screen.getByRole('option', { name: 'CLOSED' }));
-    expect(select).toHaveAttribute('data-value', 'CLOSED');
-
-    await user.click(screen.getByRole('button', { name: '매도 컨테이너 자연어 설명' }));
-    expect(screen.getByRole('note', { name: '1단계 규칙 설명' })).toHaveTextContent('포지션을 보유하지 않음');
-  });
-
-  test('aligns one rule-based natural-language note with every block', async () => {
-    const user = userEvent.setup();
-    render(<BasicEditor goBack={() => {}} />);
-
-    await user.hover(screen.getByTestId('buy-rsi-block'));
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
-
-    const buyExplanation = screen.getByRole('button', { name: '매수 컨테이너 자연어 설명' });
-    await user.click(buyExplanation);
-    expect(screen.getAllByRole('note')).toHaveLength(4);
-    expect(screen.getByRole('note', { name: '1단계 규칙 설명' })).toHaveTextContent('1분봉');
-    const indicatorRule = screen.getByRole('note', { name: '2단계 규칙 설명' });
-    expect(within(indicatorRule).getByText('RSI(14)')).toHaveProperty('tagName', 'B');
-    expect(within(indicatorRule).getByText('30 미만')).toHaveProperty('tagName', 'B');
-    expect(within(screen.getByRole('note', { name: '3단계 규칙 설명' })).getByText('25%')).toHaveProperty('tagName', 'B');
-    expect(screen.getByRole('note', { name: '4단계 규칙 설명' })).toHaveTextContent('시장가 매수');
-    expect(buyExplanation).toHaveAttribute('aria-expanded', 'true');
-
-    const sellExplanation = screen.getByRole('button', { name: '매도 컨테이너 자연어 설명' });
-    await user.click(sellExplanation);
-    expect(screen.getAllByRole('note')).toHaveLength(3);
-    expect(screen.getByRole('note', { name: '1단계 규칙 설명' })).toHaveTextContent('포지션을 보유 중');
-    expect(screen.getByRole('note', { name: '2단계 규칙 설명' })).toHaveTextContent('RSI(14)');
-    expect(screen.getByRole('note', { name: '2단계 규칙 설명' })).toHaveTextContent('70 초과');
-    expect(screen.getByRole('note', { name: '3단계 규칙 설명' })).toHaveTextContent('100%');
-
-    await user.click(sellExplanation);
-    expect(screen.queryByRole('note')).not.toBeInTheDocument();
-  });
-
-  test('closes an open strategy explanation when another editor area is clicked', async () => {
-    const user = userEvent.setup();
-    render(<BasicEditor goBack={() => {}} />);
-
-    const buyGroup = screen.getByTestId('basic-buy-group');
-    const buyExplanation = within(buyGroup).getByRole('button', { expanded: false });
-    await user.click(buyExplanation);
-    expect(buyExplanation).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getAllByRole('note')).not.toHaveLength(0);
-
-    await user.click(screen.getByTestId('basic-editor-workspace'));
-    expect(buyExplanation).toHaveAttribute('aria-expanded', 'false');
+    await user.click(screen.getByRole('button', { name: '매수 컨테이너 선택' }));
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 
@@ -299,8 +495,8 @@ describe('Basic editor strategy explanations', () => {
     fireEvent.drop(sellRsi, { dataTransfer });
 
     expect(within(screen.getByTestId('basic-sell-stack')).getByTestId('buy-rsi-block')).toBeInTheDocument();
-    expect(within(screen.getByTestId('basic-buy-group')).getByText('3 BLOCKS')).toBeInTheDocument();
-    expect(within(screen.getByTestId('basic-sell-group')).getByText('4 BLOCKS')).toBeInTheDocument();
+    expect(screen.getByTestId('basic-buy-stack').querySelectorAll('.draggable-strategy-block')).toHaveLength(0);
+    expect(screen.getByTestId('basic-sell-stack').querySelectorAll('.draggable-strategy-block')).toHaveLength(2);
   });
 
   test('adds one block at a time and keeps strategy containers content-sized', async () => {
@@ -310,20 +506,21 @@ describe('Basic editor strategy explanations', () => {
     const buyGroup = screen.getByTestId('basic-buy-group');
     expect(buyGroup).toHaveClass('content-sized-strategy');
 
-    await user.click(within(buyGroup).getByRole('button', { name: /블록 추가/ }));
+    await user.click(screen.getByRole('button', { name: '가격 비교 블록 추가' }));
 
-    expect(within(buyGroup).getByText('5 BLOCKS')).toBeInTheDocument();
-    expect(within(buyGroup).getByTestId('buy-custom-block-1')).toBeInTheDocument();
+    expect(within(buyGroup).queryByText(/CONDITIONS/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('basic-buy-stack').querySelectorAll('.draggable-strategy-block')).toHaveLength(2);
   });
 
   test('reorders focused blocks with alt and arrow keys', () => {
     render(<BasicEditor goBack={() => {}} />);
 
     const buyStack = screen.getByTestId('basic-buy-stack');
-    const trigger = screen.getByTestId('buy-trigger-block');
-    fireEvent.keyDown(trigger, { key: 'ArrowDown', altKey: true });
+    fireEvent.click(screen.getByRole('button', { name: '평균선 교차 블록 추가' }));
+    const rsi = screen.getByTestId('buy-rsi-block');
+    fireEvent.keyDown(rsi, { key: 'ArrowDown', altKey: true });
 
-    expect(within(buyStack).getAllByTestId(/buy-(trigger|rsi|budget)-block/)[1]).toBe(trigger);
+    expect(buyStack.querySelectorAll('.draggable-strategy-block')[1]).toBe(rsi);
     expect(screen.getByRole('status')).toHaveTextContent(/이동/);
   });
 
@@ -331,8 +528,8 @@ describe('Basic editor strategy explanations', () => {
     render(<BasicEditor goBack={() => {}} />);
 
     const section = screen.getByTestId('strategy-section-1');
-    expect(within(section).getByLabelText('PARTITION 01 종목')).toHaveTextContent('AAPL');
-    expect(within(section).getByLabelText('PARTITION 01 전체 자본 대비 투자비율')).toHaveValue(40);
+    expect(within(section).getByRole('button', { name: 'PARTITION 01 종목 관리' })).toHaveTextContent('3개 종목');
+    expect(within(section).getByRole('spinbutton', { name: 'PARTITION 01 전체 전략 대비 예산' })).toHaveValue(40);
     expect(within(section).getByTestId('basic-buy-group')).toBeInTheDocument();
     expect(within(section).getByTestId('basic-sell-group')).toBeInTheDocument();
   });
@@ -358,8 +555,8 @@ describe('Basic editor strategy explanations', () => {
     render(<BasicEditor goBack={() => {}} />);
 
     const section = screen.getByTestId('strategy-section-1');
-    await user.click(within(section).getByRole('button', { name: '매수 컨테이너 추가' }));
-    await user.click(within(section).getByRole('button', { name: '매도 컨테이너 추가' }));
+    await user.click(within(section).getByRole('button', { name: 'PARTITION 01 매수 컨테이너 추가' }));
+    await user.click(within(section).getByRole('button', { name: 'PARTITION 01 매도 컨테이너 추가' }));
 
     expect(section.querySelectorAll('.buy-container')).toHaveLength(2);
     expect(section.querySelectorAll('.sell-container')).toHaveLength(2);
@@ -458,6 +655,17 @@ describe('Basic editor strategy explanations', () => {
     expect(world).toHaveStyle('transform: translate3d(0px, 0px, 0) scale(1)');
   });
 
+  test('does not zoom the canvas while scrolling a block dropdown', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    const zoomLevel = screen.getByRole('button', { name: '배율 초기화' });
+    const rsiOperator = within(screen.getByTestId('buy-rsi-block')).getByRole('combobox', { name: 'RSI 반등 방향' });
+    await user.click(rsiOperator);
+    fireEvent.wheel(rsiOperator, { deltaY: 100 });
+    expect(zoomLevel).toHaveTextContent('100%');
+  });
+
   test('pans the infinite canvas by dragging empty space', () => {
     render(<BasicEditor goBack={() => {}} />);
 
@@ -503,7 +711,7 @@ describe('Basic editor strategy explanations', () => {
     expect(screen.getByTestId('section-world')).toHaveStyle('transform: translate3d(0px, 0px, 0) scale(1)');
   });
 
-  test('moves a section and lets strategy cards overlap anywhere inside it', () => {
+  test('moves a section and settles a dropped strategy card into the nearest non-overlapping space', () => {
     render(<BasicEditor goBack={() => {}} />);
 
     const surface = screen.getByTestId('section-drawing-surface');
@@ -521,10 +729,77 @@ describe('Basic editor strategy explanations', () => {
     fireEvent.pointerMove(surface, { clientX: 24, clientY: 112, pointerId: 3 });
     fireEvent.pointerUp(surface, { clientX: 24, clientY: 112, pointerId: 3 });
 
-    expect(buyCard).toHaveStyle({ left: '24px', top: '112px' });
-    expect(sellCard).toHaveStyle({ left: '24px', top: '112px' });
-    expect(section).toHaveStyle({ width: '600px' });
+    expect(buyCard).toHaveStyle({ left: '24px', top: '136px' });
+    expect(sellCard).toHaveStyle({ left: '320px', top: '136px' });
+    expect(section).toHaveStyle({ width: '624px' });
     expect(screen.queryByTestId('section-1-resize-handle')).not.toBeInTheDocument();
+  });
+
+  test('keeps freely moved containers below the partition header controls', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    const surface = screen.getByTestId('section-drawing-surface');
+    const buyCard = screen.getByTestId('basic-buy-group');
+    const moveHandle = screen.getByRole('button', { name: '매수 컨테이너 자유 이동' });
+    fireEvent.pointerDown(moveHandle, { clientX: 24, clientY: 112, pointerId: 9 });
+    fireEvent.pointerMove(surface, { clientX: 24, clientY: 0, pointerId: 9 });
+    fireEvent.pointerUp(surface, { clientX: 24, clientY: 0, pointerId: 9 });
+
+    expect(buyCard).toHaveStyle({ top: '136px' });
+  });
+
+  test('uses icons in dropdown options and a compact relation token inside blocks', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    const operator = within(screen.getByTestId('buy-rsi-block')).getByRole('combobox');
+    expect(operator.closest('.block-custom-select')).toHaveClass('is-compact');
+    expect(operator.querySelector('.block-relation-icon')).not.toBeInTheDocument();
+
+    await user.click(operator);
+    const options = within(screen.getByRole('listbox')).getAllByRole('option');
+    expect(options.length).toBeGreaterThan(1);
+    options.filter((option) => !option.textContent?.includes('선택')).forEach((option) => {
+      expect(option.querySelector('.select-option-icon')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('option', { name: '상승' }));
+    expect(operator.querySelector('.block-relation-icon')).toBeInTheDocument();
+  });
+
+  test('uses icon-led mouse guidance and omits the redundant condition add row', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    const guide = screen.getByTestId('canvas-gesture-guide');
+    expect(guide.querySelectorAll('svg').length).toBeGreaterThanOrEqual(2);
+    expect(guide).not.toHaveTextContent('1개 파티션');
+    expect(guide).toHaveTextContent('드래그로 이동');
+    expect(guide).not.toHaveTextContent('드래그 이동');
+    expect(screen.getByTestId('partition-count-badge')).toHaveTextContent('1');
+    expect(screen.getByTestId('basic-buy-stack').querySelector('.block-add')).not.toBeInTheDocument();
+  });
+
+  test('visually integrates condition blocks with IF and AND stack rails', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    const buyStack = screen.getByTestId('basic-buy-stack');
+    expect(buyStack).toHaveClass('has-condition-blocks', 'is-single-condition');
+    expect(within(buyStack).getByText('IF')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '가격 비교 블록 추가' }));
+    expect(buyStack).toHaveClass('is-multi-condition', 'is-segmented-condition');
+    expect(within(buyStack).getByText('AND')).toBeInTheDocument();
+    expect(buyStack.querySelector('.condition-join-marker')).not.toBeInTheDocument();
+  });
+
+  test('uses a broad category-colour band instead of a circular library marker', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    const priceButton = screen.getByRole('button', { name: '가격 비교 블록 추가' });
+    expect(priceButton).toHaveClass('library-block-button', 'has-tone-band');
+    expect(priceButton.querySelector('.block-chip-accent')).toBeInTheDocument();
+    expect(priceButton.querySelector('.lucide-circle-dot')).not.toBeInTheDocument();
+    expect(priceButton.querySelector('.block-chip-name')).toHaveTextContent('가격 비교');
   });
 
   test('moves a partition by dragging its empty boundary area', () => {
@@ -548,16 +823,16 @@ describe('Basic editor strategy explanations', () => {
     const section = screen.getByTestId('strategy-section-1');
     const sellMoveHandle = screen.getByRole('button', { name: '매도 컨테이너 자유 이동' });
 
-    expect(section).toHaveStyle({ width: '600px' });
+    expect(section).toHaveStyle({ width: '624px' });
     fireEvent.pointerDown(sellMoveHandle, { clientX: 310, clientY: 112, pointerId: 4 });
     fireEvent.pointerMove(surface, { clientX: 700, clientY: 400, pointerId: 4 });
     fireEvent.pointerUp(surface, { clientX: 700, clientY: 400, pointerId: 4 });
-    expect(section).toHaveStyle({ width: '984px', height: '710px' });
+    expect(section).toHaveStyle({ width: '1014px', height: '734px' });
 
     fireEvent.pointerDown(sellMoveHandle, { clientX: 700, clientY: 400, pointerId: 5 });
     fireEvent.pointerMove(surface, { clientX: 310, clientY: 112, pointerId: 5 });
     fireEvent.pointerUp(surface, { clientX: 310, clientY: 112, pointerId: 5 });
-    expect(section).toHaveStyle({ width: '600px', height: '422px' });
+    expect(section).toHaveStyle({ width: '624px', height: '446px' });
   });
 
   test('reorders strategy cards inside a section with drag and drop', async () => {
@@ -565,7 +840,7 @@ describe('Basic editor strategy explanations', () => {
     render(<BasicEditor goBack={() => {}} />);
 
     const section = screen.getByTestId('strategy-section-1');
-    await user.click(within(section).getByRole('button', { name: '매수 컨테이너 추가' }));
+    await user.click(within(section).getByRole('button', { name: 'PARTITION 01 매수 컨테이너 추가' }));
     const cards = section.querySelectorAll('.buy-container');
     const primaryCard = cards[0];
     const addedCard = cards[1];
@@ -581,14 +856,48 @@ describe('Basic editor strategy explanations', () => {
     render(<BasicEditor goBack={() => {}} />);
 
     const stack = screen.getByTestId('basic-buy-stack');
-    const budget = screen.getByTestId('buy-budget-block');
-    const trigger = screen.getByTestId('buy-trigger-block');
+    fireEvent.click(screen.getByRole('button', { name: '평균선 교차 블록 추가' }));
+    const added = within(stack).getByLabelText(/평균선 교차 블록/);
+    const rsi = screen.getByTestId('buy-rsi-block');
     const dataTransfer = { effectAllowed: '', dropEffect: '', setData: vi.fn(), getData: vi.fn() };
-    fireEvent.dragStart(budget, { dataTransfer });
-    fireEvent.dragOver(trigger, { dataTransfer });
-    fireEvent.drop(trigger, { dataTransfer });
+    fireEvent.dragStart(added, { dataTransfer });
+    fireEvent.dragOver(rsi, { dataTransfer });
+    fireEvent.drop(rsi, { dataTransfer });
 
-    expect(stack.querySelectorAll('.draggable-strategy-block')[0]).toBe(budget);
+    expect(stack.querySelectorAll('.draggable-strategy-block')[0]).toBe(added);
+  });
+
+  test('inserts a dragged library block after the bottom block when dropped on its lower half', () => {
+    render(<BasicEditor goBack={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '평균선 교차 블록 추가' }));
+    const stack = screen.getByTestId('basic-buy-stack');
+    const bottomBlock = within(stack).getByLabelText(/평균선 교차 블록/);
+    vi.spyOn(bottomBlock, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 100,
+      top: 100,
+      right: 280,
+      bottom: 160,
+      left: 0,
+      width: 280,
+      height: 60,
+      toJSON: () => ({}),
+    });
+
+    const libraryBlock = screen.getByRole('button', { name: 'MACD 전환 블록 추가' });
+    const dataTransfer = { effectAllowed: '', dropEffect: '', setData: vi.fn(), getData: vi.fn() };
+    fireEvent.dragStart(libraryBlock, { dataTransfer });
+    const dragOverEvent = createEvent.dragOver(bottomBlock, { dataTransfer });
+    Object.defineProperty(dragOverEvent, 'clientY', { value: 150 });
+    fireEvent(bottomBlock, dragOverEvent);
+    expect(bottomBlock).toHaveAttribute('data-drop-position', 'after');
+    const dropEvent = createEvent.drop(bottomBlock, { dataTransfer });
+    Object.defineProperty(dropEvent, 'clientY', { value: 150 });
+    fireEvent(bottomBlock, dropEvent);
+
+    const blocks = stack.querySelectorAll('.draggable-strategy-block');
+    expect(blocks[blocks.length - 1]).toHaveAccessibleName(/MACD 전환 블록/);
   });
 
   test('deletes a condition block by dropping it into the bottom trash zone', () => {
@@ -638,10 +947,13 @@ describe('Basic editor strategy explanations', () => {
     expect(completeness).toHaveTextContent('PARTITION 01에 매수 컨테이너가 필요합니다.');
     expect(screen.getByTestId('strategy-section-1')).toHaveClass('has-validation-error');
     expect(screen.getByRole('button', { name: 'PARTITION 01 필수 매수 컨테이너 추가' })).toBeInTheDocument();
+    const unavailableLaunch = screen.getByRole('button', { name: '개인 봇 출시' });
+    expect(unavailableLaunch).toHaveClass('is-unavailable');
+    expect(unavailableLaunch).toHaveAttribute('aria-disabled', 'true');
 
     await user.click(screen.getByRole('button', { name: '저장' }));
     expect(screen.getByRole('alert')).toHaveTextContent('미완성 상태로 저장했습니다.');
-    expect(screen.getByRole('alert')).toHaveTextContent('매수 조건을 완성하면 출시할 수 있습니다.');
+    expect(screen.getByRole('alert')).toHaveTextContent('모든 컨테이너의 조건을 완성하면 출시할 수 있습니다.');
 
     await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
     expect(screen.queryByRole('dialog', { name: '개인 운용 봇 출시' })).not.toBeInTheDocument();
@@ -649,8 +961,11 @@ describe('Basic editor strategy explanations', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('PARTITION 01에 매수 컨테이너가 필요합니다.');
 
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 필수 매수 컨테이너 추가' }));
-    expect(completeness).toHaveTextContent('출시 가능한 전략');
-    expect(screen.getByTestId('strategy-section-1')).not.toHaveClass('has-validation-error');
+    expect(completeness).toHaveTextContent('매수 컨테이너에 조건 블록을 하나 이상 추가해 주세요.');
+    await user.click(screen.getByRole('button', { name: 'RSI 반등 블록 추가' }));
+    expect(completeness).toHaveTextContent('입력하지 않은 블록 설정을 완료해 주세요');
+    expect(completeness).not.toHaveTextContent('Null');
+    expect(screen.getByTestId('strategy-section-1')).toHaveClass('has-validation-error');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
@@ -664,7 +979,7 @@ describe('Basic editor strategy explanations', () => {
       const toast = screen.getByRole('alert');
       expect(toast).toHaveClass('editor-save-toast');
       expect(toast).toHaveClass('is-bottom-center');
-      expect(toast).toHaveTextContent('출시 가능 상태로 저장했습니다.');
+      expect(toast).toHaveTextContent('미완성 상태로 저장했습니다.');
 
       act(() => {
         vi.advanceTimersByTime(2_000);
@@ -679,11 +994,9 @@ describe('Basic editor strategy explanations', () => {
   test('marks a buy strategy incomplete when it contains no condition blocks', () => {
     render(<BasicEditor goBack={() => {}} />);
 
-    for (const blockId of ['buy-trigger-block', 'buy-rsi-block', 'buy-budget-block']) {
-      const dataTransfer = { effectAllowed: '', dropEffect: '', setData: vi.fn(), getData: vi.fn() };
-      fireEvent.dragStart(screen.getByTestId(blockId), { dataTransfer });
-      fireEvent.drop(screen.getByTestId('editor-trash-zone'), { dataTransfer });
-    }
+    const dataTransfer = { effectAllowed: '', dropEffect: '', setData: vi.fn(), getData: vi.fn() };
+    fireEvent.dragStart(screen.getByTestId('buy-rsi-block'), { dataTransfer });
+    fireEvent.drop(screen.getByTestId('editor-trash-zone'), { dataTransfer });
 
     expect(screen.getByTestId('basic-buy-group')).toHaveClass('has-validation-error');
     expect(screen.getByRole('region', { name: '전략 완성도' })).toHaveTextContent(

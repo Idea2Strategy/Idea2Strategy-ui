@@ -6084,6 +6084,493 @@
 }
 .snapshot-read-only-card .strategy-container-header { cursor: pointer; }
 .snapshot-read-only-card .block-stack { padding-top: 18px; }
+
+/* Basic editor — container-based strategy layout */
+.variant-balanced[data-design="signal-studio"] .strategy-section-header {
+  min-height: 96px;
+  grid-template-columns: 28px minmax(132px, 1fr) auto;
+  grid-template-areas:
+    "move identity actions"
+    "move settings settings";
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 20px;
+  padding-block: 12px 14px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-section-header .section-move-handle { grid-area: move; }
+.variant-balanced[data-design="signal-studio"] .strategy-section-header .section-identity { grid-area: identity; }
+.variant-balanced[data-design="signal-studio"] .strategy-section-header .section-settings {
+  grid-area: settings;
+  align-items: stretch;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-section-header .section-card-actions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-section-header .section-card-actions button {
+  min-height: 28px;
+  border-radius: 8px;
+}
+.variant-balanced[data-design="signal-studio"] .section-symbol-manager {
+  width: 116px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  cursor: pointer;
+}
+.variant-balanced[data-design="signal-studio"] .section-symbol-manager:hover {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+}
+.variant-balanced[data-design="signal-studio"] .section-symbol-manager strong {
+  font: 800 9px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .section-symbol-manager small {
+  color: var(--accent);
+  font: 700 7px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .section-strategy-grid {
+  top: 0;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-lane {
+  position: absolute;
+  z-index: 0;
+  top: 14px;
+  bottom: 16px;
+  width: 270px;
+  border: 1px dashed color-mix(in srgb, var(--line-strong) 72%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface-2) 50%, transparent);
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-lane::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lane-color) 7%, transparent), transparent 34%);
+}
+.variant-balanced[data-design="signal-studio"] .strategy-lane > span {
+  position: absolute;
+  top: 9px;
+  left: 12px;
+  color: color-mix(in srgb, var(--lane-color) 76%, var(--text-faint));
+  font: 800 7px var(--font-mono);
+  letter-spacing: .14em;
+}
+.variant-balanced[data-design="signal-studio"] .lane-buy {
+  --lane-color: var(--buy-block-color);
+  left: 18px;
+}
+.variant-balanced[data-design="signal-studio"] .lane-sell {
+  --lane-color: var(--sell-block-color);
+  left: 304px;
+}
+.variant-balanced[data-design="signal-studio"] .lane-risk {
+  --lane-color: #d4a62a;
+  left: 590px;
+}
+.variant-balanced[data-design="signal-studio"] .section-strategy-grid .strategy-card {
+  width: 260px;
+  min-width: 260px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 84%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 98%, transparent);
+  box-shadow: 0 10px 28px rgba(var(--shadow-rgb), .13);
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .strategy-container-header {
+  position: relative;
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 9px;
+  overflow: hidden;
+  padding: 12px 10px 12px 13px;
+  border-radius: 15px 15px 0 0;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .strategy-container-header::after { display: none; }
+.variant-balanced[data-design="signal-studio"] .risk-container .strategy-container-header {
+  color: #2f260a;
+  background: linear-gradient(135deg, #edc84c, #d9a827);
+}
+.variant-balanced[data-design="signal-studio"] .container-symbol {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.36);
+  border-radius: 8px;
+  background: rgba(255,255,255,.14);
+  font: 900 10px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .risk-container .container-symbol {
+  border-color: rgba(47,38,10,.2);
+  background: rgba(255,255,255,.28);
+}
+.variant-balanced[data-design="signal-studio"] .strategy-container-select {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-container-select:hover {
+  background: rgba(255,255,255,.07);
+}
+.variant-balanced[data-design="signal-studio"] .strategy-container-select:focus-visible {
+  outline: 2px solid color-mix(in srgb, currentColor 65%, transparent);
+  outline-offset: -3px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-container-identity {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-container-identity strong {
+  font-size: 12px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-container-identity small,
+.variant-balanced[data-design="signal-studio"] .container-condition-count {
+  overflow: hidden;
+  color: currentColor;
+  font: 700 7px var(--font-mono);
+  opacity: .78;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .container-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.variant-balanced[data-design="signal-studio"] .container-title-row input {
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0 7px;
+  border: 1px solid rgba(255,255,255,.42);
+  border-radius: 7px;
+  color: inherit;
+  background: rgba(0,0,0,.16);
+  font: 800 11px var(--font-sans);
+  pointer-events: auto;
+}
+.variant-balanced[data-design="signal-studio"] .container-title-row input::selection {
+  background: rgba(255,255,255,.28);
+}
+.variant-balanced[data-design="signal-studio"] .container-title-edit,
+.variant-balanced[data-design="signal-studio"] .container-settings-toggle {
+  position: relative;
+  z-index: 2;
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 8px;
+  color: inherit;
+  background: rgba(0,0,0,.13);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.variant-balanced[data-design="signal-studio"] .container-title-edit {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 21px;
+}
+.variant-balanced[data-design="signal-studio"] .container-title-edit:hover,
+.variant-balanced[data-design="signal-studio"] .container-settings-toggle:hover {
+  background: rgba(0,0,0,.24);
+}
+.variant-balanced[data-design="signal-studio"] .risk-container .container-title-edit,
+.variant-balanced[data-design="signal-studio"] .risk-container .container-settings-toggle {
+  border-color: rgba(47,38,10,.2);
+  background: rgba(255,255,255,.25);
+}
+.variant-balanced[data-design="signal-studio"] .container-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border-bottom: 1px solid var(--line);
+  background: var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .container-summary > span {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  min-height: 54px;
+  padding: 8px 9px;
+  background: color-mix(in srgb, var(--surface-2) 82%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .container-summary small {
+  overflow: hidden;
+  color: var(--text-faint);
+  font: 7px var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .container-summary strong {
+  overflow: hidden;
+  color: var(--text-soft);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack {
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+  padding: 12px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .draggable-strategy-block {
+  width: 100%;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .scratch-block,
+.variant-balanced[data-design="signal-studio"] .fixed-terminal-block .scratch-block {
+  min-width: 0;
+  clip-path: none;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .draggable-strategy-block .scratch-block {
+  min-height: 44px;
+  padding: 9px 10px 9px 28px;
+  border-radius: 11px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--block-tone-ink) 13%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .draggable-strategy-block + .draggable-strategy-block {
+  margin-top: 13px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .draggable-strategy-block + .draggable-strategy-block::after {
+  content: "모두 만족";
+  position: absolute;
+  z-index: 3;
+  top: -12px;
+  left: 50%;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-faint);
+  background: var(--surface);
+  font: 700 6px var(--font-mono);
+  letter-spacing: .02em;
+  transform: translateX(-50%);
+}
+.variant-balanced[data-design="signal-studio"] .empty-container-drop {
+  min-height: 96px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  padding: 14px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 38%, var(--line-strong));
+  border-radius: 12px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 24%, transparent);
+  text-align: center;
+}
+.variant-balanced[data-design="signal-studio"] .empty-container-drop strong { font-size: 9px; }
+.variant-balanced[data-design="signal-studio"] .empty-container-drop small {
+  color: var(--text-faint);
+  font-size: 8px;
+}
+.variant-balanced[data-design="signal-studio"] .fixed-terminal-block .scratch-block {
+  min-height: 47px;
+  border-radius: 0 0 15px 15px;
+}
+.variant-balanced[data-design="signal-studio"] .risk-container .fixed-terminal-block .scratch-block {
+  color: #2f260a;
+  background: linear-gradient(135deg, #edc84c, #d9a827);
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 13px;
+  padding: 13px;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--line));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--accent-soft) 18%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card.is-inline {
+  margin: 11px 12px 0;
+}
+.variant-balanced[data-design="signal-studio"] fieldset.container-settings-card { min-width: 0; }
+.variant-balanced[data-design="signal-studio"] .container-settings-card legend {
+  padding: 0 5px;
+  color: var(--accent);
+  font: 800 8px var(--font-mono);
+  letter-spacing: .08em;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card > label,
+.variant-balanced[data-design="signal-studio"] .additional-buy-settings label {
+  display: grid;
+  gap: 5px;
+  color: var(--text-faint);
+  font-size: 8px;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card input:not([type="checkbox"]),
+.variant-balanced[data-design="signal-studio"] .container-settings-card select,
+.variant-balanced[data-design="signal-studio"] .setting-with-unit {
+  min-width: 0;
+  min-height: 31px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface);
+  font-size: 9px;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card input:not([type="checkbox"]),
+.variant-balanced[data-design="signal-studio"] .container-settings-card select {
+  width: 100%;
+  padding: 0 9px;
+}
+.variant-balanced[data-design="signal-studio"] .setting-with-unit {
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+}
+.variant-balanced[data-design="signal-studio"] .setting-with-unit input {
+  border: 0 !important;
+  background: transparent !important;
+}
+.variant-balanced[data-design="signal-studio"] .setting-with-unit b {
+  color: var(--text-faint);
+  font: 800 8px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .readonly-budget {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  font-size: 8px;
+}
+.variant-balanced[data-design="signal-studio"] .readonly-budget strong {
+  color: var(--text-soft);
+  font-size: 9px;
+}
+.variant-balanced[data-design="signal-studio"] .setting-toggle {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+}
+.variant-balanced[data-design="signal-studio"] .setting-toggle input { margin-top: 2px; accent-color: var(--accent); }
+.variant-balanced[data-design="signal-studio"] .setting-toggle > span { display: grid; gap: 2px; }
+.variant-balanced[data-design="signal-studio"] .setting-toggle strong { color: var(--text); font-size: 9px; }
+.variant-balanced[data-design="signal-studio"] .setting-toggle small { color: var(--text-faint); line-height: 1.45; }
+.variant-balanced[data-design="signal-studio"] .additional-buy-settings { display: grid; gap: 8px; }
+.variant-balanced[data-design="signal-studio"] .settings-natural-summary {
+  margin: 0;
+  padding: 9px 10px;
+  border-left: 2px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  color: var(--text-soft);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  font-size: 8px;
+  line-height: 1.55;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-faint);
+  font-size: 8px;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card dd { margin: 0; color: var(--text-soft); }
+.symbol-manager-backdrop {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(8,12,22,.64);
+  backdrop-filter: blur(8px);
+}
+.symbol-manager-dialog {
+  width: min(520px, 100%);
+  max-height: min(680px, 88vh);
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 28px 80px rgba(var(--shadow-rgb), .4);
+}
+.symbol-manager-dialog > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 22px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.symbol-manager-dialog > header small { color: var(--accent); font: 800 8px var(--font-mono); letter-spacing: .12em; }
+.symbol-manager-dialog > header h2 { margin: 5px 0; font-size: 18px; }
+.symbol-manager-dialog > header p { margin: 0; color: var(--text-faint); font-size: 10px; line-height: 1.5; }
+.symbol-manager-dialog > header button,
+.symbol-manager-list > div > button {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.symbol-manager-list {
+  display: grid;
+  gap: 8px;
+  padding: 16px 22px;
+}
+.symbol-manager-list > div {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) 160px 30px;
+  align-items: end;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.symbol-manager-list > div > span,
+.symbol-manager-list label { display: grid; gap: 4px; }
+.symbol-manager-list strong { font: 800 11px var(--font-mono); }
+.symbol-manager-list small,
+.symbol-manager-list label > span:first-child { color: var(--text-faint); font-size: 8px; }
+.symbol-manager-dialog > footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 22px 20px;
+  border-top: 1px solid var(--line);
+}
 .snapshot-read-only-card .block-with-copy.is-read-only { cursor: default; }
 .snapshot-read-only-card .block-with-copy.is-read-only .block-drag-handle { opacity: .38; }
 .snapshot-read-only-node { user-select: none; }
@@ -7130,6 +7617,573 @@ small.dashboard-bot-scope {
   .variant-balanced[data-design="signal-studio"] .pro-editor-notice { right: 22px; }
 }
 
+/* Basic editor density and interaction refinements. */
+.variant-balanced[data-design="signal-studio"] .template-advanced-break {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 6px 1px 1px;
+  color: var(--text-faint);
+}
+.variant-balanced[data-design="signal-studio"] .template-advanced-break::before,
+.variant-balanced[data-design="signal-studio"] .template-advanced-break::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .template-advanced-break span {
+  color: var(--accent);
+  font: 800 7px var(--font-mono);
+  letter-spacing: .1em;
+}
+.variant-balanced[data-design="signal-studio"] .template-advanced-break small {
+  font-size: 7px;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .template-icon.tone-가격 {
+  color: #6eb6e8;
+  background: color-mix(in srgb, #6eb6e8 15%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .template-icon.tone-추세 {
+  color: #9a82e8;
+  background: color-mix(in srgb, #9a82e8 15%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .template-icon.tone-반전 {
+  color: #ddb84e;
+  background: color-mix(in srgb, #ddb84e 15%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .template-icon.tone-일정 {
+  color: #72c9c7;
+  background: color-mix(in srgb, #72c9c7 15%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .section-draw-controls > button,
+.variant-balanced[data-design="signal-studio"] .section-draw-controls > span {
+  min-height: 30px;
+  box-sizing: border-box;
+}
+.variant-balanced[data-design="signal-studio"] .section-draw-controls > button {
+  padding-inline: 9px;
+}
+.variant-balanced[data-design="signal-studio"] .section-draw-controls > span {
+  display: flex;
+  align-items: center;
+  padding-block: 0;
+}
+.variant-balanced[data-design="signal-studio"] .section-strategy-grid .strategy-card {
+  width: 280px;
+  min-width: 280px;
+  overflow: visible;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card-move-handle {
+  top: -12px;
+  min-height: 24px;
+  box-shadow: 0 5px 14px rgba(var(--shadow-rgb), .24);
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .strategy-container-header {
+  min-height: 52px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  overflow: visible;
+  padding: 10px 10px 9px 13px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-container-identity {
+  gap: 0;
+}
+.variant-balanced[data-design="signal-studio"] .container-title-edit {
+  width: 18px;
+  height: 18px;
+  flex-basis: 18px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  opacity: 0;
+  transform: translateX(-3px);
+  transition: opacity 110ms ease-out, transform 110ms ease-out, background-color 110ms ease-out;
+}
+.variant-balanced[data-design="signal-studio"] .container-title-row:hover .container-title-edit,
+.variant-balanced[data-design="signal-studio"] .container-title-edit:focus-visible,
+.variant-balanced[data-design="signal-studio"] .container-title-row:focus-within .container-title-edit {
+  opacity: .84;
+  transform: translateX(0);
+}
+.variant-balanced[data-design="signal-studio"] .container-title-edit:hover {
+  background: rgba(0,0,0,.12);
+}
+.variant-balanced[data-design="signal-studio"] .container-quick-meta {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-faint);
+  background: color-mix(in srgb, var(--surface-2) 82%, var(--surface));
+  font: 700 8px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .container-quick-meta span {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-3) 72%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card.is-popover {
+  position: absolute;
+  z-index: 80;
+  top: 45px;
+  right: 8px;
+  width: 252px;
+  margin: 0;
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--surface) 97%, transparent);
+  box-shadow: 0 18px 42px rgba(var(--shadow-rgb), .34);
+  backdrop-filter: blur(16px);
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack {
+  padding: 11px 12px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .draggable-strategy-block .scratch-block {
+  gap: 7px;
+  padding-right: 9px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .scratch-block > span:not([class]) {
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-custom-select:not(.is-compact) {
+  width: 92px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-custom-select-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Basic editor panels share one visual rhythm and collapse to a compact rail. */
+.variant-balanced[data-design="signal-studio"] .editor-shell-page .basic-editor-left-rail {
+  width: 280px;
+  min-width: 280px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-left-rail .basic-validation-summary,
+.variant-balanced[data-design="signal-studio"] .editor-shell-page .basic-editor-left-rail .template-library-panel,
+.variant-balanced[data-design="signal-studio"] .editor-shell-page .editor-inspector {
+  width: 280px;
+}
+.variant-balanced[data-design="signal-studio"] .template-library-panel .palette-title,
+.variant-balanced[data-design="signal-studio"] .block-library-panel .inspector-title {
+  min-height: 43px;
+  box-sizing: border-box;
+  gap: 7px;
+}
+.variant-balanced[data-design="signal-studio"] .template-library-panel .palette-title > span,
+.variant-balanced[data-design="signal-studio"] .block-library-panel .inspector-title > span {
+  margin-right: auto;
+}
+.variant-balanced[data-design="signal-studio"] .sidebar-toggle {
+  width: 25px;
+  height: 25px;
+  flex: 0 0 25px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.variant-balanced[data-design="signal-studio"] .sidebar-toggle:hover,
+.variant-balanced[data-design="signal-studio"] .sidebar-toggle:focus-visible {
+  color: var(--text);
+  border-color: var(--line-strong);
+  background: var(--surface-3);
+}
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed {
+  overflow: auto;
+  box-shadow: 0 12px 28px rgba(var(--shadow-rgb), .16);
+}
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed[data-collapse-direction="left"] {
+  transform: translateX(calc(-100% + 44px));
+  clip-path: inset(0 0 calc(100% - 44px) calc(100% - 44px) round 0 12px 12px 0);
+}
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed[data-collapse-direction="right"] {
+  transform: translateX(calc(100% - 44px));
+  clip-path: inset(0 calc(100% - 44px) calc(100% - 44px) 0 round 12px 0 0 12px);
+}
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed[data-collapse-direction="left"]:hover,
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed[data-collapse-direction="left"]:focus-within {
+  transform: translateX(calc(-100% + 44px));
+}
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed[data-collapse-direction="right"]:hover,
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed[data-collapse-direction="right"]:focus-within {
+  transform: translateX(calc(100% - 44px));
+}
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed .palette-title,
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed .inspector-title {
+  position: relative;
+}
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed .palette-title > span,
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed .palette-title > svg,
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed .inspector-title > span,
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed .inspector-title > svg {
+  display: none;
+}
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed .sidebar-toggle {
+  position: absolute;
+  top: 9px;
+  margin: 0;
+}
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed[data-collapse-direction="left"] .sidebar-toggle {
+  right: 9px;
+}
+.variant-balanced[data-design="signal-studio"] .floating-editor-panel.is-collapsed[data-collapse-direction="right"] .sidebar-toggle {
+  left: 9px;
+}
+
+/* Library entries read as draggable blocks instead of loose pills. */
+.variant-balanced[data-design="signal-studio"] .block-chip-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+.variant-balanced[data-design="signal-studio"] .block-chip-list button {
+  width: 100%;
+  min-height: 34px;
+  justify-content: space-between;
+  padding: 0 10px;
+  border-radius: 9px;
+  text-align: left;
+}
+
+/* Header tags keep essential settings visible without adding another card row. */
+.variant-balanced[data-design="signal-studio"] .strategy-card .strategy-container-header {
+  min-height: 58px;
+  padding-block: 9px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-container-identity {
+  align-content: center;
+  gap: 4px;
+}
+.variant-balanced[data-design="signal-studio"] .container-title-tags {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.variant-balanced[data-design="signal-studio"] .container-title-tags > span,
+.variant-balanced[data-design="signal-studio"] .strategy-validation-badge {
+  min-height: 15px;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 2px 5px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 999px;
+  color: rgba(255,255,255,.82);
+  background: rgba(0,0,0,.14);
+  font: 750 7px/1 var(--font-mono);
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-validation-badge {
+  color: rgba(255,255,255,.92);
+  background: rgba(0,0,0,.24);
+}
+.variant-balanced[data-design="signal-studio"] .risk-container .container-title-tags > span,
+.variant-balanced[data-design="signal-studio"] .risk-container .strategy-validation-badge {
+  color: color-mix(in srgb, var(--ink) 82%, transparent);
+  border-color: rgba(0,0,0,.11);
+  background: rgba(255,255,255,.26);
+}
+
+/* An empty target is deliberately block-sized; its duplicate add row is omitted in JSX. */
+.variant-balanced[data-design="signal-studio"] .empty-container-drop {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  text-align: left;
+}
+.variant-balanced[data-design="signal-studio"] .empty-container-drop strong {
+  font-size: 9px;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .empty-container-drop small {
+  margin-left: auto;
+  font-size: 7px;
+  white-space: nowrap;
+}
+
+/* Partition controls use the same compact type scale. */
+.variant-balanced[data-design="signal-studio"] .section-draw-controls > button,
+.variant-balanced[data-design="signal-studio"] .section-draw-controls > span {
+  font: 700 9px/1 var(--font-mono);
+}
+
+/* Custom selects follow the same surface, focus and selection language as the editor. */
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger {
+  min-height: 27px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 78%, transparent);
+  border-radius: 7px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 72%, rgba(255,255,255,.32));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16);
+}
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger:hover,
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-open .block-custom-select-trigger {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--line-strong));
+  background: color-mix(in srgb, var(--surface) 84%, rgba(255,255,255,.2));
+}
+.block-custom-select-menu {
+  gap: 2px;
+  box-sizing: border-box;
+  padding: 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 97%, transparent);
+  box-shadow: 0 14px 34px rgba(var(--shadow-rgb), .3);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.block-custom-select-menu > button {
+  min-height: 31px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-soft);
+  background: transparent;
+  font: 700 9px/1.25 var(--font-sans);
+  white-space: nowrap;
+}
+.block-custom-select-menu > button:hover,
+.block-custom-select-menu > button:focus-visible {
+  color: var(--text);
+  background: var(--surface-3);
+}
+.block-custom-select-menu > button[aria-selected="true"] {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent-soft) 74%, var(--surface-2));
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* Follow-up polish: controls remain block-toned in both themes. */
+.variant-balanced[data-design="signal-studio"] .scratch-block {
+  --block-control-bg: color-mix(in srgb, var(--block-tone-color) 44%, #fff);
+  --block-control-hover: color-mix(in srgb, var(--block-tone-color) 56%, #fff);
+  --block-control-ink: #142023;
+}
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger,
+.variant-balanced[data-design="signal-studio"] .block-number-stepper {
+  color: var(--block-control-ink);
+  border-color: color-mix(in srgb, var(--block-tone-color) 62%, rgba(0,0,0,.24));
+  background: var(--block-control-bg);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.44);
+}
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger:hover,
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-open .block-custom-select-trigger,
+.variant-balanced[data-design="signal-studio"] .block-number-stepper button:hover {
+  color: var(--block-control-ink);
+  background: var(--block-control-hover);
+}
+.variant-balanced[data-design="signal-studio"] .block-number-stepper input,
+.variant-balanced[data-design="signal-studio"] .block-number-stepper button {
+  color: var(--block-control-ink);
+  background: transparent;
+}
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-compact {
+  width: 26px;
+  flex-basis: 26px;
+}
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-compact .block-custom-select-trigger {
+  width: 26px;
+  min-height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--block-control-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--block-tone-color) 62%, rgba(0,0,0,.18));
+}
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-compact .block-custom-select-trigger:hover,
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-compact.is-open .block-custom-select-trigger {
+  background: var(--block-control-hover);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--block-tone-color) 78%, rgba(0,0,0,.2));
+}
+.variant-balanced[data-design="signal-studio"] .block-relation-icon {
+  stroke-width: 2.4;
+}
+.variant-balanced[data-design="signal-studio"] .select-trigger-value,
+.select-option-label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.variant-balanced[data-design="signal-studio"] .select-trigger-value > svg,
+.select-option-icon {
+  flex: 0 0 auto;
+}
+.variant-balanced[data-design="signal-studio"] .select-trigger-value > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.select-option-icon {
+  color: var(--accent);
+}
+.block-custom-select-menu.is-compact {
+  width: 92px !important;
+}
+
+/* One condition block receives the same breathing room above and below. */
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack {
+  gap: 8px;
+  padding: 12px;
+}
+
+/* The preview's declared width now includes padding and border, preserving the 12px sidebar gap. */
+.variant-balanced[data-design="signal-studio"] .strategy-preview-card {
+  box-sizing: border-box;
+}
+
+/* Mouse-led guidance replaces punctuation-heavy operation copy. */
+.variant-balanced[data-design="signal-studio"] .canvas-gesture-guide {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.variant-balanced[data-design="signal-studio"] .canvas-gesture-guide b,
+.variant-balanced[data-design="signal-studio"] .canvas-gesture-guide i {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  font-style: normal;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .canvas-gesture-guide i {
+  color: var(--text-faint);
+}
+.variant-balanced[data-design="signal-studio"] .canvas-gesture-guide i + i {
+  padding-left: 9px;
+  border-left: 1px solid var(--line);
+}
+
+/* Semantic option colors make long price-reference menus scannable. */
+.block-custom-select-menu > button,
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger {
+  --select-tone: var(--text-soft);
+  --select-tone-soft: var(--surface-3);
+}
+.block-custom-select-menu > button.tone-up,
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-up {
+  --select-tone: #16885d;
+  --select-tone-soft: color-mix(in srgb, #44bd87 18%, var(--surface));
+}
+.block-custom-select-menu > button.tone-down,
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-down {
+  --select-tone: #d75563;
+  --select-tone-soft: color-mix(in srgb, #e86470 17%, var(--surface));
+}
+.block-custom-select-menu > button.tone-history,
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-history {
+  --select-tone: #4f83d8;
+  --select-tone-soft: color-mix(in srgb, #6596e7 18%, var(--surface));
+}
+.block-custom-select-menu > button.tone-today,
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-today {
+  --select-tone: #188e98;
+  --select-tone-soft: color-mix(in srgb, #4abac0 18%, var(--surface));
+}
+.block-custom-select-menu > button.tone-average,
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-average {
+  --select-tone: #795bc7;
+  --select-tone-soft: color-mix(in srgb, #9b7ce6 18%, var(--surface));
+}
+.block-custom-select-menu > button.tone-time,
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-time {
+  --select-tone: #28899b;
+  --select-tone-soft: color-mix(in srgb, #62bdca 18%, var(--surface));
+}
+.block-custom-select-menu > button .select-option-label,
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger .select-trigger-value,
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger .block-relation-icon {
+  color: var(--select-tone);
+}
+.block-custom-select-menu > button .select-option-icon {
+  color: inherit;
+}
+.block-custom-select-menu > button[aria-selected="true"] {
+  color: var(--select-tone);
+  background: var(--select-tone-soft);
+  box-shadow: inset 2px 0 0 var(--select-tone);
+}
+
+/* Invalid launch remains clickable for its explanation, but no longer reads as an available primary action. */
+.variant-balanced[data-design="signal-studio"] .editor-launch-action .button.is-unavailable {
+  color: var(--text-faint);
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--surface-3) 84%, var(--surface));
+  box-shadow: none;
+  filter: grayscale(.35);
+}
+.variant-balanced[data-design="signal-studio"] .editor-launch-action .button.is-unavailable:hover,
+.variant-balanced[data-design="signal-studio"] .editor-launch-action .button.is-unavailable:focus-visible {
+  color: var(--text-soft);
+  border-color: var(--line-strong);
+  background: var(--surface-3);
+}
+
+/* Block groups mirror the package Advanced divider instead of accordion cards. */
+.variant-balanced[data-design="signal-studio"] .block-category-list {
+  gap: 10px;
+  padding-inline: 11px;
+}
+.variant-balanced[data-design="signal-studio"] .block-category {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.variant-balanced[data-design="signal-studio"] .block-category-divider {
+  display: grid;
+  grid-template-columns: minmax(10px, 1fr) auto auto minmax(10px, 1fr);
+  align-items: center;
+  gap: 7px;
+  color: var(--text-faint);
+}
+.variant-balanced[data-design="signal-studio"] .block-category-divider::before,
+.variant-balanced[data-design="signal-studio"] .block-category-divider::after {
+  content: "";
+  height: 1px;
+  background: var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .block-category-divider > span {
+  color: var(--block-tone-color);
+  font: 800 8px var(--font-mono);
+  letter-spacing: .05em;
+}
+.variant-balanced[data-design="signal-studio"] .block-category-divider > b {
+  color: var(--text-faint);
+  font: 700 7px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .block-category .block-chip-list {
+  padding: 7px 0 0;
+  border-top: 0;
+}
+
+/* Banner markers remain legible over the line and clearly point at the fill. */
+.variant-balanced[data-design="signal-studio"] .strategy-preview-marker {
+  stroke: color-mix(in srgb, var(--surface) 76%, transparent);
+  stroke-width: 1.4;
+  paint-order: stroke fill;
+  filter: drop-shadow(0 1px 1px rgba(var(--shadow-rgb), .28));
+}
+
 /*
   전략 미리보기 PiP 창.
 
@@ -7318,4 +8372,441 @@ small.dashboard-bot-scope {
 }
 @media (max-width: 800px) {
   .variant-balanced[data-design="signal-studio"] .strategy-preview-card { display: none; }
+}
+
+/*
+  Basic editor cohesion pass (issue 49 follow-up).
+  This block is intentionally isolated so this visual experiment can be reverted
+  without touching the earlier container layout and collision work.
+*/
+
+/* The selected relation remains visible as one icon plus one semantic word. */
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-compact {
+  width: 48px;
+  flex-basis: 48px;
+}
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-compact .block-custom-select-trigger {
+  width: 48px;
+  min-height: 26px;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 5px;
+  border-radius: 8px;
+}
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-compact .block-custom-select-trigger svg {
+  display: block;
+  transform: none;
+}
+.variant-balanced[data-design="signal-studio"] .block-relation-label {
+  overflow: visible;
+  color: inherit;
+  font: 800 7px/1 var(--font-sans);
+  white-space: nowrap;
+}
+
+/* Partition count and gesture help are separate controls instead of one sentence. */
+.variant-balanced[data-design="signal-studio"] .partition-count-badge {
+  width: 32px;
+  min-width: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0;
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 62%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .partition-count-badge b {
+  color: inherit;
+  font: 800 8px/1 var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .canvas-gesture-guide {
+  margin-left: 5px;
+}
+
+/* Conditions sit on one shared rail: one rule is IF, multiple rules are AND. */
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack.has-condition-blocks {
+  position: relative;
+  gap: 7px;
+  padding: 25px 9px 9px 13px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent-soft) 32%, transparent), transparent 42%),
+    color-mix(in srgb, var(--surface-2) 72%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack.has-condition-blocks::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 21px;
+  bottom: 10px;
+  left: 7px;
+  width: 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 56%, var(--line-strong));
+}
+.variant-balanced[data-design="signal-studio"] .condition-stack-label {
+  position: absolute;
+  z-index: 2;
+  top: 6px;
+  left: 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--accent);
+  font: 850 7px/1 var(--font-mono);
+  letter-spacing: .08em;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack.has-condition-blocks .draggable-strategy-block {
+  position: relative;
+  z-index: 1;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack.has-condition-blocks .scratch-block {
+  border-radius: 8px;
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--block-tone-color) 82%, var(--block-tone-ink)),
+    inset 0 0 0 1px color-mix(in srgb, var(--block-tone-ink) 12%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack.has-condition-blocks .draggable-strategy-block + .draggable-strategy-block {
+  margin-top: 7px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack.has-condition-blocks .draggable-strategy-block + .draggable-strategy-block::after {
+  content: "";
+  top: -5px;
+  left: 7px;
+  width: 4px;
+  height: 4px;
+  padding: 0;
+  border: 0;
+  background: var(--accent);
+}
+
+/* Library blocks use a neutral surface with category colour only as an accent. */
+.variant-balanced[data-design="signal-studio"] .block-chip-list .library-block-button {
+  color: var(--text-soft);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 84%, var(--surface));
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--block-tone-color) 82%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .block-chip-list .library-block-button:hover,
+.variant-balanced[data-design="signal-studio"] .block-chip-list .library-block-button:focus-visible {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--block-tone-color) 44%, var(--line-strong));
+  background: color-mix(in srgb, var(--block-tone-surface) 18%, var(--surface-2));
+}
+.variant-balanced[data-design="signal-studio"] .block-chip-accent {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.variant-balanced[data-design="signal-studio"] .block-chip-accent > svg {
+  flex: 0 0 auto;
+  color: var(--block-tone-color);
+}
+.variant-balanced[data-design="signal-studio"] .block-chip-accent > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .library-block-button > svg {
+  color: var(--text-faint);
+}
+
+/* Compact container settings: short labels, aligned values and an explicit close. */
+.variant-balanced[data-design="signal-studio"] .container-settings-card.is-popover {
+  top: 52px;
+  right: 7px;
+  width: 270px;
+  box-sizing: border-box;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+}
+.variant-balanced[data-design="signal-studio"] .section-strategy-grid .strategy-card:has(.container-settings-card.is-popover) {
+  z-index: 95;
+  overflow: visible;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-head > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-head strong {
+  font-size: 10px;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-head button {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-head button:hover,
+.variant-balanced[data-design="signal-studio"] .container-settings-head button:focus-visible {
+  color: var(--text);
+  background: var(--surface-3);
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card .readonly-budget {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card .readonly-budget > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card .readonly-budget strong {
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card > .order-limit-setting {
+  grid-template-columns: minmax(0, 1fr) 86px;
+  align-items: center;
+  gap: 9px;
+}
+.variant-balanced[data-design="signal-studio"] .order-limit-setting > span:first-child {
+  display: grid;
+  gap: 2px;
+}
+.variant-balanced[data-design="signal-studio"] .order-limit-setting strong {
+  color: var(--text);
+  font-size: 9px;
+}
+.variant-balanced[data-design="signal-studio"] .order-limit-setting small {
+  color: var(--text-faint);
+  font-size: 7px;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card > .setting-toggle {
+  min-height: 38px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card > .setting-toggle input {
+  position: relative;
+  width: 30px;
+  height: 17px;
+  margin: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  appearance: none;
+  background: var(--surface-3);
+  cursor: pointer;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card > .setting-toggle input::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: transform 130ms ease-out, background-color 130ms ease-out;
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card > .setting-toggle input:checked {
+  border-color: color-mix(in srgb, var(--accent) 66%, var(--line-strong));
+  background: color-mix(in srgb, var(--accent-soft) 78%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .container-settings-card > .setting-toggle input:checked::after {
+  background: var(--accent);
+  transform: translateX(13px);
+}
+.variant-balanced[data-design="signal-studio"] .additional-buy-settings {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .additional-buy-settings label:first-child {
+  grid-column: 1 / -1;
+}
+.variant-balanced[data-design="signal-studio"] .additional-buy-settings label > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Follow-up: multi-rule groups are compact segments, without floating join dots. */
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack.is-segmented-condition {
+  gap: 3px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack.is-segmented-condition .draggable-strategy-block + .draggable-strategy-block {
+  margin-top: 0;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack.is-segmented-condition .draggable-strategy-block + .draggable-strategy-block::after {
+  display: none;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack.is-segmented-condition .draggable-strategy-block:not(:last-of-type) .scratch-block {
+  border-radius: 8px 8px 5px 5px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack.is-segmented-condition .draggable-strategy-block + .draggable-strategy-block .scratch-block {
+  border-radius: 5px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card .block-stack.is-segmented-condition .draggable-strategy-block:last-of-type .scratch-block {
+  border-radius: 5px 5px 8px 8px;
+}
+
+/* Category colour now reads as a broad edge band instead of a circular marker. */
+.variant-balanced[data-design="signal-studio"] .block-chip-list .library-block-button.has-tone-band {
+  position: relative;
+  overflow: hidden;
+  padding-left: 15px;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--block-tone-color) 20%, var(--surface-2)) 0,
+      color-mix(in srgb, var(--block-tone-color) 8%, var(--surface-2)) 42px,
+      color-mix(in srgb, var(--surface-2) 84%, var(--surface)) 74px
+    );
+  box-shadow: none;
+}
+.variant-balanced[data-design="signal-studio"] .block-chip-list .library-block-button.has-tone-band::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: var(--block-tone-color);
+}
+.variant-balanced[data-design="signal-studio"] .block-chip-list .library-block-button.has-tone-band:hover,
+.variant-balanced[data-design="signal-studio"] .block-chip-list .library-block-button.has-tone-band:focus-visible {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--block-tone-color) 27%, var(--surface-2)) 0,
+      color-mix(in srgb, var(--block-tone-color) 12%, var(--surface-2)) 50px,
+      var(--surface-2) 84px
+    );
+}
+.variant-balanced[data-design="signal-studio"] .library-block-button.has-tone-band .block-chip-accent {
+  gap: 0;
+}
+
+/* Library names carry the hierarchy; the category band remains supporting colour. */
+.variant-balanced[data-design="signal-studio"] .library-block-button .block-chip-name {
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: -.01em;
+}
+.variant-balanced[data-design="signal-studio"] .library-block-button:hover .block-chip-name,
+.variant-balanced[data-design="signal-studio"] .library-block-button:focus-visible .block-chip-name {
+  color: color-mix(in srgb, var(--block-tone-color) 68%, var(--text));
+}
+
+/* Unset controls stay explicit without exposing implementation terminology. */
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger[data-value=""] {
+  border-style: dashed;
+  color: var(--text-faint);
+}
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-compact.is-null {
+  width: 62px;
+  flex-basis: 62px;
+}
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-compact.is-null .block-custom-select-trigger {
+  width: 62px;
+}
+.variant-balanced[data-design="signal-studio"] .block-number-stepper.is-null {
+  width: 68px;
+  flex-basis: 68px;
+  grid-template-columns: 18px minmax(20px, 1fr) 8px 18px;
+  border-style: dashed;
+}
+.variant-balanced[data-design="signal-studio"] .block-number-stepper input::placeholder {
+  color: var(--text-faint);
+  opacity: .9;
+  font-size: 7px;
+}
+
+/* Relations read as semantic pills; value pickers remain conventional dropdowns. */
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-relation-select .block-custom-select-trigger {
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--select-tone) 13%, var(--block-control-bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--select-tone) 42%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-relation-select .block-custom-select-trigger:hover,
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-relation-select.is-open .block-custom-select-trigger {
+  background: color-mix(in srgb, var(--select-tone) 21%, var(--block-control-bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--select-tone) 62%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-relation-select.is-fixed-width,
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-relation-select.is-fixed-width.is-null {
+  width: 52px;
+  flex-basis: 52px;
+}
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-relation-select.is-fixed-width .block-custom-select-trigger,
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-relation-select.is-fixed-width.is-null .block-custom-select-trigger {
+  width: 52px;
+}
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-value-select .block-custom-select-trigger {
+  border-color: color-mix(in srgb, var(--block-tone-color) 62%, rgba(0,0,0,.24));
+}
+
+/* The active insertion edge follows the pointer, including after the last block. */
+.variant-balanced[data-design="signal-studio"] .draggable-strategy-block[data-drop-position="after"]::before {
+  top: auto;
+  bottom: -4px;
+}
+
+/* Native browser steppers are hidden; the editor's deliberate +/- controls remain. */
+.variant-balanced[data-design="signal-studio"] input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.variant-balanced[data-design="signal-studio"] input[type="number"]::-webkit-inner-spin-button,
+.variant-balanced[data-design="signal-studio"] input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* Empty and entered numeric values share the same optical center. */
+.variant-balanced[data-design="signal-studio"] .block-number-stepper input.is-centered-number {
+  height: 100%;
+  padding-inline: 0;
+  text-align: center;
+}
+.variant-balanced[data-design="signal-studio"] .scratch-block .block-type-icon {
+  flex: 0 0 15px;
+}
+
+/* Package cards expose their actual container complexity at a glance. */
+.variant-balanced[data-design="signal-studio"] .template-card .template-card-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.variant-balanced[data-design="signal-studio"] .template-card .template-card-copy em {
+  width: max-content;
+  max-width: 100%;
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--block-tone-color, var(--accent)) 26%, var(--line));
+  border-radius: 999px;
+  color: var(--text-faint);
+  background: color-mix(in srgb, var(--surface-3) 72%, transparent);
+  font: 700 7px/1.2 var(--font-mono);
+  font-style: normal;
+  white-space: nowrap;
 }

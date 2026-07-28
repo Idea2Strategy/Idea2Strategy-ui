@@ -411,7 +411,7 @@ export const indicatorPeriodFor = (kind: IndicatorKind, value: string | undefine
 export const parseSignalRule = (blocks: PreviewBlock[]): { rule: SignalRule | null; unsupported: string[] } => {
   const unsupported: string[] = [];
   for (const block of blocks) {
-    if (block.tone !== 'indicator') continue;
+    if (block.tone !== 'indicator' && block.tone !== 'condition') continue;
     const kind = identifyIndicator(block.label);
     if (!kind) {
       unsupported.push(block.label);

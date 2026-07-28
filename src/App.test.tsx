@@ -58,6 +58,15 @@ describe('Signal product UI', () => {
     window.history.replaceState({}, '', '/strategies/new/basic');
     render(<App />);
 
+    const buyRsi = screen.getByTestId('buy-rsi-block');
+    await user.type(within(buyRsi).getByLabelText('RSI 반등 값'), '30');
+    await user.click(within(buyRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
+    await user.click(screen.getByRole('option', { name: '상승' }));
+    const sellRsi = screen.getByTestId('sell-rsi-block');
+    await user.type(within(sellRsi).getByLabelText('RSI 반등 값'), '70');
+    await user.click(within(sellRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
+    await user.click(screen.getByRole('option', { name: '하락' }));
+
     await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
     const dialog = screen.getByRole('dialog', { name: '개인 운용 봇 출시' });
     await user.type(within(dialog).getByRole('textbox', { name: '봇 이름' }), 'Momentum Scout');
@@ -303,22 +312,15 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('button', { name: '균형형 보기' })).not.toBeInTheDocument();
   });
 
-  test('shows the buy rule as one natural-language note per block', async () => {
+  test('uses container selection without the retired natural-language block notes', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
     await user.click(screen.getByRole('button', { name: '전략' }));
     await user.click(screen.getByRole('button', { name: '새 전략' }));
     await user.click(screen.getByRole('button', { name: 'Basic으로 시작' }));
-    await user.hover(screen.getByTestId('buy-rsi-block'));
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '매수 컨테이너 자연어 설명' }));
-    const explanations = screen.getAllByRole('note');
-    expect(explanations).toHaveLength(4);
-    expect(explanations[0]).toHaveTextContent('1분봉');
-    expect(explanations[1]).toHaveTextContent('RSI(14)');
-    expect(explanations[1]).toHaveTextContent('30 미만');
-    expect(explanations[2]).toHaveTextContent('25%');
-    expect(explanations[3]).toHaveTextContent('시장가 매수');
+    await user.click(screen.getByRole('button', { name: '매수 컨테이너 선택' }));
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 
   test('opens a categorized compatible-node picker where a Pro connection is released', async () => {

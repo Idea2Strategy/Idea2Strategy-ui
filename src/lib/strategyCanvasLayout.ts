@@ -1,7 +1,9 @@
 export const BASIC_SECTION_HEADER_HEIGHT = 96;
 export const BASIC_SECTION_MIN_WIDTH = 600;
 export const BASIC_SECTION_PADDING = 24;
-export const BASIC_STRATEGY_CARD_WIDTH = 260;
+export const BASIC_CARD_MIN_Y = 136;
+export const BASIC_CARD_GAP = 16;
+export const BASIC_STRATEGY_CARD_WIDTH = 280;
 export const BASIC_STRATEGY_CARD_FALLBACK_HEIGHT = 286;
 
 export interface CanvasPoint {
@@ -21,9 +23,14 @@ export interface CardMoveGesture {
   startY: number;
 }
 
+export interface OccupiedCardLayout {
+  position: CanvasPoint;
+  size: CanvasSize;
+}
+
 export const getDefaultBasicCardPosition = (index: number): CanvasPoint => ({
   x: BASIC_SECTION_PADDING + (index % 3) * (BASIC_STRATEGY_CARD_WIDTH + 26),
-  y: 112 + Math.floor(index / 3) * (BASIC_STRATEGY_CARD_FALLBACK_HEIGHT + 24),
+  y: BASIC_CARD_MIN_Y + Math.floor(index / 3) * (BASIC_STRATEGY_CARD_FALLBACK_HEIGHT + 24),
 });
 
 export const getMovedBasicCardPosition = (
@@ -32,9 +39,65 @@ export const getMovedBasicCardPosition = (
   clientY: number,
   zoom: number,
 ): CanvasPoint => ({
-  x: Math.max(0, move.originX + (clientX - move.startX) / zoom),
-  y: Math.max(BASIC_SECTION_HEADER_HEIGHT, move.originY + (clientY - move.startY) / zoom),
+  x: Math.max(BASIC_SECTION_PADDING, move.originX + (clientX - move.startX) / zoom),
+  y: Math.max(BASIC_CARD_MIN_Y, move.originY + (clientY - move.startY) / zoom),
 });
+
+const cardsOverlap = (
+  firstPosition: CanvasPoint,
+  firstSize: CanvasSize,
+  second: OccupiedCardLayout,
+): boolean => (
+  firstPosition.x < second.position.x + second.size.width + BASIC_CARD_GAP
+  && firstPosition.x + firstSize.width + BASIC_CARD_GAP > second.position.x
+  && firstPosition.y < second.position.y + second.size.height + BASIC_CARD_GAP
+  && firstPosition.y + firstSize.height + BASIC_CARD_GAP > second.position.y
+);
+
+export const resolveBasicCardCollision = (
+  desired: CanvasPoint,
+  movingSize: CanvasSize,
+  occupied: OccupiedCardLayout[],
+): CanvasPoint => {
+  const normalized = {
+    x: Math.max(BASIC_SECTION_PADDING, Math.round(desired.x)),
+    y: Math.max(BASIC_CARD_MIN_Y, Math.round(desired.y)),
+  };
+  const isFree = (candidate: CanvasPoint) => !occupied.some((item) => cardsOverlap(candidate, movingSize, item));
+  if (isFree(normalized)) return normalized;
+
+  const candidates: CanvasPoint[] = [];
+  occupied.forEach((item) => {
+    candidates.push(
+      { x: item.position.x + item.size.width + BASIC_CARD_GAP, y: normalized.y },
+      { x: normalized.x, y: item.position.y + item.size.height + BASIC_CARD_GAP },
+      { x: Math.max(BASIC_SECTION_PADDING, item.position.x - movingSize.width - BASIC_CARD_GAP), y: normalized.y },
+      { x: normalized.x, y: Math.max(BASIC_CARD_MIN_Y, item.position.y - movingSize.height - BASIC_CARD_GAP) },
+    );
+  });
+
+  const maxRight = occupied.reduce(
+    (right, item) => Math.max(right, item.position.x + item.size.width),
+    BASIC_SECTION_PADDING,
+  );
+  const rowStarts = [
+    BASIC_CARD_MIN_Y,
+    ...occupied.map((item) => item.position.y + item.size.height + BASIC_CARD_GAP),
+  ];
+  rowStarts.forEach((y) => {
+    for (let x = BASIC_SECTION_PADDING; x <= maxRight + movingSize.width + BASIC_CARD_GAP; x += movingSize.width + BASIC_CARD_GAP) {
+      candidates.push({ x, y });
+    }
+  });
+
+  return candidates
+    .filter(isFree)
+    .sort((left, right) => {
+      const leftDistance = (left.x - normalized.x) ** 2 + (left.y - normalized.y) ** 2 * 1.25;
+      const rightDistance = (right.x - normalized.x) ** 2 + (right.y - normalized.y) ** 2 * 1.25;
+      return leftDistance - rightDistance || left.y - right.y || left.x - right.x;
+    })[0] ?? { x: maxRight + BASIC_CARD_GAP, y: BASIC_CARD_MIN_Y };
+};
 
 export const getStrategyCanvasWheelZoom = (
   zoom: number,

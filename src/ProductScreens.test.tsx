@@ -414,13 +414,13 @@ describe('Bot operations', () => {
     fireEvent.pointerUp(canvas, { pointerId: 1 });
     expect(card).toHaveAttribute('data-x', '1024');
     expect(card).toHaveAttribute('data-y', '1112');
-    expect(section).toHaveStyle({ width: '1308px', height: '1422px' });
+    expect(section).toHaveStyle({ width: '1328px', height: '1422px' });
 
     fireEvent.pointerDown(handle, { pointerId: 2, button: 0, clientX: 100, clientY: 100 });
     fireEvent.pointerMove(canvas, { pointerId: 2, clientX: -1000, clientY: -1000 });
     fireEvent.pointerUp(canvas, { pointerId: 2 });
-    expect(card).toHaveAttribute('data-x', '0');
-    expect(card).toHaveAttribute('data-y', '96');
+    expect(card).toHaveAttribute('data-x', '24');
+    expect(card).toHaveAttribute('data-y', '136');
   });
 
   test('renders Pro snapshot nodes at their saved coordinates in the same modal', async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   CSSProperties,
   DragEvent,
@@ -10,7 +10,7 @@ import type {
   WheelEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Boxes, CandlestickChart, Check, ChevronDown, ChevronRight, CircleDollarSign, GitBranch, GripVertical, Import, Layers3, Minus, Play, Plus, Rocket, Save, Search, ShieldCheck, Sparkles, Split, Timer, Trash2, TriangleAlert, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, CircleDot, GitBranch, GripVertical, History, Import, Layers3, Minus, Mouse, MousePointer2, Pencil, Play, Plus, Rocket, Save, Search, Settings2, ShieldCheck, Sparkles, Split, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { strategies } from '../data/mockData';
 import type { StrategySummary } from '../data/mockData';
@@ -24,11 +24,12 @@ import {
   getDefaultBasicCardPosition,
   getMovedBasicCardPosition,
   getStrategyCanvasWheelZoom,
+  resolveBasicCardCollision,
 } from '../lib/strategyCanvasLayout';
 import type { CanvasPoint, CanvasSize, CardMoveGesture } from '../lib/strategyCanvasLayout';
 
 type EditorMode = 'basic' | 'pro';
-type Side = 'buy' | 'sell';
+type Side = 'buy' | 'sell' | 'risk';
 type BlockTone =
   | 'data'
   | 'indicator'
@@ -56,6 +57,7 @@ interface StrategySection {
   id: string;
   symbol: string;
   allocation: number;
+  timeframe: string;
   x: number;
   y: number;
   width?: number;
@@ -70,13 +72,31 @@ interface StrategyTemplate {
   name: string;
   category: string;
   indicator: string;
+  buyIndicator?: string;
+  sellIndicator?: string;
   buyTitle?: string;
   sellTitle?: string;
   buyOp: string;
   buyValue: string;
   sellOp: string;
   sellValue: string;
+  buyTone?: BlockTone;
+  sellTone?: BlockTone;
+  includeSell?: boolean;
+  buyBlocks?: StrategyTemplateBlock[];
+  sellBlocks?: StrategyTemplateBlock[];
+  riskContainers?: StrategyTemplateRiskContainer[];
   description: string;
+}
+
+interface StrategyTemplateBlock {
+  label: string;
+  tone: BlockTone;
+}
+
+interface StrategyTemplateRiskContainer {
+  title: string;
+  blocks: StrategyTemplateBlock[];
 }
 
 interface BlockLibraryCategory {
@@ -90,6 +110,22 @@ interface CardMeta {
   detail: string;
   explanation: string;
 }
+
+interface BuyContainerSettings {
+  maxOrderPercent: number;
+  allowAdditionalBuy: boolean;
+  rerunMode: '조건 재충족' | 'N봉 이후' | 'N거래일 이후';
+  rerunInterval: number;
+  maxEntries: number;
+}
+
+const createDefaultBuySettings = (): BuyContainerSettings => ({
+  maxOrderPercent: 100,
+  allowAdditionalBuy: false,
+  rerunMode: '조건 재충족',
+  rerunInterval: 1,
+  maxEntries: 1,
+});
 
 interface StrategyListItem extends StrategySummary {
   id: string;
@@ -245,29 +281,32 @@ export function StrategyHome({ openEditor }: StrategyHomeProps) {
   </div></Localized>;
 }
 
+const NULL_BLOCK_VALUE = '';
+const UNSET_SELECT_LABEL = '선택';
+const UNSET_NUMBER_PLACEHOLDER = '입력';
+
 const INITIAL_BASIC_BLOCKS: Record<Side, BasicBlock[]> = {
   buy: [
-    { id: 'buy-trigger-block', icon: Play, label: '1m BAR', tone: 'time' },
-    { id: 'buy-rsi-block', icon: Timer, label: 'RSI', op: '<', value: '30', tone: 'indicator' },
-    { id: 'buy-budget-block', icon: CircleDollarSign, label: 'BUDGET', value: '25%', tone: 'risk' },
+    { id: 'buy-rsi-block', icon: Timer, label: 'RSI 반등', op: NULL_BLOCK_VALUE, value: NULL_BLOCK_VALUE, tone: 'condition' },
   ],
   sell: [
-    { id: 'sell-position-block', icon: Play, label: 'POSITION', value: 'OPEN', tone: 'condition' },
-    { id: 'sell-rsi-block', icon: Timer, label: 'RSI', op: '>', value: '70', tone: 'indicator' },
+    { id: 'sell-rsi-block', icon: Timer, label: 'RSI 반등', op: NULL_BLOCK_VALUE, value: NULL_BLOCK_VALUE, tone: 'condition' },
   ],
+  risk: [],
 };
 
 const INITIAL_STRATEGY_SECTIONS: StrategySection[] = [{
   id: 'section-1',
   symbol: 'AAPL · MSFT · SPY',
   allocation: 40,
+  timeframe: '1분봉',
   x: 290,
   y: 108,
-  cards: { buy: ['primary-buy'], sell: ['primary-sell'] },
+  cards: { buy: ['primary-buy'], sell: ['primary-sell'], risk: [] },
   cardOrder: ['primary-buy', 'primary-sell'],
   cardPositions: {
-    'primary-buy': { x: 24, y: 112 },
-    'primary-sell': { x: 310, y: 112 },
+    'primary-buy': { x: 24, y: 136 },
+    'primary-sell': { x: 320, y: 136 },
   },
 }];
 
@@ -278,32 +317,34 @@ const INITIAL_CARD_BLOCKS: Record<string, BasicBlock[]> = {
   'primary-sell': INITIAL_BASIC_BLOCKS.sell,
 };
 
-const createDefaultCardBlocks = (cardId: string, side: Side): BasicBlock[] => side === 'buy'
-  ? [{ id: `${cardId}-trigger-block`, icon: Play, label: 'PRICE BAR', tone: 'data' }]
-  : [{ id: `${cardId}-position-block`, icon: Play, label: 'POSITION', value: 'OPEN', tone: 'condition' }];
+const createDefaultCardBlocks = (_cardId: string, _side: Side): BasicBlock[] => [];
 
 const TEMPLATE_LIBRARY: StrategyTemplate[] = [
-  { id: 'rsi', name: 'RSI 반등', category: '모멘텀', indicator: 'RSI', buyTitle: 'RSI 반등 매수', sellTitle: 'RSI 과열 매도', buyOp: '<', buyValue: '30', sellOp: '>', sellValue: '70', description: '과매도에서 사고 과매수에서 정리해요' },
-  { id: 'sma', name: 'SMA 교차', category: '추세', indicator: 'SMA', buyOp: '↑', buyValue: '20 / 60', sellOp: '↓', sellValue: '20 / 60', description: '단기선과 장기선의 교차를 따라가요' },
-  { id: 'macd', name: 'MACD 전환', category: '추세', indicator: 'MACD', buyOp: '↑', buyValue: 'SIGNAL', sellOp: '↓', sellValue: 'SIGNAL', description: '추세가 바뀌는 순간을 찾아요' },
-  { id: 'supertrend', name: 'Supertrend 추종', category: '추세', indicator: 'Supertrend', buyOp: '=', buyValue: 'UP', sellOp: '=', sellValue: 'DOWN', description: '큰 추세 방향에 맞춰 움직여요' },
-  { id: 'bollinger', name: 'Bollinger 반전', category: '변동성', indicator: 'Bollinger', buyOp: '<', buyValue: 'LOWER', sellOp: '>', sellValue: 'UPPER', description: '가격이 밴드 끝에 닿을 때 대응해요' },
-  { id: 'donchian', name: 'Donchian 돌파', category: '변동성', indicator: 'Donchian', buyOp: '↑', buyValue: 'HIGH 20', sellOp: '↓', sellValue: 'LOW 20', description: '최근 가격 범위를 벗어날 때 따라가요' },
-  { id: 'volume-sma', name: '거래량 돌파', category: '거래량', indicator: 'Volume SMA', buyOp: '>', buyValue: '150%', sellOp: '<', sellValue: '70%', description: '평소보다 거래가 몰리는 종목을 찾아요' },
-  { id: 'stochastic', name: 'Stochastic 반등', category: '모멘텀', indicator: 'Stochastic', buyOp: '↑', buyValue: '20', sellOp: '↓', sellValue: '80', description: '빠른 과매도·과매수 신호를 사용해요' },
+  { id: 'streak', name: '연속 상승·하락', category: '가격', indicator: '연속 상승·하락', buyTitle: '연속 상승 매수', sellTitle: '연속 하락 매도', buyOp: '↑', buyValue: '3봉', sellOp: '↓', sellValue: '3봉', buyTone: 'data', sellTone: 'data', description: '연속 상승에서 진입하고 연속 하락에서 정리해요' },
+  { id: 'average-breakout', name: '최근 평균 가격 돌파', category: '가격', indicator: '가격 비교', buyTitle: '평균 가격 상향 돌파', sellTitle: '평균 가격 하향 이탈', buyOp: '>', buyValue: '최근 20봉 평균 가격', sellOp: '<', sellValue: '최근 20봉 평균 가격', buyTone: 'data', sellTone: 'data', description: '최근 평균 가격을 기준으로 진입과 청산을 구성해요' },
+  { id: 'high-breakout', name: '최근 최고 가격 돌파', category: '가격', indicator: '가격 비교', buyTitle: '최근 최고 가격 돌파', sellTitle: '최근 평균 가격 이탈', buyOp: '>', buyValue: '이전 20봉 최고 가격', sellOp: '<', sellValue: '최근 20봉 평균 가격', buyTone: 'data', sellTone: 'data', description: '새로운 고점을 돌파하면 진입하고 평균 가격 이탈에 정리해요' },
+  { id: 'open-rise', name: '장 시작가 대비 상승', category: '가격', indicator: '가격 변화율', buyTitle: '장 시작가 대비 상승', buyOp: '↑', buyValue: '3%', sellOp: '=', sellValue: '', buyTone: 'data', includeSell: false, riskContainers: [{ title: '당일 장 마감 청산', blocks: [{ label: '보유 기간', tone: 'risk' }] }], description: '장 시작가 대비 상승하면 진입하고 당일 마감에 위기관리로 정리해요' },
+  { id: 'daily-drop', name: '하루 급락 매수', category: '가격', indicator: '가격 변화율', buyTitle: '하루 급락 매수', buyOp: '↓', buyValue: '5%', sellOp: '=', sellValue: '', buyTone: 'data', includeSell: false, riskContainers: [{ title: '다음 거래일 청산', blocks: [{ label: '보유 기간', tone: 'risk' }] }], description: '전일 대비 급락하면 진입하고 다음 거래일에 위기관리로 정리해요' },
+  { id: 'scheduled-buy', name: '정기 매수', category: '일정', indicator: '정기 실행', buyTitle: '정기 매수', buyOp: '=', buyValue: '매 거래일', sellOp: '=', sellValue: '', buyTone: 'time', includeSell: false, description: '선택한 거래 일정마다 매수 요청을 만들어요' },
+  { id: 'donchian', name: 'Donchian 돌파', category: '추세', indicator: '가격 비교', buyTitle: 'Donchian 상향 돌파', sellTitle: 'Donchian 하향 이탈', buyOp: '>', buyValue: '이전 20봉 최고 가격', sellOp: '<', sellValue: '이전 10봉 최저 가격', buyTone: 'indicator', sellTone: 'indicator', buyBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], sellBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], riskContainers: [{ title: '수익 보호 청산', blocks: [{ label: '최고 수익률', tone: 'risk' }, { label: '고점 대비 하락', tone: 'risk' }] }], description: '가격 범위 돌파를 추세로 확인하고 수익 되돌림까지 관리해요' },
+  { id: 'rsi', name: 'RSI 반등', category: '반전', indicator: 'RSI 반등', buyTitle: 'RSI 반등 매수', sellTitle: 'RSI 하락 매도', buyOp: '↑', buyValue: '30', sellOp: '↓', sellValue: '70', description: 'RSI가 낮은 구간에서 반등하면 사고 높은 구간에서 하락하면 정리해요' },
+  { id: 'sma', name: 'SMA 교차', category: '추세', indicator: '평균선 교차', buyOp: '↑', buyValue: '20봉 · 60봉', sellOp: '↓', sellValue: '20봉 · 60봉', description: '짧은 평균선과 긴 평균선의 교차를 따라가요' },
+  { id: 'macd', name: 'MACD 전환', category: '반전', indicator: 'MACD 전환', buyOp: '↑', buyValue: '12 · 26 · 9', sellOp: '↓', sellValue: '12 · 26 · 9', description: 'MACD가 상승 또는 하락 신호로 전환되는 순간을 찾아요' },
+  { id: 'bollinger', name: 'Bollinger 반전', category: '반전', indicator: '가격 띠 반전', buyOp: '↑', buyValue: '20봉 · 2σ', sellOp: '↓', sellValue: '20봉 · 2σ', buyBlocks: [{ label: '가격 띠 반전', tone: 'condition' }, { label: 'RSI 반등', tone: 'condition' }], sellBlocks: [{ label: '가격 띠 반전', tone: 'condition' }, { label: 'RSI 반등', tone: 'condition' }], riskContainers: [{ title: '손실 제한 청산', blocks: [{ label: '현재 수익률', tone: 'risk' }] }], description: '가격 띠 복귀를 RSI로 확인하고 손실 제한까지 함께 구성해요' },
 ];
 
+const getTemplateStructureLabel = (template: StrategyTemplate) => [
+  `매수 ${template.buyBlocks?.length ?? 1}`,
+  ...(template.includeSell === false ? [] : [`매도 ${template.sellBlocks?.length ?? 1}`]),
+  ...((template.riskContainers?.length ?? 0) > 0 ? [`위기 ${template.riskContainers!.length}`] : []),
+].join(' · ');
+
 const BLOCK_LIBRARY: BlockLibraryCategory[] = [
-  { name: '데이터', tone: 'data', items: ['Open', 'High', 'Low', 'Close', 'HL2', 'HLC3', 'Volume', 'VWAP'] },
-  { name: '추세 지표', tone: 'indicator', items: ['SMA', 'EMA', 'MACD', 'ADX', 'Supertrend'] },
-  { name: '모멘텀 지표', tone: 'indicator', items: ['RSI', 'Stochastic', 'ROC', 'CCI', 'Williams %R'] },
-  { name: '변동성 지표', tone: 'indicator', items: ['ATR', 'Bollinger', 'Keltner', 'Donchian'] },
-  { name: '거래량 지표', tone: 'indicator', items: ['Volume SMA', 'OBV', 'CMF', 'VWAP'] },
-  { name: '조건', tone: 'condition', items: ['A > B', 'A < B', '상향돌파', '하향돌파', 'N봉 연속', '포지션 상태'] },
-  { name: '논리', tone: 'logic', items: ['AND', 'OR', 'NOT'] },
-  { name: '시간·이벤트', tone: 'time', items: ['장 시작 후 N분', '특정 시각', '쿨다운', '최대 보유시간'] },
-  { name: '주문', tone: 'order', items: ['매수', '매도', '공매도', '숏커버', '시장가', '지정가', '다음 봉 체결'] },
-  { name: '위험관리', tone: 'risk', items: ['손절', '익절', '트레일링', '최대 포지션', '일일 최대손실'] },
+  { name: '가격', tone: 'data', items: ['가격 비교', '가격 변화율', '연속 상승·하락'] },
+  { name: '추세', tone: 'indicator', items: ['평균선 교차'] },
+  { name: '반전', tone: 'condition', items: ['RSI 반등', 'MACD 전환', '가격 띠 반전'] },
+  { name: '일정', tone: 'time', items: ['정기 실행'] },
+  { name: '위기관리', tone: 'risk', items: ['현재 수익률', '보유 기간', '최고 수익률', '고점 대비 하락'] },
 ];
 
 const INITIAL_CARD_META: Record<string, CardMeta> = {
@@ -319,27 +360,27 @@ const INITIAL_CARD_META: Record<string, CardMeta> = {
   },
 };
 
-const createTemplateBlocks = (template: StrategyTemplate, cardId: string, side: Side): BasicBlock[] => side === 'buy'
-  ? [
-    { id: `${cardId}-event`, icon: Play, label: '다음 봉 체결', tone: 'time' },
-    { id: `${cardId}-indicator`, icon: Timer, label: template.indicator, op: template.buyOp, value: template.buyValue, tone: 'indicator' },
-    { id: `${cardId}-budget`, icon: CircleDollarSign, label: 'BUDGET', value: '25%', tone: 'risk' },
-  ]
-  : [
-    { id: `${cardId}-position`, icon: Play, label: '포지션 상태', value: 'OPEN', tone: 'condition' },
-    { id: `${cardId}-indicator`, icon: Timer, label: template.indicator, op: template.sellOp, value: template.sellValue, tone: 'indicator' },
-  ];
+const getTemplateBlockDefinitions = (template: StrategyTemplate, side: Exclude<Side, 'risk'>): StrategyTemplateBlock[] => {
+  const configured = side === 'buy' ? template.buyBlocks : template.sellBlocks;
+  if (configured) return configured;
+  const label = side === 'buy' ? (template.buyIndicator ?? template.indicator) : (template.sellIndicator ?? template.indicator);
+  return [{ label, tone: side === 'buy' ? (template.buyTone ?? 'indicator') : (template.sellTone ?? 'indicator') }];
+};
+
+const createBlocksFromDefinitions = (cardId: string, definitions: StrategyTemplateBlock[]): BasicBlock[] => definitions.map((definition, index) => ({
+    id: `${cardId}-condition-${index + 1}`,
+    icon: Timer,
+    label: definition.label,
+    op: definition.label === '정기 실행' || definition.label === '보유 기간' ? '=' : NULL_BLOCK_VALUE,
+    value: NULL_BLOCK_VALUE,
+    tone: definition.tone,
+  }));
+
+const createTemplateBlocks = (template: StrategyTemplate, cardId: string, side: Exclude<Side, 'risk'>): BasicBlock[] => (
+  createBlocksFromDefinitions(cardId, getTemplateBlockDefinitions(template, side))
+);
 
 const createLibraryBlock = (label: string, tone: BlockTone, id: string): BasicBlock => {
-  const valueByTone: Partial<Record<BlockTone, string | undefined>> = {
-    data: '현재',
-    indicator: '14',
-    condition: '설정',
-    logic: undefined,
-    time: '설정',
-    order: '기본',
-    risk: '설정',
-  };
   const iconByTone: Partial<Record<BlockTone, LucideIcon>> = {
     time: Timer,
     order: CircleDollarSign,
@@ -349,7 +390,8 @@ const createLibraryBlock = (label: string, tone: BlockTone, id: string): BasicBl
     id,
     icon: iconByTone[tone] ?? GitBranch,
     label,
-    value: valueByTone[tone],
+    op: label === '정기 실행' || label === '보유 기간' ? '=' : NULL_BLOCK_VALUE,
+    value: NULL_BLOCK_VALUE,
     tone,
   };
 };
@@ -362,10 +404,39 @@ const blockOperatorCopy: Record<string, string> = {
   '↓': '하향 돌파하는지',
 };
 
-const BLOCK_OPERATORS = ['<', '>', '=', '↑', '↓'];
+const DIRECTION_BLOCKS = new Set(['연속 상승·하락', '평균선 교차', 'RSI 반등', 'MACD 전환', '가격 띠 반전']);
+const EQUALITY_BLOCKS = new Set(['정기 실행', '보유 기간']);
+
+const getBlockOperatorOptions = (block: BlockRuleInput): string[] => {
+  if (DIRECTION_BLOCKS.has(block.label)) return [NULL_BLOCK_VALUE, '↑', '↓'];
+  if (EQUALITY_BLOCKS.has(block.label)) return ['='];
+  return [NULL_BLOCK_VALUE, '<', '>'];
+};
+
+const getBlockDisplayLabel = (label: string): string => ({
+  '가격 비교': '가격',
+  '가격 변화율': '변화율',
+  '연속 상승·하락': '연속',
+  '평균선 교차': '평균선',
+  'RSI 반등': 'RSI',
+  'MACD 전환': 'MACD',
+  '가격 띠 반전': '가격 띠',
+  '정기 실행': '일정',
+  '현재 수익률': '수익률',
+  '보유 기간': '보유',
+  '최고 수익률': '최고 수익',
+  '고점 대비 하락': '고점 하락',
+}[label] ?? label);
 
 const getBlockValueOptions = (block: BlockRuleInput): string[] => {
   const normalizedLabel = block.label.toUpperCase();
+  if (block.label === '가격 비교') return ['전일 종가', '당일 장 시작가', '평균 진입가', '최근 20봉 평균 가격', '이전 20봉 최고 가격', '이전 20봉 최저 가격'];
+  if (block.label === '연속 상승·하락') return ['2봉', '3봉', '5봉', '10봉', '20봉', '30봉'];
+  if (block.label === '평균선 교차') return ['5봉 · 20봉', '20봉 · 60봉', '60봉 · 120봉'];
+  if (block.label === 'MACD 전환') return ['12 · 26 · 9'];
+  if (block.label === '가격 띠 반전') return ['20봉 · 2σ'];
+  if (block.label === '정기 실행') return ['매 거래일', '매주 첫 거래일', '매월 첫 거래일', '매월 마지막 거래일', '2거래일마다', '5거래일마다'];
+  if (block.label === '보유 기간') return ['당일 장 마감', '1봉', '5봉', '20봉', '1거래일', '5거래일'];
   if (normalizedLabel.includes('POSITION') || block.label.includes('포지션')) return ['OPEN', 'CLOSED', 'ANY'];
   if (block.tone === 'data') return ['현재', '이전 봉', '2봉 전'];
   if (block.tone === 'condition') return ['설정', 'TRUE', 'FALSE', 'OPEN', 'CLOSED'];
@@ -384,6 +455,10 @@ const getNumericValue = (value: string | number | null | undefined) => {
   const match = String(value ?? '').trim().match(/^(-?\d+(?:\.\d+)?)(%)?$/);
   return match ? { number: Number(match[1]), suffix: match[2] ?? '' } : null;
 };
+
+const NUMERIC_BLOCK_LABELS = new Set(['가격 변화율', 'RSI 반등', '현재 수익률', '최고 수익률', '고점 대비 하락']);
+const PERCENTAGE_BLOCK_LABELS = new Set(['가격 변화율', '현재 수익률', '최고 수익률', '고점 대비 하락']);
+const usesNumericBlockValue = (label: string) => NUMERIC_BLOCK_LABELS.has(label);
 
 const positionValueCopy: Record<string, string> = {
   OPEN: '포지션을 보유 중',
@@ -431,7 +506,9 @@ interface NumericBlockValueProps {
 }
 
 const NumericBlockValue = ({ label, value, onChange }: NumericBlockValueProps) => {
-  const numeric = getNumericValue(value)!;
+  const parsed = getNumericValue(value);
+  const numeric = parsed ?? { number: 0, suffix: PERCENTAGE_BLOCK_LABELS.has(label) ? '%' : '' };
+  const isNull = value == null || String(value).trim() === NULL_BLOCK_VALUE;
   const valueRef = useRef(numeric.number);
   const repeatTimerRef = useRef<number | null>(null);
   const repeatStartedAtRef = useRef(0);
@@ -439,7 +516,12 @@ const NumericBlockValue = ({ label, value, onChange }: NumericBlockValueProps) =
   valueRef.current = numeric.number;
 
   const update = (next: number | string) => {
-    const bounded = Math.max(0, Math.min(numeric.suffix === '%' || label === 'RSI' ? 100 : 9999, Number(next)));
+    if (String(next).trim() === NULL_BLOCK_VALUE) {
+      valueRef.current = 0;
+      onChange(NULL_BLOCK_VALUE);
+      return;
+    }
+    const bounded = Math.max(0, Math.min(numeric.suffix === '%' || label.includes('RSI') ? 100 : 9999, Number(next)));
     valueRef.current = Number.isFinite(bounded) ? bounded : 0;
     onChange(`${Number.isFinite(bounded) ? bounded : 0}${numeric.suffix}`);
   };
@@ -487,7 +569,7 @@ const NumericBlockValue = ({ label, value, onChange }: NumericBlockValueProps) =
     };
   }, []);
 
-  return <span className="block-number-stepper" aria-label={`${label} 숫자 설정`} onPointerDown={(event) => event.stopPropagation()}>
+  return <span className={`block-number-stepper is-fixed-width ${isNull ? 'is-null' : ''}`} aria-label={`${label} 숫자 설정`} onPointerDown={(event) => event.stopPropagation()}>
     <button
       type="button"
       aria-label={`${label} 값 감소`}
@@ -498,7 +580,7 @@ const NumericBlockValue = ({ label, value, onChange }: NumericBlockValueProps) =
       onPointerLeave={cancelRepeating}
       onClick={() => clickOnce(-1)}
     ><Minus size={11} aria-hidden="true" /></button>
-    <label><span className="sr-only">{label} 값</span><input type="number" min="0" max={numeric.suffix === '%' || label === 'RSI' ? 100 : 9999} value={numeric.number} onChange={(event) => update(event.target.value)} /></label>
+    <label><span className="sr-only">{label} 값</span><input className="is-centered-number" type="number" min="0" max={numeric.suffix === '%' || label.includes('RSI') ? 100 : 9999} value={isNull ? '' : numeric.number} placeholder={UNSET_NUMBER_PLACEHOLDER} onChange={(event) => update(event.target.value)} /></label>
     <b aria-hidden="true">{numeric.suffix}</b>
     <button
       type="button"
@@ -521,12 +603,50 @@ interface CustomBlockSelectProps {
   compact?: boolean;
 }
 
+const getSelectOptionIcon = (option: string): LucideIcon => {
+  if (option === NULL_BLOCK_VALUE) return Minus;
+  if (option === '↑') return ArrowUp;
+  if (option === '↓') return ArrowDown;
+  if (option === '<') return ChevronLeft;
+  if (option === '>') return ChevronRight;
+  if (option === '당일 장 시작가') return BellRing;
+  if (option.includes('전일') || option.includes('이전')) return History;
+  if (option.includes('당일') || option.includes('시작')) return BellRing;
+  if (option.includes('평균') || option.includes('진입')) return CircleDollarSign;
+  if (option.includes('최고') || option.includes('상승') || option.includes('돌파')) return TrendingUp;
+  if (option.includes('최저') || option.includes('하락') || option.includes('이탈')) return TrendingDown;
+  if (option.includes('봉')) return CandlestickChart;
+  if (option.includes('분') || option.includes('시간') || option.includes('일') || option.includes('주')) return CalendarDays;
+  return CircleDot;
+};
+
+const getSelectOptionPresentation = (option: string): { label: string; tone: string } => {
+  if (option === NULL_BLOCK_VALUE) return { label: UNSET_SELECT_LABEL, tone: 'neutral' };
+  if (option === '↑') return { label: '상승', tone: 'up' };
+  if (option === '↓') return { label: '하락', tone: 'down' };
+  if (option === '<') return { label: '미만', tone: 'down' };
+  if (option === '>') return { label: '초과', tone: 'up' };
+  if (option === '≤') return { label: '이하', tone: 'down' };
+  if (option === '≥') return { label: '이상', tone: 'up' };
+  if (option === '=') return { label: '같음', tone: 'neutral' };
+  if (option.includes('최고') || option.includes('상승') || option.includes('돌파')) return { label: option, tone: 'up' };
+  if (option.includes('최저') || option.includes('하락') || option.includes('이탈')) return { label: option, tone: 'down' };
+  if (option.includes('전일') || option.includes('이전')) return { label: option, tone: 'history' };
+  if (option.includes('당일') || option.includes('시작')) return { label: option, tone: 'today' };
+  if (option.includes('평균') || option.includes('진입')) return { label: option, tone: 'average' };
+  if (option.includes('분') || option.includes('시간') || option.includes('일') || option.includes('주') || option.includes('봉')) {
+    return { label: option, tone: 'time' };
+  }
+  return { label: option, tone: 'neutral' };
+};
+
 const CustomBlockSelect = ({ label, value, options, onChange, compact = false }: CustomBlockSelectProps) => {
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ left: number; top: number; width: number } | null>(null);
   const rootRef = useRef<HTMLSpanElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLSpanElement>(null);
+  const normalizedOptions = [NULL_BLOCK_VALUE, ...options.filter((option) => option !== NULL_BLOCK_VALUE)];
 
   useEffect(() => {
     if (!open) return undefined;
@@ -536,7 +656,10 @@ const CustomBlockSelect = ({ label, value, options, onChange, compact = false }:
     const closeWithEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
-    const closeFromViewportChange = () => setOpen(false);
+    const closeFromViewportChange = (event: Event) => {
+      if (menuRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    };
     document.addEventListener('pointerdown', closeFromOutside);
     document.addEventListener('keydown', closeWithEscape);
     window.addEventListener('resize', closeFromViewportChange);
@@ -552,8 +675,8 @@ const CustomBlockSelect = ({ label, value, options, onChange, compact = false }:
   const showMenu = () => {
     const bounds = triggerRef.current?.getBoundingClientRect();
     if (!bounds) return;
-    const width = compact ? 62 : Math.max(112, bounds.width);
-    const estimatedHeight = Math.min(164, options.length * 29 + 8);
+    const width = compact ? 76 : Math.max(184, bounds.width);
+    const estimatedHeight = Math.min(164, normalizedOptions.length * 29 + 8);
     const opensUpward = window.innerHeight - bounds.bottom < estimatedHeight + 8;
     setMenuPosition({
       left: Math.max(8, Math.min(window.innerWidth - width - 8, bounds.right - width)),
@@ -564,21 +687,25 @@ const CustomBlockSelect = ({ label, value, options, onChange, compact = false }:
   };
 
   const moveSelection = (direction: number) => {
-    const currentIndex = Math.max(0, options.indexOf(value));
-    const nextIndex = (currentIndex + direction + options.length) % options.length;
-    onChange(options[nextIndex]);
+    const currentIndex = Math.max(0, normalizedOptions.indexOf(value));
+    const nextIndex = (currentIndex + direction + normalizedOptions.length) % normalizedOptions.length;
+    onChange(normalizedOptions[nextIndex]);
     showMenu();
   };
+  const SelectedIcon = getSelectOptionIcon(value);
+  const selectedPresentation = getSelectOptionPresentation(value);
+  const hasSelectedIcon = value !== NULL_BLOCK_VALUE;
 
   return <span
-    className={`block-custom-select ${compact ? 'is-compact' : ''} ${open ? 'is-open' : ''}`}
+    className={`block-custom-select ${compact ? 'is-compact is-relation-select is-fixed-width' : 'is-value-select'} ${value === NULL_BLOCK_VALUE ? 'is-null' : ''} ${open ? 'is-open' : ''}`}
     ref={rootRef}
     onPointerDown={(event) => event.stopPropagation()}
+    onWheel={(event) => event.stopPropagation()}
   >
     <button
       ref={triggerRef}
       type="button"
-      className="block-custom-select-trigger"
+      className={`block-custom-select-trigger tone-${selectedPresentation.tone}`}
       role="combobox"
       aria-label={label}
       aria-haspopup="listbox"
@@ -591,7 +718,10 @@ const CustomBlockSelect = ({ label, value, options, onChange, compact = false }:
           moveSelection(event.key === 'ArrowDown' ? 1 : -1);
         }
       }}
-    ><span>{value}</span><ChevronDown size={11} aria-hidden="true" /></button>
+    >{compact
+      ? <>{hasSelectedIcon && <SelectedIcon className="block-relation-icon" size={12} aria-hidden="true" />}<span className="block-relation-label">{selectedPresentation.label}</span></>
+      : <span className="select-trigger-value">{hasSelectedIcon && <SelectedIcon size={12} aria-hidden="true" />}<span>{selectedPresentation.label}</span></span>}
+      {!compact && <ChevronDown size={11} aria-hidden="true" />}</button>
     {open && menuPosition && createPortal(<span
       ref={menuRef}
       className={`block-custom-select-menu ${compact ? 'is-compact' : ''}`}
@@ -599,17 +729,23 @@ const CustomBlockSelect = ({ label, value, options, onChange, compact = false }:
       aria-label={`${label} 옵션`}
       style={menuPosition}
       onPointerDown={(event) => event.stopPropagation()}
+      onWheel={(event) => event.stopPropagation()}
     >
-      {options.map((option) => <button
-        key={option}
-        type="button"
-        role="option"
-        aria-selected={option === value}
-        onClick={() => {
-          onChange(option);
-          setOpen(false);
-        }}
-      ><span>{option}</span>{option === value && <Check size={11} aria-hidden="true" />}</button>)}
+      {normalizedOptions.map((option) => {
+        const OptionIcon = getSelectOptionIcon(option);
+        const presentation = getSelectOptionPresentation(option);
+        return <button
+          key={option}
+          type="button"
+          className={`tone-${presentation.tone}`}
+          role="option"
+          aria-selected={option === value}
+          onClick={() => {
+            onChange(option);
+            setOpen(false);
+          }}
+        ><span className="select-option-label">{option !== NULL_BLOCK_VALUE && <OptionIcon className="select-option-icon" size={13} aria-hidden="true" />}<span>{presentation.label}</span></span>{option === value && <Check size={11} aria-hidden="true" />}</button>;
+      })}
     </span>, document.body)}
   </span>;
 };
@@ -625,19 +761,22 @@ interface BlockProps {
 }
 
 const Block = ({ icon: Icon, label, value, op, tone = 'neutral', locked = false, onChange }: BlockProps) => {
-  const numeric = getNumericValue(value);
   const block = { label, value, op, tone };
+  const operatorOptions = getBlockOperatorOptions(block);
+  const operatorLabel = operatorOptions.filter(Boolean).every((option) => option === '↑' || option === '↓') ? `${label} 방향` : `${label} 비교`;
   return <div className={`scratch-block block-${tone}`}>
-    {Icon && <Icon size={15} />}
-    <span>{label}</span>
-    {op && (locked
-      ? <b className="block-op">{op}</b>
-      : <CustomBlockSelect compact label={`${label} 연산자`} value={op} options={BLOCK_OPERATORS} onChange={(nextOp) => onChange!({ op: nextOp })} />)}
-    {value && (locked
-      ? <span className="block-value is-locked">{value}</span>
-      : numeric
-        ? <NumericBlockValue label={label} value={value} onChange={(nextValue) => onChange!({ value: nextValue })} />
-        : <CustomBlockSelect label={`${label} 값 선택`} value={value} options={getBlockValueOptions(block)} onChange={(nextValue) => onChange!({ value: nextValue })} />)}
+    {Icon && <Icon className="block-type-icon" size={15} />}
+    <span title={label}>{getBlockDisplayLabel(label)}</span>
+    {locked
+      ? op && <b className="block-op">{op}</b>
+      : operatorOptions.length === 1
+        ? null
+        : <CustomBlockSelect compact label={operatorLabel} value={op ?? NULL_BLOCK_VALUE} options={operatorOptions} onChange={(nextOp) => onChange!({ op: nextOp })} />}
+    {locked
+      ? value && <span className="block-value is-locked">{value}</span>
+      : usesNumericBlockValue(label)
+        ? <NumericBlockValue label={label} value={value ?? NULL_BLOCK_VALUE} onChange={(nextValue) => onChange!({ value: nextValue })} />
+        : <CustomBlockSelect label={`${label} 값 선택`} value={value ?? NULL_BLOCK_VALUE} options={getBlockValueOptions(block)} onChange={(nextValue) => onChange!({ value: nextValue })} />}
   </div>;
 };
 
@@ -645,7 +784,10 @@ interface StrategyBlockProps extends BlockProps {
   id: string;
   fixed?: boolean;
   dragging?: boolean;
-  dragProps?: HTMLAttributes<HTMLDivElement> & { 'data-drop-target'?: string };
+  dragProps?: HTMLAttributes<HTMLDivElement> & {
+    'data-drop-target'?: string;
+    'data-drop-position'?: 'before' | 'after';
+  };
   showRule?: boolean;
   rule?: ReactNode;
   ruleSide?: 'left' | 'right';
@@ -703,12 +845,21 @@ interface BasicEditorProps {
 }
 
 export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProps) {
-  const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [activeSectionId, setActiveSectionId] = useState('section-1');
   const [selectedCardId, setSelectedCardId] = useState<string | null>('primary-buy');
   const [sections, setSections] = useState<StrategySection[]>(INITIAL_STRATEGY_SECTIONS);
   const [cardBlocks, setCardBlocks] = useState<Record<string, BasicBlock[]>>(INITIAL_CARD_BLOCKS);
   const [cardMeta, setCardMeta] = useState<Record<string, CardMeta>>(INITIAL_CARD_META);
+  const [editingCardTitleId, setEditingCardTitleId] = useState<string | null>(null);
+  const [cardTitleDraft, setCardTitleDraft] = useState('');
+  const [expandedSettingsCardId, setExpandedSettingsCardId] = useState<string | null>(null);
+  const [buySettings, setBuySettings] = useState<Record<string, BuyContainerSettings>>({
+    'primary-buy': createDefaultBuySettings(),
+  });
+  const [symbolLimits, setSymbolLimits] = useState<Record<string, Record<string, number>>>({
+    'section-1': { AAPL: 40, MSFT: 40, SPY: 40 },
+  });
+  const [symbolManagerSectionId, setSymbolManagerSectionId] = useState<string | null>(null);
   const [draggedBlock, setDraggedBlock] = useState<{ cardId: string; blockId: string } | null>(null);
   const [draggedCard, setDraggedCard] = useState<{ sectionId: string; side: Side; cardId: string } | null>(null);
   const [libraryDrag, setLibraryDrag] = useState<LibraryDragPayload | null>(null);
@@ -737,9 +888,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   const [botDescription, setBotDescription] = useState('');
   const [templateQuery, setTemplateQuery] = useState('');
   const [blockQuery, setBlockQuery] = useState('');
+  const [templatesCollapsed, setTemplatesCollapsed] = useState(false);
+  const [blocksCollapsed, setBlocksCollapsed] = useState(false);
   /* 미리보기 차트를 열어 둔 파티션. 파티션을 누르면 그 파티션 기준으로 열린다. */
   const [previewSectionId, setPreviewSectionId] = useState<string | null>(null);
-  const toggleGroup = (group: string) => setActiveGroup((current) => current === group ? null : group);
   const filteredTemplates = useMemo(() => TEMPLATE_LIBRARY.filter((template) => (
     `${template.name} ${template.category} ${template.indicator}`.toLowerCase().includes(templateQuery.trim().toLowerCase())
   )), [templateQuery]);
@@ -767,14 +919,30 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           message: `${sectionLabel}에 매수 컨테이너가 필요합니다.`,
         }];
       }
-      return section.cards.buy
-        .filter((cardId) => (cardBlocks[cardId]?.length ?? 0) === 0)
-        .map((cardId) => ({
-          id: `${cardId}-empty`,
-          sectionId: section.id,
-          cardId,
-          message: `${sectionLabel}의 매수 컨테이너에 조건 블록을 하나 이상 추가해 주세요.`,
-        }));
+      return (['buy', 'sell', 'risk'] as Side[]).flatMap((side) => {
+        const sideLabel = side === 'buy' ? '매수' : side === 'sell' ? '매도' : '위기관리';
+        return section.cards[side].flatMap((cardId): ValidationIssue[] => {
+          const blocks = cardBlocks[cardId] ?? [];
+          if (blocks.length === 0) {
+            return [{
+              id: `${cardId}-empty`,
+              sectionId: section.id,
+              cardId,
+              message: `${sectionLabel}의 ${sideLabel} 컨테이너에 조건 블록을 하나 이상 추가해 주세요.`,
+            }];
+          }
+          const hasNullField = blocks.some((block) => {
+            const operatorRequired = getBlockOperatorOptions(block).length > 1;
+            return !String(block.value ?? '').trim() || (operatorRequired && !String(block.op ?? '').trim());
+          });
+          return hasNullField ? [{
+            id: `${cardId}-null-fields`,
+            sectionId: section.id,
+            cardId,
+            message: `${sectionLabel}의 ${sideLabel} 컨테이너에서 입력하지 않은 블록 설정을 완료해 주세요.`,
+          }] : [];
+        });
+      });
     });
   }, [cardBlocks, sections]);
   const validationSignature = validationIssues.map((issue) => issue.id).join('|');
@@ -806,7 +974,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       : {
         tone: 'warning',
         title: '미완성 상태로 저장했습니다.',
-        detail: '매수 조건을 완성하면 출시할 수 있습니다.',
+        detail: '모든 컨테이너의 조건을 완성하면 출시할 수 있습니다.',
       };
     setSaveFeedback(nextFeedback);
     setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
@@ -874,7 +1042,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     });
     cardElementsRef.current.forEach((element) => observer.observe(element));
     return () => observer.disconnect();
-  }, [activeGroup, cardBlocks, sections]);
+  }, [cardBlocks, sections]);
 
   useEffect(() => {
     const isTypingTarget = (target: EventTarget | null) => (target as Element | null)?.closest?.('input, textarea, select, button, [role="combobox"], [contenteditable="true"]');
@@ -958,36 +1126,25 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     }
   };
 
-  const addBlock = (cardId: string, side: Side) => {
-    const nextCount = customBlockCount + 1;
-    setCustomBlockCount(nextCount);
-    setCardBlocks((current) => ({
-      ...current,
-      [cardId]: [...current[cardId], {
-        id: cardId === 'primary-buy' || cardId === 'primary-sell'
-          ? `${side}-custom-block-${nextCount}`
-          : `${cardId}-custom-block-${nextCount}`,
-        icon: Timer,
-        label: '이동평균',
-        op: side === 'buy' ? '>' : '<',
-        value: '20',
-        tone: 'indicator',
-      }],
-    }));
-    setAnnouncement(`${side === 'buy' ? '매수' : '매도'} 컨테이너에 이동평균 조건을 추가했습니다.`);
-  };
-
   const applyTemplate = (template: StrategyTemplate, targetSectionId: string = activeSectionId) => {
     const targetSection = sections.find((section) => section.id === targetSectionId) ?? sections[0];
     if (!targetSection) return;
-    const nextCardCount = cardCount + 1;
-    const buyCardId = `${targetSection.id}-${template.id}-buy-${nextCardCount}`;
-    const sellCardId = `${targetSection.id}-${template.id}-sell-${nextCardCount + 1}`;
-    setCardCount(nextCardCount + 1);
+    const includeSell = template.includeSell !== false;
+    const riskContainers = template.riskContainers ?? [];
+    const firstCardNumber = cardCount + 1;
+    const buyCardId = `${targetSection.id}-${template.id}-buy-${firstCardNumber}`;
+    const sellCardId = `${targetSection.id}-${template.id}-sell-${firstCardNumber + 1}`;
+    const riskCards = riskContainers.map((container, index) => ({
+      ...container,
+      id: `${targetSection.id}-${template.id}-risk-${firstCardNumber + (includeSell ? 2 : 1) + index}`,
+    }));
+    const addedCardIds = [buyCardId, ...(includeSell ? [sellCardId] : []), ...riskCards.map((card) => card.id)];
+    setCardCount(cardCount + addedCardIds.length);
     setCardBlocks((current) => ({
       ...current,
       [buyCardId]: createTemplateBlocks(template, buyCardId, 'buy'),
-      [sellCardId]: createTemplateBlocks(template, sellCardId, 'sell'),
+      ...(includeSell ? { [sellCardId]: createTemplateBlocks(template, sellCardId, 'sell') } : {}),
+      ...Object.fromEntries(riskCards.map((card) => [card.id, createBlocksFromDefinitions(card.id, card.blocks)])),
     }));
     setCardMeta((current) => ({
       ...current,
@@ -996,30 +1153,40 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         detail: `${template.category} 패키지 · 쉬운 시작`,
         explanation: `${template.description} 매수 조건을 만족하면 주문 후보를 만듭니다.`,
       },
-      [sellCardId]: {
+      ...(includeSell ? { [sellCardId]: {
         title: template.sellTitle ?? `${template.name} 매도`,
         detail: `${template.category} 패키지 · 자동 청산`,
         explanation: `${template.description} 반대 신호가 나오면 보유 포지션을 정리합니다.`,
-      },
+      } } : {}),
+      ...Object.fromEntries(riskCards.map((card) => [card.id, {
+        title: card.title,
+        detail: '위기관리 패키지 · 전량 청산',
+        explanation: `${template.description} 위기관리 조건을 만족하면 통합 포지션을 전량 청산합니다.`,
+      }])),
     }));
     setSections((current) => current.map((section) => section.id === targetSection.id
       ? {
         ...section,
         cards: {
           buy: [...section.cards.buy, buyCardId],
-          sell: [...section.cards.sell, sellCardId],
+          sell: includeSell ? [...section.cards.sell, sellCardId] : section.cards.sell,
+          risk: [...section.cards.risk, ...riskCards.map((card) => card.id)],
         },
-        cardOrder: [...section.cardOrder, buyCardId, sellCardId],
+        cardOrder: [...section.cardOrder, ...addedCardIds],
         cardPositions: {
           ...section.cardPositions,
-          [buyCardId]: getDefaultCardPosition(section.cardOrder.length),
-          [sellCardId]: getDefaultCardPosition(section.cardOrder.length + 1),
+          ...Object.fromEntries(addedCardIds.map((cardId, index) => [
+            cardId,
+            getDefaultCardPosition(section.cardOrder.length + index),
+          ])),
         },
       }
       : section));
+    setBuySettings((current) => ({ ...current, [buyCardId]: createDefaultBuySettings() }));
     setSelectedCardId(buyCardId);
     setActiveSectionId(targetSection.id);
-    setAnnouncement(`${template.name} 패키지의 매수·매도 컨테이너를 ${targetSection.id.replace('section-', 'PARTITION ')}에 추가했습니다.`);
+    const addedKinds = ['매수', ...(includeSell ? ['매도'] : []), ...(riskCards.length > 0 ? ['위기관리'] : [])].join('·');
+    setAnnouncement(`${template.name} 패키지의 ${addedKinds} 컨테이너를 ${targetSection.id.replace('section-', 'PARTITION ')}에 추가했습니다.`);
   };
 
   const addLibraryBlock = (label: string, tone: BlockTone, targetCardId: string | null = selectedCardId, targetIndex?: number) => {
@@ -1075,6 +1242,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         cards: {
           buy: section.cards.buy.filter((id) => id !== cardId),
           sell: section.cards.sell.filter((id) => id !== cardId),
+          risk: section.cards.risk.filter((id) => id !== cardId),
         },
         cardOrder: section.cardOrder.filter((id) => id !== cardId),
         cardPositions,
@@ -1091,7 +1259,11 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       return next;
     });
     setSelectedCardId((current) => current === cardId ? null : current);
-    setActiveGroup((current) => current === cardId ? null : current);
+    setBuySettings((current) => {
+      const next = { ...current };
+      delete next[cardId];
+      return next;
+    });
     setDraggedCard(null);
     setCardMove(null);
     setTrashReady(false);
@@ -1109,9 +1281,16 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     setCardMeta((current) => Object.fromEntries(
       Object.entries(current).filter(([cardId]) => !deletedCardIds.has(cardId))
     ));
+    setBuySettings((current) => Object.fromEntries(
+      Object.entries(current).filter(([cardId]) => !deletedCardIds.has(cardId))
+    ));
+    setSymbolLimits((current) => {
+      const next = { ...current };
+      delete next[sectionId];
+      return next;
+    });
     setActiveSectionId((current) => current === sectionId ? (remainingSections[0]?.id ?? '') : current);
     setSelectedCardId((current) => deletedCardIds.has(current) ? null : current);
-    setActiveGroup((current) => deletedCardIds.has(current) ? null : current);
     setSectionMove(null);
     setTrashReady(false);
     setPreviewSectionId((current) => current === sectionId ? null : current);
@@ -1154,35 +1333,46 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     setAnnouncement('블록 설정을 변경했습니다.');
   };
 
-  const renderEditableBlocks = (cardId: string, side: Side, showRules: boolean) => cardBlocks[cardId].map((block, index) => <StrategyBlock
+  const resolveBlockDropIndex = (event: DragEvent<HTMLElement>, index: number) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (bounds.height <= 0) return index;
+    return event.clientY >= bounds.top + bounds.height / 2 ? index + 1 : index;
+  };
+
+  const renderEditableBlocks = (cardId: string, side: Side) => cardBlocks[cardId].map((block, index) => <StrategyBlock
     key={block.id}
     {...block}
-    showRule={showRules}
-    rule={getBlockRule(block, side)}
-    ruleSide={side === 'buy' ? 'right' : 'left'}
-    ruleStep={index + 1}
     onChange={(patch) => updateStrategyBlock(cardId, block.id, patch)}
     dragging={draggedBlock?.blockId === block.id}
     dragProps={{
       onDragStart: (event) => startDragging(event, cardId, block.id),
       onDragEnd: () => { setDraggedBlock(null); setDragTarget(null); setTrashReady(false); },
       onDragOver: (event) => {
+        const insertionIndex = resolveBlockDropIndex(event, index);
         if (libraryDrag?.type === 'block') {
           event.preventDefault();
           event.dataTransfer.dropEffect = 'copy';
-          setDragTarget({ cardId, index });
+          setDragTarget({ cardId, index: insertionIndex });
           return;
         }
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';
-        setDragTarget({ cardId, index });
+        setDragTarget({ cardId, index: insertionIndex });
       },
       onDragLeave: () => setDragTarget(null),
       onDrop: (event) => {
-        if (!dropLibraryBlock(event, cardId, index)) dropBlock(event, cardId, index);
+        const insertionIndex = resolveBlockDropIndex(event, index);
+        if (!dropLibraryBlock(event, cardId, insertionIndex)) dropBlock(event, cardId, insertionIndex);
       },
       onKeyDown: (event) => moveWithKeyboard(event, cardId, block.id, index),
-      'data-drop-target': dragTarget?.cardId === cardId && dragTarget?.index === index ? 'true' : undefined,
+      'data-drop-target': dragTarget?.cardId === cardId && (dragTarget.index === index || dragTarget.index === index + 1) ? 'true' : undefined,
+      'data-drop-position': dragTarget?.cardId === cardId
+        ? dragTarget.index === index
+          ? 'before'
+          : dragTarget.index === index + 1
+            ? 'after'
+            : undefined
+        : undefined,
     }}
   />);
 
@@ -1203,11 +1393,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   };
 
   const getSectionLayout = (section: StrategySection) => {
-    return getBasicSectionLayout(
+    const layout = getBasicSectionLayout(
       section.cardOrder,
       (cardId, index) => section.cardPositions?.[cardId] ?? getDefaultCardPosition(index),
       cardSizes,
     );
+    return { width: Math.max(600, layout.width), height: Math.max(430, layout.height) };
   };
 
   /*
@@ -1233,7 +1424,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   */
   const previewFlows = useMemo<PreviewFlow[]>(() => {
     if (!previewSection) return [];
-    const sides: Side[] = ['buy', 'sell'];
+    const sides: Array<Exclude<Side, 'risk'>> = ['buy', 'sell'];
     return sides.flatMap((side) => previewSection.cards[side].map((cardId, index) => ({
       id: cardId,
       label: previewSection.cards[side].length > 1
@@ -1253,11 +1444,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     setCardMeta((current) => ({
       ...current,
       [cardId]: {
-        title: `${side === 'buy' ? '매수' : '매도'} 컨테이너`,
-        detail: '직접 구성 · 블록을 추가해 보세요',
-        explanation: `오른쪽 BLOCKS에서 조건을 골라 ${side === 'buy' ? '매수' : '매도'} 규칙을 구성합니다.`,
+        title: `${side === 'buy' ? '매수' : side === 'sell' ? '매도' : '위기관리'} 컨테이너`,
+        detail: '조건을 모두 만족하면 실행',
+        explanation: '',
       },
     }));
+    if (side === 'buy') {
+      setBuySettings((current) => ({ ...current, [cardId]: createDefaultBuySettings() }));
+    }
     setSections((current) => current.map((item) => item.id === sectionId
       ? {
         ...item,
@@ -1271,7 +1465,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       : item));
     setActiveSectionId(sectionId);
     setSelectedCardId(cardId);
-    setAnnouncement(`${sectionId.replace('section-', 'PARTITION ')}에 ${side === 'buy' ? '매수' : '매도'} 컨테이너를 추가했습니다.`);
+    setAnnouncement(`${sectionId.replace('section-', 'PARTITION ')}에 ${side === 'buy' ? '매수' : side === 'sell' ? '매도' : '위기관리'} 컨테이너를 추가했습니다.`);
   };
 
   const startCardDrag = (event: DragEvent<HTMLDivElement>, sectionId: string, side: Side, cardId: string) => {
@@ -1331,7 +1525,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       }
       return section;
     }));
-    setAnnouncement(`${draggedCard.side === 'buy' ? '매수' : '매도'} 블록의 위치를 변경했습니다.`);
+    setAnnouncement(`${draggedCard.side === 'buy' ? '매수' : draggedCard.side === 'sell' ? '매도' : '위기관리'} 컨테이너의 위치를 변경했습니다.`);
     setDraggedCard(null);
   };
 
@@ -1483,15 +1677,18 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           explanation: '오른쪽 BLOCKS에서 조건을 골라 매수 규칙을 구성합니다.',
         },
       }));
+      setBuySettings((current) => ({ ...current, [buyCardId]: createDefaultBuySettings() }));
+      setSymbolLimits((current) => ({ ...current, [sectionId]: {} }));
       setSections((current) => [...current, {
         id: sectionId,
         symbol: '종목 선택',
         allocation: 10,
+        timeframe: '1분봉',
         x: draftRect.x,
         y: draftRect.y,
         width: Math.max(600, draftRect.width),
         minHeight: Math.max(340, draftRect.height),
-        cards: { buy: [buyCardId], sell: [] },
+        cards: { buy: [buyCardId], sell: [], risk: [] },
         cardOrder: [buyCardId],
         cardPositions: { [buyCardId]: getDefaultCardPosition(0) },
       }]);
@@ -1500,6 +1697,27 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       setAnnouncement(`PARTITION ${String(sectionNumber).padStart(2, '0')}을 만들었습니다. 매수 컨테이너가 기본으로 포함됩니다.`);
     }
     if (drawStart) setDrawMode(false);
+    if (cardMove) {
+      setSections((current) => current.map((section) => {
+        if (section.id !== cardMove.sectionId) return section;
+        const desired = section.cardPositions[cardMove.cardId]
+          ?? getDefaultCardPosition(section.cardOrder.indexOf(cardMove.cardId));
+        const movingSize = cardSizes[cardMove.cardId] ?? { width: 280, height: 286 };
+        const occupied = section.cardOrder
+          .filter((cardId) => cardId !== cardMove.cardId)
+          .map((cardId, index) => ({
+            position: section.cardPositions[cardId] ?? getDefaultCardPosition(index),
+            size: cardSizes[cardId] ?? { width: 280, height: 286 },
+          }));
+        return {
+          ...section,
+          cardPositions: {
+            ...section.cardPositions,
+            [cardMove.cardId]: resolveBasicCardCollision(desired, movingSize, occupied),
+          },
+        };
+      }));
+    }
     setDrawStart(null);
     setDraftRect(null);
     setPanGesture(null);
@@ -1539,27 +1757,47 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     event.currentTarget.closest('.section-workspace')?.setPointerCapture?.(event.pointerId);
   };
 
+  const startCardTitleEdit = (cardId: string) => {
+    setEditingCardTitleId(cardId);
+    setCardTitleDraft(cardMeta[cardId]?.title ?? '');
+  };
+
+  const finishCardTitleEdit = (cardId: string) => {
+    const nextTitle = cardTitleDraft.trim();
+    if (nextTitle) {
+      setCardMeta((current) => ({
+        ...current,
+        [cardId]: { ...current[cardId], title: nextTitle },
+      }));
+      setAnnouncement(`컨테이너 이름을 ${nextTitle}(으)로 변경했습니다.`);
+    }
+    setEditingCardTitleId(null);
+    setCardTitleDraft('');
+  };
+
   const renderStrategyCard = (section: StrategySection, side: Side, cardId: string, cardIndex: number) => {
     const isPrimary = cardId === `primary-${side}`;
     const testId = isPrimary ? `basic-${side}-group` : `strategy-card-${cardId}`;
     const stackTestId = isPrimary ? `basic-${side}-stack` : `strategy-stack-${cardId}`;
-    const explanationId = `${cardId}-translation`;
-    const isExplained = activeGroup === cardId;
     const isSelected = selectedCardId === cardId;
-    const sideLabel = side === 'buy' ? '매수' : '매도';
-    const terminalValue = side === 'buy' ? 'MARKET' : '100%';
+    const sideLabel = side === 'buy' ? '매수' : side === 'sell' ? '매도' : '위기관리';
+    const terminalLabel = side === 'buy' ? '매수 요청' : side === 'sell' ? '전량 매도' : '전량 청산';
+    const sectionNumber = String(sections.findIndex((item) => item.id === section.id) + 1).padStart(2, '0');
     const meta = cardMeta[cardId] ?? {
       title: `${sideLabel} 컨테이너`,
-      detail: '직접 구성 · 블록을 추가해 보세요',
-      explanation: `오른쪽 BLOCKS에서 조건을 골라 ${sideLabel} 규칙을 구성합니다.`,
+      detail: '조건을 모두 만족하면 실행',
+      explanation: '',
     };
+    const settings = buySettings[cardId] ?? createDefaultBuySettings();
     const position = section.cardPositions?.[cardId] ?? getDefaultCardPosition(cardIndex);
     return <div
       key={cardId}
-      className={`strategy-container content-sized-strategy ${side}-container strategy-card ${isExplained ? 'is-explained' : ''} ${isSelected ? 'is-selected' : ''} ${invalidCardIds.has(cardId) ? 'has-validation-error' : ''} ${draggedCard?.cardId === cardId ? 'is-card-dragging' : ''} ${cardMove?.cardId === cardId ? 'is-free-moving' : ''} ${libraryDrag?.type === 'block' ? 'is-library-drop-ready' : ''}`}
+      className={`strategy-container content-sized-strategy ${side}-container strategy-card ${isSelected ? 'is-selected' : ''} ${invalidCardIds.has(cardId) ? 'has-validation-error' : ''} ${draggedCard?.cardId === cardId ? 'is-card-dragging' : ''} ${cardMove?.cardId === cardId ? 'is-free-moving' : ''} ${libraryDrag?.type === 'block' ? 'is-library-drop-ready' : ''}`}
       data-testid={testId}
       data-strategy-card={cardId}
       data-selected={isSelected ? 'true' : undefined}
+      role={side === 'risk' ? 'region' : undefined}
+      aria-label={side === 'risk' ? `PARTITION ${sectionNumber} 위기관리 컨테이너` : undefined}
       ref={(element) => {
         if (element) cardElementsRef.current.set(cardId, element);
         else cardElementsRef.current.delete(cardId);
@@ -1590,28 +1828,135 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         aria-label={`${sideLabel} 컨테이너 자유 이동${isPrimary ? '' : ` ${cardIndex + 1}`}`}
         onPointerDown={(event) => beginCardMove(event, section, cardId)}
       ><GripVertical size={14} /><span>MOVE</span></button>
-      <button
+      <header
         className="strategy-container-header"
-        aria-label={`${sideLabel} 컨테이너 자연어 설명${isPrimary ? '' : ` ${cardIndex + 1}`}`}
-        aria-expanded={isExplained}
-        aria-controls={explanationId}
         onClick={() => {
           setActiveSectionId(section.id);
           setSelectedCardId(cardId);
-          toggleGroup(cardId);
         }}
-      ><span className="container-symbol">{side === 'buy' ? 'B' : 'S'}</span><div><strong>{meta.title}</strong><small>{meta.detail}</small>{isSelected && <em className="strategy-target-badge">블록 대상</em>}{invalidCardIds.has(cardId) && <em className="strategy-validation-badge">조건 필요</em>}</div><span>{cardBlocks[cardId].length + 1} BLOCKS</span></button>
-      <div id={explanationId} className="block-stack" data-testid={stackTestId} aria-label={`${sideLabel} 컨테이너 규칙 흐름`} onDragOver={(event) => {
+      >
+        <button
+          className="strategy-container-select"
+          aria-label={`${sideLabel} 컨테이너 선택${isPrimary ? '' : ` ${cardIndex + 1}`}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            setActiveSectionId(section.id);
+            setSelectedCardId(cardId);
+          }}
+        ><span className="sr-only">{sideLabel} 컨테이너 선택</span></button>
+        <div className="strategy-container-identity">
+          <span className="container-title-row">
+            {editingCardTitleId === cardId
+              ? <input
+                autoFocus
+                aria-label={`${sideLabel} 컨테이너 이름`}
+                value={cardTitleDraft}
+                onClick={(event) => event.stopPropagation()}
+                onChange={(event) => setCardTitleDraft(event.target.value)}
+                onBlur={() => finishCardTitleEdit(cardId)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') finishCardTitleEdit(cardId);
+                  if (event.key === 'Escape') {
+                    setEditingCardTitleId(null);
+                    setCardTitleDraft('');
+                  }
+                }}
+              />
+              : <strong>{meta.title}</strong>}
+          <button
+            className="container-title-edit"
+            type="button"
+            aria-label={`${sideLabel} 컨테이너 이름 편집${isPrimary ? '' : ` ${cardIndex + 1}`}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setSelectedCardId(cardId);
+              startCardTitleEdit(cardId);
+            }}
+          ><Pencil size={12} /></button>
+          </span>
+          {(side === 'buy' || invalidCardIds.has(cardId)) && <span className="container-title-tags">
+            {side === 'buy' && <>
+              <span>예산 {Math.round(section.allocation / Math.max(1, section.cards.buy.length))}%</span>
+              <span>주문 최대 {settings.maxOrderPercent}%</span>
+            </>}
+            {invalidCardIds.has(cardId) && <em className="strategy-validation-badge">조건 필요</em>}
+          </span>}
+        </div>
+        {side === 'buy' && <button
+            className="container-settings-toggle"
+            type="button"
+            aria-label={`${sideLabel} 컨테이너 실행 설정${isPrimary ? '' : ` ${cardIndex + 1}`}`}
+            aria-expanded={expandedSettingsCardId === cardId}
+            onClick={(event) => {
+              event.stopPropagation();
+              setSelectedCardId(cardId);
+              setExpandedSettingsCardId((current) => current === cardId ? null : cardId);
+            }}
+          ><Settings2 size={12} /></button>}
+      </header>
+      {side === 'buy' && expandedSettingsCardId === cardId && <section className="container-settings-card is-popover" role="group" aria-label="매수 실행 설정">
+        <header className="container-settings-head">
+          <span><Settings2 size={13} aria-hidden="true" /><strong>매수 설정</strong></span>
+          <button type="button" aria-label="매수 실행 설정 닫기" onClick={() => setExpandedSettingsCardId(null)}><X size={13} /></button>
+        </header>
+        <div className="readonly-budget" aria-label="사용 가능 예산">
+          <span><Layers3 size={12} aria-hidden="true" />사용 예산</span>
+          <strong>{`균등 배분 · ${Math.round(section.allocation / Math.max(1, section.cards.buy.length))}%`}</strong>
+        </div>
+        <label className="order-limit-setting"><span><strong>주문 한도</strong><small>1회 최대</small></span><span className="setting-with-unit"><input type="number" min="1" max="100" aria-label="1회 주문 최대" value={settings.maxOrderPercent} onChange={(event) => {
+          setSelectedCardId(cardId);
+          setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxOrderPercent: Number(event.target.value) } }));
+        }} /><b>%</b></span></label>
+        <label className="setting-toggle"><input type="checkbox" aria-label="추가 매수 허용" checked={settings.allowAdditionalBuy} onChange={(event) => {
+          setSelectedCardId(cardId);
+          setBuySettings((current) => ({ ...current, [cardId]: { ...settings, allowAdditionalBuy: event.target.checked } }));
+        }} /><span><strong>추가 매수</strong><small>같은 종목 재진입</small></span></label>
+        {settings.allowAdditionalBuy && <div className="additional-buy-settings">
+          <label><span>방식</span><select aria-label="재실행 방식" value={settings.rerunMode} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, rerunMode: event.target.value as BuyContainerSettings['rerunMode'] } }))}><option>조건 재충족</option><option>N봉 이후</option><option>N거래일 이후</option></select></label>
+          <label><span>간격</span><input type="number" min="1" max="365" aria-label="재실행 간격" value={settings.rerunInterval} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, rerunInterval: Number(event.target.value) } }))} /></label>
+          <label><span>최대 진입</span><input type="number" min="1" max="1000" aria-label="한 포지션 최대 진입 횟수" value={settings.maxEntries} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxEntries: Number(event.target.value) } }))} /></label>
+        </div>}
+      </section>}
+      <div
+        className={`block-stack ${cardBlocks[cardId].length > 0 ? `has-condition-blocks ${cardBlocks[cardId].length === 1 ? 'is-single-condition' : 'is-multi-condition is-segmented-condition'}` : ''}`}
+        data-testid={stackTestId}
+        aria-label={`${sideLabel} 컨테이너 조건 목록`}
+        onDragOver={(event) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = libraryDrag?.type === 'block' ? 'copy' : 'move';
       }} onDrop={(event) => {
         if (!dropLibraryBlock(event, cardId, cardBlocks[cardId].length)) dropBlock(event, cardId, cardBlocks[cardId].length);
       }}>
-        {renderEditableBlocks(cardId, side, isExplained)}
-        <button className="block-add" onClick={() => addBlock(cardId, side)}><Plus size={14} /> 블록 추가</button>
+        {cardBlocks[cardId].length > 0
+          ? <><span className="condition-stack-label" aria-label={cardBlocks[cardId].length === 1 ? '실행 조건' : '모든 조건을 충족'}><GitBranch size={10} aria-hidden="true" />{cardBlocks[cardId].length === 1 ? 'IF' : 'AND'}</span>{renderEditableBlocks(cardId, side)}</>
+          : <div className="empty-container-drop"><Plus size={14} /><strong>조건 놓기</strong><small>오른쪽에서 드래그</small></div>}
       </div>
-      <footer className="strategy-container-footer" aria-label={`고정 ${sideLabel} 출력`}><StrategyBlock id={isPrimary ? `${side}-order-block` : `${cardId}-order-block`} fixed icon={Check} label={side.toUpperCase()} value={terminalValue} tone={side} showRule={isExplained} rule={getTerminalRule(side)} ruleSide={side === 'buy' ? 'right' : 'left'} ruleStep={cardBlocks[cardId].length + 1} /></footer>
+      <footer className="strategy-container-footer" aria-label={`고정 ${sideLabel} 실행`}><StrategyBlock id={isPrimary ? `${side}-order-block` : `${cardId}-order-block`} fixed icon={Check} label={terminalLabel} tone={side} /></footer>
     </div>;
+  };
+
+  const symbolManagerSection = sections.find((section) => section.id === symbolManagerSectionId) ?? null;
+  const managedSymbols = symbolManagerSection ? splitPartitionSymbols(symbolManagerSection.symbol) : [];
+  const removeManagedSymbol = (symbol: string) => {
+    if (!symbolManagerSection) return;
+    const nextSymbols = managedSymbols.filter((item) => item !== symbol);
+    updateSection(symbolManagerSection.id, { symbol: nextSymbols.length > 0 ? nextSymbols.join(' · ') : '종목 선택' });
+    setSymbolLimits((current) => {
+      const nextSection = { ...(current[symbolManagerSection.id] ?? {}) };
+      delete nextSection[symbol];
+      return { ...current, [symbolManagerSection.id]: nextSection };
+    });
+  };
+  const addManagedSymbol = () => {
+    if (!symbolManagerSection) return;
+    const candidates = ['AAPL', 'MSFT', 'SPY', 'NVDA', 'QQQ'];
+    const symbol = candidates.find((candidate) => !managedSymbols.includes(candidate));
+    if (!symbol) return;
+    updateSection(symbolManagerSection.id, { symbol: [...managedSymbols, symbol].join(' · ') });
+    setSymbolLimits((current) => ({
+      ...current,
+      [symbolManagerSection.id]: { ...(current[symbolManagerSection.id] ?? {}), [symbol]: 25 },
+    }));
   };
 
   const trashItemLabel = draggedBlock
@@ -1622,14 +1967,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         ? '파티션'
         : null;
 
-  return <Localized><div
-    className="page editor-page basic-editor-page editor-shell-page"
-    onPointerDownCapture={(event) => {
-      if (!activeGroup) return;
-      if ((event.target as Element).closest?.('.strategy-container-header')) return;
-      setActiveGroup(null);
-    }}
-  >
+  return <Localized><div className="page editor-page basic-editor-page editor-shell-page">
     <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
     <div className="basic-editor-commandbar floating-editor-controls" role="toolbar" aria-label="Basic 편집 작업">
       <div className="basic-editor-context"><Button className="floating-editor-button" kind="ghost" icon={ArrowLeft} onClick={goBack}>목록</Button><div className="floating-editor-mode-controls" role="group" aria-label="편집기 전환"><Button className="floating-editor-button active" onClick={() => openEditor?.('basic')}>Basic 편집기</Button><Button className="floating-editor-button" onClick={() => openEditor?.('pro')}>Pro 편집기</Button></div></div>
@@ -1637,9 +1975,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         <Button className="floating-editor-button" icon={Save} onClick={saveStrategy}>저장</Button>
         <div className="editor-launch-action">
           <Button
-            className="floating-editor-button"
+            className={`floating-editor-button ${isLaunchable ? '' : 'is-unavailable'}`}
             kind="primary"
             icon={Rocket}
+            aria-disabled={!isLaunchable}
             aria-describedby="personal-bot-launch-tooltip"
             onClick={preparePersonalBotLaunch}
           >개인 봇 출시</Button>
@@ -1667,29 +2006,28 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
             {!isLaunchable && <ul>{validationIssues.map((issue) => <li key={issue.id}>{issue.message}</li>)}</ul>}
           </div>
         </section>
-        <aside className="editor-palette template-library-panel panel floating-editor-panel" data-testid="basic-templates-panel">
-          <div className="palette-title"><span>PACKAGES</span><Sparkles size={15} /></div>
+        <aside className={`editor-palette template-library-panel panel floating-editor-panel ${templatesCollapsed ? 'is-collapsed' : ''}`} data-collapse-direction="left" data-testid="basic-templates-panel">
+          <div className="palette-title"><span>PACKAGES</span><Sparkles size={15} /><button type="button" className="sidebar-toggle" aria-label={`패키지 사이드바 ${templatesCollapsed ? '펼치기' : '접기'}`} aria-expanded={!templatesCollapsed} onClick={() => setTemplatesCollapsed((current) => !current)}>{templatesCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}</button></div>
           <p className="library-intro">잘 몰라도 괜찮아요. 원하는 방식을 고르면 매수와 매도 규칙을 함께 만들어 드려요.</p>
           <label className="palette-search"><Search size={14} /><input aria-label="패키지 검색" placeholder="RSI, 추세, 돌파" value={templateQuery} onChange={(event) => setTemplateQuery(event.target.value)} /></label>
           <div className="template-list">
-            {filteredTemplates.map((template) => <button
+            {filteredTemplates.map((template) => <Fragment key={template.id}>
+              {template.id === 'donchian' && <div className="template-advanced-break" role="separator" aria-label="고급 패키지"><span>ADVANCED</span><small>지표 설정이 필요한 전략</small></div>}
+              <button
               key={template.id}
               className={`template-card ${libraryDrag?.type === 'template' && libraryDrag.template.id === template.id ? 'is-library-dragging' : ''}`}
               aria-label={`${template.name} 패키지 적용`}
+              data-package-group={template.category}
               draggable
               onDragStart={(event) => startLibraryDrag(event, { type: 'template', template })}
               onDragEnd={finishLibraryDrag}
               onClick={() => applyTemplate(template)}
             >
               <span className={`template-icon tone-${template.category}`}><Sparkles size={14} /></span>
-              <span><strong>{template.name}</strong><small>{template.description}</small></span>
+              <span className="template-card-copy"><strong>{template.name}</strong><small>{template.description}</small><em>{getTemplateStructureLabel(template)}</em></span>
               <Plus size={14} />
-            </button>)}
-          </div>
-          <div className="library-target">
-            <span>추가 위치</span>
-            <strong>PARTITION {activeSectionId.replace('section-', '').padStart(2, '0')}</strong>
-            <small>클릭하거나 원하는 파티션으로 드래그하세요.</small>
+            </button>
+            </Fragment>)}
           </div>
         </aside>
       </div>
@@ -1705,7 +2043,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         <div className="cursor-dot-spotlight" data-testid="cursor-dot-spotlight" aria-hidden="true" />
         <div className="section-draw-controls" role="group" aria-label="파티션 도구">
           <button className={`floating-editor-button ${drawMode ? 'active' : ''}`} aria-label="파티션 그리기" aria-pressed={drawMode} onClick={() => setDrawMode((current) => !current)}><Plus size={14} /> 파티션 그리기</button>
-          <span>{drawMode ? '빈 공간을 드래그해 파티션을 만드세요' : `${sections.length}개 파티션 · 휠: 확대/축소 · 파티션 드래그: 이동`}</span>
+          <span className="partition-count-badge" data-testid="partition-count-badge" aria-label={`${sections.length}개 파티션`}><Layers3 size={12} aria-hidden="true" /><b>{sections.length}</b></span>
+          <span className="canvas-gesture-guide" data-testid="canvas-gesture-guide">{drawMode
+            ? <><MousePointer2 size={12} aria-hidden="true" /> 빈 공간을 드래그해 파티션 만들기</>
+            : <><i><Mouse size={12} aria-hidden="true" /> 휠 확대/축소</i><i><MousePointer2 size={12} aria-hidden="true" /> 드래그로 이동</i></>}</span>
         </div>
         <div className="floating-zoom-controls" role="group" aria-label="캔버스 확대/축소">
           <button className="floating-editor-button" aria-label="축소" disabled={zoom <= .5} onClick={() => setZoom((current) => Math.max(.5, Number((current - .1).toFixed(1))))}>−</button>
@@ -1753,14 +2094,16 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
               <i className="section-corner corner-top-right" aria-hidden="true" />
               <header className="strategy-section-header">
                 <button className="section-move-handle" data-testid={`${section.id}-move-handle`} aria-label={`PARTITION ${sectionNumber} 이동`} onPointerDown={(event) => beginSectionMove(event, section)}><GripVertical size={16} /></button>
-                <div className="section-identity"><span>PARTITION {sectionNumber}</span><strong>{section.symbol}</strong><small>매수 {section.cards.buy.length} · 매도 {section.cards.sell.length}</small></div>
+                <div className="section-identity"><span>PARTITION {sectionNumber}</span><strong>{section.symbol}</strong><small>매수 {section.cards.buy.length} · 매도 {section.cards.sell.length} · 위기관리 {section.cards.risk.length}</small></div>
                 <div className="section-settings">
-                  <label><span>종목</span><select aria-label={`PARTITION ${sectionNumber} 종목`} value={section.symbol} onChange={(event) => updateSection(section.id, { symbol: event.target.value })}><option>종목 선택</option><option>AAPL</option><option>MSFT</option><option>SPY</option><option>NVDA</option><option>AAPL · MSFT · SPY</option></select></label>
-                  <label><span>전체 자본 대비</span><span className="section-allocation"><input type="number" min="1" max="100" aria-label={`PARTITION ${sectionNumber} 전체 자본 대비 투자비율`} value={section.allocation} onChange={(event) => updateSection(section.id, { allocation: Number(event.target.value) })} /><b>%</b></span></label>
+                  <label><span>거래 종목</span><button type="button" className="section-symbol-manager" aria-label={`PARTITION ${sectionNumber} 종목 관리`} onClick={() => setSymbolManagerSectionId(section.id)}><strong>{splitPartitionSymbols(section.symbol).length || 0}개 종목</strong><small>한도 설정</small></button></label>
+                  <label><span>전체 전략 대비 예산</span><span className="section-allocation"><input type="number" min=".1" max="100" step=".1" aria-label={`PARTITION ${sectionNumber} 전체 전략 대비 예산`} value={section.allocation} onChange={(event) => updateSection(section.id, { allocation: Number(event.target.value) })} /><b>%</b></span></label>
+                  <label><span>기본 봉 주기</span><select aria-label={`PARTITION ${sectionNumber} 기본 봉 주기`} value={section.timeframe} onChange={(event) => updateSection(section.id, { timeframe: event.target.value })}>{['1분봉', '3분봉', '5분봉', '15분봉', '30분봉', '1시간봉', '4시간봉', '일봉', '주봉'].map((timeframe) => <option key={timeframe}>{timeframe}</option>)}</select></label>
                 </div>
                 <div className="section-card-actions">
-                  <button onClick={() => addStrategyCard(section.id, 'buy')}><Plus size={13} /> 매수 컨테이너 추가</button>
-                  <button onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={13} /> 매도 컨테이너 추가</button>
+                  <button aria-label={`PARTITION ${sectionNumber} 매수 컨테이너 추가`} onClick={() => addStrategyCard(section.id, 'buy')}><Plus size={13} /> 매수</button>
+                  <button aria-label={`PARTITION ${sectionNumber} 매도 컨테이너 추가`} onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={13} /> 매도</button>
+                  <button aria-label={`PARTITION ${sectionNumber} 위기관리 컨테이너 추가`} onClick={() => addStrategyCard(section.id, 'risk')}><Plus size={13} /> 위기관리</button>
                   <button
                     className={`section-preview-button ${previewSectionId === section.id ? 'active' : ''}`}
                     aria-label={`PARTITION ${sectionNumber} 전략 미리보기`}
@@ -1774,7 +2117,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
                 </div>
               </header>
               <div className="section-strategy-grid">
-                {section.cardOrder.map((cardId, cardIndex) => renderStrategyCard(section, section.cards.buy.includes(cardId) ? 'buy' : 'sell', cardId, cardIndex))}
+                {section.cardOrder.map((cardId, cardIndex) => renderStrategyCard(
+                  section,
+                  section.cards.buy.includes(cardId) ? 'buy' : section.cards.sell.includes(cardId) ? 'sell' : 'risk',
+                  cardId,
+                  cardIndex,
+                ))}
                 {section.cards.buy.length === 0 && <button
                   className="required-buy-slot"
                   aria-label={`PARTITION ${sectionNumber} 필수 매수 컨테이너 추가`}
@@ -1787,29 +2135,24 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           </div>
         </div>
       </section>
-      <aside className="editor-inspector block-library-panel panel floating-editor-panel" data-testid="basic-block-library">
-        <div className="inspector-title"><span>BLOCKS</span><Boxes size={15} /></div>
-        <div className="block-library-target">
-          <span>블록을 넣을 곳</span>
-          <strong>{cardMeta[selectedCardId!]?.title ?? '컨테이너를 선택해 주세요'}</strong>
-          <small>클릭하거나 원하는 컨테이너로 드래그하세요.</small>
-        </div>
-        <label className="palette-search"><Search size={14} /><input aria-label="블록 검색" placeholder="MACD, 조건, 손절" value={blockQuery} onChange={(event) => setBlockQuery(event.target.value)} /></label>
+      <aside className={`editor-inspector block-library-panel panel floating-editor-panel ${blocksCollapsed ? 'is-collapsed' : ''}`} data-collapse-direction="right" data-testid="basic-block-library">
+        <div className="inspector-title"><span>BLOCKS</span><Boxes size={15} /><button type="button" className="sidebar-toggle" aria-label={`블록 사이드바 ${blocksCollapsed ? '펼치기' : '접기'}`} aria-expanded={!blocksCollapsed} onClick={() => setBlocksCollapsed((current) => !current)}>{blocksCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}</button></div>
+        <label className="palette-search"><Search size={14} /><input aria-label="블록 검색" placeholder="가격, RSI, 위기관리" value={blockQuery} onChange={(event) => setBlockQuery(event.target.value)} /></label>
         <div className="block-category-list">
-          {filteredBlockLibrary.map((category) => <details className={`block-category tone-${category.tone}`} open key={category.name}>
-            <summary><ChevronDown size={14} /><span>{category.name}</span><b>{category.items.length}</b></summary>
+          {filteredBlockLibrary.map((category) => <section className={`block-category tone-${category.tone}`} key={category.name}>
+            <div className="block-category-divider" role="separator" aria-label={`${category.name} 블록`}><span>{category.name}</span><b>{category.items.length}</b></div>
             <div className="block-chip-list">
               {category.items.map((item) => <button
                 key={`${category.name}-${item}`}
-                className={libraryDrag?.type === 'block' && libraryDrag.label === item && libraryDrag.tone === category.tone ? 'is-library-dragging' : ''}
+                className={`library-block-button has-tone-band ${libraryDrag?.type === 'block' && libraryDrag.label === item && libraryDrag.tone === category.tone ? 'is-library-dragging' : ''}`}
                 aria-label={`${item} 블록 추가`}
                 draggable
                 onDragStart={(event) => startLibraryDrag(event, { type: 'block', label: item, tone: category.tone })}
                 onDragEnd={finishLibraryDrag}
                 onClick={() => addLibraryBlock(item, category.tone)}
-              >{item}<Plus size={11} /></button>)}
+              ><span className="block-chip-accent"><span className="block-chip-name">{item}</span></span><Plus size={11} /></button>)}
             </div>
-          </details>)}
+          </section>)}
         </div>
       </aside>
     </div>
@@ -1851,6 +2194,15 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       <div><strong>{saveFeedback.title}</strong><small>{saveFeedback.detail}</small></div>
       <button type="button" aria-label="저장 알림 닫기" onClick={() => setSaveFeedback(null)}><X size={14} /></button>
     </div>}
+    {symbolManagerSection && createPortal(<div className="symbol-manager-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSymbolManagerSectionId(null); }}>
+      <section className="symbol-manager-dialog" role="dialog" aria-modal="true" aria-label={`${symbolManagerSection.id.replace('section-', 'PARTITION ')} 종목 관리`}>
+        <header><div><small>SYMBOL LIMITS</small><h2>거래 종목 관리</h2><p>종목별 최대 보유 비율은 예약 자금이 아니라 보유 한도입니다.</p></div><button type="button" aria-label="종목 관리 닫기" onClick={() => setSymbolManagerSectionId(null)}><X size={16} /></button></header>
+        <div className="symbol-manager-list">
+          {managedSymbols.map((symbol) => <div key={symbol}><span><strong>{symbol}</strong><small>미국 주식</small></span><label><span>최대 보유 비율</span><span className="setting-with-unit"><input type="number" min=".1" max="100" step=".1" aria-label={`${symbol} 종목별 최대 보유 비율`} value={symbolLimits[symbolManagerSection.id]?.[symbol] ?? 25} onChange={(event) => setSymbolLimits((current) => ({ ...current, [symbolManagerSection.id]: { ...(current[symbolManagerSection.id] ?? {}), [symbol]: Number(event.target.value) } }))} /><b>%</b></span></label><button type="button" aria-label={`${symbol} 삭제`} onClick={() => removeManagedSymbol(symbol)}><Trash2 size={14} /></button></div>)}
+        </div>
+        <footer><Button type="button" icon={Plus} onClick={addManagedSymbol}>종목 추가</Button><Button type="button" kind="primary" onClick={() => setSymbolManagerSectionId(null)}>완료</Button></footer>
+      </section>
+    </div>, document.body)}
     {launchDialogOpen && createPortal(<div
       className="personal-bot-launch-backdrop"
       onMouseDown={(event) => {
