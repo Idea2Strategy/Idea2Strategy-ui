@@ -2138,9 +2138,9 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
           <div>
             {([
               ['all', '전체'],
-              ['10', '10 ↓'],
+              ['10', '0–10'],
               ['11-50', '11–50'],
-              ['51', '51 ↑'],
+              ['51', '51+'],
             ] as const).map(([value, label]) => <label key={value}>
               <input
                 type="radio"
@@ -2158,90 +2158,118 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
       <section className="competition-board" aria-labelledby="competition-screener-title">
         <header>
           <h2 id="competition-screener-title">대회 게시판</h2>
-          <div>
-            <select
-              aria-label="페이지당 표시 개수"
-              value={pageSize}
-              onChange={(event) => setPageSize(Number(event.target.value))}
-            >
-              <option value="10">10개씩 보기</option>
-              <option value="20">20개씩 보기</option>
-              <option value="30">30개씩 보기</option>
-            </select>
-          </div>
         </header>
 
-        <div className="competition-board-head">
-          {(Object.keys(sortableColumns) as RoomSortKey[]).map((key) => <button
-            type="button"
-            key={key}
-            className={roomSort.key === key ? 'is-sorted' : ''}
-            aria-label={`${sortableColumns[key].label} 정렬`}
-            onClick={() => toggleRoomSort(key)}
-          >
-            {sortableColumns[key].label}
-            <i aria-hidden="true">{roomSort.key === key ? (roomSort.dir === 'asc' ? '▲' : '▼') : '↕'}</i>
-          </button>)}
-          <span aria-hidden="true" />
-        </div>
-
         <div className="competition-board-list" role="list" aria-label="대회 탐색 결과">
-          {orderedOfficialCompetitions.map((competition, index) => {
-            const tooltipId = `official-running-tooltip-${index}`;
-            const isRunning = competition.status === 'running';
-            return <div className="competition-board-row is-official" role="listitem" key={competition.name}>
-              <button
-                type="button"
-                aria-label={`공식 대회 ${competition.name} 열기`}
-                aria-describedby={isRunning ? tooltipId : undefined}
-                onClick={() => setSelectedRoom(competition)}
-              >
-                <span><strong className="competition-ranking-badge" data-ranking-tone={competition.tone}>{competition.ranking}</strong></span>
-                <span className="competition-board-name">
-                  <span>
-                    <strong>{competition.name}</strong>
-                    <span className="competition-room-status-wrap">
-                      <b className="competition-room-status" data-room-status={competition.status}>{officialStatusLabels[competition.status]}</b>
-                      {isRunning && <span className="competition-status-tooltip" id={tooltipId} role="tooltip">
-                        공식 대회는 대회 진행 중에도 참가할 수 있습니다.
-                      </span>}
+          <section
+            className="competition-board-section is-official-section"
+            role="group"
+            aria-label="공식 대회 목록"
+          >
+            <header className="competition-board-section-title">
+              <h3 id="official-competition-list-title">공식 대회</h3>
+            </header>
+            <div className="competition-board-head is-official-head" aria-hidden="true">
+              <span />
+              <span>대회 제목</span>
+              <span>진행률</span>
+              <span>참여 봇 수</span>
+              <span />
+            </div>
+            {orderedOfficialCompetitions.map((competition, index) => {
+              const tooltipId = `official-running-tooltip-${index}`;
+              const isRunning = competition.status === 'running';
+              const deadlineLabel = isRunning ? '대회 종료' : '모집 마감';
+              return <div className="competition-board-row is-official" role="listitem" key={competition.name}>
+                <button
+                  type="button"
+                  aria-label={`공식 대회 ${competition.name} 열기`}
+                  aria-describedby={isRunning ? tooltipId : undefined}
+                  onClick={() => setSelectedRoom(competition)}
+                >
+                  <span><strong className="competition-ranking-badge" data-ranking-tone={competition.tone}>{competition.ranking}</strong></span>
+                  <span className="competition-board-name">
+                    <span>
+                      <strong>{competition.name}</strong>
+                      <span className="competition-room-status-wrap">
+                        <b className="competition-room-status" data-room-status={competition.status}>{officialStatusLabels[competition.status]}</b>
+                        {isRunning && <span className="competition-status-tooltip" id={tooltipId} role="tooltip">
+                          공식 대회는 대회 진행 중에도 참가할 수 있습니다.
+                        </span>}
+                      </span>
                     </span>
                   </span>
+                  <span className="competition-board-period is-official-progress">
+                    <span className="competition-deadline">
+                      <small>{deadlineLabel}</small>
+                      <b className={competition.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${competition.remainingDays}`}</b>
+                    </span>
+                    <small className="competition-progress-copy">{`진행률 ${competition.progress}%`}</small>
+                    <span
+                      className="competition-progress"
+                      role="progressbar"
+                      aria-label={`${competition.name} 진행률`}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={competition.progress}
+                    ><i style={{ width: `${competition.progress}%` }} /></span>
+                  </span>
+                  <span className="competition-board-bots"><strong>{competition.bots}</strong><small>BOT</small></span>
+                  <ArrowUpRight size={15} aria-hidden="true" />
+                </button>
+              </div>;
+            })}
+          </section>
+
+          <section
+            className="competition-board-section is-general-section"
+            role="group"
+            aria-label="일반 대회 목록"
+          >
+            <header className="competition-board-section-title">
+              <h3 id="general-competition-list-title">일반 대회</h3>
+              <select
+                aria-label="페이지당 표시 개수"
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value))}
+              >
+                <option value="10">10개씩 보기</option>
+                <option value="20">20개씩 보기</option>
+                <option value="30">30개씩 보기</option>
+              </select>
+            </header>
+            <div className="competition-board-head">
+              {(Object.keys(sortableColumns) as RoomSortKey[]).map((key) => <button
+                type="button"
+                key={key}
+                className={roomSort.key === key ? 'is-sorted' : ''}
+                aria-label={`${sortableColumns[key].label} 정렬`}
+                onClick={() => toggleRoomSort(key)}
+              >
+                {sortableColumns[key].label}
+                <i aria-hidden="true">{roomSort.key === key ? (roomSort.dir === 'asc' ? '▲' : '▼') : '↕'}</i>
+              </button>)}
+              <span aria-hidden="true" />
+            </div>
+
+            {pageRooms.map((room) => <div className="competition-board-row" role="listitem" key={room.name}>
+              <button type="button" aria-label={`${room.name} 열기`} onClick={() => setSelectedRoom(room)}>
+                <span><strong className="competition-ranking-badge" data-ranking-tone={rankingToneByLabel[room.ranking] ?? 'standard'}>{room.ranking}</strong></span>
+                <span className="competition-board-name"><strong>{room.name}</strong></span>
+                <span className="competition-board-period">
+                  <b className={room.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${room.remainingDays}`}</b>
                 </span>
-                <span className="competition-board-period is-official-progress">
-                  <b className={competition.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${competition.remainingDays}`}</b>
-                  <span
-                    className="competition-progress"
-                    role="progressbar"
-                    aria-label={`${competition.name} 진행률`}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={competition.progress}
-                  ><i style={{ width: `${competition.progress}%` }} /></span>
-                </span>
-                <span className="competition-board-bots"><strong>{competition.bots}</strong><small>BOT</small></span>
+                <span className="competition-board-bots"><strong>{room.joined}</strong><small>BOT</small></span>
                 <ArrowUpRight size={15} aria-hidden="true" />
               </button>
-            </div>;
-          })}
+            </div>)}
 
-          {pageRooms.map((room) => <div className="competition-board-row" role="listitem" key={room.name}>
-            <button type="button" aria-label={`${room.name} 열기`} onClick={() => setSelectedRoom(room)}>
-              <span><strong className="competition-ranking-badge" data-ranking-tone={rankingToneByLabel[room.ranking] ?? 'standard'}>{room.ranking}</strong></span>
-              <span className="competition-board-name"><strong>{room.name}</strong></span>
-              <span className="competition-board-period">
-                <b className={room.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${room.remainingDays}`}</b>
-              </span>
-              <span className="competition-board-bots"><strong>{room.joined}</strong><small>BOT</small></span>
-              <ArrowUpRight size={15} aria-hidden="true" />
-            </button>
-          </div>)}
-
-          {visibleRooms.length === 0 && <div className="competition-empty">
-            <Search size={20} aria-hidden="true" />
-            <strong>조건에 맞는 대회가 없습니다.</strong>
-            <button type="button" onClick={resetFilters}>필터 초기화</button>
-          </div>}
+            {visibleRooms.length === 0 && <div className="competition-empty">
+              <Search size={20} aria-hidden="true" />
+              <strong>조건에 맞는 대회가 없습니다.</strong>
+              <button type="button" onClick={resetFilters}>필터 초기화</button>
+            </div>}
+          </section>
         </div>
 
         <nav className="competition-pagination" aria-label="대회 목록 페이지">
