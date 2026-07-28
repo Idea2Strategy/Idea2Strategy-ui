@@ -10,11 +10,14 @@ import type {
   WheelEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Boxes, Check, ChevronDown, ChevronRight, CircleDollarSign, GitBranch, GripVertical, Import, Layers3, Minus, Play, Plus, Rocket, Save, Search, ShieldCheck, Sparkles, Split, Timer, Trash2, TriangleAlert, X } from 'lucide-react';
+import { ArrowLeft, Boxes, CandlestickChart, Check, ChevronDown, ChevronRight, CircleDollarSign, GitBranch, GripVertical, Import, Layers3, Minus, Play, Plus, Rocket, Save, Search, ShieldCheck, Sparkles, Split, Timer, Trash2, TriangleAlert, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { strategies } from '../data/mockData';
 import type { StrategySummary } from '../data/mockData';
 import { Button, PageHeading, Panel, Status } from '../components/common';
+import { StrategyPreviewChart } from '../components/StrategyPreviewChart';
+import { splitPartitionSymbols } from '../lib/strategyPreview';
+import type { PreviewFlow } from '../lib/strategyPreview';
 import { Localized } from '../lib/i18n';
 import {
   getBasicSectionLayout,
@@ -734,6 +737,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   const [botDescription, setBotDescription] = useState('');
   const [templateQuery, setTemplateQuery] = useState('');
   const [blockQuery, setBlockQuery] = useState('');
+  /* 미리보기 차트를 열어 둔 파티션. 파티션을 누르면 그 파티션 기준으로 열린다. */
+  const [previewSectionId, setPreviewSectionId] = useState<string | null>(null);
   const toggleGroup = (group: string) => setActiveGroup((current) => current === group ? null : group);
   const filteredTemplates = useMemo(() => TEMPLATE_LIBRARY.filter((template) => (
     `${template.name} ${template.category} ${template.indicator}`.toLowerCase().includes(templateQuery.trim().toLowerCase())
@@ -1109,6 +1114,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     setActiveGroup((current) => deletedCardIds.has(current) ? null : current);
     setSectionMove(null);
     setTrashReady(false);
+    setPreviewSectionId((current) => current === sectionId ? null : current);
     setAnnouncement('파티션을 삭제했습니다.');
   };
 
@@ -1203,6 +1209,40 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       cardSizes,
     );
   };
+
+  /*
+    미리보기 차트에 넘길 파티션 구성. 파티션의 모든 매수·매도 컨테이너 블록을
+    한 벌로 모아 전달하므로, 블록을 추가하거나 값을 바꾸면 이 memo가 새 배열을
+    만들고 차트가 그 자리에서 다시 계산된다.
+  */
+  const previewSection = sections.find((section) => section.id === previewSectionId) ?? null;
+  const previewSectionNumber = previewSection
+    ? String(sections.findIndex((section) => section.id === previewSection.id) + 1).padStart(2, '0')
+    : '';
+  const previewSymbols = useMemo(
+    () => {
+      const symbols = previewSection ? splitPartitionSymbols(previewSection.symbol) : [];
+      return symbols.length > 0 ? symbols : ['AAPL'];
+    },
+    [previewSection],
+  );
+  /*
+    컨테이너 하나가 미리보기의 플로우 하나다. 여러 매수 컨테이너를 한 벌로
+    합치면 어느 컨테이너가 주문을 만들었는지 알 수 없고, 두 번째 컨테이너의
+    조건은 계산에서 빠진다. 이름은 카드 헤더에 보이는 제목을 그대로 쓴다.
+  */
+  const previewFlows = useMemo<PreviewFlow[]>(() => {
+    if (!previewSection) return [];
+    const sides: Side[] = ['buy', 'sell'];
+    return sides.flatMap((side) => previewSection.cards[side].map((cardId, index) => ({
+      id: cardId,
+      label: previewSection.cards[side].length > 1
+        ? `${side === 'buy' ? '매수' : '매도'} ${index + 1}`
+        : (side === 'buy' ? '매수' : '매도'),
+      side,
+      blocks: cardBlocks[cardId] ?? [],
+    })));
+  }, [cardBlocks, previewSection]);
 
   const addStrategyCard = (sectionId: string, side: Side) => {
     const section = sections.find((item) => item.id === sectionId)!;
@@ -1718,7 +1758,20 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
                   <label><span>종목</span><select aria-label={`PARTITION ${sectionNumber} 종목`} value={section.symbol} onChange={(event) => updateSection(section.id, { symbol: event.target.value })}><option>종목 선택</option><option>AAPL</option><option>MSFT</option><option>SPY</option><option>NVDA</option><option>AAPL · MSFT · SPY</option></select></label>
                   <label><span>전체 자본 대비</span><span className="section-allocation"><input type="number" min="1" max="100" aria-label={`PARTITION ${sectionNumber} 전체 자본 대비 투자비율`} value={section.allocation} onChange={(event) => updateSection(section.id, { allocation: Number(event.target.value) })} /><b>%</b></span></label>
                 </div>
-                <div className="section-card-actions"><button onClick={() => addStrategyCard(section.id, 'buy')}><Plus size={13} /> 매수 컨테이너 추가</button><button onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={13} /> 매도 컨테이너 추가</button></div>
+                <div className="section-card-actions">
+                  <button onClick={() => addStrategyCard(section.id, 'buy')}><Plus size={13} /> 매수 컨테이너 추가</button>
+                  <button onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={13} /> 매도 컨테이너 추가</button>
+                  <button
+                    className={`section-preview-button ${previewSectionId === section.id ? 'active' : ''}`}
+                    aria-label={`PARTITION ${sectionNumber} 전략 미리보기`}
+                    aria-pressed={previewSectionId === section.id}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setActiveSectionId(section.id);
+                      setPreviewSectionId((current) => current === section.id ? null : section.id);
+                    }}
+                  ><CandlestickChart size={13} /> 전략 미리보기</button>
+                </div>
               </header>
               <div className="section-strategy-grid">
                 {section.cardOrder.map((cardId, cardIndex) => renderStrategyCard(section, section.cards.buy.includes(cardId) ? 'buy' : 'sell', cardId, cardIndex))}
@@ -1760,6 +1813,16 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         </div>
       </aside>
     </div>
+    {/*
+      미리보기는 PiP 창이다. 확대·이동하는 캔버스 안에 두면 좌표가 따라 움직이고
+      transform이 fixed 기준을 바꿔 버리므로, 캔버스 밖 화면 단위에 띄운다.
+    */}
+    {previewSection && <StrategyPreviewChart
+      partitionLabel={`PARTITION ${previewSectionNumber}`}
+      symbols={previewSymbols}
+      flows={previewFlows}
+      onClose={() => setPreviewSectionId(null)}
+    />}
     {trashItemLabel && <div
       ref={(element) => { trashZoneRef.current = element; }}
       className={`editor-trash-zone ${cardMove || sectionMove ? 'is-pointer-trash' : ''} ${trashReady ? 'is-ready' : ''}`}

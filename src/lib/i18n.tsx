@@ -970,6 +970,25 @@ const english: Record<string, string> = {
   '회색 계단선은 투입 원금이며, 봇 시작(세로 점선)마다 함께 올라갑니다. 기간 수익률은 자금 유입을 제외하고 계산합니다.': 'The grey stepped line is invested principal; it rises with each bot launch (dotted vertical lines). The period return excludes inflows.',
   '자금 유입을 제외한 값입니다. 봇 시작 시점은 세로 점선으로 표시합니다.': 'Inflows are excluded. Bot launches are marked with dotted vertical lines.',
   '세로 점선은 봇 시작(자금 투입) 시점입니다. 기간 수익률은 자금 유입을 제외하고 계산합니다.': 'Dotted vertical lines mark bot launches (capital inflows). The period return excludes inflows.',
+
+  /* 파티션 전략 미리보기 창. */
+  '전략 미리보기': 'Strategy preview',
+  '미리보기 위치 이동': 'Move the preview window',
+  '미리보기 닫기': 'Close the preview',
+  '미리보기 종목 선택': 'Select the preview symbol',
+  '미리보기': 'preview',
+  '신호를 만든 플로우': 'Flows behind the signals',
+  '신호만 강조': 'signals only',
+  '최근 1개월 종가와 신호': 'closing prices and signals over the past month',
+  /* '최근 1개월'은 백테스트 기간 칩에 이미 있다. */
+  '계산할 수 있는 지표 블록이 없어요': 'No indicator block here can be evaluated',
+  '블록은 계산에서 제외했어요': 'blocks are excluded from the calculation',
+  '상향 돌파': 'crosses up',
+  '하향 돌파': 'crosses down',
+  '종가가': 'Close',
+  '시그널선': 'the signal line',
+  '0선': 'zero',
+  '거래량이 평균의': 'Volume vs average',
 };
 
 const entries = Object.entries(english).sort(([a], [b]) => b.length - a.length);
@@ -979,9 +998,22 @@ function translateString(value: string, language: Language): string {
   return entries.reduce((result, [source, target]) => result.replaceAll(source, target), value);
 }
 
+/*
+  번역 대상이 아닌 props.
+
+  - 식별자·기계용 값(className, id, data-*)은 번역하면 선택자와 테스트가 깨진다.
+  - ref는 객체 그대로 넘겨야 한다. 아래 일반 객체 복제 규칙에 걸리면 새
+    객체가 만들어져 React가 사본에 current를 넣고, 원래 ref는 영원히 null로
+    남는다. 차트처럼 DOM 노드를 직접 다루는 컴포넌트가 조용히 죽는 원인이다.
+*/
+const UNTRANSLATED_PROPS = new Set(['className', 'id', 'href', 'src', 'value', 'name', 'type', 'role', 'ref', 'key']);
+const isIdentifierProp = (propName: string): boolean =>
+  UNTRANSLATED_PROPS.has(propName) || propName.startsWith('data-');
+
 function localizeValue(value: unknown, language: Language, propName = ''): unknown {
+  if (propName === 'ref' || propName === 'key') return value;
   if (typeof value === 'string') {
-    if (['className', 'id', 'href', 'src', 'value', 'name', 'type', 'role'].includes(propName)) return value;
+    if (isIdentifierProp(propName)) return value;
     return translateString(value, language);
   }
   if (propName === 'rows') return value;
