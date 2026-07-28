@@ -2043,7 +2043,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         <div className="cursor-dot-spotlight" data-testid="cursor-dot-spotlight" aria-hidden="true" />
         <div className="section-draw-controls" role="group" aria-label="파티션 도구">
           <button className={`floating-editor-button ${drawMode ? 'active' : ''}`} aria-label="파티션 그리기" aria-pressed={drawMode} onClick={() => setDrawMode((current) => !current)}><Plus size={14} /> 파티션 그리기</button>
-          <span className="partition-count-badge" data-testid="partition-count-badge" aria-label={`${sections.length}개 파티션`}><Layers3 size={12} aria-hidden="true" /><b>{sections.length}</b></span>
           <span className="canvas-gesture-guide" data-testid="canvas-gesture-guide">{drawMode
             ? <><MousePointer2 size={12} aria-hidden="true" /> 빈 공간을 드래그해 파티션 만들기</>
             : <><i><Mouse size={12} aria-hidden="true" /> 휠 확대/축소</i><i><MousePointer2 size={12} aria-hidden="true" /> 드래그로 이동</i></>}</span>

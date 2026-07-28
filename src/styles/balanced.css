@@ -8404,23 +8404,6 @@ small.dashboard-bot-scope {
   white-space: nowrap;
 }
 
-/* Partition count and gesture help are separate controls instead of one sentence. */
-.variant-balanced[data-design="signal-studio"] .partition-count-badge {
-  width: 32px;
-  min-width: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  padding: 0;
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--line));
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent-soft) 62%, var(--surface));
-}
-.variant-balanced[data-design="signal-studio"] .partition-count-badge b {
-  color: inherit;
-  font: 800 8px/1 var(--font-mono);
-}
 .variant-balanced[data-design="signal-studio"] .canvas-gesture-guide {
   margin-left: 5px;
 }

@@ -774,7 +774,7 @@ describe('Basic editor strategy explanations', () => {
     expect(guide).not.toHaveTextContent('1개 파티션');
     expect(guide).toHaveTextContent('드래그로 이동');
     expect(guide).not.toHaveTextContent('드래그 이동');
-    expect(screen.getByTestId('partition-count-badge')).toHaveTextContent('1');
+    expect(screen.queryByTestId('partition-count-badge')).not.toBeInTheDocument();
     expect(screen.getByTestId('basic-buy-stack').querySelector('.block-add')).not.toBeInTheDocument();
   });
 
