@@ -786,7 +786,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
 
     const dismissTimer = window.setTimeout(() => {
       setSaveFeedback(null);
-    }, 4_000);
+    }, 2_000);
 
     return () => window.clearTimeout(dismissTimer);
   }, [saveFeedback]);

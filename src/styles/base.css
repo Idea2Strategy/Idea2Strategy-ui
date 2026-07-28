@@ -260,7 +260,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   height: 2px;
   transform-origin: left;
   background: var(--warning);
-  animation: editorToastTimer 4s linear forwards;
+  animation: editorToastTimer 2s linear forwards;
 }
 .editor-save-toast.tone-positive {
   border-color: color-mix(in srgb, var(--positive) 52%, var(--line-strong));

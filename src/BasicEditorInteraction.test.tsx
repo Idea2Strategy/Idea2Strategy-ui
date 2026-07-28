@@ -660,7 +660,7 @@ describe('Basic editor strategy explanations', () => {
       expect(toast).toHaveTextContent('출시 가능 상태로 저장했습니다.');
 
       act(() => {
-        vi.advanceTimersByTime(4_000);
+        vi.advanceTimersByTime(2_000);
       });
 
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
