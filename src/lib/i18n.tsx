@@ -41,6 +41,7 @@ const english: Record<string, string> = {
   '대회 참가 봇의 시간가중수익률 차트': 'Chart of competition bots’ time-weighted return',
   '대회 참가': 'Competition',
   '시간가중수익률': 'Time-weighted return',
+  '시간가중수익률 설명': 'About time-weighted return',
   '운용 손익': 'Operating P&L',
   '현재 자산': 'Current equity',
   '선택 봇 수': 'Selected bots',

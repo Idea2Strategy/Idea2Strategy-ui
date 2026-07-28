@@ -299,7 +299,25 @@ export function DashboardView({ setPage, botIcons = DEFAULT_BOT_ICONS }: Dashboa
             because the bots entered this scope on different dates. */}
         <div className="dashboard-chart-summary">
           <div className="dashboard-return-summary">
-            <span>시간가중수익률</span>
+            <span className="dashboard-return-label">
+              <span>시간가중수익률</span>
+              <span className="dashboard-return-info">
+                <button
+                  type="button"
+                  className="dashboard-return-info-button"
+                  aria-label="시간가중수익률 설명"
+                  aria-describedby="dashboard-return-info-tooltip"
+                >?</button>
+                <span
+                  id="dashboard-return-info-tooltip"
+                  className="dashboard-return-info-tooltip"
+                  role="tooltip"
+                  aria-label="시간가중수익률 설명"
+                >
+                  선택한 봇을 하나의 운용 묶음으로 보고, 시작 자금 유입은 수익에서 제외한 시간가중수익률입니다. ‘운용 시작’은 실제 시작일이고, ‘이전부터 운용’은 선택 기간보다 먼저 시작된 봇입니다. 개인 운용과 대회 성과는 합산하지 않습니다.
+                </span>
+              </span>
+            </span>
             <div>
               <strong className={twr >= 0 ? 'positive' : 'negative'}>{percent(twr)}</strong>
               <small><span>운용 손익</span> {signedMoney(profit[profit.length - 1])} · <span>현재 자산</span> {money(total)}</small>
@@ -321,7 +339,6 @@ export function DashboardView({ setPage, botIcons = DEFAULT_BOT_ICONS }: Dashboa
           <div><dt>선택 봇 수</dt><dd>{included.size}개</dd></div>
           <div><dt>시작일 보정</dt><dd>적용</dd></div>
         </dl>
-        <p className="dashboard-chart-note">선택한 봇을 하나의 운용 묶음으로 보고, 시작 자금 유입은 수익에서 제외한 시간가중수익률입니다. ‘운용 시작’은 실제 시작일이고, ‘이전부터 운용’은 선택 기간보다 먼저 시작된 봇입니다. 개인 운용과 대회 성과는 합산하지 않습니다.</p>
       </section>
 
       <div className="dashboard-side">

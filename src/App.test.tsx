@@ -109,6 +109,12 @@ describe('Signal product UI', () => {
     expect(competition).toHaveAttribute('aria-pressed', 'false');
     expect(performance).toHaveTextContent('개인 운용 봇의 시간가중 성과');
     expect(within(performance).getByText('시간가중수익률')).toBeInTheDocument();
+    const returnInfo = within(performance).getByRole('button', { name: '시간가중수익률 설명' });
+    const returnInfoTooltip = within(performance).getByRole('tooltip', { name: '시간가중수익률 설명' });
+    expect(returnInfo).toHaveTextContent('?');
+    expect(returnInfo).toHaveAttribute('aria-describedby', returnInfoTooltip.id);
+    expect(returnInfoTooltip).toHaveTextContent('시작 자금 유입은 수익에서 제외');
+    expect(performance.querySelector('.dashboard-chart-note')).not.toBeInTheDocument();
     expect(within(performance).getByRole('img', { name: '개인 운용 봇의 시간가중수익률 차트' })).toBeInTheDocument();
     const periodGroup = within(performance).getByRole('group', { name: '성과 기간' });
     expect(scope).toHaveClass('dashboard-chart-control');
