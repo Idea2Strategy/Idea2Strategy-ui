@@ -7107,37 +7107,52 @@ small.dashboard-bot-scope {
 }
 
 /*
-  파티션 전략 미리보기 카드.
+  전략 미리보기 PiP 창.
 
-  자연어 설명 노트와 같은 자리·같은 성격으로 파티션 오른쪽에 붙는다. 블록을
-  고치면서 곁눈질로 신호 변화를 보는 참고용이라 의도적으로 작고 단순하게
-  유지한다. 툴바·거래량·상세 지표 목록은 넣지 않으며, 자세한 분석은 백테스트
-  화면이 담당한다.
+  편집 캔버스가 아니라 화면에 고정으로 떠서, 캔버스를 옮기거나 확대해도 자리를
+  지키고 사용자가 그립을 잡아 원하는 위치로 옮긴다. 참고용이므로 의도적으로
+  작게 유지하고 종가 라인·신호·한 줄 요약만 담는다.
 */
 .variant-balanced[data-design="signal-studio"] .strategy-preview-card {
-  position: absolute;
-  z-index: 14;
-  top: 96px;
-  left: calc(100% + 14px);
-  width: 296px;
+  position: fixed;
+  z-index: 120;
   display: grid;
   gap: 6px;
-  padding: 8px;
+  padding: 7px 8px 8px;
   border: 1px solid var(--line-strong);
-  border-left: 2px solid var(--accent);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--surface) 97%, transparent);
-  box-shadow: 0 14px 32px rgba(var(--shadow-rgb), .2);
+  box-shadow: 0 18px 40px rgba(var(--shadow-rgb), .26);
+  backdrop-filter: blur(12px);
 }
 .strategy-preview-card-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+}
+.strategy-preview-grip {
+  display: grid;
+  place-items: center;
+  padding: 1px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--text-faint);
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+.strategy-preview-grip:hover { color: var(--text); background: var(--surface-3); }
+.strategy-preview-grip:active { cursor: grabbing; }
+.strategy-preview-title {
+  color: var(--text-soft);
+  font: 700 8px var(--font-mono);
+  letter-spacing: .06em;
 }
 .strategy-preview-symbols {
   display: flex;
   gap: 2px;
   min-width: 0;
+  margin-left: auto;
   overflow: hidden;
 }
 .strategy-preview-symbols button {
@@ -7156,11 +7171,6 @@ small.dashboard-bot-scope {
   border-color: var(--accent);
   background: var(--accent);
 }
-.strategy-preview-bar {
-  margin-left: auto;
-  color: var(--text-faint);
-  font: 600 8px var(--font-mono);
-}
 .strategy-preview-close {
   display: grid;
   place-items: center;
@@ -7173,7 +7183,7 @@ small.dashboard-bot-scope {
 }
 .strategy-preview-close:hover { color: var(--text); background: var(--surface-3); }
 .strategy-preview-frame {
-  height: 168px;
+  height: 132px;
   border-radius: var(--radius-xs);
   overflow: hidden;
   background: var(--surface);
@@ -7233,15 +7243,7 @@ small.dashboard-bot-scope {
 .strategy-preview-counts .is-buy { color: var(--buy-block-color); }
 .strategy-preview-counts .is-sell { color: var(--sell-block-color); }
 .strategy-preview-card-foot > span:nth-of-type(2) { font: 700 9px var(--font-mono); }
-/* 지표 이름은 공간이 남을 때만 보이고, 카드 폭을 늘리지 않는다. */
-.strategy-preview-card-foot small {
-  min-width: 0;
-  margin-left: auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 8px;
-}
+.strategy-preview-card-foot small { margin-left: auto; font-size: 8px; white-space: nowrap; }
 .strategy-preview-card-foot .strategy-preview-warning { color: var(--warning); }
 @media (max-width: 800px) {
   .variant-balanced[data-design="signal-studio"] .strategy-preview-card { display: none; }

@@ -1216,6 +1216,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     만들고 차트가 그 자리에서 다시 계산된다.
   */
   const previewSection = sections.find((section) => section.id === previewSectionId) ?? null;
+  const previewSectionNumber = previewSection
+    ? String(sections.findIndex((section) => section.id === previewSection.id) + 1).padStart(2, '0')
+    : '';
   const previewSymbols = useMemo(
     () => {
       const symbols = previewSection ? splitPartitionSymbols(previewSection.symbol) : [];
@@ -1779,14 +1782,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
                 ><TriangleAlert size={18} /><strong>매수 컨테이너가 필요해요</strong><span>필수 항목 · 추가해야 출시할 수 있어요</span></button>}
                 {section.cards.sell.length === 0 && <button className="optional-sell-slot" onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={18} /><strong>매도 컨테이너 추가</strong><span>선택 사항 · 없어도 저장할 수 있어요</span></button>}
               </div>
-              {/* 자연어 설명처럼 파티션 옆에 붙어, 블록을 고치는 동안 곁눈질로
-                  신호 변화를 확인한다. */}
-              {previewSectionId === section.id && <StrategyPreviewChart
-                partitionLabel={`PARTITION ${sectionNumber}`}
-                symbols={previewSymbols}
-                flows={previewFlows}
-                onClose={() => setPreviewSectionId(null)}
-              />}
             </article>;
           })}
           </div>
@@ -1818,6 +1813,16 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         </div>
       </aside>
     </div>
+    {/*
+      미리보기는 PiP 창이다. 확대·이동하는 캔버스 안에 두면 좌표가 따라 움직이고
+      transform이 fixed 기준을 바꿔 버리므로, 캔버스 밖 화면 단위에 띄운다.
+    */}
+    {previewSection && <StrategyPreviewChart
+      partitionLabel={`PARTITION ${previewSectionNumber}`}
+      symbols={previewSymbols}
+      flows={previewFlows}
+      onClose={() => setPreviewSectionId(null)}
+    />}
     {trashItemLabel && <div
       ref={(element) => { trashZoneRef.current = element; }}
       className={`editor-trash-zone ${cardMove || sectionMove ? 'is-pointer-trash' : ''} ${trashReady ? 'is-ready' : ''}`}

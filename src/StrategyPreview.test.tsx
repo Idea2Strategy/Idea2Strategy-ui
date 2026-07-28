@@ -212,10 +212,48 @@ describe('Basic editor partition preview chart', () => {
     fireEvent.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
 
     const panel = screen.getByTestId('strategy-preview-panel');
-    // The card sits inside the partition frame, beside it — not in a page dock.
-    expect(screen.getByTestId('strategy-section-1')).toContainElement(panel);
+    /* A floating window, so it must live outside the zoom/pan canvas: a
+       transformed ancestor would become the containing block for the fixed
+       card and drag it around with the canvas. */
+    expect(screen.getByTestId('strategy-section-1')).not.toContainElement(panel);
+    expect(screen.getByTestId('section-world')).not.toContainElement(panel);
     // The chart canvas is mounted; the chart library itself is skipped in jsdom.
     expect(within(panel).getByTestId('strategy-preview-canvas')).toBeInTheDocument();
+  });
+
+  test('can be dragged anywhere on screen and moved with the keyboard', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
+    const panel = screen.getByTestId('strategy-preview-panel');
+    const grip = screen.getByTestId('strategy-preview-grip');
+    const startLeft = panel.style.left;
+    const startTop = panel.style.top;
+
+    fireEvent.pointerDown(grip, { pointerId: 1, button: 0, clientX: 900, clientY: 200 });
+    fireEvent.pointerMove(grip, { pointerId: 1, clientX: 640, clientY: 420 });
+    fireEvent.pointerUp(grip, { pointerId: 1, clientX: 640, clientY: 420 });
+
+    expect(panel.style.left).not.toBe(startLeft);
+    expect(panel.style.top).not.toBe(startTop);
+
+    const draggedLeft = panel.style.left;
+    grip.focus();
+    await user.keyboard('{ArrowLeft}');
+    expect(panel.style.left).not.toBe(draggedLeft);
+  });
+
+  test('draws a single price line instead of candles or indicator panes', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
+
+    // The preview keeps only what a glance needs: line, signals, one summary.
+    expect(screen.getByTestId('strategy-preview-canvas')).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: '미리보기 시간 단위' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('preview-buy-count')).toBeInTheDocument();
   });
 
   test('offers only the symbols the partition trades', async () => {
