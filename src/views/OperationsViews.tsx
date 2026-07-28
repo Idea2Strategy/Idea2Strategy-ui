@@ -17,6 +17,7 @@ import {
   CircleHelp,
   Coins,
   Info,
+  LoaderCircle,
   Maximize2,
   Minimize2,
   PencilLine,
@@ -28,7 +29,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button, DataTable, EmptyState, MetricRow, PageHeading, Panel, Status, type DataTableColumn } from '../components/common';
-import { leaderboard, type LeaderboardEntry } from '../data/mockData';
+import { leaderboard, strategies, type LeaderboardEntry } from '../data/mockData';
 import { Localized, useLanguage } from '../lib/i18n';
 import etfSprintArtwork from '../assets/competition-v2/etf-sprint.png';
 import i2sSummerLeagueArtwork from '../assets/competition-v2/i2s-summer-league.png';
@@ -1909,6 +1910,14 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
   const [sortMetric, setSortMetric] = useState<RankingMetricId>('score');
   const [rankingPage, setRankingPage] = useState(1);
   const [detailInfoOpen, setDetailInfoOpen] = useState(false);
+  const [entryDialogStep, setEntryDialogStep] = useState<'closed' | 'select' | 'confirm'>('closed');
+  const [selectedEntryStrategies, setSelectedEntryStrategies] = useState<string[]>([]);
+  const [entryStrategyQuery, setEntryStrategyQuery] = useState('');
+  const [resolvedEntryStrategyQuery, setResolvedEntryStrategyQuery] = useState('');
+  const [entryStrategySearching, setEntryStrategySearching] = useState(false);
+  const [entryStrategyPage, setEntryStrategyPage] = useState(1);
+  const [generatedEntriesByCompetition, setGeneratedEntriesByCompetition] = useState<Record<string, LeaderboardEntry[]>>({});
+  const [entrySuccessMessage, setEntrySuccessMessage] = useState('');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const visibleRooms = useMemo(() => sortRooms(competitionRooms.filter((room) => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -1944,6 +1953,23 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
   ]);
   useEffect(() => setRankingPage(1), [sortMetric, selectedRoom]);
   useEffect(() => {
+    if (entryDialogStep !== 'select') return undefined;
+    const normalizedQuery = entryStrategyQuery.trim();
+    if (!normalizedQuery) {
+      setResolvedEntryStrategyQuery('');
+      setEntryStrategySearching(false);
+      setEntryStrategyPage(1);
+      return undefined;
+    }
+    setEntryStrategySearching(true);
+    const searchTimer = window.setTimeout(() => {
+      setResolvedEntryStrategyQuery(normalizedQuery);
+      setEntryStrategySearching(false);
+      setEntryStrategyPage(1);
+    }, 300);
+    return () => window.clearTimeout(searchTimer);
+  }, [entryDialogStep, entryStrategyQuery]);
+  useEffect(() => {
     if (!detailInfoOpen) return undefined;
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setDetailInfoOpen(false);
@@ -1951,6 +1977,17 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [detailInfoOpen]);
+  useEffect(() => {
+    if (entryDialogStep === 'closed') return undefined;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setEntryDialogStep('closed');
+        setSelectedEntryStrategies([]);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [entryDialogStep]);
   const toggleRoomSort = (key: RoomSortKey) => setRoomSort((current) => ({
     key,
     dir: current.key === key ? (current.dir === 'asc' ? 'desc' : 'asc') : sortableColumns[key].firstDir,
@@ -1970,9 +2007,13 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
   const safePage = Math.min(page, pageCount);
   const pageRooms = visibleRooms.slice((safePage - 1) * pageSize, safePage * pageSize);
   const activeMetric = rankingMetrics.find((metric) => metric.id === sortMetric) ?? rankingMetrics[0];
-  const rankingSource = selectedRoom?.official
-    ? officialCompetitionLeaderboards[selectedRoom.name] ?? leaderboard
-    : leaderboard;
+  const rankingSource = useMemo(() => {
+    const baseEntries = selectedRoom?.official
+      ? officialCompetitionLeaderboards[selectedRoom.name] ?? leaderboard
+      : leaderboard;
+    const generatedEntries = selectedRoom ? generatedEntriesByCompetition[selectedRoom.name] ?? [] : [];
+    return [...baseEntries, ...generatedEntries];
+  }, [generatedEntriesByCompetition, selectedRoom]);
   const rankingPageSize = 10;
   const rankedEntries = useMemo(() => [...rankingSource].sort((a, b) => activeMetric.better === 'low'
     ? a[activeMetric.id] - b[activeMetric.id]
@@ -1987,8 +2028,30 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     entry.mine ? [{ entry, position: index + 1 }] : []
   ));
   const myBotEntryLimit = selectedRoom?.entryLimit ?? 3;
+  const remainingEntrySlots = Math.max(0, myBotEntryLimit - myRankedEntries.length);
+  const launchableStrategies = strategies.filter((strategy) => (
+    strategy.state === '출시 가능'
+    && !rankingSource.some((entry) => entry.bot === `${strategy.name} Bot`)
+  ));
+  const normalizedEntryStrategyQuery = resolvedEntryStrategyQuery.toLowerCase();
+  const filteredLaunchableStrategies = launchableStrategies.filter((strategy) => (
+    strategy.name.toLowerCase().includes(normalizedEntryStrategyQuery)
+    || strategy.mode.toLowerCase().includes(normalizedEntryStrategyQuery)
+  ));
+  const entryStrategyPageSize = 5;
+  const entryStrategyPageCount = Math.max(
+    1,
+    Math.ceil(filteredLaunchableStrategies.length / entryStrategyPageSize),
+  );
+  const safeEntryStrategyPage = Math.min(entryStrategyPage, entryStrategyPageCount);
+  const visibleLaunchableStrategies = filteredLaunchableStrategies.slice(
+    (safeEntryStrategyPage - 1) * entryStrategyPageSize,
+    safeEntryStrategyPage * entryStrategyPageSize,
+  );
   const canEnterSelectedRoom = Boolean(
-    selectedRoom && (selectedRoom.official || selectedRoom.status === 'recruiting'),
+    selectedRoom
+    && remainingEntrySlots > 0
+    && (selectedRoom.official || selectedRoom.status === 'recruiting'),
   );
   const detailDeadlineLabel = selectedRoom?.status === 'recruiting' ? '모집 마감' : '대회 마감';
   const detailDeadlineText = selectedRoom
@@ -2005,11 +2068,62 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     { label: '참여 봇', value: `${selectedRoom.official ? selectedRoom.bots : selectedRoom.joined}개` },
     ...competitionConditions.map(({ label, value }) => ({ label, value })),
   ] : [];
+  const closeEntryDialog = () => {
+    setEntryDialogStep('closed');
+    setSelectedEntryStrategies([]);
+    setEntryStrategyQuery('');
+    setResolvedEntryStrategyQuery('');
+    setEntryStrategySearching(false);
+    setEntryStrategyPage(1);
+  };
+  const openEntryDialog = () => {
+    setEntrySuccessMessage('');
+    setSelectedEntryStrategies([]);
+    setEntryStrategyQuery('');
+    setResolvedEntryStrategyQuery('');
+    setEntryStrategySearching(false);
+    setEntryStrategyPage(1);
+    setEntryDialogStep('select');
+  };
+  const toggleEntryStrategy = (strategyName: string) => {
+    setSelectedEntryStrategies((current) => {
+      if (current.includes(strategyName)) return current.filter((name) => name !== strategyName);
+      if (current.length >= remainingEntrySlots) return current;
+      return [...current, strategyName];
+    });
+  };
+  const confirmCompetitionEntry = () => {
+    if (!selectedRoom || selectedEntryStrategies.length === 0) return;
+    const existingCount = rankingSource.length;
+    const newEntries = selectedEntryStrategies.map((strategyName, index): LeaderboardEntry => ({
+      rank: existingCount + index + 1,
+      bot: `${strategyName} Bot`,
+      score: Number((88.75 - index * 1.2).toFixed(2)),
+      return: Number((7.15 - index * 0.35).toFixed(2)),
+      drawdown: Number((-2.1 - index * 0.15).toFixed(2)),
+      sharpe: Number((1.72 - index * 0.08).toFixed(2)),
+      volatility: Number((9.8 + index * 0.4).toFixed(1)),
+      winRate: Number((59.2 - index * 0.8).toFixed(1)),
+      trades: 24 - index * 2,
+      mine: true,
+    }));
+    setGeneratedEntriesByCompetition((current) => ({
+      ...current,
+      [selectedRoom.name]: [...(current[selectedRoom.name] ?? []), ...newEntries],
+    }));
+    setEntrySuccessMessage(
+      `${newEntries.map((entry) => entry.bot).join(', ')}이 생성되어 대회에 참가했습니다.`,
+    );
+    setRankingPage(1);
+    closeEntryDialog();
+  };
 
   if (selectedRoom) return <Localized><div className="page competition-page competition-detail-page">
     <section aria-label={`${selectedRoom.name} 상세 페이지`}>
       <button className="competition-back-button" onClick={() => {
         setDetailInfoOpen(false);
+        closeEntryDialog();
+        setEntrySuccessMessage('');
         setSelectedRoom(null);
       }}><ArrowLeft size={15} /> 대회 목록으로</button>
       <header className="competition-detail-heading">
@@ -2039,11 +2153,18 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
             type="button"
             className="competition-entry-button"
             disabled={!canEnterSelectedRoom}
+            onClick={openEntryDialog}
           >
-            {canEnterSelectedRoom ? '대회 참가' : '마감된 대회입니다.'}
+            {canEnterSelectedRoom
+              ? '대회 참가'
+              : remainingEntrySlots === 0 ? '참가 가능한 봇을 모두 등록했습니다.' : '마감된 대회입니다.'}
           </button>
         </div>
       </header>
+      {entrySuccessMessage && <div className="competition-entry-success" role="status">
+        <Check size={16} aria-hidden="true" />
+        <span>{entrySuccessMessage}</span>
+      </div>}
 
       <div className="competition-detail-rankings">
         <section className="competition-my-ranks" aria-label="내 참가 봇 순위">
@@ -2160,6 +2281,141 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
               <dd>{fact.value}</dd>
             </div>)}
           </dl>
+        </section>
+      </div>}
+      {entryDialogStep !== 'closed' && <div
+        className="competition-detail-info-backdrop competition-entry-flow-backdrop"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) closeEntryDialog();
+        }}
+      >
+        <section
+          className={`competition-entry-flow-dialog${entryDialogStep === 'confirm' ? ' is-confirming' : ''}`}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="competition-entry-flow-title"
+        >
+          <header>
+            <div>
+              <p>{entryDialogStep === 'select' ? 'SELECT STRATEGY' : 'CONFIRM ENTRY'}</p>
+              <h2 id="competition-entry-flow-title">
+                {selectedRoom.name} {entryDialogStep === 'select' ? '참가 전략 선택' : '참가 확인'}
+              </h2>
+            </div>
+            <button type="button" aria-label="대회 참가 창 닫기" onClick={closeEntryDialog}>
+              <X size={18} aria-hidden="true" />
+            </button>
+          </header>
+
+          {entryDialogStep === 'select' ? <>
+            <div className="competition-entry-flow-summary">
+              <small>
+                <span className="competition-entry-strategy-state">
+                  <i aria-hidden="true" />출시 가능
+                </span>
+                전략만 표시됩니다.
+              </small>
+              <b>선택 {selectedEntryStrategies.length} / {remainingEntrySlots}</b>
+            </div>
+            <label className="competition-entry-strategy-search">
+              <Search size={15} aria-hidden="true" />
+              <input
+                type="search"
+                aria-label="참가 전략 검색"
+                placeholder="전략 이름으로 검색"
+                value={entryStrategyQuery}
+                onChange={(event) => setEntryStrategyQuery(event.target.value)}
+              />
+              {entryStrategyQuery && <button
+                type="button"
+                aria-label="참가 전략 검색 초기화"
+                onClick={() => setEntryStrategyQuery('')}
+              ><X size={13} aria-hidden="true" /></button>}
+            </label>
+            <div className="competition-entry-strategy-list" role="group" aria-label="참가 전략 목록">
+              {entryStrategySearching ? <div className="competition-entry-strategy-empty is-searching" role="status">
+                <LoaderCircle size={20} aria-hidden="true" />
+                <strong>전략을 검색하는 중입니다.</strong>
+              </div> : visibleLaunchableStrategies.map((strategy) => {
+                const checked = selectedEntryStrategies.includes(strategy.name);
+                const disabled = !checked && selectedEntryStrategies.length >= remainingEntrySlots;
+                return <label
+                  key={strategy.name}
+                  className={`competition-entry-strategy${checked ? ' is-selected' : ''}${disabled ? ' is-disabled' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    aria-label={`${strategy.name} 선택`}
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={() => toggleEntryStrategy(strategy.name)}
+                  />
+                  <span className="competition-entry-strategy-check" aria-hidden="true">
+                    {checked && <Check size={14} />}
+                  </span>
+                  <span className={`competition-entry-strategy-mode is-${strategy.mode.toLowerCase()}`}>
+                    {strategy.mode === 'Basic' ? 'B' : 'P'}
+                  </span>
+                  <span className="competition-entry-strategy-copy">
+                    <strong>{strategy.name}</strong>
+                    <small>{strategy.mode} · 최근 수정 {strategy.updated}</small>
+                  </span>
+                </label>;
+              })}
+              {!entryStrategySearching && filteredLaunchableStrategies.length === 0 && <div className="competition-entry-strategy-empty">
+                {resolvedEntryStrategyQuery ? <Search size={20} aria-hidden="true" /> : <Bot size={20} aria-hidden="true" />}
+                <strong>{resolvedEntryStrategyQuery ? '검색 결과가 없습니다.' : '참가할 수 있는 전략이 없습니다.'}</strong>
+                <span>
+                  {resolvedEntryStrategyQuery
+                    ? '다른 전략 이름으로 검색해 주세요.'
+                    : '출시 가능한 전략을 준비한 뒤 다시 시도해 주세요.'}
+                </span>
+              </div>}
+            </div>
+            {!entryStrategySearching && filteredLaunchableStrategies.length > entryStrategyPageSize && <nav
+              className="competition-entry-strategy-pagination"
+              aria-label="참가 전략 목록 페이지"
+            >
+              <button
+                type="button"
+                disabled={safeEntryStrategyPage === 1}
+                onClick={() => setEntryStrategyPage((current) => Math.max(1, current - 1))}
+              >이전</button>
+              <span>{safeEntryStrategyPage} / {entryStrategyPageCount}</span>
+              <button
+                type="button"
+                disabled={safeEntryStrategyPage === entryStrategyPageCount}
+                onClick={() => setEntryStrategyPage((current) => Math.min(entryStrategyPageCount, current + 1))}
+              >다음</button>
+            </nav>}
+            <footer className="competition-entry-selection-footer">
+              <div>
+                <button type="button" className="button button-secondary" onClick={closeEntryDialog}>취소</button>
+                <button
+                  type="button"
+                  className="button button-primary"
+                  disabled={selectedEntryStrategies.length === 0}
+                  onClick={() => setEntryDialogStep('confirm')}
+                >확인</button>
+              </div>
+            </footer>
+          </> : <>
+            <ul className="competition-entry-confirmation-list">
+              {selectedEntryStrategies.map((strategyName) => <li key={strategyName}>
+                <Check size={15} aria-hidden="true" />
+                <span><strong>{strategyName}</strong><small>{strategyName} Bot으로 생성</small></span>
+              </li>)}
+            </ul>
+            <footer>
+              <button type="button" className="competition-entry-back" onClick={() => setEntryDialogStep('select')}>
+                <ArrowLeft size={14} aria-hidden="true" />전략 다시 선택
+              </button>
+              <div>
+                <button type="button" className="button button-secondary" onClick={closeEntryDialog}>취소</button>
+                <button type="button" className="button button-primary" onClick={confirmCompetitionEntry}>참가 확정</button>
+              </div>
+            </footer>
+          </>}
         </section>
       </div>}
     </section>

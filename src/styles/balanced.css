@@ -4254,6 +4254,375 @@
   line-height:1.45;
   text-overflow:ellipsis;
 }
+.variant-balanced[data-design="signal-studio"] .competition-entry-success {
+  min-height:42px;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  margin:-4px 0 14px;
+  padding:10px 14px;
+  border:1px solid color-mix(in srgb,var(--positive) 35%,var(--line));
+  border-radius:8px;
+  color:var(--positive);
+  background:color-mix(in srgb,var(--positive) 8%,var(--surface));
+  font-size:11px;
+  font-weight:700;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog {
+  width:min(700px,100%);
+  overflow:hidden;
+  border:1px solid var(--line-strong);
+  border-radius:14px;
+  background:var(--surface);
+  box-shadow:0 30px 90px rgba(var(--shadow-rgb),.34);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog.is-confirming {
+  width:min(580px,100%);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > header {
+  min-height:82px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding:19px 22px;
+  border-bottom:1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > header > div {
+  display:grid;
+  gap:7px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > header p,
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > header h2 {
+  margin:0;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > header p {
+  color:var(--accent);
+  font:800 8px/1 var(--font-mono);
+  letter-spacing:.16em;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > header h2 {
+  color:var(--text);
+  font-size:18px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > header button {
+  width:34px;
+  height:34px;
+  display:grid;
+  flex:0 0 auto;
+  place-items:center;
+  padding:0;
+  border:0;
+  border-radius:8px;
+  color:var(--text-faint);
+  background:transparent;
+  cursor:pointer;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > header button:hover {
+  color:var(--text);
+  background:var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-summary {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  padding:18px 22px 12px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-summary small {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  color:var(--text-faint);
+  font-size:10px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-summary > b {
+  padding:6px 9px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  color:var(--accent);
+  background:var(--accent-soft);
+  font-size:9px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-search {
+  min-height:42px;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:9px;
+  margin:0 22px 12px;
+  padding:0 12px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  color:var(--text-faint);
+  background:var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-search:focus-within {
+  border-color:var(--accent);
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 12%,transparent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-search input {
+  min-width:0;
+  border:0;
+  outline:0;
+  color:var(--text);
+  background:transparent;
+  font-size:11px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-search input::placeholder {
+  color:var(--text-faint);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-search button {
+  width:26px;
+  height:26px;
+  display:grid;
+  place-items:center;
+  padding:0;
+  border:0;
+  border-radius:6px;
+  color:var(--text-faint);
+  background:transparent;
+  cursor:pointer;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-search button:hover {
+  color:var(--text);
+  background:var(--surface);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-list {
+  display:grid;
+  gap:8px;
+  padding:0 22px 20px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy {
+  min-height:76px;
+  display:grid;
+  grid-template-columns:22px 38px minmax(0,1fr);
+  align-items:center;
+  gap:12px;
+  padding:12px 14px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--surface);
+  cursor:pointer;
+  transition:border-color .16s ease,background .16s ease,transform .16s ease;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy:hover {
+  border-color:var(--line-strong);
+  background:var(--surface-2);
+  transform:translateY(-1px);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy.is-selected {
+  border-color:color-mix(in srgb,var(--accent) 65%,var(--line));
+  background:color-mix(in srgb,var(--accent-soft) 48%,var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy.is-disabled {
+  opacity:.48;
+  cursor:not-allowed;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy > input {
+  position:absolute;
+  width:1px;
+  height:1px;
+  overflow:hidden;
+  opacity:0;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-check {
+  width:20px;
+  height:20px;
+  display:grid;
+  place-items:center;
+  border:1px solid var(--line-strong);
+  border-radius:5px;
+  color:var(--accent-ink);
+  background:var(--surface);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy.is-selected .competition-entry-strategy-check {
+  border-color:var(--accent);
+  background:var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-mode {
+  width:36px;
+  height:36px;
+  display:grid;
+  place-items:center;
+  border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));
+  border-radius:8px;
+  color:var(--accent);
+  background:var(--accent-soft);
+  font:800 11px/1 var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-mode.is-pro {
+  border-color:color-mix(in srgb,#75649b 40%,var(--line));
+  color:#75649b;
+  background:color-mix(in srgb,#75649b 10%,var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-copy {
+  min-width:0;
+  display:grid;
+  gap:6px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-copy strong {
+  overflow:hidden;
+  color:var(--text);
+  font-size:13px;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-copy small {
+  color:var(--text-faint);
+  font:600 9px/1.4 var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-state {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 8px;
+  border-radius:6px;
+  color:var(--positive);
+  background:color-mix(in srgb,var(--positive) 10%,var(--surface));
+  font-size:9px;
+  font-weight:750;
+  white-space:nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-state i {
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:currentColor;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-empty {
+  min-height:130px;
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:7px;
+  padding:20px;
+  border:1px dashed var(--line-strong);
+  border-radius:10px;
+  color:var(--text-faint);
+  text-align:center;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-empty strong {
+  color:var(--text);
+  font-size:12px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-empty span {
+  font-size:10px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-empty.is-searching svg {
+  color:var(--accent);
+  animation:competition-entry-search-spin .9s linear infinite;
+}
+@keyframes competition-entry-search-spin {
+  to { transform:rotate(360deg); }
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-pagination {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  padding:0 22px 16px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-pagination button {
+  min-width:52px;
+  min-height:30px;
+  padding:0 10px;
+  border:1px solid var(--line);
+  border-radius:7px;
+  color:var(--text-soft);
+  background:var(--surface);
+  cursor:pointer;
+  font-size:9px;
+  font-weight:700;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-pagination button:hover:not(:disabled) {
+  border-color:var(--accent);
+  color:var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-pagination button:disabled {
+  opacity:.38;
+  cursor:not-allowed;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-strategy-pagination span {
+  min-width:46px;
+  color:var(--text-soft);
+  font:700 9px/1 var(--font-mono);
+  text-align:center;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer {
+  min-height:68px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:13px 22px;
+  border-top:1px solid var(--line);
+  background:var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer.competition-entry-selection-footer {
+  justify-content:flex-end;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer > span {
+  color:var(--text-faint);
+  font-size:10px;
+  font-weight:650;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer > div {
+  display:flex;
+  gap:8px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer .button {
+  min-width:88px;
+  min-height:36px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer .button:disabled {
+  opacity:.42;
+  cursor:not-allowed;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-confirmation-list {
+  display:grid;
+  gap:7px;
+  margin:0;
+  padding:22px;
+  list-style:none;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-confirmation-list li {
+  min-height:54px;
+  display:flex;
+  align-items:center;
+  gap:11px;
+  padding:10px 13px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  color:var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-confirmation-list li span {
+  display:grid;
+  gap:4px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-confirmation-list strong {
+  color:var(--text);
+  font-size:11px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-confirmation-list small {
+  color:var(--text-faint);
+  font-size:9px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-back {
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:0;
+  border:0;
+  color:var(--text-soft);
+  background:transparent;
+  cursor:pointer;
+  font-size:10px;
+  font-weight:700;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-back:hover {
+  color:var(--accent);
+}
 .variant-balanced[data-design="signal-studio"] .competition-detail-rankings {
   display:grid;
   grid-template-columns:minmax(0,1fr) minmax(300px,340px);
@@ -5655,6 +6024,32 @@
   }
   .variant-balanced[data-design="signal-studio"] .competition-detail-info-backdrop {
     padding:12px;
+  }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > header,
+  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-summary,
+  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer {
+    padding-inline:16px;
+  }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-strategy-list,
+  .variant-balanced[data-design="signal-studio"] .competition-entry-confirmation-list {
+    padding-inline:16px;
+  }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-strategy-search {
+    margin-inline:16px;
+  }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-strategy {
+    grid-template-columns:22px 34px minmax(0,1fr);
+  }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer {
+    align-items:stretch;
+    flex-direction:column;
+  }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer > div {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+  }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer .button {
+    width:100%;
   }
   .variant-balanced[data-design="signal-studio"] .competition-detail-info-grid {
     grid-template-columns:1fr;

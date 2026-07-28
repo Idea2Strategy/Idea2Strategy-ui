@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { RoomsView } from './views/OperationsViews';
@@ -686,6 +686,50 @@ describe('Competition ranking', () => {
     expect(within(myRanks).getByLabelText('4위')).toHaveClass('competition-ranking-position');
     expect(screen.getByLabelText('ETF Sprint 봇 순위').querySelector('div > strong')).toHaveClass('competition-ranking-position');
     expect(screen.getByLabelText('ETF Sprint 봇 순위').querySelectorAll(':scope > div')).toHaveLength(10);
+  });
+
+  test('creates competition bots through the launchable-strategy entry flow', async () => {
+    const user = userEvent.setup();
+    render(<RoomsView />);
+
+    await user.click(screen.getByRole('button', { name: '공식 대회 ETF Sprint 열기' }));
+    await user.click(screen.getByRole('button', { name: '대회 참가' }));
+
+    const strategyDialog = screen.getByRole('dialog', { name: 'ETF Sprint 참가 전략 선택' });
+    expect(within(strategyDialog).getByText('출시 가능')).toBeInTheDocument();
+    expect(within(strategyDialog).getByText(/전략만 표시됩니다/)).toBeInTheDocument();
+    expect(within(strategyDialog).queryByText('내 전략')).not.toBeInTheDocument();
+    const strategySearch = within(strategyDialog).getByRole('searchbox', { name: '참가 전략 검색' });
+    expect(strategySearch).toBeInTheDocument();
+    expect(within(strategyDialog).getByText('Opening Range Flow')).toBeInTheDocument();
+    expect(within(strategyDialog).queryByText('Pair Spread Monitor')).not.toBeInTheDocument();
+    expect(within(strategyDialog).queryByText('Volume Regime Draft')).not.toBeInTheDocument();
+    expect(within(strategyDialog).getByText('선택 0 / 2')).toBeInTheDocument();
+    expect(within(strategyDialog).queryByText('0개 선택')).not.toBeInTheDocument();
+    expect(within(strategyDialog).getByRole('button', { name: '확인' })).toBeDisabled();
+
+    await user.type(strategySearch, 'Opening');
+    expect(within(strategyDialog).getByRole('status')).toHaveTextContent('전략을 검색하는 중입니다.');
+    await waitFor(() => expect(within(strategyDialog).queryByRole('status')).not.toBeInTheDocument());
+    expect(within(strategyDialog).getByText('Opening Range Flow')).toBeInTheDocument();
+    await user.click(within(strategyDialog).getByRole('button', { name: '참가 전략 검색 초기화' }));
+
+    await user.click(within(strategyDialog).getByRole('checkbox', { name: 'Opening Range Flow 선택' }));
+    expect(within(strategyDialog).getByText('선택 1 / 2')).toBeInTheDocument();
+    await user.click(within(strategyDialog).getByRole('button', { name: '확인' }));
+
+    const confirmationDialog = screen.getByRole('dialog', { name: 'ETF Sprint 참가 확인' });
+    expect(within(confirmationDialog).getByText('Opening Range Flow')).toBeInTheDocument();
+    expect(within(confirmationDialog).queryByText(/선택한 전략으로 대회 전용 봇이 생성/)).not.toBeInTheDocument();
+    await user.click(within(confirmationDialog).getByRole('button', { name: '참가 확정' }));
+
+    expect(screen.queryByRole('dialog', { name: 'ETF Sprint 참가 확인' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'ETF Sprint 상세 페이지' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Opening Range Flow Bot이 생성되어 대회에 참가했습니다.');
+    const myRanks = screen.getByLabelText('내 참가 봇 순위');
+    expect(within(myRanks).getByText('2 / 3')).toBeInTheDocument();
+    expect(within(myRanks).getByText('Opening Range Flow Bot')).toBeInTheDocument();
+    expect(screen.getByLabelText('ETF Sprint 봇 순위').querySelectorAll('.is-mine')).toHaveLength(2);
   });
 
   test('shows an empty ranking state when no bot participates', async () => {
