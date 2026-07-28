@@ -979,9 +979,22 @@ function translateString(value: string, language: Language): string {
   return entries.reduce((result, [source, target]) => result.replaceAll(source, target), value);
 }
 
+/*
+  번역 대상이 아닌 props.
+
+  - 식별자·기계용 값(className, id, data-*)은 번역하면 선택자와 테스트가 깨진다.
+  - ref는 객체 그대로 넘겨야 한다. 아래 일반 객체 복제 규칙에 걸리면 새
+    객체가 만들어져 React가 사본에 current를 넣고, 원래 ref는 영원히 null로
+    남는다. 차트처럼 DOM 노드를 직접 다루는 컴포넌트가 조용히 죽는 원인이다.
+*/
+const UNTRANSLATED_PROPS = new Set(['className', 'id', 'href', 'src', 'value', 'name', 'type', 'role', 'ref', 'key']);
+const isIdentifierProp = (propName: string): boolean =>
+  UNTRANSLATED_PROPS.has(propName) || propName.startsWith('data-');
+
 function localizeValue(value: unknown, language: Language, propName = ''): unknown {
+  if (propName === 'ref' || propName === 'key') return value;
   if (typeof value === 'string') {
-    if (['className', 'id', 'href', 'src', 'value', 'name', 'type', 'role'].includes(propName)) return value;
+    if (isIdentifierProp(propName)) return value;
     return translateString(value, language);
   }
   if (propName === 'rows') return value;
