@@ -6525,6 +6525,34 @@
   width:24px;
   height:24px;
 }
+.dashboard-chart-cluster-icons {
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.dashboard-chart-cluster-icons .bot-icon-glyph + .bot-icon-glyph { margin-left:-8px; }
+.dashboard-chart-marker.is-cluster { width:46px; }
+.dashboard-chart-marker.is-cluster .bot-icon-glyph {
+  width:22px;
+  height:22px;
+  filter:drop-shadow(0 1px 1px var(--surface));
+}
+.dashboard-chart-cluster-count {
+  position:absolute;
+  top:-8px;
+  right:-8px;
+  min-width:17px;
+  height:17px;
+  display:grid;
+  place-items:center;
+  padding:0 4px;
+  border:2px solid var(--surface);
+  border-radius:999px;
+  color:var(--surface);
+  background:var(--text);
+  font:800 9px/1 var(--font-mono);
+}
 .dashboard-chart-launch-tooltip {
   position:absolute;
   z-index:12;
@@ -6550,6 +6578,32 @@
 .dashboard-chart-launch-tooltip strong { font:700 var(--fs-caption) var(--font-sans); }
 .dashboard-chart-launch-tooltip > span { color:var(--text-soft); font:650 var(--fs-micro) var(--font-sans); }
 .dashboard-chart-launch-tooltip small { color:var(--text-faint); font:600 var(--fs-micro) var(--font-mono); }
+.dashboard-chart-launch-tooltip.is-cluster {
+  min-width:236px;
+  gap:var(--space-2);
+}
+.dashboard-chart-launch-tooltip > .dashboard-chart-cluster-title {
+  padding-bottom:var(--space-1);
+  border-bottom:1px solid var(--glass-border);
+  color:var(--text);
+  font-weight:750;
+}
+.dashboard-chart-launch-tooltip > .dashboard-chart-cluster-row {
+  display:grid;
+  grid-template-columns:22px minmax(0,1fr);
+  align-items:center;
+  gap:var(--space-2);
+  color:var(--text);
+}
+.dashboard-chart-cluster-row > .bot-icon-glyph {
+  width:20px;
+  height:20px;
+}
+.dashboard-chart-cluster-row > span {
+  display:grid;
+  gap:1px;
+}
+.dashboard-chart-cluster-row small { display:block; }
 .dashboard-chart-marker:hover .dashboard-chart-launch-tooltip,
 .dashboard-chart-marker:focus-visible .dashboard-chart-launch-tooltip {
   transform:translate(-50%,0);

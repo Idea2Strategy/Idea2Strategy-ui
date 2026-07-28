@@ -121,12 +121,16 @@ describe('Signal product UI', () => {
     expect(screen.getByTestId('chart-launch-bot-icon-Atlas 07')).toHaveAttribute('data-icon', 'focus');
     expect(screen.getByTestId('chart-launch-bot-icon-Atlas 07')).toHaveAttribute('data-color', 'gray');
     expect(within(performance).getByRole('tooltip', { name: 'Atlas 07 운용 시작 상세' })).toHaveTextContent('07.08 · 이 날부터 성과에 포함');
-    expect(within(performance).getByRole('button', { name: 'Pair Lab 운용 시작 정보' })).toHaveClass('is-edge-end');
-    const pairLaunch = within(performance).getByRole('button', { name: 'Pair Lab 운용 시작 정보' });
-    const pulseLaunch = within(performance).getByRole('button', { name: 'Pulse Grid 운용 시작 정보' });
-    expect(pairLaunch).not.toHaveStyle({ left: pulseLaunch.style.left });
-    expect(pairLaunch).toHaveAttribute('data-lane', '0');
-    expect(pulseLaunch).toHaveAttribute('data-lane', '1');
+    const launchCluster = within(performance).getByRole('button', { name: 'Pulse Grid 외 1개 봇 운용 시작 정보' });
+    expect(launchCluster).toHaveClass('is-cluster', 'is-edge-end');
+    expect(launchCluster).toHaveAttribute('data-cluster-size', '2');
+    expect(within(launchCluster).getByText('2')).toHaveClass('dashboard-chart-cluster-count');
+    expect(within(launchCluster).getByRole('tooltip', { name: '2개 봇 운용 시작 상세' })).toHaveTextContent('Pulse Grid');
+    expect(within(launchCluster).getByRole('tooltip', { name: '2개 봇 운용 시작 상세' })).toHaveTextContent('Pair Lab');
+    expect(within(launchCluster).getByRole('tooltip', { name: '2개 봇 운용 시작 상세' })).toHaveTextContent('07.03');
+    expect(within(launchCluster).getByRole('tooltip', { name: '2개 봇 운용 시작 상세' })).toHaveTextContent('07.05');
+    expect(within(performance).queryByRole('button', { name: 'Pair Lab 운용 시작 정보' })).not.toBeInTheDocument();
+    expect(within(performance).queryByRole('button', { name: 'Pulse Grid 운용 시작 정보' })).not.toBeInTheDocument();
     expect(within(performance).queryByText('Pair Lab 운용 시작', { selector: '.dashboard-chart-marker' })).not.toBeInTheDocument();
     expect(performance).toHaveTextContent('‘운용 시작’은 실제 시작일이고, ‘이전부터 운용’은 선택 기간보다 먼저 시작된 봇입니다.');
     for (const annotation of performance.querySelectorAll('.dashboard-chart-peak')) {
