@@ -132,7 +132,7 @@ describe('Signal product UI', () => {
     const launchCluster = within(performance).getByRole('button', { name: 'Pulse Grid 외 1개 봇 운용 시작 정보' });
     expect(launchCluster).toHaveClass('is-cluster', 'is-edge-end');
     expect(launchCluster).toHaveAttribute('data-cluster-size', '2');
-    expect(within(launchCluster).getByText('2')).toHaveClass('dashboard-chart-cluster-count');
+    expect(within(launchCluster).queryByText('2', { selector: '.dashboard-chart-cluster-count' })).not.toBeInTheDocument();
     expect(within(launchCluster).getByRole('tooltip', { name: '2개 봇 운용 시작 상세' })).toHaveTextContent('Pulse Grid');
     expect(within(launchCluster).getByRole('tooltip', { name: '2개 봇 운용 시작 상세' })).toHaveTextContent('Pair Lab');
     expect(within(launchCluster).getByRole('tooltip', { name: '2개 봇 운용 시작 상세' })).toHaveTextContent('07.03');

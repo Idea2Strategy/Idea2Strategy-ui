@@ -208,7 +208,6 @@ export function EquityChart({
             selection={launch.appearance ?? FALLBACK_BOT_ICON}
             testId={`chart-launch-bot-icon-${launch.name}`}
           />)}
-          {isCluster && <span className="dashboard-chart-cluster-count">{clusterLaunches.length}</span>}
         </span>
         <span
           id={tooltipId}
