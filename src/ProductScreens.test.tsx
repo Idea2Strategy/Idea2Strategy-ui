@@ -38,11 +38,12 @@ describe('Bot operations', () => {
 
     const filter = screen.getByRole('group', { name: '봇 운용 유형 필터' });
     const list = () => within(screen.getByRole('list', { name: '봇 목록 결과' })).getAllByRole('listitem');
-    expect(list()).toHaveLength(2);
+    expect(list()).toHaveLength(3);
     expect(within(filter).queryByRole('button', { name: '전체' })).not.toBeInTheDocument();
     expect(within(filter).getByRole('button', { name: '개인 운용' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Atlas 07 상세 보기' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pair Lab 상세 보기' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pulse Grid 상세 보기' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Room Beta 상세 보기' })).not.toBeInTheDocument();
 
     await user.click(within(filter).getByRole('button', { name: '대회 참가 중' }));

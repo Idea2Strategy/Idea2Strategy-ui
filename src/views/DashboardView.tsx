@@ -1,14 +1,13 @@
 import { useMemo, useRef, useState } from 'react';
-import type { ComponentType, FocusEvent, ReactNode } from 'react';
+import type { FocusEvent, ReactNode } from 'react';
 import {
   ArrowRight,
-  Bot,
-  CalendarClock,
   ChevronDown,
   Trophy,
-  X,
 } from 'lucide-react';
-import { Button, Status } from '../components/common';
+import { Status } from '../components/common';
+import { BotGlyph, DEFAULT_BOT_ICONS, FALLBACK_BOT_ICON } from '../components/BotGlyph';
+import type { BotIconMap } from '../components/BotGlyph';
 import { EquityChart } from '../components/EquityChart';
 import type { LaunchMark } from '../components/EquityChart';
 import { dateLabels, money, percent, signedMoney, walkSeries } from '../lib/equitySim';
@@ -32,34 +31,12 @@ interface BotRecord {
   startDaysAgo: number;
 }
 
-interface HomeTask {
-  id: string;
-  icon: ComponentType<{ size?: number | string; 'aria-hidden'?: boolean | 'true' }>;
-  tone: 'warning' | 'neutral';
-  title: string;
-  detail: string;
-  action: string;
-}
-
 interface DashboardViewProps {
   setPage: (page: PageId) => void;
+  botIcons?: BotIconMap;
 }
 
 const botList = bots as BotRecord[];
-
-/*
-  Only items that are user-actionable AND time-bound qualify as Home tasks.
-  Routine engine events — rejected orders, unmet conditions — are not tasks: a
-  running bot's strategy is locked, so there is nothing to act on, and they are
-  frequent by design. They live in the bot's decision log and in notifications.
-  Unfinished drafts are the strategy page's concern, not Home's.
-
-  A task resolves in place: the action asks for confirmation, and once
-  confirmed the banner is gone — a handled task must not keep nagging.
-*/
-const INITIAL_TASKS: HomeTask[] = [
-  { id: 'extend-atlas', icon: CalendarClock, tone: 'warning', title: 'Atlas 07 계속 실행 확인', detail: '무소속 봇은 기한 전에 연장해야 계속 실행됩니다 · 08.10까지 (D-18)', action: '연장하기' },
-];
 
 /*
   Per-bot equity curves: a seeded random walk, one point per trading day,
@@ -81,11 +58,11 @@ const PERIODS: Record<PeriodKey, { label: string; days: number | null }> = {
   quarter: { label: '3개월', days: 91 },
 };
 const INITIAL_CAPITAL = 10000;
-const CAPITALS: Record<string, number> = { 'Atlas 07': 10540, 'Room Beta': 10490, 'Pair Lab': 9790 };
+const CAPITALS: Record<string, number> = { 'Atlas 07': 10540, 'Room Beta': 10490, 'Pair Lab': 9790, 'Pulse Grid': 10120 };
 const LIFETIME_RETURNS: Record<string, number> = Object.fromEntries(
   Object.entries(CAPITALS).map(([name, capital]) => [name, capital / INITIAL_CAPITAL - 1]),
 );
-const DAILY_VOL: Record<string, number> = { 'Atlas 07': .011, 'Room Beta': .009, 'Pair Lab': .005 };
+const DAILY_VOL: Record<string, number> = { 'Atlas 07': .011, 'Room Beta': .009, 'Pair Lab': .005, 'Pulse Grid': .007 };
 const SAMPLE_END_DATE = Date.UTC(2026, 6, 23);
 const percentPoint = (value: number): string => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
 
@@ -116,29 +93,19 @@ const botTone = (state: string): 'positive' | 'info' | 'warning' =>
 const isBotInScope = (bot: BotRecord, scope: PerformanceScope): boolean =>
   scope === 'personal' ? bot.room === '개인 봇' : bot.room !== '개인 봇';
 
-export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
+export function DashboardView({ setPage, botIcons = DEFAULT_BOT_ICONS }: DashboardViewProps): ReactNode {
   const [period, setPeriod] = useState<PeriodKey>('lifetime');
   const [performanceScope, setPerformanceScope] = useState<PerformanceScope>('personal');
   const [included, setIncluded] = useState<Set<string>>(
     () => new Set(botList.filter((bot) => isBotInScope(bot, 'personal')).map((bot) => bot.name)),
   );
   const [filterOpen, setFilterOpen] = useState(false);
-  const [taskList, setTaskList] = useState<HomeTask[]>(INITIAL_TASKS);
-  const [confirming, setConfirming] = useState<HomeTask | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
-  const allClear = taskList.length === 0;
   const scopedBots = useMemo(
     () => botList.filter((bot) => isBotInScope(bot, performanceScope)),
     [performanceScope],
   );
   const scopeLabel = performanceScope === 'personal' ? '개인 운용' : '대회 참가';
-
-  const confirmExtension = () => {
-    if (!confirming) return;
-    const finished = confirming;
-    setTaskList((current) => current.filter((task) => task.id !== finished.id));
-    setConfirming(null);
-  };
 
   const toggleBot = (name: string) => {
     setIncluded((current) => {
@@ -176,6 +143,7 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
       name: one.bot.name,
       index: one.startIndex,
       kind: one.startIndex === 0 && one.bot.startDaysAgo > days ? 'before-range' : 'start',
+      appearance: botIcons[one.bot.name] ?? FALLBACK_BOT_ICON,
     }));
 
     // Chain-linked daily returns, excluding capital injected on launch days:
@@ -204,54 +172,39 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
       today: points[points.length - 1] / points[points.length - 2] - 1,
       drawdown: worst,
     };
-  }, [included, period, scopedBots]);
+  }, [botIcons, included, period, scopedBots]);
 
   return <Localized><div className="page dashboard-page">
     <header className="page-heading dashboard-heading">
       <div>
         <p className="eyebrow">HOME</p>
         <h1>반갑습니다, 김전략님</h1>
-        <p className="page-description">
-          {allClear
-            ? '봇 3개가 정상 운영 중이에요. 오늘은 확인할 일이 없습니다.'
-            : `봇 3개가 정상 운영 중이에요. 아래 ${taskList.length}가지만 확인하면 됩니다.`}
-        </p>
+        <p className="page-description">봇 3개가 정상 운영 중이에요.</p>
       </div>
     </header>
-
-    {/* Slim banners, one line each — an inbox, not a hero panel. When there is
-        nothing to check, the section does not exist: an empty inbox rendering
-        "all clear" would still be claiming attention, and the situation
-        sentence in the heading already says today needs nothing. */}
-    {!allClear && <section className="dashboard-alerts" aria-label="확인이 필요한 작업">
-      <h2 className="dashboard-alerts-label">확인이 필요한 작업<b>{taskList.length}</b></h2>
-      {taskList.map((task) => {
-        const Icon = task.icon;
-        return <button key={task.id} className={`dashboard-alert tone-${task.tone}`} onClick={() => setConfirming(task)}>
-          <Icon size={15} aria-hidden="true" />
-          <span><strong>{task.title}</strong><small>{task.detail}</small></span>
-          <b>{task.action}<ArrowRight size={13} /></b>
-        </button>;
-      })}
-    </section>}
-
-    {confirming && <div className="strategy-dialog-backdrop" onMouseDown={() => setConfirming(null)}>
-      <section role="dialog" aria-modal="true" aria-label="연장 확인" className="strategy-create-dialog dashboard-confirm-dialog" onMouseDown={(event) => event.stopPropagation()}>
-        <header>
-          <div><h2>Atlas 07 계속 실행을 연장하시겠습니까?</h2><p>기한이 30일 연장됩니다. 서버가 요청을 접수한 시각 기준으로 계산합니다.</p></div>
-          <button aria-label="연장 확인 닫기" onClick={() => setConfirming(null)}><X size={18} /></button>
-        </header>
-        <footer className="dashboard-confirm-actions">
-          <Button onClick={() => setConfirming(null)}>취소</Button>
-          <Button kind="primary" onClick={confirmExtension}>연장하기</Button>
-        </footer>
-      </section>
-    </div>}
 
     <div className="dashboard-context-row">
       <section className="dashboard-section" aria-label="운용 성과">
         <header className="dashboard-section-head">
-          <div><h2>운용 성과</h2><p>{scopeLabel} 봇의 시간가중 성과</p></div>
+          <div className="dashboard-section-title-row">
+            <h2>시간가중 운용 수익률</h2>
+            <span className="dashboard-return-info">
+              <button
+                type="button"
+                className="dashboard-return-info-button"
+                aria-label="시간가중수익률 설명"
+                aria-describedby="dashboard-return-info-tooltip"
+              >?</button>
+              <span
+                id="dashboard-return-info-tooltip"
+                className="dashboard-return-info-tooltip"
+                role="tooltip"
+                aria-label="시간가중수익률 설명"
+              >
+                선택한 봇을 하나의 운용 묶음으로 보고, 시작 자금 유입은 수익에서 제외한 시간가중수익률입니다. ‘운용 시작’은 실제 시작일이고, ‘이전부터 운용’은 선택 기간보다 먼저 시작된 봇입니다. 개인 운용과 대회 성과는 합산하지 않습니다.
+              </span>
+            </span>
+          </div>
           <div className="dashboard-chart-controls">
             <div className="dashboard-chart-control dashboard-performance-scope" role="group" aria-label="성과 유형">
               <button
@@ -296,7 +249,6 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
             because the bots entered this scope on different dates. */}
         <div className="dashboard-chart-summary">
           <div className="dashboard-return-summary">
-            <span>시간가중수익률</span>
             <div>
               <strong className={twr >= 0 ? 'positive' : 'negative'}>{percent(twr)}</strong>
               <small><span>운용 손익</span> {signedMoney(profit[profit.length - 1])} · <span>현재 자산</span> {money(total)}</small>
@@ -318,7 +270,6 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
           <div><dt>선택 봇 수</dt><dd>{included.size}개</dd></div>
           <div><dt>시작일 보정</dt><dd>적용</dd></div>
         </dl>
-        <p className="dashboard-chart-note">선택한 봇을 하나의 운용 묶음으로 보고, 시작 자금 유입은 수익에서 제외한 시간가중수익률입니다. ‘운용 시작’은 실제 시작일이고, ‘이전부터 운용’은 선택 기간보다 먼저 시작된 봇입니다. 개인 운용과 대회 성과는 합산하지 않습니다.</p>
       </section>
 
       <div className="dashboard-side">
@@ -329,7 +280,12 @@ export function DashboardView({ setPage }: DashboardViewProps): ReactNode {
           </header>
           <div className="dashboard-bot-list">
             {botList.map((bot) => <button key={bot.name} onClick={() => setPage('bots')}>
-              <span className="dashboard-bot-icon" aria-hidden="true"><Bot size={16} /></span>
+              <span className="dashboard-bot-icon" aria-hidden="true">
+                <BotGlyph
+                  selection={botIcons[bot.name] ?? FALLBACK_BOT_ICON}
+                  testId={`dashboard-bot-icon-${bot.name}`}
+                />
+              </span>
               {/* Competition entries keep the personal label's format; only
                   the colour and the tiny trophy differ. */}
               <span className="dashboard-bot-name">

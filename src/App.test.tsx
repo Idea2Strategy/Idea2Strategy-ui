@@ -70,14 +70,31 @@ describe('Signal product UI', () => {
 
     expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '새 전략' })).not.toBeInTheDocument();
-    expect(screen.getByText('확인이 필요한 작업')).toBeInTheDocument();
-    expect(screen.getByText('운용 성과')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '확인이 필요한 작업' })).not.toBeInTheDocument();
+    expect(screen.getByText('봇 3개가 정상 운영 중이에요.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '시간가중 운용 수익률' })).toBeInTheDocument();
     expect(screen.queryByText('전체 성과')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '전략' }));
     expect(screen.getByRole('heading', { name: '전략' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Idea2Strategy 홈' }));
     expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
+  });
+
+  test('shows each bot custom icon on the home dashboard after it is changed', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '봇' }));
+    await user.click(screen.getByRole('button', { name: 'Atlas 07 아이콘 설정' }));
+    await user.click(within(screen.getByRole('group', { name: '아이콘 모양' })).getByRole('button', { name: '분석형 봇 아이콘' }));
+    await user.click(within(screen.getByRole('group', { name: '분석형 봇 아이콘 색상 선택' })).getByRole('button', { name: '분석형 봇 아이콘 파란색 적용' }));
+    await user.click(screen.getByRole('button', { name: '홈' }));
+
+    expect(screen.getByTestId('dashboard-bot-icon-Atlas 07')).toHaveAttribute('data-icon', 'analytical');
+    expect(screen.getByTestId('dashboard-bot-icon-Atlas 07')).toHaveAttribute('data-color', 'blue');
+    expect(screen.getByTestId('chart-launch-bot-icon-Atlas 07')).toHaveAttribute('data-icon', 'analytical');
+    expect(screen.getByTestId('chart-launch-bot-icon-Atlas 07')).toHaveAttribute('data-color', 'blue');
   });
 
   test('separates personal and competition performance without mixing their bots', async () => {
@@ -91,8 +108,15 @@ describe('Signal product UI', () => {
     const botFilter = within(performance).getByRole('button', { name: '합산에 포함할 봇 선택' });
     expect(personal).toHaveAttribute('aria-pressed', 'true');
     expect(competition).toHaveAttribute('aria-pressed', 'false');
-    expect(performance).toHaveTextContent('개인 운용 봇의 시간가중 성과');
-    expect(within(performance).getByText('시간가중수익률')).toBeInTheDocument();
+    expect(within(performance).getByRole('heading', { name: '시간가중 운용 수익률' })).toBeInTheDocument();
+    expect(within(performance).queryByText('운용 성과')).not.toBeInTheDocument();
+    expect(within(performance).queryByText('시간가중수익률')).not.toBeInTheDocument();
+    const returnInfo = within(performance).getByRole('button', { name: '시간가중수익률 설명' });
+    const returnInfoTooltip = within(performance).getByRole('tooltip', { name: '시간가중수익률 설명' });
+    expect(returnInfo).toHaveTextContent('?');
+    expect(returnInfo).toHaveAttribute('aria-describedby', returnInfoTooltip.id);
+    expect(returnInfoTooltip).toHaveTextContent('시작 자금 유입은 수익에서 제외');
+    expect(performance.querySelector('.dashboard-chart-note')).not.toBeInTheDocument();
     expect(within(performance).getByRole('img', { name: '개인 운용 봇의 시간가중수익률 차트' })).toBeInTheDocument();
     const periodGroup = within(performance).getByRole('group', { name: '성과 기간' });
     expect(scope).toHaveClass('dashboard-chart-control');
@@ -102,9 +126,19 @@ describe('Signal product UI', () => {
     const oldestLaunch = within(performance).getByRole('button', { name: 'Atlas 07 운용 시작 정보' });
     expect(oldestLaunch).toHaveClass('is-edge-start');
     expect(oldestLaunch).toHaveStyle({ left: '0%' });
-    expect(oldestLaunch.querySelector('.lucide-bot')).toBeInTheDocument();
+    expect(screen.getByTestId('chart-launch-bot-icon-Atlas 07')).toHaveAttribute('data-icon', 'focus');
+    expect(screen.getByTestId('chart-launch-bot-icon-Atlas 07')).toHaveAttribute('data-color', 'gray');
     expect(within(performance).getByRole('tooltip', { name: 'Atlas 07 운용 시작 상세' })).toHaveTextContent('07.08 · 이 날부터 성과에 포함');
-    expect(within(performance).getByRole('button', { name: 'Pair Lab 운용 시작 정보' })).toHaveClass('is-edge-end');
+    const launchCluster = within(performance).getByRole('button', { name: 'Pulse Grid 외 1개 봇 운용 시작 정보' });
+    expect(launchCluster).toHaveClass('is-cluster', 'is-edge-end');
+    expect(launchCluster).toHaveAttribute('data-cluster-size', '2');
+    expect(within(launchCluster).getByText('2')).toHaveClass('dashboard-chart-cluster-count');
+    expect(within(launchCluster).getByRole('tooltip', { name: '2개 봇 운용 시작 상세' })).toHaveTextContent('Pulse Grid');
+    expect(within(launchCluster).getByRole('tooltip', { name: '2개 봇 운용 시작 상세' })).toHaveTextContent('Pair Lab');
+    expect(within(launchCluster).getByRole('tooltip', { name: '2개 봇 운용 시작 상세' })).toHaveTextContent('07.03');
+    expect(within(launchCluster).getByRole('tooltip', { name: '2개 봇 운용 시작 상세' })).toHaveTextContent('07.05');
+    expect(within(performance).queryByRole('button', { name: 'Pair Lab 운용 시작 정보' })).not.toBeInTheDocument();
+    expect(within(performance).queryByRole('button', { name: 'Pulse Grid 운용 시작 정보' })).not.toBeInTheDocument();
     expect(within(performance).queryByText('Pair Lab 운용 시작', { selector: '.dashboard-chart-marker' })).not.toBeInTheDocument();
     expect(performance).toHaveTextContent('‘운용 시작’은 실제 시작일이고, ‘이전부터 운용’은 선택 기간보다 먼저 시작된 봇입니다.');
     for (const annotation of performance.querySelectorAll('.dashboard-chart-peak')) {
@@ -126,7 +160,7 @@ describe('Signal product UI', () => {
 
     await user.click(competition);
     expect(competition).toHaveAttribute('aria-pressed', 'true');
-    expect(performance).toHaveTextContent('대회 참가 봇의 시간가중 성과');
+    expect(performance).not.toHaveTextContent('대회 참가 봇의 시간가중 성과');
     expect(within(performance).getByText('봇 1/1 포함')).toBeInTheDocument();
     await user.click(within(performance).getByRole('button', { name: '합산에 포함할 봇 선택' }));
     botPicker = within(performance).getByRole('group', { name: '합산에 포함할 봇 선택' });
