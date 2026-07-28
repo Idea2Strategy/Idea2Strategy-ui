@@ -242,6 +242,21 @@ describe('Basic editor strategy explanations', () => {
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 
+  test('closes an open strategy explanation when another editor area is clicked', async () => {
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} />);
+
+    const buyGroup = screen.getByTestId('basic-buy-group');
+    const buyExplanation = within(buyGroup).getByRole('button', { expanded: false });
+    await user.click(buyExplanation);
+    expect(buyExplanation).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getAllByRole('note')).not.toHaveLength(0);
+
+    await user.click(screen.getByTestId('basic-editor-workspace'));
+    expect(buyExplanation).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+  });
+
   test('keeps the final buy and sell outputs attached and non-interactive', () => {
     render(<BasicEditor goBack={() => {}} />);
 

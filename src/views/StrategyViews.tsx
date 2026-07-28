@@ -1572,7 +1572,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         ? '파티션'
         : null;
 
-  return <Localized><div className="page editor-page basic-editor-page editor-shell-page">
+  return <Localized><div
+    className="page editor-page basic-editor-page editor-shell-page"
+    onPointerDownCapture={(event) => {
+      if (!activeGroup) return;
+      if ((event.target as Element).closest?.('.strategy-container-header')) return;
+      setActiveGroup(null);
+    }}
+  >
     <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
     <div className="basic-editor-commandbar floating-editor-controls" role="toolbar" aria-label="Basic 편집 작업">
       <div className="basic-editor-context"><Button className="floating-editor-button" kind="ghost" icon={ArrowLeft} onClick={goBack}>목록</Button><div className="floating-editor-mode-controls" role="group" aria-label="편집기 전환"><Button className="floating-editor-button active" onClick={() => openEditor?.('basic')}>Basic 편집기</Button><Button className="floating-editor-button" onClick={() => openEditor?.('pro')}>Pro 편집기</Button></div></div>
