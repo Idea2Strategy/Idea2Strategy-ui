@@ -2307,14 +2307,20 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-line.bot-emphasis {
+  stroke: var(--text);
+  stroke-width: 3.25;
+  opacity: .45;
+}
+.theme-dark .backtest-chart-line.bot-emphasis { opacity: .72; }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.bot {
   stroke: var(--accent);
-  stroke-width: 3;
-  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--accent) 32%, transparent));
+  stroke-width: 2.75;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark {
   stroke: var(--tone-indicator);
-  stroke-width: 2;
+  stroke-width: 1.5;
+  opacity: .8;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark.sp500 { stroke: var(--tone-indicator); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark.nasdaq { stroke: var(--info); }
@@ -2323,8 +2329,9 @@
   fill: var(--surface);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-end.bot {
-  stroke: var(--accent);
-  stroke-width: 3;
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 2.5;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-end.benchmark {
   stroke: var(--tone-indicator);
