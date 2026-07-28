@@ -217,22 +217,36 @@ describe('Competition lobby', () => {
     await user.click(within(results).getByRole('button', { name: 'Momentum Lab 열기' }));
     const details = screen.getByRole('region', { name: 'Momentum Lab 상세 페이지' });
     expect(within(details).getByRole('heading', { name: 'Momentum Lab' })).toBeInTheDocument();
-    expect(details).toHaveTextContent('모든 참가 봇은 동일한 시장 데이터와 체결 조건을 적용받습니다.');
+    expect(details).toHaveTextContent('Momentum Lab 참가 봇을 동일한 시장 데이터와 체결 조건에서 비교하는 모의투자 대회입니다.');
   });
 
-  test('explains scoring and presents the four shared conditions on detail pages', async () => {
+  test('groups seven concise facts below the leaderboard and scoring beside its title', async () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
     await user.click(screen.getByRole('button', { name: '공식 대회 I2S Summer League 열기' }));
     const detail = screen.getByRole('region', { name: 'I2S Summer League 상세 페이지' });
-    expect(within(detail).getByRole('tooltip')).toHaveTextContent('표준화한 뒤 대회 가중치');
+    expect(within(detail).getByRole('tooltip')).toHaveTextContent('추후 추가 예정입니다.');
+    expect(within(detail).getByText('공식 대회')).toBeInTheDocument();
 
-    const conditions = within(detail).getByLabelText('I2S Summer League 공통 조건');
-    expect(within(conditions).getAllByRole('listitem')).toHaveLength(4);
-    expect(within(conditions).getByText('시작 자본')).toBeInTheDocument();
-    expect(within(conditions).getByText('종목 범위')).toBeInTheDocument();
-    expect(within(conditions).getByText('수수료')).toBeInTheDocument();
-    expect(within(conditions).getByText('슬리피지')).toBeInTheDocument();
+    const myRanks = within(detail).getByLabelText('내 참가 봇 순위');
+    const leaderboardHeading = within(detail).getByRole('heading', { name: '대회 리더보드' });
+    const leaderboard = leaderboardHeading.closest('section');
+    expect(leaderboard).not.toBeNull();
+    expect(leaderboard!.parentElement).toHaveClass('competition-detail-rankings');
+    expect(myRanks.parentElement).toBe(leaderboard!.parentElement);
+    expect(within(leaderboard!).getByText('표준점수제')).toBeInTheDocument();
+    expect(within(detail).queryByLabelText('I2S Summer League 대회 정보')).not.toBeInTheDocument();
+
+    await user.click(within(detail).getByRole('button', { name: '대회 상세보기' }));
+    const detailDialog = screen.getByRole('dialog', { name: 'I2S Summer League 대회 상세 정보' });
+    expect(within(detailDialog).queryByText('채점 방식')).not.toBeInTheDocument();
+    expect(within(detailDialog).getByText('운영자')).toBeInTheDocument();
+    expect(within(detailDialog).getByText('기간')).toBeInTheDocument();
+    expect(within(detailDialog).getByText('참여 봇')).toBeInTheDocument();
+    expect(within(detailDialog).getByText('시작 자본')).toBeInTheDocument();
+    expect(within(detailDialog).getByText('종목 범위')).toBeInTheDocument();
+    expect(within(detailDialog).getByText('수수료')).toBeInTheDocument();
+    expect(within(detailDialog).getByText('슬리피지')).toBeInTheDocument();
   });
 });

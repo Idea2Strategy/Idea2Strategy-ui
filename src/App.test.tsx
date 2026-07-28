@@ -393,6 +393,6 @@ describe('Signal product UI', () => {
     const progress = screen.getByRole('group', { name: '진행 상태' });
     await user.click(within(progress).getByRole('radio', { name: '대회 진행 중' }));
     await user.click(screen.getByRole('button', { name: 'Momentum Lab 열기' }));
-    expect(screen.getByText('Room Beta')).toBeInTheDocument();
+    expect(screen.getAllByText('Room Beta')).toHaveLength(2);
   });
 });
