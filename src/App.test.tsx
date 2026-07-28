@@ -211,6 +211,9 @@ describe('Signal product UI', () => {
 
     expect(koreanColours).toHaveAttribute('aria-pressed', 'true');
     expect(usColours).toHaveAttribute('aria-pressed', 'false');
+    expect(koreanColours.querySelector('.nav-market-icon')).toBeInTheDocument();
+    expect(usColours.querySelector('.nav-market-icon')).toBeInTheDocument();
+    expect(colourToggle.querySelector('.nav-market-colours')).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: '상승·하락 색상 선택' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: '언어 선택' })).not.toBeInTheDocument();
 

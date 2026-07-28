@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, Bell, CircleHelp, Moon, Palette, Search, Sun, X } from 'lucide-react';
+import { ArrowRight, Bell, CircleHelp, Moon, Palette, Search, Sun, TrendingUp, X } from 'lucide-react';
 import i2sLogo from './assets/i2s-logo.svg';
 import { bots, notifications, rooms, strategies } from './data/mockData';
 import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation';
@@ -151,14 +151,14 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarPro
           aria-pressed={updown === 'kr'}
           title="한국식 · 상승 빨강, 하락 파랑"
           onClick={() => setUpdown('kr')}
-        ><span className="nav-market-colours convention-kr" aria-hidden="true"><i /><i /></span></button>
+        ><TrendingUp className="nav-market-icon convention-kr" size={15} aria-hidden="true" /></button>
         <button
           type="button"
           aria-label="미국식 · 상승 초록, 하락 빨강"
           aria-pressed={updown === 'us'}
           title="미국식 · 상승 초록, 하락 빨강"
           onClick={() => setUpdown('us')}
-        ><span className="nav-market-colours convention-us" aria-hidden="true"><i /><i /></span></button>
+        ><TrendingUp className="nav-market-icon convention-us" size={15} aria-hidden="true" /></button>
       </div>
       <div className="nav-segmented-toggle nav-language-toggle" role="group" aria-label="언어 선택" data-value={language}>
         <button type="button" aria-label="한국어" aria-pressed={language === 'ko'} onClick={() => setLanguage('ko')}>KO</button>
