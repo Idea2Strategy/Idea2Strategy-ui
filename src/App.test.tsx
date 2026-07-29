@@ -63,6 +63,17 @@ describe('Signal product UI', () => {
     window.history.replaceState({}, '', '/strategies/new/basic');
     render(<App />);
 
+    const buyRsi = screen.getByTestId('buy-rsi-block');
+    await user.type(within(buyRsi).getByLabelText('RSI 반등 값'), '30');
+    await user.click(within(buyRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
+    await user.click(screen.getByRole('option', { name: '상승' }));
+    const sellRsi = screen.getByTestId('sell-rsi-block');
+    await user.type(within(sellRsi).getByLabelText('RSI 반등 값'), '70');
+    await user.click(within(sellRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
+    await user.click(screen.getByRole('option', { name: '하락' }));
+    await user.click(screen.getByRole('button', { name: '매도 전략 실행 설정' }));
+    await user.type(screen.getByRole('spinbutton', { name: '매도 비율' }), '100');
+
     await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
     const dialog = screen.getByRole('dialog', { name: '개인 운용 봇 출시' });
     await user.type(within(dialog).getByRole('textbox', { name: '봇 이름' }), 'Momentum Scout');
@@ -354,35 +365,31 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('button', { name: '균형형 보기' })).not.toBeInTheDocument();
   });
 
-  test('shows the buy rule as one natural-language note per block', async () => {
+  test('keeps natural-language rule notes attached to the selected Basic strategy card', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
     await user.click(screen.getByRole('button', { name: '전략' }));
     await user.click(screen.getByRole('button', { name: '새 전략' }));
     await user.click(screen.getByRole('button', { name: 'Basic으로 시작' }));
-    await user.hover(screen.getByTestId('buy-rsi-block'));
-    expect(screen.queryByRole('note')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '매수 컨테이너 자연어 설명' }));
-    const explanations = screen.getAllByRole('note');
-    expect(explanations).toHaveLength(4);
-    expect(explanations[0]).toHaveTextContent('1분봉');
-    expect(explanations[1]).toHaveTextContent('RSI(14)');
-    expect(explanations[1]).toHaveTextContent('30 미만');
-    expect(explanations[2]).toHaveTextContent('25%');
-    expect(explanations[3]).toHaveTextContent('시장가 매수');
+    expect(screen.getAllByRole('note')).toHaveLength(2);
+    expect(screen.getByTestId('basic-narrative-budget')).toHaveTextContent('전략 예산');
+    fireEvent.keyDown(screen.getByLabelText('매도 전략 카드 이동 영역'), { key: 'Enter' });
+    expect(screen.getAllByRole('note')).toHaveLength(2);
+    expect(screen.getByTestId('basic-narrative-budget')).toHaveTextContent('매도 비율');
   });
 
-  test('opens a categorized compatible-node picker where a Pro connection is released', async () => {
+  test('opens a typed compatible-node picker where a Pro connection is released', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="terminal" />);
     await user.click(screen.getByRole('button', { name: '전략' }));
     await user.click(screen.getByRole('button', { name: '새 전략' }));
     await user.click(screen.getByRole('button', { name: 'Pro로 시작' }));
-    fireEvent.pointerUp(screen.getByTestId('true-output'), { clientX: 438, clientY: 276 });
+    fireEvent.pointerDown(screen.getByTestId('true-output'), { clientX: 438, clientY: 276, pointerId: 4, button: 0 });
+    fireEvent.pointerUp(screen.getByTestId('true-output'), { clientX: 438, clientY: 276, pointerId: 4 });
     const picker = screen.getByRole('dialog', { name: '호환 노드 선택' });
     expect(picker).toHaveStyle({ left: '438px', top: '276px' });
-    expect(screen.getByText('조건 · 비교')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '포지션 확인' })).toBeEnabled();
+    expect(screen.getByText('실행 흐름 출력')).toBeInTheDocument();
+    expect(within(picker).getByRole('button', { name: /주문 요청/ })).toBeEnabled();
   });
 
   test.each(['balanced', 'terminal'])('uses one Signal horizontal menu for the legacy %s entry', (variant) => {

@@ -208,6 +208,8 @@ describe('Basic editor partition preview chart', () => {
        card and drag it around with the canvas. */
     expect(screen.getByTestId('strategy-section-1')).not.toContainElement(panel);
     expect(screen.getByTestId('section-world')).not.toContainElement(panel);
+    expect(Number.parseInt(panel.style.top, 10)).toBeGreaterThan(window.innerHeight / 2);
+    expect(Number.parseInt(panel.style.left, 10)).toBe(window.innerWidth - 320 - 28);
     // The chart canvas is mounted; the chart library itself is skipped in jsdom.
     expect(within(panel).getByTestId('strategy-preview-canvas')).toBeInTheDocument();
   });
@@ -231,7 +233,7 @@ describe('Basic editor partition preview chart', () => {
 
     const draggedLeft = panel.style.left;
     grip.focus();
-    await user.keyboard('{ArrowLeft}');
+    await user.keyboard('{ArrowRight}');
     expect(panel.style.left).not.toBe(draggedLeft);
   });
 
@@ -253,7 +255,7 @@ describe('Basic editor partition preview chart', () => {
     expect(frame.querySelectorAll('polyline')).toHaveLength(1);
   });
 
-  test('points buy arrows up under the fill and sell arrows down over it', async () => {
+  test('draws pentagonal buy and sell banners toward their fill points', async () => {
     const user = userEvent.setup();
     render(<BasicEditor goBack={() => {}} />);
 
@@ -280,18 +282,21 @@ describe('Basic editor partition preview chart', () => {
     };
 
     screen.getAllByTestId('preview-marker-buy').forEach((marker) => {
-      const [apex, left, right] = corners(marker);
-      expect(apex.y).toBeLessThan(left.y);
-      expect(left.y).toBe(right.y);
+      const [apex, leftShoulder, leftBase, rightBase, rightShoulder] = corners(marker);
+      expect(corners(marker)).toHaveLength(5);
+      expect(apex.y).toBeLessThan(leftShoulder.y);
+      expect(leftBase.y).toBe(rightBase.y);
+      expect(leftShoulder.y).toBe(rightShoulder.y);
       expect(apex.y).toBeGreaterThan(lineAt(apex.x));
-      // 곁눈질로 보이는 크기여야 한다: 종가 선(1.6)보다 확실히 크다.
-      expect(right.x - left.x).toBeGreaterThanOrEqual(8);
-      expect(left.y - apex.y).toBeGreaterThanOrEqual(8);
+      expect(rightBase.x - leftBase.x).toBeGreaterThanOrEqual(8);
+      expect(leftBase.y - apex.y).toBeGreaterThanOrEqual(8);
     });
     screen.getAllByTestId('preview-marker-sell').forEach((marker) => {
-      const [apex, left, right] = corners(marker);
-      expect(apex.y).toBeGreaterThan(left.y);
-      expect(left.y).toBe(right.y);
+      const [apex, leftShoulder, leftBase, rightBase, rightShoulder] = corners(marker);
+      expect(corners(marker)).toHaveLength(5);
+      expect(apex.y).toBeGreaterThan(leftShoulder.y);
+      expect(leftBase.y).toBe(rightBase.y);
+      expect(leftShoulder.y).toBe(rightShoulder.y);
       expect(apex.y).toBeLessThan(lineAt(apex.x));
     });
 
@@ -336,6 +341,10 @@ describe('Basic editor partition preview chart', () => {
     const user = userEvent.setup();
     render(<BasicEditor goBack={() => {}} />);
 
+    const buyRsi = screen.getByTestId('buy-rsi-block');
+    await user.type(within(buyRsi).getByLabelText('RSI 반등 값'), '30');
+    await user.click(within(buyRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
+    await user.click(screen.getByRole('option', { name: '상승' }));
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
 
     // One buy and one sell container: the legend lists both with their counts.
@@ -348,7 +357,7 @@ describe('Basic editor partition preview chart', () => {
     await user.click(buyFlow);
     expect(buyFlow).toHaveAttribute('aria-pressed', 'true');
     // 같은 문장이 신호 툴팁에도 붙으므로 요약 줄로 범위를 좁혀 확인한다.
-    expect(screen.getByTestId('preview-note')).toHaveTextContent(/RSI\(14\) 30 하향 돌파/);
+    expect(screen.getByTestId('preview-note')).toHaveTextContent(/RSI\(14\) 30 상향 돌파/);
     expect(screen.getByTestId('preview-flow-primary-sell')).toBeInTheDocument();
 
     await user.click(buyFlow);
@@ -363,7 +372,7 @@ describe('Basic editor partition preview chart', () => {
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
     expect(within(screen.getByRole('group', { name: '신호를 만든 플로우' })).getAllByRole('button')).toHaveLength(2);
 
-    await user.click(screen.getByRole('button', { name: '매수 컨테이너 추가' }));
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 매수 전략 추가' }));
 
     const flows = within(screen.getByRole('group', { name: '신호를 만든 플로우' })).getAllByRole('button');
     expect(flows).toHaveLength(3);
@@ -384,7 +393,7 @@ describe('Basic editor partition preview chart', () => {
     /* A threshold this tight can never be crossed, so the count has to fall to
        zero — the chart is reading the live block value, not a snapshot. */
     const rsiBlock = screen.getByTestId('buy-rsi-block');
-    const valueInput = within(rsiBlock).getByLabelText('RSI 값');
+    const valueInput = within(rsiBlock).getByLabelText('RSI 반등 값');
     await user.clear(valueInput);
     await user.type(valueInput, '2');
 
@@ -399,6 +408,10 @@ describe('Basic editor partition preview chart', () => {
     const user = userEvent.setup();
     render(<LanguageProvider><BasicEditor goBack={() => {}} /></LanguageProvider>);
 
+    const buyRsi = screen.getByTestId('buy-rsi-block');
+    await user.type(within(buyRsi).getByLabelText('RSI 반등 값'), '30');
+    await user.click(within(buyRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
+    await user.click(screen.getByRole('option', { name: '상승' }));
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 Strategy preview' }));
     expect(screen.getByRole('group', { name: 'Flows behind the signals' })).toBeInTheDocument();
     expect(screen.getByTestId('preview-buy-count')).toHaveTextContent('Buy');
@@ -406,7 +419,7 @@ describe('Basic editor partition preview chart', () => {
     /* 조건 문장은 엔진이 만든 문자열이라 prop 번역이 닿지 않는다. 여기서 한글이
        남으면 카드 안에서 직접 번역하는 경로가 끊긴 것이다. */
     await user.click(screen.getByTestId('preview-flow-primary-buy'));
-    expect(screen.getByTestId('preview-note')).toHaveTextContent('RSI(14) 30 crosses down');
+    expect(screen.getByTestId('preview-note')).toHaveTextContent('RSI(14) 30 crosses up');
     window.localStorage.clear();
   });
 

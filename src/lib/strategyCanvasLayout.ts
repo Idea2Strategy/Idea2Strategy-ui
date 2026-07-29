@@ -1,7 +1,8 @@
 export const BASIC_SECTION_HEADER_HEIGHT = 96;
 export const BASIC_SECTION_MIN_WIDTH = 600;
 export const BASIC_SECTION_PADDING = 24;
-export const BASIC_STRATEGY_CARD_WIDTH = 260;
+export const BASIC_CARD_MIN_Y = 136;
+export const BASIC_STRATEGY_CARD_WIDTH = 344;
 export const BASIC_STRATEGY_CARD_FALLBACK_HEIGHT = 286;
 
 export interface CanvasPoint {
@@ -23,7 +24,7 @@ export interface CardMoveGesture {
 
 export const getDefaultBasicCardPosition = (index: number): CanvasPoint => ({
   x: BASIC_SECTION_PADDING + (index % 3) * (BASIC_STRATEGY_CARD_WIDTH + 26),
-  y: 112 + Math.floor(index / 3) * (BASIC_STRATEGY_CARD_FALLBACK_HEIGHT + 24),
+  y: BASIC_CARD_MIN_Y + Math.floor(index / 3) * (BASIC_STRATEGY_CARD_FALLBACK_HEIGHT + 24),
 });
 
 export const getMovedBasicCardPosition = (
@@ -32,8 +33,8 @@ export const getMovedBasicCardPosition = (
   clientY: number,
   zoom: number,
 ): CanvasPoint => ({
-  x: Math.max(0, move.originX + (clientX - move.startX) / zoom),
-  y: Math.max(BASIC_SECTION_HEADER_HEIGHT, move.originY + (clientY - move.startY) / zoom),
+  x: Math.max(BASIC_SECTION_PADDING, move.originX + (clientX - move.startX) / zoom),
+  y: Math.max(BASIC_CARD_MIN_Y, move.originY + (clientY - move.startY) / zoom),
 });
 
 export const getStrategyCanvasWheelZoom = (
