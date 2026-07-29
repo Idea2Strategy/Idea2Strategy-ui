@@ -5372,15 +5372,15 @@
 /* Bot operations — selectable list on the left drives the detail on the right */
 .bots-page { display: grid; gap: var(--space-5); }
 .bots-page .page-heading { margin-bottom: 0; }
-/* The narrow column stacks the compact picker over the selected bot's summary,
-   so the standing figures sit where the list used to be and the live chart
-   gets the wide column to itself. Named areas keep that placement without a
-   wrapper element, so each panel stays a direct grid child. */
+/* The picker is a horizontal strip across the top, so the narrow column starts
+   with the selected bot itself and the live chart keeps the wide column. Named
+   areas hold that placement without a wrapper, so each panel stays a direct
+   grid child and the DOM order still reads picker, summary, live. */
 .bots-workspace {
   display: grid;
   grid-template-columns: minmax(380px, 1fr) minmax(560px, 1.45fr);
   grid-template-areas:
-    "picker  live"
+    "picker  picker"
     "summary live";
   gap: var(--space-4);
   align-items: start;
@@ -5390,6 +5390,23 @@
 .bots-summary-panel { grid-area: summary; }
 .bots-live-panel { grid-area: live; }
 .bots-list-panel, .bots-summary-panel, .bots-live-panel { overflow: hidden; }
+
+/* The picker reads left to right: its heading and filter stay pinned at the
+   left edge, the bot chips take the rest of the strip and scroll sideways when
+   there are more than fit. */
+.bots-list-panel { display: flex; align-items: stretch; flex-wrap: wrap; }
+.bots-list-panel > .bots-list-head {
+  min-height: 0;
+  flex: 0 0 auto;
+  gap: var(--space-3);
+  border-bottom: 0;
+  border-right: 1px solid var(--line);
+}
+/* Eyebrow beside the title, not stacked above it: the strip stays one row tall. */
+.bots-list-panel > .bots-list-head > div { display: flex; align-items: baseline; gap: var(--space-2); }
+.bots-list-panel > .bots-list-head > div > span { margin-bottom: 0; }
+.bots-list-panel > .bots-list { flex: 1; min-width: 0; overflow-x: auto; }
+.bots-list-panel > .result-state { flex: 1; min-width: 0; }
 .bots-list-head, .bots-detail-head {
   min-height: 72px;
   display: flex;
@@ -5426,28 +5443,31 @@
 .bots-filter button:hover { color: var(--text); }
 .bots-filter button.active { color: var(--accent-ink); background: var(--accent); }
 
-.bots-list { display: grid; }
-/* One line per bot: glyph, name, state. The picker is a chooser, not a
-   comparison table — the numbers are in the summary panel right below it. */
+/* Chips side by side rather than a stacked list. */
+.bots-list { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(176px, 1fr); }
+/* One chip per bot: glyph, name, state. The picker is a chooser, not a
+   comparison table — the numbers belong to the summary panel below it. */
 .bots-list > div > button {
   width: 100%;
+  height: 100%;
   min-height: 52px;
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-1) var(--space-3);
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   border: 0;
-  border-top: 1px solid var(--line);
-  border-left: 2px solid transparent;
+  border-left: 1px solid var(--line);
+  /* Selection reads along the strip, so the marker sits under the chip. */
+  border-bottom: 2px solid transparent;
   color: var(--text);
   background: transparent;
   cursor: pointer;
   text-align: left;
 }
-.bots-list > div:first-child > button { border-top: 0; }
+.bots-list > div:first-child > button { border-left: 0; }
 .bots-list > div > button:hover { background: var(--surface-2); }
-.bots-list > div > button.active { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface)); }
+.bots-list > div > button.active { border-bottom-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface)); }
 .bots-list-icon {
   width: 28px;
   height: 28px;
@@ -6164,6 +6184,19 @@
 }
 @media (max-width: 800px) {
   .bots-list-head { align-items: flex-start; flex-direction: column; }
+  /* Heading takes the full strip and the chips wrap onto their own row: a
+     150px sliver of one chip is not a usable picker. */
+  .bots-list-panel > .bots-list-head {
+    flex: 1 0 100%;
+    align-items: center;
+    flex-direction: row;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  /* Both children claim the full basis, so they land on separate rows instead
+     of the list collapsing to zero beside a non-shrinking heading. */
+  .bots-list-panel > .bots-list,
+  .bots-list-panel > .result-state { flex: 1 0 100%; }
   .bots-overview-figures { grid-template-columns: 1fr; }
   .bots-overview-figures > div { border-left: 0; border-top: 1px solid var(--line); }
   .bots-overview-figures > div:first-child { border-top: 0; }
