@@ -1,14 +1,16 @@
 /*
-  대회 화면 초안 스타일 (#54, 임시).
+  모의투자 화면 초안 스타일 (#54, 임시).
 
-  제품 토큰(tokens.css)만 사용하고 클래스는 모두 cdraft- 접두사로 격리한다.
-  초안을 고르면 이 파일은 삭제한다.
+  제품 토큰(tokens.css)만 쓰고 클래스는 cdraft- 로 격리한다. 간격은 24(블록)/
+  16(요소)/8(밀집) 세 단계만 쓰고, 표는 컨테이너 전폭을 쓴다. 최소 글자 11px.
+  안을 고르면 이 파일은 삭제한다.
 */
-/* 제품 셸 안에서 렌더되므로 바깥 여백은 page-scroll이 준다. */
 .cdraft-root {
   color: var(--text);
   font-size: var(--fs-body);
 }
+
+/* 초안 스위처 ------------------------------------------------------------- */
 .cdraft-switch {
   max-width: 1280px;
   margin: 0 auto var(--space-3);
@@ -61,16 +63,15 @@
   font: 650 var(--fs-caption) var(--font-mono);
 }
 
-/* 초안 공통 ---------------------------------------------------------------- */
+/* 페이지 공통 ------------------------------------------------------------- */
 .cdraft-page {
   margin: 0 auto;
   display: grid;
   gap: var(--space-5);
 }
-.cdraft-page.is-league,
-.cdraft-page.is-terminal,
-.cdraft-page.is-timeline { max-width: 1280px; }
-.cdraft-page.is-featured { max-width: 1232px; }
+.cdraft-page.is-mine,
+.cdraft-page.is-dense { max-width: 1280px; }
+.cdraft-page.is-buckets { max-width: 1232px; }
 .cdraft-page-head {
   display: flex;
   align-items: flex-end;
@@ -110,8 +111,130 @@
   font-size: var(--fs-control);
   font-weight: 750;
 }
+.cdraft-block { display: grid; gap: var(--space-4); }
+.cdraft-block-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.cdraft-block-head h2 { margin: 0; font-size: var(--fs-section); }
+.cdraft-block-head p {
+  margin: var(--space-1) 0 0;
+  max-width: 64ch;
+  color: var(--text-faint);
+  font-size: var(--fs-control);
+  line-height: 1.5;
+}
+.cdraft-count {
+  flex: none;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  color: var(--text-soft);
+  background: var(--surface-2);
+  font: 700 var(--fs-caption) var(--font-mono);
+}
+
+/* 종류·채점·마감 표기 ---------------------------------------------------- */
+.cdraft-kind {
+  flex: none;
+  width: max-content;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: 99px;
+  font-size: var(--fs-caption);
+  font-weight: 750;
+  white-space: nowrap;
+}
+.cdraft-kind.is-sm { min-height: 20px; padding: 0 6px; font-size: var(--fs-micro); }
+.cdraft-kind[data-kind="official-live"] {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.cdraft-kind[data-kind="official-backtest"] {
+  border-color: color-mix(in srgb, var(--tone-data) 45%, transparent);
+  color: var(--tone-data);
+  background: color-mix(in srgb, var(--tone-data) 12%, var(--surface));
+}
+.cdraft-kind[data-kind="general"] {
+  border-color: var(--line);
+  color: var(--text-soft);
+  background: var(--surface-2);
+}
+.cdraft-scoring {
+  width: max-content;
+  padding: 2px var(--space-2);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-xs);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.cdraft-scoring[data-scoring="표준점수제"] { color: var(--tone-standard); }
+.cdraft-scoring[data-scoring="위험조정 점수제"] { color: var(--tone-risk); }
+.cdraft-scoring[data-scoring="수익률 점수제"] { color: var(--tone-return); }
+.cdraft-scoring[data-scoring="샤프 점수제"] { color: var(--tone-sharpe); }
+.cdraft-scoring[data-scoring="백테스팅"] { color: var(--tone-data); }
+.cdraft-deadline { display: grid; gap: 1px; justify-items: end; }
+.cdraft-deadline b { font: 700 var(--fs-card) var(--font-mono); }
+.cdraft-deadline b.is-urgent { color: var(--warning); }
+.cdraft-deadline small { color: var(--text-faint); font-size: var(--fs-micro); white-space: nowrap; }
+.cdraft-myrank { display: grid; gap: 1px; justify-items: end; }
+.cdraft-myrank b { color: var(--accent); font: 700 var(--fs-card) var(--font-mono); }
+.cdraft-myrank small { color: var(--gain); font: 650 var(--fs-micro) var(--font-mono); }
+.cdraft-myrank.is-idle em { color: var(--text-faint); font-style: normal; font-size: var(--fs-caption); }
+.is-num { text-align: right; justify-items: end; font-variant-numeric: tabular-nums; }
+.cdraft-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--accent);
+  font-size: var(--fs-control);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.cdraft-joined {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--positive);
+  font: 700 var(--fs-control) var(--font-mono);
+  white-space: nowrap;
+}
+.cdraft-open {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--accent);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+
+/* 필터 한 줄 -------------------------------------------------------------- */
+.cdraft-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
 .cdraft-search {
-  min-height: 36px;
+  flex: 1 1 240px;
+  min-width: 200px;
+  max-width: 320px;
+  min-height: 34px;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -130,6 +253,30 @@
   background: transparent;
   font-size: var(--fs-control);
 }
+.cdraft-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.cdraft-chips button {
+  min-height: 30px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+  font-size: var(--fs-caption);
+  font-weight: 650;
+  white-space: nowrap;
+}
+.cdraft-chips button:hover { color: var(--text); }
+.cdraft-chips button.is-on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.cdraft-chips button[data-kind="official-backtest"].is-on {
+  border-color: var(--tone-data);
+  color: var(--tone-data);
+  background: color-mix(in srgb, var(--tone-data) 12%, var(--surface));
+}
 .cdraft-segment {
   display: inline-flex;
   padding: 2px;
@@ -138,8 +285,8 @@
   background: var(--surface-2);
 }
 .cdraft-segment button {
-  min-height: 30px;
-  padding: 0 var(--space-3);
+  min-height: 28px;
+  padding: 0 var(--space-2);
   border: 0;
   border-radius: var(--radius-xs);
   color: var(--text-faint);
@@ -147,78 +294,58 @@
   cursor: pointer;
   font-size: var(--fs-caption);
   font-weight: 700;
+  white-space: nowrap;
 }
 .cdraft-segment button.is-active { color: var(--accent-ink); background: var(--accent); }
-
-/* 종류 칩 — 색·아이콘·문장 세 가지로 동시에 구분한다. */
-.cdraft-kind {
-  flex: none;
-  width: max-content;
+.cdraft-reset {
+  margin-left: auto;
+  min-height: 30px;
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  min-height: 24px;
   padding: 0 var(--space-2);
-  border: 1px solid transparent;
-  border-radius: 99px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
   font-size: var(--fs-caption);
-  font-weight: 750;
-  white-space: nowrap;
+  font-weight: 650;
 }
-.cdraft-kind.is-sm { min-height: 22px; font-size: var(--fs-micro); }
-.cdraft-kind[data-kind="official-live"] {
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+.cdraft-reset:disabled { opacity: .5; cursor: default; }
+.cdraft-empty {
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--text-faint);
+  background: var(--surface);
+  font-size: var(--fs-caption);
+}
+.cdraft-empty strong { color: var(--text); font-size: var(--fs-card); }
+.cdraft-empty button {
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
   color: var(--accent);
-  background: var(--accent-soft);
+  background: transparent;
+  cursor: pointer;
+  font-size: var(--fs-control);
+  font-weight: 650;
 }
-.cdraft-kind[data-kind="official-backtest"] {
-  border-color: color-mix(in srgb, var(--tone-data) 45%, transparent);
-  color: var(--tone-data);
-  background: color-mix(in srgb, var(--tone-data) 12%, var(--surface));
-}
-.cdraft-kind[data-kind="general"] {
-  border-color: var(--line);
-  color: var(--text-soft);
-  background: var(--surface-2);
-}
-/* 채점 방식은 톤만 다른 얇은 배지. 종류 칩과 경쟁하지 않는다. */
-.cdraft-scoring {
-  width: max-content;
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-xs);
-  border: 1px solid currentColor;
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  white-space: nowrap;
-}
-.cdraft-scoring[data-scoring="표준점수제"] { color: var(--tone-standard); }
-.cdraft-scoring[data-scoring="위험조정 점수제"] { color: var(--tone-risk); }
-.cdraft-scoring[data-scoring="수익률 점수제"] { color: var(--tone-return); }
-.cdraft-scoring[data-scoring="샤프 점수제"] { color: var(--tone-sharpe); }
-.cdraft-scoring[data-scoring="백테스팅"] { color: var(--tone-data); }
-.cdraft-dday { display: grid; gap: 1px; justify-items: end; }
-.cdraft-dday b { font: 700 var(--fs-card) var(--font-mono); }
-.cdraft-dday b.is-urgent { color: var(--warning); }
-.cdraft-dday small { color: var(--text-faint); font-size: var(--fs-micro); }
-.is-num { text-align: right; justify-items: end; font-variant-numeric: tabular-nums; }
-.is-gain { color: var(--gain); }
 
-/* A · 리그 순위표 --------------------------------------------------------- */
-.cdraft-league-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-.cdraft-league-toolbar .cdraft-search { width: 280px; }
-.cdraft-league-table {
-  --cols: 116px minmax(0, 1fr) 128px 72px 88px 84px;
+/* 표 공통 ----------------------------------------------------------------- */
+.cdraft-table {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface);
   overflow: hidden;
 }
-.cdraft-league-head {
+.cdraft-thead {
   display: grid;
   grid-template-columns: var(--cols);
   align-items: center;
@@ -231,9 +358,24 @@
   font-size: var(--fs-caption);
   font-weight: 700;
 }
-.cdraft-league-row {
+.cdraft-thead button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+.cdraft-thead button.is-num { justify-content: flex-end; }
+.cdraft-thead button i { font-style: normal; font-size: 9px; opacity: .55; }
+.cdraft-thead button:hover { color: var(--text); }
+.cdraft-thead button.is-sorted { color: var(--accent); }
+.cdraft-thead button.is-sorted i { opacity: 1; }
+.cdraft-trow {
   width: 100%;
-  min-height: 56px;
   display: grid;
   grid-template-columns: var(--cols);
   align-items: center;
@@ -241,264 +383,142 @@
   padding: var(--space-2) var(--space-4);
   border: 0;
   border-top: 1px solid var(--line);
-  color: inherit;
+  color: var(--text-faint);
   background: transparent;
   cursor: pointer;
   text-align: left;
 }
-.cdraft-league-row:first-of-type { border-top: 0; }
-.cdraft-league-row:hover { background: var(--surface-2); }
-.cdraft-league-name { min-width: 0; display: grid; gap: 1px; }
-.cdraft-league-name strong {
+.cdraft-trow:first-of-type { border-top: 0; }
+.cdraft-trow:hover { background: var(--surface-2); }
+.cdraft-trow.is-mine { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.cdraft-trow.is-mine:hover { background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.cdraft-trow > span { min-width: 0; }
+.cdraft-trow .is-num > b { color: var(--text); font: 700 var(--fs-card) var(--font-mono); }
+.cdraft-trow .is-num > b.is-urgent { color: var(--warning); }
+.cdraft-name { display: grid; gap: 2px; }
+.cdraft-name strong {
   overflow: hidden;
+  color: var(--text);
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--fs-card);
 }
-.cdraft-league-name small { color: var(--text-faint); font-size: var(--fs-caption); }
-.cdraft-league-row > .is-num b { font: 700 var(--fs-card) var(--font-mono); }
-.cdraft-league-rank { display: grid; gap: 1px; }
-.cdraft-league-rank b { color: var(--accent); }
-.cdraft-league-rank small { color: var(--gain); font: 650 var(--fs-micro) var(--font-mono); }
-.cdraft-league-rank em { color: var(--text-faint); font-style: normal; font-size: var(--fs-caption); }
-
-/* B · 목록 + 미리보기 ----------------------------------------------------- */
-.cdraft-terminal-grid {
-  display: grid;
-  grid-template-columns: 400px minmax(0, 1fr);
-  align-items: start;
-  gap: var(--space-4);
-}
-.cdraft-terminal-list,
-.cdraft-terminal-detail {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  overflow: hidden;
-}
-.cdraft-terminal-list > header { padding: var(--space-3); border-bottom: 1px solid var(--line); }
-.cdraft-terminal-row {
-  width: 100%;
-  min-height: 48px;
-  display: grid;
-  grid-template-columns: 92px minmax(0, 1fr) 56px;
+.cdraft-name small {
+  display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border: 0;
-  border-top: 1px solid var(--line);
-  color: inherit;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-}
-.cdraft-terminal-row:first-of-type { border-top: 0; }
-.cdraft-terminal-row:hover { background: var(--surface-2); }
-.cdraft-terminal-row.is-selected { background: var(--accent-soft); }
-.cdraft-terminal-row > span { min-width: 0; display: grid; gap: 1px; }
-.cdraft-terminal-row strong {
   overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--text-faint);
   white-space: nowrap;
-  font-size: var(--fs-control);
-}
-.cdraft-terminal-row small { color: var(--text-faint); font-size: var(--fs-micro); }
-.cdraft-terminal-row > b { text-align: right; font: 700 var(--fs-caption) var(--font-mono); }
-.cdraft-terminal-row > b.is-urgent { color: var(--warning); }
-.cdraft-terminal-detail { display: grid; gap: var(--space-4); padding: var(--space-4); }
-.cdraft-terminal-detail > header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-.cdraft-terminal-detail > header > div { display: grid; gap: var(--space-2); }
-.cdraft-terminal-detail h2 { margin: 0; font-size: 26px; line-height: 1.2; }
-.cdraft-terminal-detail p { margin: 0; color: var(--text-soft); font-size: var(--fs-control); }
-.cdraft-conditions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-  gap: var(--space-3) var(--space-4);
-  margin: 0;
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-.cdraft-conditions > div { display: grid; gap: 2px; }
-.cdraft-conditions dt { color: var(--text-faint); font-size: var(--fs-caption); }
-.cdraft-conditions dd { margin: 0; font-size: var(--fs-control); font-weight: 650; }
-.cdraft-leaderboard { display: grid; }
-.cdraft-leaderboard > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding-bottom: var(--space-2);
-}
-.cdraft-leaderboard h3 { margin: 0; font-size: var(--fs-section); }
-.cdraft-leaderboard > header span { color: var(--text-faint); font-size: var(--fs-caption); }
-.cdraft-leader-head,
-.cdraft-leader-row {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) 92px 92px;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-2);
-}
-.cdraft-leader-head {
-  min-height: 32px;
-  border-bottom: 1px solid var(--line);
-  color: var(--text-faint);
   font-size: var(--fs-caption);
-  font-weight: 700;
 }
-.cdraft-leader-row {
-  min-height: 44px;
-  border-bottom: 1px solid var(--line);
-  font-size: var(--fs-control);
-}
-.cdraft-leader-row b { font: 700 var(--fs-card) var(--font-mono); }
-.cdraft-leader-row.is-mine { background: var(--accent-soft); }
-.cdraft-leader-row em {
-  margin-left: var(--space-2);
-  color: var(--accent);
-  font-style: normal;
-  font-size: var(--fs-micro);
-  font-weight: 700;
-}
-.cdraft-leader-row .is-num { font-family: var(--font-mono); font-weight: 700; }
 
-/* C · 공식 카드 + 일반 표 ------------------------------------------------- */
-.cdraft-block { display: grid; gap: var(--space-4); }
-.cdraft-block-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-.cdraft-block-head h2 { margin: 0; font-size: var(--fs-section); }
-.cdraft-block-head p {
-  margin: var(--space-1) 0 0;
-  max-width: 62ch;
-  color: var(--text-faint);
-  font-size: var(--fs-control);
-  line-height: 1.5;
-}
-.cdraft-count {
-  flex: none;
-  min-height: 24px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 var(--space-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
-  color: var(--text-soft);
-  background: var(--surface-2);
-  font: 700 var(--fs-caption) var(--font-mono);
-}
-.cdraft-toolbar { flex: none; display: flex; align-items: center; gap: var(--space-2); }
-.cdraft-toolbar .cdraft-search { width: 240px; }
-.cdraft-official-cards {
+/* A · 내 성적표 먼저 ----------------------------------------------------- */
+.cdraft-scorecards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: var(--space-4);
 }
-.cdraft-official-card {
-  border: 1px solid var(--line);
-  border-top: 3px solid var(--kind-color, var(--line-strong));
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  overflow: hidden;
-}
-.cdraft-official-card[data-kind="official-live"] { --kind-color: var(--accent); }
-.cdraft-official-card[data-kind="official-backtest"] { --kind-color: var(--tone-data); }
-.cdraft-official-card > button {
-  width: 100%;
+.cdraft-scorecard {
   display: grid;
   gap: var(--space-3);
   padding: var(--space-4);
-  border: 0;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--kind-color, var(--line-strong));
+  border-radius: var(--radius-md);
   color: inherit;
-  background: transparent;
+  background: var(--surface);
   cursor: pointer;
   text-align: left;
 }
-.cdraft-official-card > button:hover { background: var(--surface-2); }
-.cdraft-official-card header {
+.cdraft-scorecard[data-kind="official-live"] { --kind-color: var(--accent); }
+.cdraft-scorecard[data-kind="official-backtest"] { --kind-color: var(--tone-data); }
+.cdraft-scorecard[data-kind="general"] { --kind-color: var(--text-soft); }
+.cdraft-scorecard:hover { background: var(--surface-2); }
+.cdraft-scorecard > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
 }
-.cdraft-state {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  color: var(--text-faint);
-  font-size: var(--fs-caption);
-  font-weight: 650;
-}
-.cdraft-state i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); }
-.cdraft-state[data-status="진행 중"] { color: var(--positive); }
-.cdraft-state[data-status="진행 중"] i { background: var(--positive); }
-.cdraft-official-card h3 { margin: 0; font-size: 19px; line-height: 1.3; }
-.cdraft-official-card > button > p { margin: 0; color: var(--text-soft); font-size: var(--fs-control); line-height: 1.5; }
-.cdraft-official-card dl {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3) var(--space-4);
-  margin: 0;
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--line);
-}
-.cdraft-official-card dl > div { display: grid; gap: 2px; }
-.cdraft-official-card dt { color: var(--text-faint); font-size: var(--fs-caption); }
-.cdraft-official-card dd { margin: 0; }
-.cdraft-official-card dd b { font: 700 var(--fs-control) var(--font-mono); }
-.cdraft-official-card dd b.is-idle { color: var(--text-faint); }
-.cdraft-official-card footer {
+.cdraft-scorecard > header b { font: 700 var(--fs-control) var(--font-mono); }
+.cdraft-scorecard > header b.is-urgent { color: var(--warning); }
+.cdraft-scorecard-name { font-size: var(--fs-card); }
+.cdraft-scorecard-rank {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
+  gap: var(--space-3);
+}
+.cdraft-scorecard-rank > span:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+.cdraft-scorecard-rank em {
+  color: var(--accent);
+  font: 700 40px/1 var(--font-mono);
+  font-style: normal;
+}
+.cdraft-scorecard-rank small { color: var(--text-faint); font-size: var(--fs-caption); }
+.cdraft-scorecard-return { display: grid; gap: 1px; justify-items: end; }
+.cdraft-scorecard-return b { color: var(--gain); font: 700 var(--fs-card) var(--font-mono); }
+.cdraft-scorecard > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-2);
   padding-top: var(--space-3);
   border-top: 1px solid var(--line);
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
 }
-.cdraft-official-card footer .cdraft-dday { justify-items: start; }
-.cdraft-open {
-  display: inline-flex;
+.cdraft-table.is-mine-table { --cols: 96px minmax(0, 1fr) 136px 80px 104px; }
+.cdraft-table.is-mine-table .cdraft-trow { min-height: 60px; }
+.cdraft-table.is-mine-table .cdraft-cta { justify-content: flex-end; }
+
+/* B · 한 표에 전부 ------------------------------------------------------- */
+.cdraft-table.is-dense-table { --cols: 92px 88px minmax(0, 1fr) 128px 72px 96px; }
+.cdraft-table.is-dense-table .cdraft-trow { min-height: 56px; }
+.cdraft-table.is-dense-table .cdraft-trow > span:nth-child(4) {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1);
-  color: var(--accent);
-  font-size: var(--fs-control);
-  font-weight: 700;
+  gap: 4px;
 }
-.cdraft-general-table {
-  --cols: 128px minmax(0, 1fr) 112px 88px 32px;
+
+/* C · 마감 구간 묶음 ---------------------------------------------------- */
+.cdraft-buckets { display: grid; gap: var(--space-5); }
+.cdraft-bucket { display: grid; gap: var(--space-3); }
+.cdraft-bucket > header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 40px;
+  padding-bottom: var(--space-2);
+  border-bottom: 2px solid var(--bucket-color, var(--line));
+}
+.cdraft-bucket[data-bucket="week"] { --bucket-color: var(--warning); }
+.cdraft-bucket[data-bucket="month"] { --bucket-color: var(--accent); }
+.cdraft-bucket[data-bucket="later"] { --bucket-color: var(--line-strong); }
+.cdraft-bucket > header h2 { margin: 0; font-size: var(--fs-section); }
+.cdraft-bucket > header p {
+  margin: 0;
+  flex: 1 1 auto;
+  color: var(--text-faint);
+  font-size: var(--fs-control);
+}
+.cdraft-bucket-rows {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface);
   overflow: hidden;
 }
-.cdraft-general-head {
-  display: grid;
-  grid-template-columns: var(--cols);
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 40px;
-  padding: 0 var(--space-4);
-  border-bottom: 1px solid var(--line);
-  background: var(--surface-2);
-  color: var(--text-faint);
-  font-size: var(--fs-caption);
-  font-weight: 700;
-}
-.cdraft-general-row {
+.cdraft-bucket-row {
   width: 100%;
   min-height: 64px;
   display: grid;
-  grid-template-columns: var(--cols);
+  grid-template-columns: minmax(0, 1fr) 128px 88px 108px;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
@@ -509,143 +529,13 @@
   cursor: pointer;
   text-align: left;
 }
-.cdraft-general-row:first-of-type { border-top: 0; }
-.cdraft-general-row:hover { background: var(--surface-2); }
-.cdraft-general-name { min-width: 0; display: grid; gap: 2px; }
-.cdraft-general-name strong {
-  overflow: hidden;
-  color: var(--text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--fs-card);
-}
-.cdraft-general-name small { color: var(--text-faint); font-size: var(--fs-caption); }
-.cdraft-general-row .is-num b { color: var(--text); font: 700 var(--fs-card) var(--font-mono); }
-.cdraft-general-row .is-num small { display: block; font-size: var(--fs-micro); }
-
-/* D · 마감 타임라인 ------------------------------------------------------- */
-.cdraft-timeline {
-  display: grid;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-}
-.cdraft-timeline > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-.cdraft-timeline h2 { margin: 0; font-size: var(--fs-section); }
-.cdraft-timeline-legend { display: flex; gap: var(--space-3); }
-.cdraft-timeline-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  color: var(--text-faint);
-  font-size: var(--fs-caption);
-}
-.cdraft-timeline-legend i { width: 8px; height: 8px; border-radius: 2px; background: var(--text-faint); }
-.cdraft-timeline-legend span[data-kind="official-live"] i { background: var(--accent); }
-.cdraft-timeline-legend span[data-kind="official-backtest"] i { background: var(--tone-data); }
-.cdraft-timeline-legend span[data-kind="general"] i { background: var(--text-soft); }
-.cdraft-timeline-track {
-  position: relative;
-  height: 132px;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(90deg, color-mix(in srgb, var(--warning) 14%, var(--surface-2)), var(--surface-2) 40%);
-}
-.cdraft-timeline-item {
-  position: absolute;
-  top: var(--space-3);
-  display: grid;
-  gap: 2px;
-  padding: var(--space-2);
-  border: 1px solid var(--kind-color, var(--line));
-  border-left: 3px solid var(--kind-color, var(--line));
-  border-radius: var(--radius-xs);
-  color: inherit;
-  background: var(--surface);
-  cursor: pointer;
-  text-align: left;
-}
-.cdraft-timeline-item:nth-child(even) { top: 66px; }
-.cdraft-timeline-item[data-kind="official-live"] { --kind-color: var(--accent); }
-.cdraft-timeline-item[data-kind="official-backtest"] { --kind-color: var(--tone-data); }
-.cdraft-timeline-item[data-kind="general"] { --kind-color: var(--text-soft); }
-.cdraft-timeline-item b { font: 700 var(--fs-caption) var(--font-mono); }
-.cdraft-timeline-item small {
-  max-width: 132px;
-  overflow: hidden;
-  color: var(--text-faint);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--fs-micro);
-}
-.cdraft-timeline-axis {
-  position: absolute;
-  inset: auto 0 0;
-  display: flex;
-  justify-content: space-between;
-  padding: 0 var(--space-2) var(--space-1);
-  color: var(--text-faint);
-  font: 650 var(--fs-micro) var(--font-mono);
-}
-.cdraft-timeline-table {
-  --cols: minmax(0, 1fr) 120px 96px 96px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  overflow: hidden;
-}
-.cdraft-timeline-head {
-  display: grid;
-  grid-template-columns: var(--cols);
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 40px;
-  padding: 0 var(--space-4);
-  border-bottom: 1px solid var(--line);
-  background: var(--surface-2);
-  color: var(--text-faint);
-  font-size: var(--fs-caption);
-  font-weight: 700;
-}
-.cdraft-timeline-row {
-  width: 100%;
-  min-height: 52px;
-  display: grid;
-  grid-template-columns: var(--cols);
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-4);
-  border: 0;
-  border-top: 1px solid var(--line);
-  color: inherit;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-}
-.cdraft-timeline-row:first-of-type { border-top: 0; }
-.cdraft-timeline-row:hover { background: var(--surface-2); }
-.cdraft-timeline-name {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.cdraft-timeline-name strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--fs-control);
-}
-.cdraft-timeline-name small { flex: none; color: var(--text-faint); font-size: var(--fs-caption); }
-.cdraft-timeline-row .is-num b { font: 700 var(--fs-card) var(--font-mono); }
-.cdraft-timeline-row .is-num b.is-urgent { color: var(--warning); }
+.cdraft-bucket-row:first-of-type { border-top: 0; }
+.cdraft-bucket-row:hover { background: var(--surface-2); }
+.cdraft-bucket-row .is-num > b { color: var(--text); font: 700 var(--fs-card) var(--font-mono); }
+.cdraft-bucket-row .is-num > small { display: block; font-size: var(--fs-micro); }
 
 @media (max-width: 1080px) {
-  .cdraft-terminal-grid { grid-template-columns: minmax(0, 1fr); }
+  .cdraft-table.is-dense-table { --cols: 92px 80px minmax(0, 1fr) 120px; }
+  .cdraft-table.is-dense-table .cdraft-thead > *:nth-child(n+5),
+  .cdraft-table.is-dense-table .cdraft-trow > *:nth-child(n+5) { display: none; }
 }
