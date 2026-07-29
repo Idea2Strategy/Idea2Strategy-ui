@@ -245,12 +245,12 @@
 .cdraft-board-head span { color: var(--text-faint); font-size: var(--fs-caption); }
 
 /* 행 — A(핀 게시판)·B(일반 섹션)가 같은 열 그리드를 공유한다.
-   종류/번호 76 | 이름 1fr | 개설자 92 | 채점 128 | 마감 76 | 참여 봇 76
-   오른쪽 끝은 숫자로 끝난다 — CTA·화살표·배지 없음. */
+   3안: 종류/번호 76 | 대회(이름+채점 배지 / 개설자 보조줄) 1fr | 마감 88 | 참여 봇 72
+   채점은 이름 옆 배지, 개설자는 보조줄 — 열이 셋뿐이라 우측이 조용하다. */
 .cdraft-row {
-  --cols: 76px minmax(0, 1fr) 92px 128px 76px 76px;
+  --cols: 76px minmax(0, 1fr) 88px 72px;
   width: 100%;
-  min-height: 64px;
+  min-height: 68px;
   display: grid;
   grid-template-columns: var(--cols);
   align-items: center;
@@ -323,6 +323,9 @@
   font-size: var(--fs-card);
 }
 .cdraft-row-name small { color: var(--text-faint); font-size: var(--fs-caption); }
+/* 이름이 길어도 채점 배지는 잘리지 않는다. */
+.cdraft-row-name .cdraft-scoring { flex: none; }
+.cdraft-row-name small .cdraft-host-official { font-size: var(--fs-caption); }
 .cdraft-row-cell { min-width: 0; display: grid; gap: 1px; }
 .cdraft-row-cell.is-num { justify-items: end; }
 .cdraft-row-cell.is-num b {
@@ -492,11 +495,9 @@
   .cdraft-rail > header,
   .cdraft-rail > .cdraft-search { grid-column: 1 / -1; }
   .cdraft-cards { grid-template-columns: minmax(0, 1fr); }
-  /* 좁은 폭: 종류/번호 · 이름 · 마감만 남긴다(개설자·채점·참여 봇 숨김). */
+  /* 좁은 폭: 종류/번호 · 대회 · 마감만 남긴다(참여 봇 숨김). */
   .cdraft-row { --cols: 64px minmax(0, 1fr) 76px; }
-  .cdraft-row > .cdraft-row-cell:nth-child(3),
-  .cdraft-row > .cdraft-row-cell:nth-child(4),
-  .cdraft-row > .cdraft-row-cell:nth-child(6) { display: none; }
+  .cdraft-row > .cdraft-row-cell:nth-child(4) { display: none; }
 }
 
 /* 스위처 확장 — 배치안 + 공식 대회 수 컨트롤 --------------------------------- */

@@ -259,6 +259,7 @@ function BoardRow({ competition, pinned = false, index }: { competition: Competi
     <span className="cdraft-row-cell is-type">
       {pinned ? <KindChip kind={competition.kind} /> : <b className="cdraft-row-no">{index}</b>}
     </span>
+    {/* 3안: 채점 배지는 이름 옆, 개설자는 보조줄. 열은 셋뿐이라 정렬이 단순하다. */}
     <span className="cdraft-row-name">
       <strong>
         {competition.name}
@@ -267,16 +268,16 @@ function BoardRow({ competition, pinned = false, index }: { competition: Competi
           title={`내 봇 ${competition.myRank}위 참가 중`}
           aria-label="참가 중"
         />}
+        <Scoring scoring={competition.scoring} />
       </strong>
+      <small>
+        {pinned
+          ? <b className="cdraft-host-official" title="공식 대회" aria-label="공식 대회">
+            <BadgeCheck size={14} aria-hidden="true" />Official
+          </b>
+          : competition.host}
+      </small>
     </span>
-    <span className="cdraft-row-cell is-host">
-      {pinned
-        ? <b className="cdraft-host-official" title="공식 대회" aria-label="공식 대회">
-          <BadgeCheck size={16} aria-hidden="true" />Official
-        </b>
-        : competition.host}
-    </span>
-    <span className="cdraft-row-cell"><Scoring scoring={competition.scoring} /></span>
     <span className="cdraft-row-cell is-num"><Dday competition={competition} /><small>마감</small></span>
     <span className="cdraft-row-cell is-num"><b>{competition.bots}</b><small>참여 봇</small></span>
   </button>;
