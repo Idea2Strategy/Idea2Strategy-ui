@@ -336,19 +336,29 @@ Deliberately not on Home:
   old title-row progress bar is gone — a percent duplicates the D-day, and
   during recruiting it read 0%. Progress survives in exactly one place: a
   mini bar inside the 기간 cell of the conditions table.
-- **Conditions fold inline** behind a `대회 조건 ⌄` toggle (the old info
-  modal is deleted): expanded by default while recruiting — that is when the
-  conditions decide whether to join — and collapsed while running.
+- **Conditions fold inline** behind a `대회 조건 ⌄` toggle attached to the
+  bottom edge of the header card (the old info modal is deleted), collapsed
+  by default — the title and description read first. **종목 범위 is
+  per-competition data** (`universe`): a base universe optionally narrowed by
+  an exclude list or replaced by an only-these-tickers list; the fact cell
+  shows the summary ("미국 상장 ETF · 2종목 제외", "지정 3종목") with every
+  ticker as a chip underneath.
 - **Recruiting and running are different screens.** While recruiting, no
   bot is executing, so there is no leaderboard and no fake interim ranking:
   registered bots show as "등록 완료 · 시작 대기", and a notice panel says
   when scoring happens — for a backtest competition, that the whole field
   replays the same past window and is scored in one batch after close.
   While running, the leaderboard leads.
+- **Leaderboard columns are user-chosen** (2026-07-30): a 지표 편집 popover
+  picks which metrics render as columns (min 1, max 4 — narrower reads
+  poorly; default 점수·수익률), and **clicking a column header sorts by that
+  metric** — the single sort-metric select is gone.
 - **Leaderboard compresses to top 3 + my bots ±2** once the field exceeds
-  ten (gap rows fold the rest; "전체 순위 보기" restores the paginated full
-  list) — at 200 entrants the screen stays the same size and my
-  neighbourhood is always visible without paging.
+  ten — at 200 entrants the screen stays the same size and my neighbourhood
+  is always visible without paging. **A hidden run shorter than 3 rows is
+  never folded** (the fold line would cost more space than the rows). The
+  fold row is a centred pill between hairlines reading `#from–#to · N개
+  접힘`; clicking it or "전체 순위 보기" restores the paginated full list.
 - **The scoring badge opens a help dialog** listing every scoring method
   with its formula, the current competition's method highlighted — the badge
   name alone does not explain how methods differ. The lobby keeps its hover

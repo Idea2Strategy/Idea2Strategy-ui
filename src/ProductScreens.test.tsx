@@ -626,7 +626,11 @@ describe('Competition ranking', () => {
 
     expect(names()[0]).toBe('Bot 3F9A');
 
-    await user.selectOptions(screen.getByRole('combobox', { name: '정렬 지표 선택' }), 'sharpe');
+    /* #54: 지표는 하나씩 갈아끼우는 셀렉트가 아니라 열 편집기로 고르고,
+       정렬은 열 머리를 눌러 바꾼다. */
+    await user.click(screen.getByRole('button', { name: '지표 편집' }));
+    await user.click(screen.getByRole('checkbox', { name: '샤프 지수' }));
+    await user.click(screen.getByRole('button', { name: '샤프 지수 기준 정렬' }));
 
     // Room Beta has the best Sharpe ratio even though it is second on score.
     expect(names()[0]).toBe('Room Beta');
@@ -638,7 +642,9 @@ describe('Competition ranking', () => {
     render(<RoomsView />);
 
     await openMomentumLab(user);
-    await user.selectOptions(screen.getByRole('combobox', { name: '정렬 지표 선택' }), 'volatility');
+    await user.click(screen.getByRole('button', { name: '지표 편집' }));
+    await user.click(screen.getByRole('checkbox', { name: '변동성' }));
+    await user.click(screen.getByRole('button', { name: '변동성 기준 정렬' }));
 
     const ranking = screen.getByLabelText('Momentum Lab 봇 순위');
     const first = ranking.querySelectorAll('div > span:nth-child(2)')[0];
@@ -675,7 +681,11 @@ describe('Competition ranking', () => {
     expect(factsToggle).toHaveAttribute('aria-expanded', 'false');
     await user.click(factsToggle);
     expect(screen.getByText('$10,000')).toBeInTheDocument();
-    expect(screen.getByText('미국 상장 주식 · ETF')).toBeInTheDocument();
+    /* 종목 범위는 대회마다 다르다 — 이 방은 지정 3종목만 허용한다. */
+    expect(screen.getByText('지정 3종목')).toBeInTheDocument();
+    expect(screen.getByText('지정 종목만')).toBeInTheDocument();
+    expect(screen.getByText('TSLA')).toBeInTheDocument();
+    expect(screen.getByText('MSFT')).toBeInTheDocument();
     expect(screen.getByText('0.20%')).toBeInTheDocument();
     expect(screen.getByText('0.05%')).toBeInTheDocument();
     await user.click(factsToggle);
@@ -721,9 +731,16 @@ describe('Competition ranking', () => {
     const notice = screen.getByRole('region', { name: 'ETF Sprint 대회 안내' });
     expect(notice).toHaveTextContent('대회 시작 전이에요');
     expect(notice).toHaveTextContent('일제히 실행돼요');
-    // 모집 중에는 조건 표가 기본으로 펼쳐져 참가 판단을 돕는다.
-    expect(screen.getByRole('button', { name: /대회 조건/ })).toHaveAttribute('aria-expanded', 'true');
+    /* 조건 토글은 헤더 안에 붙어 있고 기본은 접힘. 펼치면 대회별 종목 범위가
+       제외 목록 칩까지 보인다. */
+    const factsToggle = screen.getByRole('button', { name: /대회 조건/ });
+    expect(factsToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(factsToggle.closest('.competition-detail-heading')).not.toBeNull();
+    await user.click(factsToggle);
     expect(screen.getByText('$10,000')).toBeInTheDocument();
+    expect(screen.getByText('미국 상장 ETF · 2종목 제외')).toBeInTheDocument();
+    expect(screen.getByText('제외 종목')).toBeInTheDocument();
+    expect(screen.getByText('TQQQ')).toBeInTheDocument();
   });
 
   test('creates competition bots through the launchable-strategy entry flow', async () => {
@@ -812,7 +829,8 @@ describe('Competition ranking', () => {
     expect(leaderboard.querySelectorAll(':scope > div')).toHaveLength(12);
     expect(within(leaderboard).getByText('#11')).toBeInTheDocument();
     expect(within(leaderboard).queryByText('#12')).not.toBeInTheDocument();
-    const gapButton = within(leaderboard).getByRole('button', { name: /7개 봇 생략/ });
+    const gapButton = within(leaderboard).getByRole('button', { name: '12위부터 18위까지 펼치기' });
+    expect(gapButton).toHaveTextContent('#12–#18 · 7개 접힘');
 
     const user2 = userEvent.setup();
     await user2.click(gapButton);

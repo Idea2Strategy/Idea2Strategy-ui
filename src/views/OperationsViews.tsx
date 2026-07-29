@@ -27,6 +27,7 @@ import {
   Radio,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   Trash2,
   Trophy,
   X,
@@ -1406,6 +1407,16 @@ type CompetitionTone = 'standard' | 'risk' | 'return' | 'sharpe' | 'backtesting'
 type StandingTone = 'gold' | 'silver' | 'bronze' | 'neutral' | 'inactive';
 type OfficialCompetitionStatus = 'recruiting' | 'running';
 
+/*
+  종목 범위(#54): 대회는 기준 유니버스에서 일부를 제외하거나(exclude),
+  아예 지정 종목만(only) 허용할 수 있다. 상세의 조건 표가 목록까지 보여준다.
+*/
+interface CompetitionUniverse {
+  base: string;
+  only?: string[];
+  exclude?: string[];
+}
+
 interface OfficialCompetition {
   name: string;
   description: string;
@@ -1424,13 +1435,14 @@ interface OfficialCompetition {
   progress: number;
   joined?: number;
   entryLimit: number;
+  universe?: CompetitionUniverse;
 }
 
 const officialCompetitions: OfficialCompetition[] = [
-  { name: 'Backtesting Challenge', description: '동일한 과거 시장 데이터에서 전략의 재현성과 안정성을 검증합니다.', bots: 42, ranking: '백테스팅', score: '백테스트 성과', remainingDays: 12, standing: '미참가', standingTone: 'inactive', tone: 'backtesting', official: true, host: 'I2S 운영팀', start: '08.01', end: '08.31', status: 'recruiting', progress: 0, entryLimit: 3 },
-  { name: 'ETF Sprint', description: 'ETF 전략의 단기 수익률을 같은 조건에서 비교합니다.', bots: 128, ranking: '수익률 점수제', score: '수익률', remainingDays: 5, standing: '2위', standingTone: 'silver', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.21', end: '08.01', status: 'recruiting', progress: 18, entryLimit: 3 },
+  { name: 'Backtesting Challenge', description: '동일한 과거 시장 데이터에서 전략의 재현성과 안정성을 검증합니다.', bots: 42, ranking: '백테스팅', score: '백테스트 성과', remainingDays: 12, standing: '미참가', standingTone: 'inactive', tone: 'backtesting', official: true, host: 'I2S 운영팀', start: '08.01', end: '08.31', status: 'recruiting', progress: 0, entryLimit: 3, universe: { base: 'S&P 500' } },
+  { name: 'ETF Sprint', description: 'ETF 전략의 단기 수익률을 같은 조건에서 비교합니다.', bots: 128, ranking: '수익률 점수제', score: '수익률', remainingDays: 5, standing: '2위', standingTone: 'silver', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.21', end: '08.01', status: 'recruiting', progress: 18, entryLimit: 3, universe: { base: '미국 상장 ETF', exclude: ['TQQQ', 'SQQQ'] } },
   /* 로비 표식은 참여 중인 공식 대회 하나만 보여주기로 했다(2026-07-29). */
-  { name: 'I2S Summer League', description: '수익성과 안정성을 함께 평가하는 공식 시즌 대회입니다.', bots: 184, ranking: '표준점수제', score: '복합 점수', remainingDays: 65, standing: '미참가', standingTone: 'inactive', tone: 'standard', official: true, host: 'I2S 운영팀', start: '07.01', end: '09.30', status: 'running', progress: 5, entryLimit: 5 },
+  { name: 'I2S Summer League', description: '수익성과 안정성을 함께 평가하는 공식 시즌 대회입니다.', bots: 184, ranking: '표준점수제', score: '복합 점수', remainingDays: 65, standing: '미참가', standingTone: 'inactive', tone: 'standard', official: true, host: 'I2S 운영팀', start: '07.01', end: '09.30', status: 'running', progress: 5, entryLimit: 5, universe: { base: '미국 상장 주식 · ETF' } },
 ];
 
 const officialBotCodes = [
@@ -1516,6 +1528,7 @@ interface CompetitionRoom {
   official?: boolean;
   bots?: number;
   entryLimit?: number;
+  universe?: CompetitionUniverse;
 }
 
 type RoomStatus = 'recruiting' | 'registering' | 'running';
@@ -1523,7 +1536,7 @@ type RoomStatus = 'recruiting' | 'registering' | 'running';
 const competitionRooms: CompetitionRoom[] = [
   /* Momentum Lab's standings come from the same leaderboard the detail page
      ranks, so the two screens agree on Room Beta's #2. */
-  { name: 'Momentum Lab', score: '복합 점수', ranking: '표준점수제', joined: 8, host: '이서준', start: '07.07', end: '08.04', remainingDays: 8, status: 'running', myBot: 'Room Beta', standings: leaderboard.map((entry) => ({ rank: entry.rank, bot: entry.bot, value: entry.score.toFixed(2), mine: entry.mine })) },
+  { name: 'Momentum Lab', score: '복합 점수', ranking: '표준점수제', joined: 8, host: '이서준', start: '07.07', end: '08.04', remainingDays: 8, status: 'running', myBot: 'Room Beta', universe: { base: '지정 종목', only: ['TSLA', 'MSFT', 'GOOGL'] }, standings: leaderboard.map((entry) => ({ rank: entry.rank, bot: entry.bot, value: entry.score.toFixed(2), mine: entry.mine })) },
   { name: 'ETF Discipline', score: '최대 낙폭', ranking: '위험조정 점수제', joined: 18, host: 'ETF연구회', start: '07.14', end: '08.25', remainingDays: 29, status: 'recruiting', myBot: null, standings: makeStandings(1, '최대 낙폭') },
   { name: 'Quant Study 04', score: '수익률', ranking: '수익률 점수제', joined: 3, host: '박하나', start: '07.21', end: '08.18', remainingDays: 22, status: 'registering', myBot: null, standings: makeStandings(2, '수익률') },
   { name: 'Low Volatility Club', score: '샤프 지수', ranking: '샤프 점수제', joined: 24, host: '차분한투자', start: '07.01', end: '09.26', remainingDays: 61, status: 'running', myBot: null, standings: makeStandings(3, '샤프 지수') },
@@ -1734,12 +1747,14 @@ interface CompetitionCondition {
   detail: string;
 }
 
+/* 종목 범위는 대회마다 다르므로(universe) 여기 고정 목록에서 뺐다. */
 const competitionConditions: CompetitionCondition[] = [
   { label: '시작 자본', value: '$10,000', detail: '모든 참가 봇 동일' },
-  { label: '종목 범위', value: '미국 상장 주식 · ETF', detail: '레버리지 상품 제외' },
   { label: '수수료', value: '0.20%', detail: '매수·매도 체결 시 적용' },
   { label: '슬리피지', value: '0.05%', detail: '시장가 체결 오차 반영' },
 ];
+
+const DEFAULT_UNIVERSE: CompetitionUniverse = { base: '미국 상장 주식 · ETF' };
 
 const competitionDetailDescriptions: Record<string, string> = {
   'ETF Sprint': 'ETF 전략의 단기 수익성과 매매 일관성을 동일한 조건에서 비교하는 공식 대회입니다.',
@@ -1902,10 +1917,13 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
   const [view, setView] = useState<CompetitionView>('recruiting');
   const [remainingFilter, setRemainingFilter] = useState<'all' | '7' | '30'>('all');
   const [selectedRoom, setSelectedRoom] = useState<OfficialCompetition | CompetitionRoom | null>(null);
-  /* 상세(#54): 조건 표 접힘 · 채점 도움말 모달 · 순위표 전체 보기. */
-  const [factsOpen, setFactsOpen] = useState(true);
+  /* 상세(#54): 조건 표 접힘 · 채점 도움말 모달 · 순위표 전체 보기 · 지표 열. */
+  const [factsOpen, setFactsOpen] = useState(false);
   const [scoringHelpOpen, setScoringHelpOpen] = useState(false);
   const [rankingExpanded, setRankingExpanded] = useState(false);
+  /* 순위표에 어떤 성적 지표를 열로 띄울지는 보는 사람이 고른다(최대 4개). */
+  const [visibleMetricIds, setVisibleMetricIds] = useState<RankingMetricId[]>(['score', 'return']);
+  const [metricEditorOpen, setMetricEditorOpen] = useState(false);
   const [sortMetric, setSortMetric] = useState<RankingMetricId>('score');
   const [rankingPage, setRankingPage] = useState(1);
   const [entryDialogStep, setEntryDialogStep] = useState<'closed' | 'select' | 'confirm'>('closed');
@@ -1961,12 +1979,14 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
   }, [scoringHelpOpen]);
-  /* 방을 옮기면 상세 상태를 초기화한다. 조건 표는 참가를 결정하는 모집 중에만
-     기본으로 펼친다. */
+  /* 방을 옮기면 상세 상태를 초기화한다. 조건 표는 항상 접힌 채 시작한다 —
+     헤더의 제목·설명이 먼저 읽혀야 한다. */
   useEffect(() => {
-    setFactsOpen(selectedRoom ? selectedRoom.status !== 'running' : true);
+    setFactsOpen(false);
     setScoringHelpOpen(false);
     setRankingExpanded(false);
+    setMetricEditorOpen(false);
+    setVisibleMetricIds(['score', 'return']);
   }, [selectedRoom]);
   useEffect(() => {
     if (entryDialogStep === 'closed') return undefined;
@@ -2001,6 +2021,17 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     ? `내 봇이 대회 ${myCompetitions.length}개에서 뛰고 있어요. 가장 급한 마감은 ${myCompetitions[0].name} D-${myCompetitions[0].remainingDays}예요.`
     : '아직 참가 중인 대회가 없어요. 모집 중인 대회에서 첫 도전을 시작해보세요.';
   const activeMetric = rankingMetrics.find((metric) => metric.id === sortMetric) ?? rankingMetrics[0];
+  const visibleMetrics = rankingMetrics.filter((metric) => visibleMetricIds.includes(metric.id));
+  const toggleMetricColumn = (id: RankingMetricId) => {
+    if (visibleMetricIds.includes(id)) {
+      if (visibleMetricIds.length === 1) return; // 열은 최소 하나
+      const next = visibleMetricIds.filter((item) => item !== id);
+      setVisibleMetricIds(next);
+      if (sortMetric === id) setSortMetric(next[0]);
+    } else if (visibleMetricIds.length < 4) { // 그 이상은 열이 좁아져 읽히지 않는다
+      setVisibleMetricIds([...visibleMetricIds, id]);
+    }
+  };
   const rankingSource = useMemo(() => {
     const baseEntries = selectedRoom?.official
       ? officialCompetitionLeaderboards[selectedRoom.name] ?? leaderboard
@@ -2036,21 +2067,37 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     myRankedEntries.forEach(({ position }) => {
       for (let near = Math.max(1, position - 2); near <= Math.min(rankedEntries.length, position + 2); near += 1) keep.add(near);
     });
-    const rows: Array<{ kind: 'entry'; entry: LeaderboardEntry; position: number } | { kind: 'gap'; hidden: number }> = [];
-    let hidden = 0;
+    /*
+      생략 규칙: 숨겨지는 구간이 3개 미만이면 접지 않는다 — 생략 줄 하나가
+      행 1~2개보다 자리를 더 차지해서, 접는 의미가 없다. 3개 이상일 때만
+      "#시작–#끝 · N개 접힘" 줄 하나로 접는다.
+    */
+    const rows: Array<{ kind: 'entry'; entry: LeaderboardEntry; position: number } | { kind: 'gap'; hidden: number; from: number; to: number }> = [];
+    const pushRange = (startIndex: number, endIndex: number) => {
+      const hidden = endIndex - startIndex;
+      if (hidden <= 0) return;
+      if (hidden < 3) {
+        for (let index = startIndex; index < endIndex; index += 1) {
+          rows.push({ kind: 'entry', entry: rankedEntries[index], position: index + 1 });
+        }
+      } else {
+        rows.push({ kind: 'gap', hidden, from: startIndex + 1, to: endIndex });
+      }
+    };
+    let runStart = -1;
     rankedEntries.forEach((entry, index) => {
       const position = index + 1;
       if (keep.has(position)) {
-        if (hidden > 0) {
-          rows.push({ kind: 'gap', hidden });
-          hidden = 0;
+        if (runStart >= 0) {
+          pushRange(runStart, index);
+          runStart = -1;
         }
         rows.push({ kind: 'entry', entry, position });
-      } else {
-        hidden += 1;
+      } else if (runStart < 0) {
+        runStart = index;
       }
     });
-    if (hidden > 0) rows.push({ kind: 'gap', hidden });
+    if (runStart >= 0) pushRange(runStart, rankedEntries.length);
     return rows;
   }, [rankingCompressed, rankedEntries, myRankedEntries]);
   const isRecruitingRoom = Boolean(selectedRoom && selectedRoom.status !== 'running');
@@ -2094,10 +2141,18 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     ? competitionDetailDescriptions[selectedRoom.name]
       ?? `${selectedRoom.name} 참가 봇을 동일한 시장 데이터와 체결 조건에서 비교하는 모의투자 대회입니다.`
     : '';
+  /* 종목 범위: 기준 유니버스 + 제외/지정 목록. 값은 요약, 목록은 칩으로. */
+  const detailUniverse = selectedRoom?.universe ?? DEFAULT_UNIVERSE;
+  const detailUniverseValue = detailUniverse.only
+    ? `지정 ${detailUniverse.only.length}종목`
+    : detailUniverse.exclude
+      ? `${detailUniverse.base} · ${detailUniverse.exclude.length}종목 제외`
+      : detailUniverse.base;
   const detailFacts = selectedRoom ? [
     { label: '운영자', value: selectedRoom.host },
     { label: '기간', value: `${selectedRoom.start} – ${selectedRoom.end}` },
     { label: '참여 봇', value: `${selectedRoom.official ? selectedRoom.bots : selectedRoom.joined}개` },
+    { label: '종목 범위', value: detailUniverseValue },
     ...competitionConditions.map(({ label, value }) => ({ label, value })),
   ] : [];
   const closeEntryDialog = () => {
@@ -2171,71 +2226,77 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
       }}><ArrowLeft size={15} /> 대회 목록으로</button>
 
       <header className="competition-detail-heading">
-        <div>
-          {/* 눈썹 줄: 로비와 같은 문법 — 공식은 종류 칩+인증마크, 일반은 개설자. */}
-          <div className="competition-detail-eyebrow">
-            {selectedRoom.official
-              ? <>
-                <CompetitionKindChip backtest={selectedRoom.ranking === '백테스팅'} />
-                <b className="competition-row-official"><BadgeCheck size={14} aria-hidden="true" />Official</b>
-              </>
-              : <span className="competition-detail-host">{`개설자 ${selectedRoom.host}`}</span>}
-            <span className={`competition-detail-state${selectedRoom.remainingDays <= 7 ? ' is-urgent' : ''}`}>
-              {`· ${detailDeadlineText}`}
-            </span>
+        <div className="competition-detail-heading-main">
+          <div>
+            {/* 눈썹 줄: 로비와 같은 문법 — 공식은 종류 칩+인증마크, 일반은 개설자. */}
+            <div className="competition-detail-eyebrow">
+              {selectedRoom.official
+                ? <>
+                  <CompetitionKindChip backtest={selectedRoom.ranking === '백테스팅'} />
+                  <b className="competition-row-official"><BadgeCheck size={14} aria-hidden="true" />Official</b>
+                </>
+                : <span className="competition-detail-host">{`개설자 ${selectedRoom.host}`}</span>}
+              <span className={`competition-detail-state${selectedRoom.remainingDays <= 7 ? ' is-urgent' : ''}`}>
+                {`· ${detailDeadlineText}`}
+              </span>
+            </div>
+            <div className="competition-detail-title">
+              <h1>{selectedRoom.name}</h1>
+            </div>
+            <span className="competition-detail-description">{detailDescription}</span>
           </div>
-          <div className="competition-detail-title">
-            <h1>{selectedRoom.name}</h1>
+          <div className="competition-detail-actions">
+            <button
+              type="button"
+              className="competition-entry-button"
+              disabled={!canEnterSelectedRoom}
+              onClick={openEntryDialog}
+            >
+              {canEnterSelectedRoom
+                ? '대회 참가'
+                : remainingEntrySlots === 0
+                  ? '참가 가능한 봇을 모두 등록했습니다.'
+                  : selectedRoom.status === 'running' ? '진행중인 대회입니다.' : '마감된 대회입니다.'}
+            </button>
           </div>
-          <span className="competition-detail-description">{detailDescription}</span>
         </div>
-        <div className="competition-detail-actions">
+
+        {/* 대회 조건: 헤더에 붙은 접이식 줄. 기본은 접힘 — 제목·설명이 먼저다. */}
+        <div className="competition-detail-facts-block">
           <button
             type="button"
-            className="competition-entry-button"
-            disabled={!canEnterSelectedRoom}
-            onClick={openEntryDialog}
+            className="competition-detail-facts-toggle"
+            aria-expanded={factsOpen}
+            aria-controls="competition-detail-facts"
+            onClick={() => setFactsOpen((open) => !open)}
           >
-            {canEnterSelectedRoom
-              ? '대회 참가'
-              : remainingEntrySlots === 0
-                ? '참가 가능한 봇을 모두 등록했습니다.'
-                : selectedRoom.status === 'running' ? '진행중인 대회입니다.' : '마감된 대회입니다.'}
+            <ChevronDown size={15} aria-hidden="true" className={factsOpen ? 'is-open' : ''} />
+            대회 조건
+            <small>시작 자본·수수료는 모든 참가 봇에게 동일해요</small>
           </button>
+          {factsOpen && <dl id="competition-detail-facts" className="competition-detail-facts" aria-label={`${selectedRoom.name} 대회 조건`}>
+            {detailFacts.map((fact) => <div key={fact.label}>
+              <dt>{fact.label}</dt>
+              <dd className={fact.label === '종목 범위' ? 'is-universe' : undefined}>
+                {fact.value}
+                {fact.label === '기간' && selectedRoom.status === 'running' && <span
+                  className="competition-detail-facts-progress"
+                  role="progressbar"
+                  aria-label={`${selectedRoom.name} 진행률`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={detailProgress}
+                ><i style={{ width: `${detailProgress}%` }} /></span>}
+                {/* 제외/지정 목록은 요약 밑에 티커 칩으로 전부 보여준다. */}
+                {fact.label === '종목 범위' && (detailUniverse.only || detailUniverse.exclude) && <span className="competition-detail-universe">
+                  <em>{detailUniverse.only ? '지정 종목만' : '제외 종목'}</em>
+                  {(detailUniverse.only ?? detailUniverse.exclude ?? []).map((ticker) => <code key={ticker}>{ticker}</code>)}
+                </span>}
+              </dd>
+            </div>)}
+          </dl>}
         </div>
       </header>
-
-      {/* 대회 조건: 모달 대신 접었다 펴는 인라인 표. 참가를 결정하는 모집
-          중에는 기본으로 펼치고, 진행 중에는 접어 순위에 자리를 내준다. */}
-      <div className="competition-detail-facts-block">
-        <button
-          type="button"
-          className="competition-detail-facts-toggle"
-          aria-expanded={factsOpen}
-          aria-controls="competition-detail-facts"
-          onClick={() => setFactsOpen((open) => !open)}
-        >
-          <ChevronDown size={15} aria-hidden="true" className={factsOpen ? 'is-open' : ''} />
-          대회 조건
-          <small>시작 자본·수수료는 모든 참가 봇에게 동일해요</small>
-        </button>
-        {factsOpen && <dl id="competition-detail-facts" className="competition-detail-facts" aria-label={`${selectedRoom.name} 대회 조건`}>
-          {detailFacts.map((fact) => <div key={fact.label}>
-            <dt>{fact.label}</dt>
-            <dd>
-              {fact.value}
-              {fact.label === '기간' && selectedRoom.status === 'running' && <span
-                className="competition-detail-facts-progress"
-                role="progressbar"
-                aria-label={`${selectedRoom.name} 진행률`}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={detailProgress}
-              ><i style={{ width: `${detailProgress}%` }} /></span>}
-            </dd>
-          </div>)}
-        </dl>}
-      </div>
 
       {entrySuccessMessage && <div className="competition-entry-success" role="status">
         <Check size={16} aria-hidden="true" />
@@ -2347,38 +2408,80 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                 </div>
               </div>
               <div className="competition-ranking-tools">
-              <label>
-                <span>정렬 지표</span>
-                <select aria-label="정렬 지표 선택" value={sortMetric} onChange={(event) => setSortMetric(event.target.value as RankingMetricId)}>
-                  {rankingMetrics.map((metric) => <option key={metric.id} value={metric.id}>{metric.label}</option>)}
-                </select>
-              </label>
+                {/* 지표는 하나씩 갈아끼우는 게 아니라 열로 고른다(최대 4개).
+                    정렬은 열 머리를 눌러 바꾼다. */}
+                <button
+                  type="button"
+                  className="competition-metric-edit"
+                  aria-expanded={metricEditorOpen}
+                  aria-controls="competition-metric-editor"
+                  onClick={() => setMetricEditorOpen((open) => !open)}
+                >
+                  <SlidersHorizontal size={13} aria-hidden="true" />
+                  지표 편집
+                </button>
+                {metricEditorOpen && <div id="competition-metric-editor" className="competition-metric-editor" role="group" aria-label="표시할 지표 선택">
+                  {rankingMetrics.map((metric) => {
+                    const checked = visibleMetricIds.includes(metric.id);
+                    const disabled = !checked && visibleMetrics.length >= 4;
+                    return <label key={metric.id} className={disabled ? 'is-disabled' : ''}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={disabled}
+                        onChange={() => toggleMetricColumn(metric.id)}
+                      />
+                      <span className="competition-metric-check" aria-hidden="true"><Check size={11} /></span>
+                      {metric.label}
+                    </label>;
+                  })}
+                  <small>최대 4개 · 열 제목을 누르면 그 지표로 정렬돼요</small>
+                </div>}
               </div>
             </header>
             <div className="competition-ranking-list">
-              <div className="competition-ranking is-metric-ranking" aria-label={`${selectedRoom.name} 봇 순위`}>
-                <header><span>순위</span><span>봇</span><span>{activeMetric.label}</span><span>수익률</span></header>
+              <div
+                className="competition-ranking is-metric-ranking"
+                aria-label={`${selectedRoom.name} 봇 순위`}
+                style={{ '--ranking-cols': `56px minmax(0, 1fr) repeat(${visibleMetrics.length}, minmax(84px, 104px))` } as CSSProperties}
+              >
+                <header>
+                  <span>순위</span>
+                  <span>봇</span>
+                  {visibleMetrics.map((metric) => <button
+                    type="button"
+                    key={metric.id}
+                    className={sortMetric === metric.id ? 'is-sorted' : ''}
+                    aria-label={`${metric.label} 기준 정렬`}
+                    aria-sort={sortMetric === metric.id ? 'descending' : 'none'}
+                    onClick={() => setSortMetric(metric.id)}
+                  >{metric.label}<i aria-hidden="true">{sortMetric === metric.id ? '▼' : '↕'}</i></button>)}
+                </header>
                 {/*
                   1-a 압축(#54): 참가자가 200명이어도 화면은 상위 3 + 내 봇 ±2로
                   끝난다. 생략 구간은 줄 하나로 표시하고, 눌러야 전체가 열린다.
                 */}
-                {rankingCompressed
-                  ? compressedRankingRows.map((row, index) => (row.kind === 'gap'
-                    ? <div className="competition-ranking-gap" key={`gap-${index}`}>
-                      <button type="button" onClick={() => setRankingExpanded(true)}>{`··· ${row.hidden}개 봇 생략 · 전체 보기 ···`}</button>
-                    </div>
-                    : <div className={row.entry.mine ? 'is-mine' : ''} key={row.entry.bot}>
-                      <strong className="competition-ranking-position">#{row.position}</strong>
-                      <span>{row.entry.bot}</span>
-                      <b>{formatMetric(row.entry, activeMetric)}</b>
-                      <span className={row.entry.return >= 0 ? 'positive' : 'negative'}>{row.entry.return > 0 ? '+' : ''}{row.entry.return.toFixed(2)}%</span>
-                    </div>))
-                  : visibleRankingEntries.map((entry, index) => <div className={entry.mine ? 'is-mine' : ''} key={entry.bot}>
-                    <strong className="competition-ranking-position">#{(safeRankingPage - 1) * rankingPageSize + index + 1}</strong>
-                    <span>{entry.bot}</span>
-                    <b>{formatMetric(entry, activeMetric)}</b>
-                    <span className={entry.return >= 0 ? 'positive' : 'negative'}>{entry.return > 0 ? '+' : ''}{entry.return.toFixed(2)}%</span>
-                  </div>)}
+                {(rankingCompressed
+                  ? compressedRankingRows
+                  : visibleRankingEntries.map((entry, index) => ({
+                    kind: 'entry' as const,
+                    entry,
+                    position: (safeRankingPage - 1) * rankingPageSize + index + 1,
+                  }))
+                ).map((row, index) => (row.kind === 'gap'
+                  ? <div className="competition-ranking-gap" key={`gap-${index}`}>
+                    <button type="button" aria-label={`${row.from}위부터 ${row.to}위까지 펼치기`} onClick={() => setRankingExpanded(true)}>
+                      <ChevronDown size={12} aria-hidden="true" />
+                      {`#${row.from}–#${row.to} · ${row.hidden}개 접힘`}
+                    </button>
+                  </div>
+                  : <div className={row.entry.mine ? 'is-mine' : ''} key={row.entry.bot}>
+                    <strong className="competition-ranking-position">#{row.position}</strong>
+                    <span>{row.entry.bot}</span>
+                    {visibleMetrics.map((metric) => (metric.id === 'return'
+                      ? <span key={metric.id} className={row.entry.return >= 0 ? 'positive' : 'negative'}>{formatMetric(row.entry, metric)}</span>
+                      : <b key={metric.id}>{formatMetric(row.entry, metric)}</b>))}
+                  </div>))}
               </div>
             </div>
             <footer className="competition-ranking-pagination">

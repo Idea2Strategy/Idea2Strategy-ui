@@ -4029,8 +4029,11 @@
   background: var(--surface-2);
   font-size: var(--fs-control);
 }
+/* 열 구성은 지표 편집기가 정한다 — 인라인 --ranking-cols 변수로 내려온다. */
 .competition-ranking.is-metric-ranking > header,
-.competition-ranking.is-metric-ranking > div { grid-template-columns: 60px minmax(140px, 1fr) 110px 100px; }
+.competition-ranking.is-metric-ranking > div:not(.competition-ranking-gap) {
+  grid-template-columns: var(--ranking-cols, 60px minmax(140px, 1fr) 110px 100px);
+}
 
 @media (max-width: 900px) {
   .variant-balanced[data-design="signal-studio"] .competition-detail-rankings {
@@ -7419,4 +7422,209 @@ small.dashboard-bot-scope {
   cursor: pointer;
   font-size: var(--fs-caption);
   font-weight: 700;
+}
+
+/* #54 후속: 조건 토글을 헤더에 내장, 종목 범위 목록, 지표 편집기, 생략 줄. */
+
+/* 헤더가 (본문 행 + 조건 접이) 두 층을 갖는다. */
+.variant-balanced[data-design="signal-studio"] .competition-detail-heading {
+  display: grid;
+  gap: 0;
+  padding: 0;
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-heading-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-heading-main > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: var(--space-2);
+}
+/* 조건 접이 줄은 헤더 카드 하단에 붙는다 — 별도 카드가 아니다. */
+.variant-balanced[data-design="signal-studio"] .competition-detail-facts-block {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-facts-toggle {
+  min-height: 40px;
+  padding: 0 var(--space-5);
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-facts {
+  padding: 0 var(--space-5) var(--space-4);
+  border-top: 0;
+}
+
+/* 종목 범위: 제외/지정 목록은 요약 밑 티커 칩으로. */
+.variant-balanced[data-design="signal-studio"] .competition-detail-facts dd.is-universe {
+  white-space: normal;
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-universe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-universe em {
+  color: var(--text-faint);
+  font-style: normal;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-universe code {
+  padding: 1px var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  color: var(--text-soft);
+  background: var(--surface-2);
+  font: 650 var(--fs-micro) var(--font-mono);
+}
+
+/* 지표 편집기 — 열을 고르는 작은 팝오버. 정렬은 열 머리가 담당한다. */
+.variant-balanced[data-design="signal-studio"] .competition-ranking-tools { position: relative; }
+.variant-balanced[data-design="signal-studio"] .competition-metric-edit {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  background: var(--surface-2);
+  cursor: pointer;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-edit:hover,
+.variant-balanced[data-design="signal-studio"] .competition-metric-edit[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 2px;
+  min-width: 180px;
+  padding: var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: 0 12px 28px rgba(var(--shadow-rgb), .22);
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-xs);
+  color: var(--text-soft);
+  cursor: pointer;
+  font-size: var(--fs-control);
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor label:hover { background: var(--surface-2); }
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor label.is-disabled {
+  opacity: .45;
+  cursor: default;
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  color: transparent;
+  background: var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor input:checked + .competition-metric-check {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor input:focus-visible + .competition-metric-check {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor small {
+  padding: var(--space-1) var(--space-2) 2px;
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+}
+
+/* 열 머리 정렬 버튼. */
+.variant-balanced[data-design="signal-studio"] .competition-ranking.is-metric-ranking > header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: right;
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking.is-metric-ranking > header button i {
+  font-style: normal;
+  font-size: 9px;
+  opacity: .55;
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking.is-metric-ranking > header button:hover { color: var(--text); }
+.variant-balanced[data-design="signal-studio"] .competition-ranking.is-metric-ranking > header button.is-sorted { color: var(--accent); }
+.variant-balanced[data-design="signal-studio"] .competition-ranking.is-metric-ranking > header button.is-sorted i { opacity: 1; }
+
+/* 생략 줄: 전폭 점선 대신 가운데 칩 하나 + 양쪽 실선. */
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 34px;
+  padding: 0 var(--space-4);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap::before,
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  cursor: pointer;
+  font: 650 var(--fs-micro) var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
