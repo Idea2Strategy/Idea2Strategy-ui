@@ -59,9 +59,10 @@ describe('Competition lobby', () => {
 
     const results = screen.getByRole('list', { name: '대회 탐색 결과' });
     expect(within(results).getByRole('heading', { name: '공식 대회' })).toBeInTheDocument();
-    expect(within(results).getByRole('button', { name: '공식 대회 I2S Summer League 열기' })).toBeInTheDocument();
-    expect(within(results).getByRole('button', { name: '공식 대회 Risk Control Cup 열기' })).toBeInTheDocument();
+    expect(within(results).getByRole('button', { name: '공식 대회 Backtesting Challenge 열기' })).toBeInTheDocument();
     expect(within(results).getByRole('button', { name: '공식 대회 ETF Sprint 열기' })).toBeInTheDocument();
+    expect(within(results).getByRole('button', { name: '공식 대회 I2S Summer League 열기' })).toBeInTheDocument();
+    expect(within(results).queryByRole('button', { name: '공식 대회 Risk Control Cup 열기' })).not.toBeInTheDocument();
   });
 
   test('filters immediately with a consistent left filter panel', async () => {
@@ -76,8 +77,8 @@ describe('Competition lobby', () => {
     await user.click(within(participation).getByRole('radio', { name: '참가 중' }));
 
     const results = screen.getByRole('list', { name: '대회 탐색 결과' });
+    expect(within(results).getByRole('button', { name: '공식 대회 Backtesting Challenge 열기' })).toBeInTheDocument();
     expect(within(results).getByRole('button', { name: '공식 대회 I2S Summer League 열기' })).toBeInTheDocument();
-    expect(within(results).getByRole('button', { name: '공식 대회 Risk Control Cup 열기' })).toBeInTheDocument();
     expect(within(results).getByRole('button', { name: '공식 대회 ETF Sprint 열기' })).toBeInTheDocument();
     expect(within(results).queryByRole('button', { name: 'ETF Discipline 열기' })).not.toBeInTheDocument();
 
@@ -159,7 +160,8 @@ describe('Competition lobby', () => {
     expect(within(officialGroup).getByRole('heading', { name: '공식 대회' })).toBeInTheDocument();
     expect(within(generalGroup).getByRole('heading', { name: '일반 대회' })).toBeInTheDocument();
     expect(within(officialGroup).getByText('대회 제목')).toBeInTheDocument();
-    expect(within(officialGroup).getByText('진행률')).toBeInTheDocument();
+    expect(within(officialGroup).getByText('기간')).toBeInTheDocument();
+    expect(within(officialGroup).queryByText('진행률')).not.toBeInTheDocument();
     expect(within(officialGroup).getByText('참여 봇 수')).toBeInTheDocument();
     expect(within(officialGroup).queryByText('채점 방식')).not.toBeInTheDocument();
     expect(within(officialGroup).queryByText('OFFICIAL')).not.toBeInTheDocument();
@@ -171,20 +173,20 @@ describe('Competition lobby', () => {
       officialGroup.compareDocumentPosition(generalGroup) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     const roomButtons = within(results).getAllByRole('button', { name: /열기/ });
-    expect(roomButtons[0]).toHaveAccessibleName('공식 대회 ETF Sprint 열기');
-    expect(roomButtons[1]).toHaveAccessibleName('공식 대회 Risk Control Cup 열기');
+    expect(roomButtons[0]).toHaveAccessibleName('공식 대회 Backtesting Challenge 열기');
+    expect(roomButtons[1]).toHaveAccessibleName('공식 대회 ETF Sprint 열기');
     expect(roomButtons[2]).toHaveAccessibleName('공식 대회 I2S Summer League 열기');
-    expect(within(roomButtons[0]).getByText('모집 중')).toBeInTheDocument();
-    expect(within(roomButtons[0]).queryByText('모집 마감')).not.toBeInTheDocument();
-    expect(within(roomButtons[0]).queryByText('모집 마감까지')).not.toBeInTheDocument();
-    expect(within(roomButtons[0]).getByLabelText('진행률 18%')).toBeInTheDocument();
-    expect(within(roomButtons[0]).queryByRole('tooltip')).not.toBeInTheDocument();
-    expect(within(roomButtons[1]).getByText('대회 진행 중')).toBeInTheDocument();
-    expect(within(roomButtons[1]).queryByText('대회 종료')).not.toBeInTheDocument();
-    expect(within(roomButtons[1]).queryByText('대회 마감까지')).not.toBeInTheDocument();
-    expect(within(roomButtons[1]).getByLabelText('진행률 72%')).toBeInTheDocument();
-    expect(within(roomButtons[1]).getByRole('progressbar', { name: 'Risk Control Cup 진행률' })).toBeInTheDocument();
-    expect(within(roomButtons[1]).getByRole('tooltip')).toHaveTextContent('공식 대회는 대회 진행 중에도 참가할 수 있습니다.');
+    expect(within(roomButtons[0]).getByText('백테스팅')).toHaveAttribute('data-ranking-tone', 'backtesting');
+    expect(within(roomButtons[0]).getByText('모집 마감까지')).toBeInTheDocument();
+    expect(within(roomButtons[1]).getByText('D-5')).toHaveClass('is-urgent');
+    expect(within(roomButtons[1]).getByText('모집 마감까지')).toBeInTheDocument();
+    expect(within(roomButtons[2]).getByText('대회 마감까지')).toBeInTheDocument();
+    expect(within(officialGroup).queryByText('모집 중')).not.toBeInTheDocument();
+    expect(within(officialGroup).queryByText('대회 진행 중')).not.toBeInTheDocument();
+    expect(within(officialGroup).queryByText('참여 봇')).not.toBeInTheDocument();
+    expect(within(officialGroup).queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(within(officialGroup).queryByRole('tooltip')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('complementary', { name: '대회 필터' })).queryByRole('checkbox', { name: '백테스팅' })).not.toBeInTheDocument();
     expect(within(results).queryByText('◆ 공식 대회')).not.toBeInTheDocument();
     expect(within(roomButtons[0]).queryByText('07.21–08.01')).not.toBeInTheDocument();
     expect(roomButtons[3]).toHaveAccessibleName('Golden Cross Club 열기');

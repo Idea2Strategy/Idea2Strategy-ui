@@ -1387,7 +1387,7 @@ export function BacktestView() {
   Official competitions stay ordered by their closing date so the most urgent
   choice is always first. Each card owns its calendar and participation state.
 */
-type CompetitionTone = 'standard' | 'risk' | 'return' | 'sharpe';
+type CompetitionTone = 'standard' | 'risk' | 'return' | 'sharpe' | 'backtesting';
 type StandingTone = 'gold' | 'silver' | 'bronze' | 'neutral' | 'inactive';
 type OfficialCompetitionStatus = 'recruiting' | 'running';
 
@@ -1412,9 +1412,9 @@ interface OfficialCompetition {
 }
 
 const officialCompetitions: OfficialCompetition[] = [
-  { name: 'I2S Summer League', description: '수익성과 안정성을 함께 평가하는 공식 시즌 대회입니다.', bots: 184, ranking: '표준점수제', score: '복합 점수', remainingDays: 65, standing: '1위', standingTone: 'gold', tone: 'standard', official: true, host: 'I2S 운영팀', start: '07.01', end: '09.30', status: 'running', progress: 56, entryLimit: 5 },
-  { name: 'Risk Control Cup', description: '손실 위험을 낮추면서 안정적인 성과를 겨룹니다.', bots: 96, ranking: '위험조정 점수제', score: '최대 낙폭', remainingDays: 15, standing: '미참가', standingTone: 'inactive', tone: 'risk', official: true, host: 'I2S 운영팀', start: '07.14', end: '08.11', status: 'running', progress: 72, entryLimit: 3 },
+  { name: 'Backtesting Challenge', description: '동일한 과거 시장 데이터에서 전략의 재현성과 안정성을 검증합니다.', bots: 42, ranking: '백테스팅', score: '백테스트 성과', remainingDays: 12, standing: '미참가', standingTone: 'inactive', tone: 'backtesting', official: true, host: 'I2S 운영팀', start: '08.01', end: '08.31', status: 'recruiting', progress: 0, entryLimit: 3 },
   { name: 'ETF Sprint', description: 'ETF 전략의 단기 수익률을 같은 조건에서 비교합니다.', bots: 128, ranking: '수익률 점수제', score: '수익률', remainingDays: 5, standing: '2위', standingTone: 'silver', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.21', end: '08.01', status: 'recruiting', progress: 18, entryLimit: 3 },
+  { name: 'I2S Summer League', description: '수익성과 안정성을 함께 평가하는 공식 시즌 대회입니다.', bots: 184, ranking: '표준점수제', score: '복합 점수', remainingDays: 65, standing: '1위', standingTone: 'gold', tone: 'standard', official: true, host: 'I2S 운영팀', start: '07.01', end: '09.30', status: 'running', progress: 5, entryLimit: 5 },
 ];
 
 const officialBotCodes = [
@@ -1443,8 +1443,8 @@ const makeOfficialLeaderboard = (
 });
 
 const officialCompetitionLeaderboards: Record<string, LeaderboardEntry[]> = {
+  'Backtesting Challenge': makeOfficialLeaderboard(4, 10, {}),
   'ETF Sprint': makeOfficialLeaderboard(1, 14, { 4: 'ETF Runner' }),
-  'Risk Control Cup': makeOfficialLeaderboard(2, 16, {}),
   'I2S Summer League': makeOfficialLeaderboard(3, 18, {
     1: 'Room Beta',
     5: 'Atlas 07',
@@ -1453,6 +1453,9 @@ const officialCompetitionLeaderboards: Record<string, LeaderboardEntry[]> = {
 };
 
 const orderedOfficialCompetitions = [...officialCompetitions].sort((a, b) => {
+  if (a.tone === 'backtesting' || b.tone === 'backtesting') {
+    return a.tone === 'backtesting' ? -1 : 1;
+  }
   if (a.status !== b.status) return a.status === 'recruiting' ? -1 : 1;
   return a.remainingDays - b.remainingDays;
 });
@@ -2060,7 +2063,7 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
   const canEnterSelectedRoom = Boolean(
     selectedRoom
     && remainingEntrySlots > 0
-    && (selectedRoom.official || selectedRoom.status === 'recruiting'),
+    && selectedRoom.status === 'recruiting',
   );
   const detailDeadlineLabel = selectedRoom?.status === 'recruiting' ? '모집 마감' : '대회 마감';
   const detailDeadlineText = selectedRoom
@@ -2580,18 +2583,15 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
             <div className="competition-board-head is-official-head" aria-hidden="true">
               <span />
               <span>대회 제목</span>
-              <span>진행률</span>
+              <span>기간</span>
               <span>참여 봇 수</span>
               <span />
             </div>
-            {orderedOfficialCompetitions.map((competition, index) => {
-              const tooltipId = `official-running-tooltip-${index}`;
-              const isRunning = competition.status === 'running';
-              return <div className="competition-board-row is-official" role="listitem" key={competition.name}>
+            {orderedOfficialCompetitions.map((competition) => (
+              <div className="competition-board-row is-official" role="listitem" key={competition.name}>
                 <button
                   type="button"
                   aria-label={`공식 대회 ${competition.name} 열기`}
-                  aria-describedby={isRunning ? tooltipId : undefined}
                   onClick={() => setSelectedRoom(competition)}
                 >
                   <span><strong className="competition-ranking-badge" data-ranking-tone={competition.tone}>{competition.ranking}</strong></span>
@@ -2600,43 +2600,17 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                       <strong>{competition.name}</strong>
                     </span>
                   </span>
-                  <span className="competition-board-period is-official-progress">
-                    <span className="competition-deadline">
-                      <span className="competition-deadline-line">
-                        <span className="competition-room-status-wrap">
-                          <b className="competition-room-status" data-room-status={competition.status}>{officialStatusLabels[competition.status]}</b>
-                          {isRunning && <span className="competition-status-tooltip" id={tooltipId} role="tooltip">
-                            공식 대회는 대회 진행 중에도 참가할 수 있습니다.
-                          </span>}
-                        </span>
-                        <b className={competition.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${competition.remainingDays}`}</b>
-                      </span>
-                    </span>
-                    <small
-                      className="competition-progress-copy"
-                      data-label="진행률"
-                      aria-label={`진행률 ${competition.progress}%`}
-                    >
-                      <strong>{`${competition.progress}%`}</strong>
-                    </small>
-                    <span
-                      className="competition-progress"
-                      data-room-status={competition.status}
-                      role="progressbar"
-                      aria-label={`${competition.name} 진행률`}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={competition.progress}
-                    ><i style={{ width: `${competition.progress}%` }} /></span>
+                  <span className="competition-board-period">
+                    <b className={competition.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${competition.remainingDays}`}</b>
+                    <small>{competition.status === 'running' ? '대회 마감까지' : '모집 마감까지'}</small>
                   </span>
                   <span className="competition-board-bots">
-                    <small>참여 봇</small>
                     <strong>{`${competition.bots} BOT`}</strong>
                   </span>
                   <ArrowUpRight size={15} aria-hidden="true" />
                 </button>
-              </div>;
-            })}
+              </div>
+            ))}
           </section>
 
           <section

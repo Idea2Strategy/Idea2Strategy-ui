@@ -736,15 +736,15 @@ describe('Competition ranking', () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    await user.click(screen.getByRole('button', { name: '공식 대회 Risk Control Cup 열기' }));
+    await user.click(screen.getByRole('button', { name: '공식 대회 Backtesting Challenge 열기' }));
 
     const myRanks = screen.getByLabelText('내 참가 봇 순위');
     expect(myRanks).toHaveTextContent('참가 중인 봇이 없습니다.');
     expect(within(myRanks).getByText('0 / 3')).toBeInTheDocument();
-    expect(screen.getByLabelText('Risk Control Cup 봇 순위').querySelectorAll('.is-mine')).toHaveLength(0);
+    expect(screen.getByLabelText('Backtesting Challenge 봇 순위').querySelectorAll('.is-mine')).toHaveLength(0);
   });
 
-  test('keeps all three of my official entries highlighted in the full leaderboard', async () => {
+  test('keeps all three of my official entries highlighted and blocks entry after the official competition starts', async () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
@@ -755,7 +755,7 @@ describe('Competition ranking', () => {
     expect(within(myRanks).getAllByRole('listitem')).toHaveLength(3);
     expect(within(myRanks).getByText('3 / 5')).toBeInTheDocument();
     const leaderboard = screen.getByLabelText('I2S Summer League 봇 순위');
-    expect(screen.getByRole('button', { name: '대회 참가' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '마감된 대회입니다.' })).toBeDisabled();
     expect(leaderboard.querySelectorAll('.is-mine')).toHaveLength(3);
     expect(leaderboard.querySelectorAll(':scope > div')).toHaveLength(10);
     expect(leaderboard.closest('.competition-ranking-list')).not.toBeNull();
