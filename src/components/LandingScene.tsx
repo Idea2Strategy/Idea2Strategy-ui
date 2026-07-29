@@ -103,8 +103,26 @@ export default function LandingScene({ progressRef }: LandingSceneProps) {
       return { mesh, scatter, target, rot, delay: ((index * 7) % 12) / 12 * 0.45 };
     });
 
+    /*
+      A mouse wheel moves the page in notches, so raw scroll position arrives
+      in steps — feeding it straight to the scene makes the assembly jump with
+      every notch. The scroll stays the source of truth for the TARGET, and
+      each frame closes a time-based fraction of the remaining gap, so the
+      blocks glide between wheel steps instead of teleporting. The exponential
+      form keeps the feel identical at any frame rate.
+    */
+    let smoothedProgress = reduceMotion ? 1 : progressRef.current;
+    let lastFrameTime = 0;
+
     const renderFrame = (time: number) => {
-      const progress = reduceMotion ? 1 : progressRef.current;
+      const target = reduceMotion ? 1 : progressRef.current;
+      const dt = lastFrameTime ? Math.min(0.1, (time - lastFrameTime) / 1000) : 1 / 60;
+      lastFrameTime = time;
+      smoothedProgress += (target - smoothedProgress) * (1 - Math.exp(-dt * 8));
+      /* Snap the last hair so the scene truly settles instead of chasing an
+         asymptote forever. */
+      if (Math.abs(target - smoothedProgress) < 0.0005) smoothedProgress = target;
+      const progress = reduceMotion ? 1 : smoothedProgress;
       for (const block of blocks) {
         const local = easeInOutCubic(clamp01((progress * 1.35 - block.delay) / 0.9));
         block.mesh.position.lerpVectors(block.scatter, block.target, local);
