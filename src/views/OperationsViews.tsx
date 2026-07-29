@@ -936,6 +936,10 @@ export function BacktestView() {
   const [executionLogOpen, setExecutionLogOpen] = useState(false);
   const [chartVisibleRange, setChartVisibleRange] = useState<ChartVisibleRange | null>(null);
   const [chartExecutionFilterIds, setChartExecutionFilterIds] = useState<string[] | null>(null);
+  /* On: the log keeps following the chart. Off: the log shows every execution.
+     Applying the range used to be a one-shot press, so every pan or zoom meant
+     pressing it again to see the markers actually on screen. */
+  const [followChartRange, setFollowChartRange] = useState(false);
   const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
   const filteredBacktestBots = useMemo(() => {
     const query = botQuery.trim().toLowerCase();
@@ -1003,6 +1007,16 @@ export function BacktestView() {
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [executionCalendarOpen]);
+  /* The chart reports a new range on every pan and zoom, so while the toggle is
+     on this is what keeps the log in step without another press. */
+  useEffect(() => {
+    if (!followChartRange || !chartVisibleRange) return;
+    setExecutionStartDate(chartVisibleRange.startDate);
+    setExecutionEndDate(chartVisibleRange.endDate);
+    setChartExecutionFilterIds(chartVisibleRange.executionIds);
+    setExecutionPage(1);
+  }, [chartVisibleRange, followChartRange]);
+
   const openExecutionCalendar = (preferredDate: string) => {
     setExecutionCalendarMonth((preferredDate || executionEndDate || executionStartDate || lastExecutionDate || '2026-07-01').slice(0, 7));
     setExecutionCalendarPhase('start');
@@ -1011,6 +1025,9 @@ export function BacktestView() {
   const selectExecutionCalendarDate = (date: string) => {
     setExecutionPage(1);
     setChartExecutionFilterIds(null);
+    /* A hand-picked date is the person overriding the chart, so stop following
+       it — otherwise the next pan would silently discard what they chose. */
+    setFollowChartRange(false);
     if (executionCalendarPhase !== 'end' || !executionStartDate) {
       setExecutionStartDate(date);
       setExecutionEndDate('');
@@ -1038,6 +1055,7 @@ export function BacktestView() {
     setExecutionCalendarMonth((latestExecutionDate || '2026-07-01').slice(0, 7));
     setChartVisibleRange(null);
     setChartExecutionFilterIds(null);
+    setFollowChartRange(false);
   };
   const selectBot = (bot: BacktestBot) => {
     const firstInstrument = botInstruments[bot.name][0];
@@ -1210,21 +1228,25 @@ export function BacktestView() {
           <div className="backtest-log-date-filter" role="group" aria-label="체결 로그 기간 검색">
             <button
               type="button"
-              className={`backtest-log-chart-range${chartVisibleRange
-                && chartExecutionFilterIds !== null
-                && chartExecutionFilterIds.join('|') === chartVisibleRange.executionIds.join('|')
-                && executionStartDate === chartVisibleRange.startDate
-                && executionEndDate === chartVisibleRange.endDate ? ' active' : ''}`}
+              className={`backtest-log-chart-range${followChartRange ? ' active' : ''}`}
               aria-label="현재 차트 구간 로그 보기"
-              disabled={!chartVisibleRange}
+              aria-pressed={followChartRange}
+              disabled={!chartVisibleRange && !followChartRange}
               onClick={() => {
-                if (!chartVisibleRange) return;
-                setExecutionStartDate(chartVisibleRange.startDate);
-                setExecutionEndDate(chartVisibleRange.endDate);
-                setChartExecutionFilterIds(chartVisibleRange.executionIds);
+                const next = !followChartRange;
+                setFollowChartRange(next);
                 setExecutionPage(1);
                 setExecutionCalendarOpen(false);
-                setExecutionCalendarPhase('complete');
+                if (next) {
+                  /* The syncing effect fills the dates in; mark the range as
+                     chosen so the calendar opens on it rather than at 'start'. */
+                  setExecutionCalendarPhase('complete');
+                  return;
+                }
+                setExecutionStartDate('');
+                setExecutionEndDate('');
+                setChartExecutionFilterIds(null);
+                setExecutionCalendarPhase('start');
               }}
             ><Search size={14} aria-hidden="true" /><span>현재 차트 구간</span></button>
             <CalendarDays size={15} aria-hidden="true" />
