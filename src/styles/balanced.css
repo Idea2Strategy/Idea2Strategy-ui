@@ -206,7 +206,6 @@
 @media (max-width: 720px) {
   .variant-balanced { grid-template-columns: 58px minmax(0, 1fr); }
   .variant-balanced .app-topbar { padding-inline: 12px; }
-  .variant-balanced .global-search { width: min(260px, 60vw); }
   .variant-balanced .balanced-strategy-home { padding: 26px 14px 50px; }
   .strategy-hero { align-items: center; }
   .strategy-hero p { max-width: 250px; }
@@ -295,16 +294,6 @@
 .signal-product-nav > nav button.active { color:var(--accent); }
 .signal-product-nav > nav button.active::after { transform:scaleX(1); }
 .signal-nav-tools { display:flex; align-items:center; justify-content:flex-end; gap:6px; }
-.signal-product-nav .global-search {
-  width:154px;
-  height:34px;
-  padding:0 9px;
-}
-.signal-product-nav .global-search input {
-  width:100%;
-  font:700 10px var(--font-mono);
-  letter-spacing:.06em;
-}
 .signal-product-nav .icon-button,
 .signal-product-nav .signal-terminal-switch {
   width:34px;
@@ -343,23 +332,104 @@
   box-shadow:0 0 4px color-mix(in srgb,var(--accent) 38%,transparent);
 }
 .signal-product-nav .topbar-popover { top:42px; }
-.signal-product-nav .language-select select {
-  width:48px;
+.signal-product-nav .nav-segmented-toggle {
+  --segment-width:32px;
+  position:relative;
+  isolation:isolate;
   height:34px;
-  padding:0 7px;
+  display:grid;
+  grid-template-columns:repeat(2,var(--segment-width));
+  padding:3px;
   border:1px solid var(--line);
-  border-radius:4px;
-  outline:0;
-  color:var(--text-soft);
+  border-radius:6px;
   background:var(--surface-2);
+}
+.signal-product-nav .nav-segmented-toggle::before {
+  content:none;
+  display:none;
+}
+.signal-product-nav .nav-segmented-toggle > button {
+  min-width:0;
+  width:100%;
+  height:100%;
+  display:grid;
+  place-items:center;
+  padding:0;
+  border:1px solid transparent;
+  border-radius:4px;
+  color:var(--text-faint);
+  background:transparent;
   cursor:pointer;
-  font:700 9px var(--font-mono);
+  font:700 9px/1 var(--font-mono);
+  transition:color var(--motion-fast),border-color var(--motion-fast),background var(--motion-fast);
 }
-.signal-product-nav .language-select select:hover,
-.signal-product-nav .language-select select:focus-visible {
+.signal-product-nav .nav-segmented-toggle > button:hover {
+  color:var(--text);
+}
+.signal-product-nav .nav-segmented-toggle > button[aria-pressed="true"] {
   border-color:var(--line-strong);
-  color:var(--accent);
+  color:var(--text);
+  background:var(--surface);
+  box-shadow:0 1px 3px color-mix(in srgb,var(--bg) 30%,transparent);
 }
+.signal-product-nav .nav-segmented-toggle > button:focus-visible {
+  outline-offset:0;
+}
+.signal-product-nav .nav-market-control {
+  height:34px;
+  display:flex;
+  align-items:center;
+  padding:3px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  background:var(--surface-2);
+}
+.signal-product-nav .nav-market-control-icon {
+  width:25px;
+  height:22px;
+  display:grid;
+  place-items:center;
+  flex:0 0 auto;
+  border-right:1px solid var(--line);
+  color:var(--text-faint);
+}
+.signal-product-nav .nav-market-toggle {
+  --segment-width:31px;
+  height:28px;
+  padding:0;
+  border:0;
+  background:transparent;
+}
+.signal-product-nav .nav-market-toggle > button {
+  line-height:0;
+}
+.signal-product-nav .nav-language-toggle { --segment-width:34px; }
+.signal-product-nav .nav-market-flag {
+  width:18px;
+  height:13.5px;
+  display:block;
+  margin:auto;
+  overflow:visible;
+  border-radius:2px;
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--text) 10%,transparent);
+  transition:opacity var(--motion-fast);
+}
+.signal-product-nav .nav-market-toggle > button[aria-pressed="false"] .nav-market-flag {
+  opacity:.62;
+}
+.signal-product-nav .nav-market-toggle > button:hover .nav-market-flag {
+  opacity:1;
+}
+.signal-product-nav .nav-market-toggle > button[aria-pressed="true"] .nav-market-flag {
+  opacity:1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signal-product-nav .nav-segmented-toggle > button,
+  .signal-product-nav .nav-market-flag { transition:none; }
+}
+.reduce-motion .signal-product-nav .nav-segmented-toggle > button,
+.reduce-motion .signal-product-nav .nav-market-flag { transition:none; }
 
 /* design.md consistency contract */
 .variant-balanced[data-design="signal-studio"] .page {
@@ -1712,7 +1782,6 @@
 
 @media (max-width: 1120px) {
   .signal-product-brand strong { display:none; }
-  .signal-product-nav .global-search { display:none; }
 }
 
 @media (max-width: 800px) {
@@ -1748,17 +1817,6 @@
   background: color-mix(in srgb, var(--surface) 94%, transparent);
   backdrop-filter: blur(18px);
 }
-.variant-balanced[data-design="signal-studio"] .global-search {
-  height: 38px;
-  border-color: var(--line);
-  border-radius: 4px;
-  background: var(--surface-2);
-}
-.variant-balanced[data-design="signal-studio"] .global-search:focus-within {
-  border-color: color-mix(in srgb,var(--accent) 52%,var(--line));
-  box-shadow: 0 0 0 2px var(--accent-soft);
-}
-.variant-balanced[data-design="signal-studio"] .global-search kbd,
 .variant-balanced[data-design="signal-studio"] .icon-button {
   border-color: var(--line);
   border-radius: 4px;
@@ -2307,14 +2365,20 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-line.bot-emphasis {
+  stroke: var(--text);
+  stroke-width: 3.25;
+  opacity: .45;
+}
+.theme-dark .backtest-chart-line.bot-emphasis { opacity: .72; }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.bot {
   stroke: var(--accent);
-  stroke-width: 3;
-  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--accent) 32%, transparent));
+  stroke-width: 2.75;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark {
   stroke: var(--tone-indicator);
-  stroke-width: 2;
+  stroke-width: 1.5;
+  opacity: .8;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark.sp500 { stroke: var(--tone-indicator); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark.nasdaq { stroke: var(--info); }
@@ -2323,8 +2387,9 @@
   fill: var(--surface);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-end.bot {
-  stroke: var(--accent);
-  stroke-width: 3;
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 2.5;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-end.benchmark {
   stroke: var(--tone-indicator);
@@ -5134,9 +5199,9 @@
 }
 .signal-product-nav > nav button:focus-visible::after { transform:scaleX(1); }
 .signal-nav-tools { justify-self:end; }
-.variant-balanced[data-design="signal-studio"] .signal-product-nav .global-search,
 .variant-balanced[data-design="signal-studio"] .signal-product-nav .icon-button,
-.variant-balanced[data-design="signal-studio"] .signal-product-nav .language-select select,
+.variant-balanced[data-design="signal-studio"] .signal-product-nav .nav-market-control,
+.variant-balanced[data-design="signal-studio"] .signal-product-nav .nav-language-toggle,
 .variant-balanced[data-design="signal-studio"] .signal-product-nav .signal-user {
   height:36px;
 }
@@ -5208,10 +5273,6 @@
   min-height:72px;
   gap:var(--space-3);
   padding:var(--space-3) var(--space-4);
-}
-
-@media (max-width: 1380px) {
-  .signal-product-nav .global-search { display:none; }
 }
 
 @media (max-width: 1120px) {
@@ -5316,43 +5377,6 @@
     width:min(270px,calc(100vw - 48px));
   }
 }
-
-/* Global search results */
-.global-search-anchor { position: relative; }
-.global-search-results {
-  width: min(320px, 70vw);
-  position: absolute;
-  z-index: 90;
-  top: calc(100% + 8px);
-  right: 0;
-  display: grid;
-  overflow: hidden;
-  padding: var(--space-1);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-overlay);
-}
-.global-search-results > button {
-  display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 40px;
-  padding: 0 var(--space-2);
-  border: 0;
-  border-radius: var(--radius-xs);
-  color: var(--text);
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-}
-.global-search-results > button:hover,
-.global-search-results > button:focus-visible { background: var(--accent-soft); }
-.global-search-results small { color: var(--text-faint); font: 700 var(--fs-micro) var(--font-mono); }
-.global-search-results strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-control); }
-.global-search-results svg { color: var(--text-faint); }
-.global-search-results p { margin: 0; padding: var(--space-3); color: var(--text-faint); font-size: var(--fs-caption); }
 
 .notifications-popover > footer { border-top: 1px solid var(--line); padding: var(--space-1); }
 .notifications-popover > footer button {
@@ -7020,21 +7044,6 @@
   width:22px;
   height:22px;
   filter:drop-shadow(0 1px 1px var(--surface));
-}
-.dashboard-chart-cluster-count {
-  position:absolute;
-  top:-8px;
-  right:-8px;
-  min-width:17px;
-  height:17px;
-  display:grid;
-  place-items:center;
-  padding:0 4px;
-  border:2px solid var(--surface);
-  border-radius:999px;
-  color:var(--surface);
-  background:var(--text);
-  font:800 9px/1 var(--font-mono);
 }
 .dashboard-chart-launch-tooltip {
   position:absolute;
@@ -8768,4 +8777,194 @@ small.dashboard-bot-scope {
   .variant-balanced[data-design="signal-studio"] .official-season-progress-stages {
     gap: 4px;
   }
+}
+
+/*
+  전략 미리보기 PiP 창.
+
+  편집 캔버스가 아니라 화면에 떠서, 캔버스를 옮기거나 확대해도 자리를 지키고
+  그립을 잡아 원하는 위치로 옮긴다. 작지만 글자는 제품 토큰의 최소 크기(11px)
+  이상을 지켜 곁눈질로도 읽히게 한다. 차트는 인라인 SVG 한 장이다.
+*/
+.variant-balanced[data-design="signal-studio"] .strategy-preview-card {
+  position: fixed;
+  z-index: 120;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 20px 44px rgba(var(--shadow-rgb), .28);
+  backdrop-filter: blur(14px);
+}
+.strategy-preview-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.strategy-preview-grip {
+  display: grid;
+  place-items: center;
+  padding: 2px;
+  margin-left: -4px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--text-faint);
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+.strategy-preview-grip:hover { color: var(--text); background: var(--surface-3); }
+.strategy-preview-grip:active { cursor: grabbing; }
+.strategy-preview-identity {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.strategy-preview-identity strong { font: 700 var(--fs-card) var(--font-mono); }
+.strategy-preview-identity small {
+  overflow: hidden;
+  color: var(--text-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 600 var(--fs-micro) var(--font-mono);
+  letter-spacing: .04em;
+}
+/* 누적 수익률이 이 창의 유일한 큰 숫자다. */
+.strategy-preview-return {
+  margin-left: auto;
+  color: var(--text-faint);
+  font: 700 var(--fs-card) var(--font-mono);
+}
+.strategy-preview-return.positive { color: var(--gain); }
+.strategy-preview-return.negative { color: var(--loss); }
+.strategy-preview-close {
+  display: grid;
+  place-items: center;
+  padding: 3px;
+  margin-right: -4px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+}
+.strategy-preview-close:hover { color: var(--text); background: var(--surface-3); }
+/* 종목이 둘 이상일 때만 나오는 세그먼트 컨트롤. */
+.strategy-preview-symbols {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.strategy-preview-symbols button {
+  flex: 1;
+  min-height: 22px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+  font: 650 var(--fs-micro) var(--font-mono);
+}
+.strategy-preview-symbols button:hover { color: var(--text); }
+.strategy-preview-symbols button.active { color: var(--accent-ink); background: var(--accent); }
+.strategy-preview-frame {
+  position: relative;
+  height: 120px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}
+.strategy-preview-frame > svg { width: 100%; height: 100%; display: block; }
+.strategy-preview-line {
+  fill: none;
+  stroke: var(--text-soft);
+  stroke-width: 1.6;
+}
+.strategy-preview-end { fill: var(--text); stroke: var(--surface); stroke-width: 1.5; }
+/*
+  신호 화살표: 방향은 모양으로, 종류는 매수·매도 의미색으로 구분한다.
+  종가 선이나 다른 화살표와 겹쳐도 형태가 살아 있어야 하므로 배경색 테두리를
+  둘러 띄운다. paint-order로 테두리를 칠 아래에 깔아 색이 얇아지지 않게 한다.
+*/
+.strategy-preview-marker {
+  stroke: var(--surface);
+  stroke-width: 2;
+  paint-order: stroke fill;
+}
+.strategy-preview-marker.is-buy { fill: var(--buy-block-color); }
+.strategy-preview-marker.is-sell { fill: var(--sell-block-color); }
+/* 강조하지 않은 플로우도 왕복 흐름을 읽을 만큼은 남긴다. */
+.strategy-preview-marker.is-dimmed { fill: var(--text-faint); opacity: .5; }
+.strategy-preview-last {
+  position: absolute;
+  right: var(--space-2);
+  top: var(--space-1);
+  color: var(--text-faint);
+  font: 600 var(--fs-micro) var(--font-mono);
+}
+/* 신호를 만든 플로우. 카드에서 유일하게 상호작용하는 정보 영역이다. */
+.strategy-preview-flows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.strategy-preview-flows button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 22px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  color: var(--text-soft);
+  background: transparent;
+  cursor: pointer;
+  font-size: var(--fs-micro);
+  font-weight: 650;
+}
+.strategy-preview-flows button i {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+}
+.strategy-preview-flows button.is-buy i { background: var(--buy-block-color); }
+.strategy-preview-flows button.is-sell i { background: var(--sell-block-color); }
+.strategy-preview-flows button b { color: var(--text-faint); font: 700 var(--fs-micro) var(--font-mono); }
+.strategy-preview-flows button:hover { border-color: var(--line-strong); color: var(--text); }
+.strategy-preview-flows button.active {
+  color: var(--text);
+  border-color: var(--line-strong);
+  background: var(--surface-3);
+}
+.strategy-preview-flows button.active b { color: var(--text); }
+/* 한 줄 요약. 플로우를 강조하면 그 플로우의 조건 문장으로 바뀐다. */
+.strategy-preview-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-faint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+}
+.strategy-preview-note b { margin-left: 2px; color: var(--text-soft); font: 700 var(--fs-micro) var(--font-mono); }
+.strategy-preview-note em { margin-left: auto; font-style: normal; }
+.strategy-preview-warning {
+  margin: 0;
+  color: var(--warning);
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+}
+@media (max-width: 800px) {
+  .variant-balanced[data-design="signal-studio"] .strategy-preview-card { display: none; }
 }

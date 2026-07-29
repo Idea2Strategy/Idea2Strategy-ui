@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
+import { useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, Bell, CircleHelp, Moon, Palette, Search, Sun, X } from 'lucide-react';
+import { ArrowRight, Bell, CircleHelp, Moon, Palette, Sun, X } from 'lucide-react';
 import i2sLogo from './assets/i2s-logo.svg';
-import { bots, notifications, rooms, strategies } from './data/mockData';
+import { notifications } from './data/mockData';
 import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation';
 import type { PageId } from './lib/navigation';
 import { LanguageProvider, Localized, useLanguage } from './lib/i18n';
@@ -20,80 +20,7 @@ import './styles/base.css';
 import './styles/balanced.css';
 import './styles/concepts.css';
 
-/*
-  Everything the global search can reach. The box used to be decorative: it
-  looked like the product's main search affordance but had no behaviour at all,
-  which is exactly the pattern the interaction audit rules out.
-*/
-interface SearchTarget {
-  kind: string;
-  label: string;
-  page: PageId;
-}
-
-const searchTargets: SearchTarget[] = [
-  ...navItems.map((item) => ({ kind: '화면', label: item.label, page: item.id })),
-  { kind: '화면', label: '내 계정', page: 'account' as const },
-  { kind: '화면', label: '알림', page: 'notifications' as const },
-  { kind: '화면', label: '도움말', page: 'help' as const },
-  ...strategies.map((strategy) => ({ kind: '전략', label: strategy.name, page: 'strategy' as const })),
-  ...bots.map((bot) => ({ kind: '봇', label: bot.name, page: 'bots' as const })),
-  ...rooms.map((room) => ({ kind: '대회', label: room.name, page: 'rooms' as const })),
-];
-
 type SetPage = (page: PageId) => void;
-
-function GlobalSearch({ setPage }: { setPage: SetPage }) {
-  const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
-  const { t } = useLanguage();
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  const matches = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return [];
-    return searchTargets
-      .filter((target) => `${target.label} ${t(target.label)}`.toLowerCase().includes(needle))
-      .slice(0, 6);
-  }, [query, t]);
-
-  const choose = (target: SearchTarget) => {
-    setPage(target.page);
-    setQuery('');
-    setOpen(false);
-  };
-
-  return <div className="global-search-anchor" ref={wrapRef} onBlur={(event: FocusEvent<HTMLDivElement>) => {
-    if (!wrapRef.current?.contains(event.relatedTarget)) setOpen(false);
-  }}>
-    <label className="global-search">
-      <Search size={15} aria-hidden="true" />
-      <input
-        type="search"
-        aria-label="전체 검색"
-        placeholder="SEARCH"
-        value={query}
-        onChange={(event) => { setQuery(event.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
-          if (event.key === 'Escape') { setQuery(''); setOpen(false); }
-          if (event.key === 'Enter' && matches.length > 0) choose(matches[0]);
-        }}
-      />
-    </label>
-    {open && query.trim() && <div className="global-search-results" role="listbox" aria-label="검색 결과">
-      {matches.length > 0
-        ? matches.map((target) => <button
-          key={`${target.kind}-${target.label}`}
-          type="button"
-          role="option"
-          aria-selected="false"
-          onClick={() => choose(target)}
-        ><small>{target.kind}</small><strong>{target.label}</strong><ArrowRight size={13} aria-hidden="true" /></button>)
-        : <p>일치하는 화면이나 항목이 없습니다.</p>}
-    </div>}
-  </div>;
-}
 
 type Theme = 'dark' | 'light';
 type Updown = 'kr' | 'us';
@@ -105,6 +32,50 @@ interface TopbarProps {
   setPage: SetPage;
   updown: Updown;
   setUpdown: (updown: Updown) => void;
+}
+
+// Flag geometry adapted from lipis/flag-icons (MIT),
+// Copyright (c) 2013 Panayiotis Lipiridis.
+function MarketFlag({ country }: { country: Updown }) {
+  if (country === 'us') return <svg className="nav-market-flag flag-us" viewBox="0 0 640 480" aria-hidden="true">
+    <defs>
+      <marker id="nav-us-star" markerHeight="30" markerWidth="30">
+        <path fill="#fff" d="m14 0 9 27L0 10h28L5 27z" />
+      </marker>
+    </defs>
+    <path fill="#bd3d44" d="M0 0h640v480H0" />
+    <path stroke="#fff" strokeWidth="37" d="M0 55.3h640M0 129h640M0 203h640M0 277h640M0 351h640M0 425h640" />
+    <path fill="#192f5d" d="M0 0h364.8v258.5H0" />
+    <path fill="none" markerMid="url(#nav-us-star)" d="m0 0 16 11h61 61 61 61 60L47 37h61 61 60 61L16 63h61 61 61 61 60L47 89h61 61 60 61L16 115h61 61 61 61 60L47 141h61 61 60 61L16 166h61 61 61 61 60L47 192h61 61 60 61L16 218h61 61 61 61 60z" />
+  </svg>;
+
+  return <svg className="nav-market-flag flag-kr" viewBox="0 0 640 480" aria-hidden="true">
+    <path fill="#fff" d="M0 0h640v480H0z" />
+    <g fillRule="evenodd" transform="translate(89.8 .4)scale(.9375)">
+      <g transform="rotate(-56.3 361.6 -101.3)scale(10.66667)">
+        <g data-trigram="geon">
+          <path fill="#000001" d="M-6-26H6v2H-6Zm0 3H6v2H-6Zm0 3H6v2H-6Z" />
+        </g>
+        <g data-trigram="gon">
+          <path fill="#000001" d="M-6 18H6v2H-6Zm0 3H6v2H-6Zm0 3H6v2H-6Z" />
+          <path stroke="#fff" d="M0 17v10" />
+        </g>
+        <path fill="#cd2e3a" d="M0-12a12 12 0 0 1 0 24Z" />
+        <path fill="#0047a0" d="M0-12a12 12 0 0 0 0 24A6 6 0 0 0 0 0Z" />
+        <circle cy="-6" r="6" fill="#cd2e3a" />
+      </g>
+      <g transform="rotate(-123.7 191.2 62.2)scale(10.66667)">
+        <g data-trigram="gam">
+          <path fill="#000001" d="M-6-26H6v2H-6Zm0 3H6v2H-6Zm0 3H6v2H-6Z" />
+          <path stroke="#fff" d="M0-23.5v3" />
+        </g>
+        <g data-trigram="ri">
+          <path fill="#000001" d="M-6 18H6v2H-6Zm0 3H6v2H-6Zm0 3H6v2H-6Z" />
+          <path stroke="#fff" d="M0 17v3.5m0 3v3" />
+        </g>
+      </g>
+    </g>
+  </svg>;
 }
 
 function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarProps) {
@@ -128,7 +99,6 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarPro
       >{labels[id]}</button>)}
     </nav>
     <div className="signal-nav-tools">
-      <GlobalSearch setPage={setPage} />
       <div className="topbar-popover-anchor">
         <button className="icon-button has-count" aria-label="알림" onClick={() => togglePanel('notifications')}><Bell size={17} />{unreadCount > 0 && <b>{unreadCount}</b>}</button>
         {openPanel === 'notifications' && <section className="topbar-popover notifications-popover" role="dialog" aria-label="최근 알림">
@@ -144,20 +114,29 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarPro
       </div>
       <button className={`icon-button ${page === 'help' ? 'active' : ''}`} aria-label="도움말" onClick={() => setPage('help')}><CircleHelp size={17} /></button>
       <button className="icon-button" aria-label={theme === 'light' ? '다크 모드' : '라이트 모드'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}</button>
-      <label className="language-select">
-        <span className="sr-only">상승·하락 색상 선택</span>
-        <select aria-label="상승·하락 색상 선택" value={updown} onChange={(event) => setUpdown(event.target.value as Updown)}>
-          <option value="kr">상승 빨강</option>
-          <option value="us">상승 초록</option>
-        </select>
-      </label>
-      <label className="language-select">
-        <span className="sr-only">언어 선택</span>
-        <select aria-label="언어 선택" value={language} onChange={(event) => setLanguage(event.target.value as 'ko' | 'en')}>
-          <option value="ko">KO</option>
-          <option value="en">EN</option>
-        </select>
-      </label>
+      <div className="nav-market-control">
+        <span className="nav-market-control-icon" title="상승·하락 색상"><Palette size={14} aria-hidden="true" /></span>
+        <div className="nav-segmented-toggle nav-market-toggle" role="group" aria-label="상승·하락 색상 선택" data-value={updown}>
+          <button
+            type="button"
+            aria-label="미국식 · 상승 초록, 하락 빨강"
+            aria-pressed={updown === 'us'}
+            title="미국식 · 상승 초록, 하락 빨강"
+            onClick={() => setUpdown('us')}
+          ><MarketFlag country="us" /></button>
+          <button
+            type="button"
+            aria-label="한국식 · 상승 빨강, 하락 파랑"
+            aria-pressed={updown === 'kr'}
+            title="한국식 · 상승 빨강, 하락 파랑"
+            onClick={() => setUpdown('kr')}
+          ><MarketFlag country="kr" /></button>
+        </div>
+      </div>
+      <div className="nav-segmented-toggle nav-language-toggle" role="group" aria-label="언어 선택" data-value={language}>
+        <button type="button" aria-label="한국어" aria-pressed={language === 'ko'} onClick={() => setLanguage('ko')}>KO</button>
+        <button type="button" aria-label="English" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>EN</button>
+      </div>
       <button className={`signal-user ${page === 'account' ? 'active' : ''}`} aria-label="내 계정" onClick={() => setPage('account')}>KIM <i /></button>
     </div>
   </header></Localized>;
