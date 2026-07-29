@@ -5,10 +5,10 @@ import { RoomsView } from './views/OperationsViews';
 import { BotsView } from './views/BotsView';
 import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
 
-/* The bot list lives in a dropdown so ten bots cost no layout: open it before
-   reaching for a bot row. The trigger is named "<bot> 선택됨 · 봇 바꾸기". */
-const openBotPicker = (user: ReturnType<typeof userEvent.setup>) =>
-  user.click(screen.getByRole('button', { name: /봇 바꾸기$/ }));
+/* The page opens on 실시간 so the live chart costs no clicks; the standing
+   figures moved to their own 개요 tab, which these tests have to open. */
+const openOverview = (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole('tab', { name: /개요/ }));
 
 describe('Bot operations', () => {
   test('keeps the bot launch action without a manual refresh button', () => {
@@ -24,15 +24,17 @@ describe('Bot operations', () => {
 
     const detail = screen.getByRole('region', { name: 'Atlas 07 운영 상세' });
     expect(within(detail).getByRole('heading', { name: 'Atlas 07' })).toBeInTheDocument();
+    await openOverview(user);
     expect(within(detail).getByText('$10,540.00')).toBeInTheDocument();
     expect(within(detail).getByText('+$540.00 · +5.40%')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '대회 참가 중' }));
-    await openBotPicker(user);
     await user.click(screen.getByRole('button', { name: 'Room Beta 상세 보기' }));
 
     const next = screen.getByRole('region', { name: 'Room Beta 운영 상세' });
     expect(within(next).getByRole('heading', { name: 'Room Beta' })).toBeInTheDocument();
+    // Selecting a bot returns to 실시간, so the figures need the tab again.
+    await openOverview(user);
     expect(within(next).getByText('$10,490.00')).toBeInTheDocument();
     expect(within(next).getByText('+$490.00 · +4.90%')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Atlas 07 운영 상세' })).not.toBeInTheDocument();
@@ -44,8 +46,6 @@ describe('Bot operations', () => {
 
     const filter = screen.getByRole('group', { name: '봇 운용 유형 필터' });
     const list = () => within(screen.getByRole('list', { name: '봇 목록 결과' })).getAllByRole('listitem');
-
-    await openBotPicker(user);
     expect(list()).toHaveLength(3);
     expect(within(filter).queryByRole('button', { name: '전체' })).not.toBeInTheDocument();
     expect(within(filter).getByRole('button', { name: '개인 운용' })).toHaveAttribute('aria-pressed', 'true');
@@ -54,10 +54,7 @@ describe('Bot operations', () => {
     expect(screen.getByRole('button', { name: 'Pulse Grid 상세 보기' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Room Beta 상세 보기' })).not.toBeInTheDocument();
 
-    // The filter sits outside the dropdown anchor, so using it dismisses the
-    // dropdown; reopen it to read the narrowed list.
     await user.click(within(filter).getByRole('button', { name: '대회 참가 중' }));
-    await openBotPicker(user);
     expect(list()).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Room Beta 상세 보기' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Atlas 07 상세 보기' })).not.toBeInTheDocument();
@@ -69,6 +66,7 @@ describe('Bot operations', () => {
     render(<BotsView />);
 
     const atlas = screen.getByRole('region', { name: 'Atlas 07 운영 상세' });
+    await openOverview(user);
     expect(within(atlas).queryByText('초기 자산')).not.toBeInTheDocument();
     expect(within(atlas).getByText('운용 시작 시간')).toBeInTheDocument();
     expect(within(atlas).getByText('2025.07.08 09:30 ET')).toBeInTheDocument();
@@ -76,6 +74,7 @@ describe('Bot operations', () => {
     await user.click(screen.getByRole('button', { name: '대회 참가 중' }));
 
     const competitionBot = screen.getByRole('region', { name: 'Room Beta 운영 상세' });
+    await openOverview(user);
     expect(within(competitionBot).queryByText('초기 자산')).not.toBeInTheDocument();
     expect(within(competitionBot).getByText('대회 참가 시간')).toBeInTheDocument();
     expect(within(competitionBot).getByText('2026.06.08 09:30 ET')).toBeInTheDocument();
@@ -85,10 +84,10 @@ describe('Bot operations', () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
-    await openBotPicker(user);
     await user.click(screen.getByRole('button', { name: 'Pair Lab 상세 보기' }));
 
     const detail = screen.getByRole('region', { name: 'Pair Lab 운영 상세' });
+    await openOverview(user);
     expect(within(detail).getAllByText('$9,790.00')).toHaveLength(2);
     expect(within(detail).getByRole('heading', { name: '운용 시작 후 18일 손익' })).toBeInTheDocument();
     expect(within(detail).getByText('07.05–07.23 · 18일')).toBeInTheDocument();
@@ -99,7 +98,6 @@ describe('Bot operations', () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
-    await openBotPicker(user);
     await user.click(screen.getByRole('button', { name: 'Pair Lab 상세 보기' }));
 
     // No problem banner, no attention state: the bot retries by itself.
@@ -136,8 +134,8 @@ describe('Bot operations', () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
-    // The whole point of the 실시간 tab: reaching the chart costs no clicks. It
-    // used to live inside the decision log, two steps into the page.
+    // The point of the 실시간 tab: reaching the chart costs no clicks. It used
+    // to live inside the decision log, two steps into the page.
     expect(screen.getByRole('tab', { name: /실시간/ })).toHaveAttribute('aria-selected', 'true');
 
     const chart = screen.getByRole('region', { name: 'Atlas 07 실시간 체결 차트' });
@@ -227,13 +225,11 @@ describe('Bot operations', () => {
     await user.click(within(reopenedVariants).getByRole('button', { name: '분석형 봇 아이콘 파란색 적용' }));
 
     const detailIcon = screen.getByTestId('bot-icon-Atlas 07-detail');
-    // The picker trigger carries the other copy of the glyph and is always on
-    // screen, so a new icon has to reach it without opening the dropdown.
-    const pickerIcon = screen.getByTestId('bot-icon-Atlas 07-picker');
+    const listIcon = screen.getByTestId('bot-icon-Atlas 07-list');
     expect(detailIcon).toHaveAttribute('data-icon', 'analytical');
     expect(detailIcon).toHaveAttribute('data-color', 'blue');
-    expect(pickerIcon).toHaveAttribute('data-icon', 'analytical');
-    expect(pickerIcon).toHaveAttribute('data-color', 'blue');
+    expect(listIcon).toHaveAttribute('data-icon', 'analytical');
+    expect(listIcon).toHaveAttribute('data-color', 'blue');
     expect(screen.queryByRole('group', { name: '봇 아이콘 선택' })).not.toBeInTheDocument();
   });
 
@@ -268,15 +264,13 @@ describe('Bot operations', () => {
     expect(screen.getByText(/최초 실패 조건과 함께 남깁니다/)).toBeInTheDocument();
   });
 
-  test('replaces the strategy snapshot tab with a layout button in the summary panel', () => {
+  test('replaces the strategy snapshot tab with a layout button beside the tabs', () => {
     render(<BotsView />);
 
     expect(screen.queryByRole('tab', { name: '전략 스냅샷' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '자연어 설명' })).not.toBeInTheDocument();
-    // Configuration belongs with the bot's identity and figures, not with the
-    // tabs that switch what the live column is showing.
-    const summary = screen.getByRole('region', { name: 'Atlas 07 운영 상세' });
-    expect(within(summary).getByRole('button', { name: '전략 구성 보기' })).toBeInTheDocument();
+    const tabBar = screen.getByRole('group', { name: 'Atlas 07 상세 탐색' });
+    expect(within(tabBar).getByRole('button', { name: '전략 구성 보기' })).toBeInTheDocument();
   });
 
   test('opens the launch snapshot layout in a read-only modal without editor tools', async () => {
@@ -452,7 +446,6 @@ describe('Bot operations', () => {
     render(<BotsView />);
 
     await user.click(screen.getByRole('button', { name: '대회 참가 중' }));
-    await openBotPicker(user);
     await user.click(screen.getByRole('button', { name: 'Room Beta 상세 보기' }));
     await user.click(screen.getByRole('button', { name: '전략 구성 보기' }));
 
@@ -469,7 +462,6 @@ describe('Bot operations', () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
-    await openBotPicker(user);
     await user.click(screen.getByRole('button', { name: 'Pair Lab 상세 보기' }));
     await user.click(screen.getByRole('tab', { name: /포지션/ }));
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import { Bot, Boxes, ChevronDown, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Plus, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
+import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Plus, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
 import { Button, DataTable, EmptyState, PageHeading, Status, TabPanel, Tabs } from '../components/common';
 import { EquityChart } from '../components/EquityChart';
 import { LiveExecutionChart } from '../components/LiveExecutionChart';
@@ -26,7 +26,7 @@ import { ReadOnlyStrategyBlock } from './StrategyViews';
 /* ---------- Types ----------------------------------------------------------- */
 
 type FilterId = 'personal' | 'competition';
-type TabId = 'live' | 'positions' | 'decisions';
+type TabId = 'live' | 'overview' | 'positions' | 'decisions';
 type StepTone = 'universe' | 'data' | 'indicator' | 'condition' | 'risk' | 'order' | 'portfolio' | 'time';
 type LogScope = 'fills' | 'all';
 type LogPeriod = 'all' | 'today' | 'week' | 'month';
@@ -768,16 +768,13 @@ function StrategyLayoutModal({ botName, detail, layout, onClose, onSave }: Strat
 /* ---------- Page ------------------------------------------------------------ */
 
 /*
-  Bot operations. The left column answers "which bot, and how is it doing":
-  a compact picker on top, then that bot's identity and standing figures. The
-  right column answers "what is it doing right now", and opens on the live
-  execution chart — reaching it used to cost a trip into the decision log.
+  Bot operations: a master list on the left, the selected bot's detail on the
+  right, everything else behind tabs.
 
-  Positions is current state only (composition and holdings). The decision log
-  keeps the written record of every evaluation; the live chart is the same
-  fills drawn on a price axis, so the log no longer repeats it inline.
-  Budget-cap deferrals are normal operation (the bot retries next evaluation)
-  and are recorded in the log, never escalated.
+  Positions is current state only (composition and holdings); everything with a
+  time axis — fills included — lives in the decision log, so the same event is
+  never told in two places. Budget-cap deferrals are normal operation (the bot
+  retries next evaluation) and are recorded there, never escalated.
 */
 interface BotsViewProps {
   botIcons?: BotIconMap;
@@ -788,10 +785,6 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
   const [filter, setFilter] = useState<FilterId>('personal');
   const [selectedName, setSelectedName] = useState<string>(botList[0].name);
   const [tab, setTab] = useState<TabId>('live');
-  /* The picker is a dropdown, not a strip of chips: an account may run ten bots
-     at once, and ten chips either overflow sideways or eat the page. */
-  const [botPickerOpen, setBotPickerOpen] = useState(false);
-  const [botQuery, setBotQuery] = useState('');
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [savedLayouts, setSavedLayouts] = useState<Record<string, SnapshotLayout>>(
     () => Object.fromEntries(Object.entries(botDetails).map(([name, item]) => [name, cloneLayout(item.snapshot.layout)])),
@@ -815,13 +808,6 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
   };
 
   const visibleBots = botList.filter((bot) => matchesBotFilter(bot, filter));
-  /* The dropdown searches within the current operation-type filter, so the
-     footer count reads "matches / bots in this filter". */
-  const pickerBots = visibleBots.filter((bot) => {
-    const query = botQuery.trim().toLowerCase();
-    if (!query) return true;
-    return `${bot.name} ${bot.room} ${bot.labels.join(' ')}`.toLowerCase().includes(query);
-  });
   const selected = visibleBots.find((bot) => bot.name === selectedName) ?? visibleBots[0] ?? null;
   const detail = selected ? botDetails[selected.name] : null;
   const attention = botList.filter((bot) => bot.state === '조치 필요');
@@ -840,27 +826,6 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
       setDecisionSymbol(decisionSymbols[0] ?? '');
     }
   }, [decisionSymbol, decisionSymbols]);
-
-  /* Same dismissal contract as the icon picker: click anywhere outside the
-     anchor, or press Escape, and the dropdown closes without selecting. */
-  useEffect(() => {
-    if (!botPickerOpen) return undefined;
-
-    const dismiss = (event: PointerEvent) => {
-      const target = event.target instanceof Element ? event.target : null;
-      if (!target?.closest('.bots-picker-anchor')) setBotPickerOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setBotPickerOpen(false);
-    };
-
-    document.addEventListener('pointerdown', dismiss);
-    window.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('pointerdown', dismiss);
-      window.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [botPickerOpen]);
 
   useEffect(() => {
     if (!iconPickerOpen) return undefined;
@@ -888,8 +853,6 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
   const selectBot = (bot: BotRecord) => {
     setSelectedName(bot.name);
     setTab('live');
-    setBotPickerOpen(false);
-    setBotQuery('');
     setLayoutOpen(false);
     setIconPickerOpen(false);
     setColorVariantsOpen(false);
@@ -957,66 +920,27 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
             >{option.label}</button>)}
           </div>
         </header>
-        {selected ? <div className="bots-picker-anchor">
-          {/* The trigger states the current bot and how many it was chosen from,
-              so the count is visible without opening anything. */}
-          <button
+        {/* The list item and the control are separate elements: putting
+            role="listitem" on the button itself would drop its button semantics,
+            so it would no longer be announced as something you can activate. */}
+        {visibleBots.length > 0 ? <div className="bots-list" role="list" aria-label="봇 목록 결과">
+          {visibleBots.map((bot) => <div role="listitem" key={bot.name}><button
             type="button"
-            className="bots-picker-trigger"
-            aria-expanded={botPickerOpen}
-            aria-label={`${selected.name} 선택됨 · 봇 바꾸기`}
-            onClick={() => {
-              setBotQuery('');
-              setBotPickerOpen((open) => !open);
-            }}
+            aria-label={`${bot.name} 상세 보기`}
+            aria-pressed={selected?.name === bot.name}
+            className={selected?.name === bot.name ? 'active' : ''}
+            onClick={() => selectBot(bot)}
           >
-            <span className="bots-picker-glyph" aria-hidden="true">
-              <BotGlyph selection={botIcons[selected.name] ?? FALLBACK_BOT_ICON} testId={`bot-icon-${selected.name}-picker`} />
+            <span className="bots-list-icon" aria-hidden="true">
+              <BotGlyph selection={botIcons[bot.name] ?? FALLBACK_BOT_ICON} testId={`bot-icon-${bot.name}-list`} />
             </span>
-            <strong>{selected.name}</strong>
-            <Status tone={botTone(selected.state)}>{selected.state}</Status>
-            <small>{`${visibleBots.length}개 중 선택`}</small>
-            <ChevronDown size={14} aria-hidden="true" />
-          </button>
-
-          {botPickerOpen && <div className="bots-picker-menu" role="group" aria-label="봇 선택">
-            <label className="bots-picker-search">
-              <Search size={14} aria-hidden="true" />
-              <input
-                type="search"
-                aria-label="봇 검색"
-                placeholder="봇 이름 또는 방 검색"
-                value={botQuery}
-                onChange={(event) => setBotQuery(event.target.value)}
-              />
-              {botQuery && <button type="button" aria-label="봇 검색 초기화" onClick={() => setBotQuery('')}><X size={13} /></button>}
-            </label>
-
-            {/* The list item and the control are separate elements: putting
-                role="listitem" on the button itself would drop its button
-                semantics, so it would no longer be announced as activatable. */}
-            {pickerBots.length > 0 ? <div className="bots-list" role="list" aria-label="봇 목록 결과">
-              {pickerBots.map((bot) => <div role="listitem" key={bot.name}><button
-                type="button"
-                aria-label={`${bot.name} 상세 보기`}
-                aria-pressed={selected.name === bot.name}
-                className={selected.name === bot.name ? 'active' : ''}
-                onClick={() => selectBot(bot)}
-              >
-                <span className="bots-list-icon" aria-hidden="true">
-                  <BotGlyph selection={botIcons[bot.name] ?? FALLBACK_BOT_ICON} testId={`bot-icon-${bot.name}-list`} />
-                </span>
-                {/* Which bot, and is it healthy — that is all a chooser needs.
-                    Capital and change belong to the summary panel below. */}
-                <span className="bots-list-copy"><strong>{bot.name}</strong><small>{bot.room}</small></span>
-                <Status tone={botTone(bot.state)}>{bot.state}</Status>
-              </button></div>)}
-            </div> : <p className="bots-picker-empty" role="status">일치하는 봇이 없습니다.</p>}
-
-            <footer className="bots-picker-foot">
-              <strong>{`${pickerBots.length} / ${visibleBots.length}개 표시`}</strong>
-            </footer>
-          </div>}
+            {/* One template string, not interpolated fragments: Localized
+                translates whole text nodes, and a number in the middle would
+                split this into untranslatable pieces. */}
+            <span className="bots-list-copy"><strong>{bot.name}</strong><small>{`${bot.room} · 전략 ${bot.strategies}개`}</small></span>
+            <span className="bots-list-figures"><b>{bot.capital}</b><em className={bot.change.startsWith('+') ? 'positive' : 'negative'}>{bot.change}</em></span>
+            <Status tone={botTone(bot.state)}>{bot.state}</Status>
+          </button></div>)}
         </div> : <EmptyState
           icon={Bot}
           title="조건에 맞는 봇이 없습니다."
@@ -1027,10 +951,10 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
         />}
       </section>
 
-      {selected && detail ? <section className="bots-summary-panel panel" aria-label={`${selected.name} 운영 상세`}>
-        {/* Identity sits with the standing figures: together they answer "which
-            bot is this, and how is it doing". Where it runs is in the timing
-            row below, and the strategy belongs to the layout modal. */}
+      {selected && detail ? <section className="bots-detail-panel panel" aria-label={`${selected.name} 운영 상세`}>
+        {/* The identity row is the bot icon tile and the name — where the bot
+            runs is on the list row, and the strategy belongs to the snapshot
+            tab, so neither is repeated here. */}
         <header className="bots-detail-head">
           <div className="bots-detail-identity">
             <span className="bots-icon-anchor">
@@ -1109,17 +1033,40 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
             </span>
             <h2>{selected.name}</h2>
           </div>
-          {/* State and the configuration entry point stay in the header so
-              neither depends on scrolling past the equity chart. */}
-          <div className="bots-summary-head-tools">
-            <Status tone={botTone(selected.state)}>{selected.state}</Status>
-            <button type="button" className="bots-layout-open" onClick={() => setLayoutOpen(true)}>
-              <Boxes size={14} aria-hidden="true" />전략 구성 보기
-            </button>
-          </div>
+          <Status tone={botTone(selected.state)}>{selected.state}</Status>
         </header>
 
-        <div className="bots-summary-body">
+        <div className="bots-detail-tabbar" role="group" aria-label={`${selected.name} 상세 탐색`}>
+          <Tabs
+            label={`${selected.name} 상세 보기 방식`}
+            value={tab}
+            onChange={(next: TabId) => setTab(next)}
+            items={[
+              { id: 'live', label: '실시간' },
+              { id: 'overview', label: '개요' },
+              { id: 'positions', label: '포지션', count: detail.positions.length },
+              { id: 'decisions', label: '판단 기록', count: detail.events.length },
+            ]}
+          />
+          <button type="button" className="bots-layout-open" onClick={() => setLayoutOpen(true)}>
+            <Boxes size={14} aria-hidden="true" />전략 구성 보기
+          </button>
+        </div>
+
+        {/* The opening tab is the fills the bot is making right now, drawn on a
+            price axis. Reaching it used to mean a trip into the decision log,
+            which is two steps from opening the page. */}
+        {tab === 'live' && <TabPanel id="live">
+          {decisionSymbol && <LiveExecutionChart
+            botName={selected.name}
+            executions={fillEvents}
+            symbols={decisionSymbols}
+            symbol={decisionSymbol}
+            onSymbolChange={setDecisionSymbol}
+          />}
+        </TabPanel>}
+
+        {tab === 'overview' && <TabPanel id="overview">
           <div className="bots-overview-figures">
             <div><span>총자산</span><strong>{selected.capital}</strong><small>{`${signedMoney(botProfit[botProfit.length - 1])} · ${percent(detail.monthReturn)}`}</small></div>
             <div><span>투자 중</span><strong>{detail.invested}</strong></div>
@@ -1145,34 +1092,6 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
               ariaLabel={`${selected.name} 손익과 수익률 차트`}
             />
           </div>
-        </div>
-      </section> : null}
-
-      {selected && detail ? <section className="bots-live-panel panel" aria-label={`${selected.name} 실시간 운영`}>
-        <div className="bots-detail-tabbar" role="group" aria-label={`${selected.name} 상세 탐색`}>
-          <Tabs
-            label={`${selected.name} 상세 보기 방식`}
-            value={tab}
-            onChange={(next: TabId) => setTab(next)}
-            items={[
-              { id: 'live', label: '실시간' },
-              { id: 'positions', label: '포지션', count: detail.positions.length },
-              { id: 'decisions', label: '판단 기록', count: detail.events.length },
-            ]}
-          />
-        </div>
-
-        {/* The opening tab is the fills the bot is making right now, drawn on a
-            price axis. That is the reason to open this page, so it costs no
-            clicks; the written record of the same fills stays in the log. */}
-        {tab === 'live' && <TabPanel id="live">
-          {decisionSymbol && <LiveExecutionChart
-            botName={selected.name}
-            executions={fillEvents}
-            symbols={decisionSymbols}
-            symbol={decisionSymbol}
-            onSymbolChange={setDecisionSymbol}
-          />}
         </TabPanel>}
 
         {tab === 'positions' && <TabPanel id="positions">

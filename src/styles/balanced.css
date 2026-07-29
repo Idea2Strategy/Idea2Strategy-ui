@@ -5372,100 +5372,14 @@
 /* Bot operations — selectable list on the left drives the detail on the right */
 .bots-page { display: grid; gap: var(--space-5); }
 .bots-page .page-heading { margin-bottom: 0; }
-/* The picker is a horizontal strip across the top, so the narrow column starts
-   with the selected bot itself and the live chart keeps the wide column. Named
-   areas hold that placement without a wrapper, so each panel stays a direct
-   grid child and the DOM order still reads picker, summary, live. */
 .bots-workspace {
   display: grid;
-  grid-template-columns: minmax(380px, 1fr) minmax(560px, 1.45fr);
-  grid-template-areas:
-    "picker  picker"
-    "summary live";
+  grid-template-columns: minmax(320px, .8fr) minmax(520px, 1.6fr);
   gap: var(--space-4);
   align-items: start;
 }
 .bots-workspace > * { min-width: 0; }
-.bots-list-panel { grid-area: picker; }
-.bots-summary-panel { grid-area: summary; }
-.bots-live-panel { grid-area: live; }
-.bots-summary-panel, .bots-live-panel { overflow: hidden; }
-/* Not hidden: the dropdown has to escape this panel to overlay the ones below. */
-.bots-list-panel { overflow: visible; position: relative; z-index: 2; }
-
-/* The picker strip reads left to right — heading, filter, then the control that
-   names the current bot. Its height does not depend on how many bots exist. */
-.bots-list-panel { display: flex; align-items: stretch; flex-wrap: wrap; }
-.bots-list-panel > .bots-list-head {
-  min-height: 0;
-  flex: 0 0 auto;
-  gap: var(--space-3);
-  border-bottom: 0;
-  border-right: 1px solid var(--line);
-}
-/* Eyebrow beside the title, not stacked above it: the strip stays one row tall. */
-.bots-list-panel > .bots-list-head > div { display: flex; align-items: baseline; gap: var(--space-2); }
-.bots-list-panel > .bots-list-head > div > span { margin-bottom: 0; }
-.bots-list-panel > .result-state { flex: 1; min-width: 0; }
-
-.bots-picker-anchor { position: relative; display: flex; align-items: center; padding: var(--space-2) var(--space-3); }
-.bots-picker-trigger {
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  background: var(--surface-2);
-  cursor: pointer;
-  text-align: left;
-}
-.bots-picker-trigger:hover { border-color: var(--line-strong); }
-.bots-picker-trigger[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
-.bots-picker-glyph { width: 24px; height: 24px; display: grid; place-items: center; }
-.bots-picker-glyph .bot-icon-glyph { width: 20px; height: 20px; }
-.bots-picker-trigger > strong { font-size: var(--fs-control); }
-.bots-picker-trigger > small { color: var(--text-faint); font: 600 var(--fs-caption) var(--font-mono); }
-.bots-picker-trigger > svg { color: var(--text-faint); }
-
-.bots-picker-menu {
-  position: absolute;
-  top: calc(100% - var(--space-1));
-  left: var(--space-3);
-  z-index: 30;
-  width: min(340px, calc(100vw - var(--space-6) * 2));
-  display: grid;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  box-shadow: 0 1px 1px rgb(0 0 0 / .06), 0 8px 24px -6px rgb(0 0 0 / .22);
-  overflow: hidden;
-}
-.bots-picker-search { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); border-bottom: 1px solid var(--line); }
-.bots-picker-search > svg { flex: 0 0 auto; color: var(--text-faint); }
-.bots-picker-search input {
-  min-height: 38px;
-  min-width: 0;
-  flex: 1;
-  border: 0;
-  color: var(--text);
-  background: transparent;
-  font-size: var(--fs-body);
-}
-.bots-picker-search input:focus { outline: none; }
-.bots-picker-search > button { display: grid; padding: 2px; border: 0; border-radius: var(--radius-xs); color: var(--text-faint); background: transparent; cursor: pointer; }
-.bots-picker-search > button:hover { color: var(--text); background: var(--surface-2); }
-/* Ten bots is the account cap, so cap the menu near that and scroll past it. */
-.bots-picker-menu > .bots-list { max-height: 296px; overflow-y: auto; }
-.bots-picker-empty { margin: 0; padding: var(--space-4) var(--space-3); color: var(--text-faint); font-size: var(--fs-body); }
-.bots-picker-foot {
-  padding: var(--space-2) var(--space-3);
-  border-top: 1px solid var(--line);
-  background: var(--surface-2);
-}
-.bots-picker-foot strong { color: var(--text-faint); font: 650 var(--fs-caption) var(--font-mono); }
+.bots-list-panel, .bots-detail-panel { overflow: hidden; }
 .bots-list-head, .bots-detail-head {
   min-height: 72px;
   display: flex;
@@ -5503,16 +5417,14 @@
 .bots-filter button.active { color: var(--accent-ink); background: var(--accent); }
 
 .bots-list { display: grid; }
-/* One row per bot inside the dropdown: glyph, name and room, state. A chooser
-   needs identity and health — capital belongs to the summary panel. */
 .bots-list > div > button {
   width: 100%;
-  min-height: 52px;
+  min-height: 78px;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-1) var(--space-3);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4);
   border: 0;
   border-top: 1px solid var(--line);
   border-left: 2px solid transparent;
@@ -5525,8 +5437,9 @@
 .bots-list > div > button:hover { background: var(--surface-2); }
 .bots-list > div > button.active { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface)); }
 .bots-list-icon {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
+  grid-row: 1 / span 2;
   display: grid;
   place-items: center;
   border: 1px solid var(--line);
@@ -5535,8 +5448,8 @@
   background: transparent;
 }
 .bots-list-icon .bot-icon-glyph {
-  width: 20px;
-  height: 20px;
+  width: 27px;
+  height: 27px;
 }
 
 /* SVG masks let every repository-owned bot drawing use the selected color. */
@@ -5674,22 +5587,10 @@
 .bots-list-copy { display: grid; gap: 3px; }
 .bots-list-copy strong { font-size: var(--fs-control); }
 .bots-list-copy small { color: var(--text-faint); font-size: var(--fs-micro); }
-/* One line, three cells: the state badge is the third, not a wrapped second row. */
-.bots-list > div > button > .status { justify-self: end; }
-
-/* The summary stacks figures, timing, the equity chart and the configuration
-   entry point. Each child owns its own padding, so this only has to sequence
-   them and place the trailing button. */
-.bots-summary-body { display: grid; }
-/* Narrow column: let the state badge and the layout button stack rather than
-   squeeze the bot name. */
-.bots-summary-head-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
+.bots-list-figures { display: grid; gap: 3px; justify-items: end; }
+.bots-list-figures b { font: 700 var(--fs-control) var(--font-mono); }
+.bots-list-figures em { font: 700 var(--fs-micro) var(--font-mono); font-style: normal; }
+.bots-list > div > button > .status { grid-column: 2 / span 2; justify-self: start; }
 
 .bots-overview-figures {
   display: grid;
@@ -5699,13 +5600,12 @@
 .bots-overview-figures > div {
   display: grid;
   gap: var(--space-1);
-  /* Denser than a full-width panel: these three now share the narrow column. */
-  padding: var(--space-3);
+  padding: var(--space-4);
   border-left: 1px solid var(--line);
 }
 .bots-overview-figures > div:first-child { border-left: 0; }
 .bots-overview-figures span { color: var(--text-faint); font-size: var(--fs-caption); font-weight: 600; }
-.bots-overview-figures strong { font: 700 17px/1.15 var(--font-mono); }
+.bots-overview-figures strong { font: 700 20px/1.15 var(--font-mono); }
 .bots-overview-figures small { color: var(--text-faint); font: 600 var(--fs-micro) var(--font-mono); }
 
 .bots-overview-timing {
@@ -6026,6 +5926,11 @@
   flex: 1;
   border-bottom: 0;
 }
+.bots-detail-tabbar > .bots-layout-open {
+  align-self: center;
+  margin-left: auto;
+}
+
 /* Snapshot mode labels are reused in the strategy-layout modal. */
 .bots-snapshot-mode {
   width: 40px;
@@ -6224,6 +6129,7 @@
     flex-basis: 100%;
     padding-inline: 0;
   }
+  .bots-detail-tabbar > .bots-layout-open { margin-top: var(--space-2); }
   .snapshot-layout-backdrop { padding: 0; }
   .snapshot-layout-dialog { width: 100vw; height: 100vh; min-height: 0; border: 0; border-radius: 0; }
   .snapshot-layout-header,
@@ -6233,27 +6139,10 @@
 }
 
 @media (max-width: 1120px) {
-  .bots-workspace {
-    grid-template-columns: 1fr;
-    grid-template-areas: "picker" "summary" "live";
-  }
+  .bots-workspace { grid-template-columns: 1fr; }
 }
 @media (max-width: 800px) {
   .bots-list-head { align-items: flex-start; flex-direction: column; }
-  /* Heading takes the full strip and the chips wrap onto their own row: a
-     150px sliver of one chip is not a usable picker. */
-  .bots-list-panel > .bots-list-head {
-    flex: 1 0 100%;
-    align-items: center;
-    flex-direction: row;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-  /* Both children claim the full basis, so they land on separate rows instead
-     of the control collapsing to zero beside a non-shrinking heading. */
-  .bots-list-panel > .bots-picker-anchor,
-  .bots-list-panel > .result-state { flex: 1 0 100%; }
-  .bots-picker-menu { left: var(--space-3); right: var(--space-3); width: auto; }
   .bots-overview-figures { grid-template-columns: 1fr; }
   .bots-overview-figures > div { border-left: 0; border-top: 1px solid var(--line); }
   .bots-overview-figures > div:first-child { border-top: 0; }
