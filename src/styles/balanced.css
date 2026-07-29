@@ -7339,35 +7339,6 @@ small.dashboard-bot-scope {
   border-color: var(--accent);
   color: var(--accent);
 }
-.variant-balanced[data-design="signal-studio"] .competition-ranking-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
-.variant-balanced[data-design="signal-studio"] .competition-ranking-pagination span {
-  color: var(--text-faint);
-  font: 650 var(--fs-caption) var(--font-mono);
-}
-.variant-balanced[data-design="signal-studio"] .competition-ranking-pagination button {
-  min-height: 30px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  color: var(--text-soft);
-  background: var(--surface-2);
-  cursor: pointer;
-  font-size: var(--fs-caption);
-  font-weight: 650;
-}
-.variant-balanced[data-design="signal-studio"] .competition-ranking-pagination button:disabled {
-  opacity: .45;
-  cursor: default;
-}
-.variant-balanced[data-design="signal-studio"] .competition-ranking-pagination button:not(:disabled):hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
 .variant-balanced[data-design="signal-studio"] .competition-ranking-expand { color: var(--accent) !important; }
 
 /* 채점 방식 안내 모달 목록(껍데기는 info-dialog 공용). */
@@ -7448,4 +7419,156 @@ small.dashboard-bot-scope {
     grid-template-columns: 1fr 1fr;
   }
   .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer .button { width: 100%; }
+}
+
+/*
+  #54 순위표 2차: 채점 방식을 헤더로, 봇 모음 토글, 접힘 줄을 진짜 버튼으로.
+  페이지네이션은 없앴다 — 접기로 한 화면에 담는다.
+*/
+.variant-balanced[data-design="signal-studio"] .competition-detail-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+/* 제목 옆 채점 배지 버튼: 배지 + 물음표가 한 덩어리로 눌린다. */
+.variant-balanced[data-design="signal-studio"] .competition-detail-title .competition-scoring-help {
+  gap: var(--space-2);
+  padding: 2px var(--space-2) 2px 2px;
+  border-radius: 99px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-title .competition-scoring-help:hover {
+  background: var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-title .competition-ranking-badge {
+  min-height: 24px;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+
+/* 리더보드 머리: 제목 왼쪽, 도구 오른쪽. */
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard-title h2 { margin: 0; }
+.variant-balanced[data-design="signal-studio"] .competition-ranking-tools { gap: var(--space-2); }
+.variant-balanced[data-design="signal-studio"] .competition-only-mine {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  background: var(--surface-2);
+  cursor: pointer;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .competition-only-mine:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-only-mine.is-on {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor-foot {
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2) 0;
+  border-top: 1px solid var(--line);
+  margin-top: var(--space-1);
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor-foot button {
+  flex: 1 1 auto;
+  min-height: 26px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  color: var(--text-soft);
+  background: var(--surface-2);
+  cursor: pointer;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor-foot button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 지표를 많이 켜면 표가 좁아지므로 가로 스크롤로 넘긴다. */
+.variant-balanced[data-design="signal-studio"] .competition-ranking-list { overflow-x: auto; }
+.variant-balanced[data-design="signal-studio"] .competition-ranking { min-width: var(--ranking-min-width, 520px); }
+.variant-balanced[data-design="signal-studio"] .competition-ranking > div > span:first-of-type {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* 순위표 안의 내 봇 표식 — 강조 배경만으로는 스캔이 어렵다. */
+.variant-balanced[data-design="signal-studio"] .competition-ranking-mine-tag {
+  flex: none;
+  display: inline-flex;
+  color: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking > div.is-mine .competition-ranking-position {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+/*
+  접힘 줄: 행 전체가 버튼이고 좌측에 계단 들여쓰기를 줘서 "펼치는 줄"로
+  읽히게 한다. 텍스트도 "N개 더 보기"로 동작을 말한다.
+*/
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-top: 1px dashed var(--line-strong);
+  color: var(--text-faint);
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+  cursor: pointer;
+  text-align: left;
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap::before,
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap::after { content: none; }
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap svg { flex: none; }
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap span {
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap em {
+  margin-left: auto;
+  font-style: normal;
+  font: 650 var(--fs-micro) var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 상태 한 줄 — 몇 개 보이고 몇 개 접혔는지. */
+.variant-balanced[data-design="signal-studio"] .competition-ranking-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-foot .competition-ranking-expand {
+  min-height: 30px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-foot .competition-ranking-expand:hover {
+  border-color: var(--accent);
 }

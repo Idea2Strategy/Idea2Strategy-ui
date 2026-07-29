@@ -1575,8 +1575,8 @@ const rankingDescriptionByLabel: Record<string, string> = {
   채로 전 방식의 계산법을 함께 보여준다 — 배지 이름만으로는 뭐가 다른지 알 수
   없다는 피드백에서 나왔다.
 */
-/* 이 수보다 참가자가 많으면 순위표를 상위+내 주변으로 압축한다. */
-const RANKING_COMPRESS_LIMIT = 10;
+/* 이 수 이하면 순위표를 접지 않는다 — 전부 보여줘도 한 화면이다. */
+const RANKING_FULL_LIMIT = 14;
 
 const scoringHelpEntries: Array<{ name: string; formula: string }> = [
   { name: '표준점수제', formula: '점수 = z(수익률) + z(샤프 지수) − z(최대 낙폭)' },
@@ -1920,12 +1920,13 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
   /* 상세(#54): 조건 표 접힘 · 채점 도움말 모달 · 순위표 전체 보기 · 지표 열. */
   const [factsOpen, setFactsOpen] = useState(false);
   const [scoringHelpOpen, setScoringHelpOpen] = useState(false);
-  const [rankingExpanded, setRankingExpanded] = useState(false);
+  /* 접힌 구간은 구간별로 펼친다 — 하나 펼치려고 전체를 열 필요가 없다. */
+  const [expandedGapKeys, setExpandedGapKeys] = useState<string[]>([]);
+  const [onlyMyBots, setOnlyMyBots] = useState(false);
   /* 순위표에 어떤 성적 지표를 열로 띄울지는 보는 사람이 고른다(최대 4개). */
   const [visibleMetricIds, setVisibleMetricIds] = useState<RankingMetricId[]>(['score', 'return']);
   const [metricEditorOpen, setMetricEditorOpen] = useState(false);
   const [sortMetric, setSortMetric] = useState<RankingMetricId>('score');
-  const [rankingPage, setRankingPage] = useState(1);
   const [entryDialogStep, setEntryDialogStep] = useState<'closed' | 'select' | 'confirm'>('closed');
   const [selectedEntryStrategies, setSelectedEntryStrategies] = useState<string[]>([]);
   const [entryStrategyQuery, setEntryStrategyQuery] = useState('');
@@ -1953,7 +1954,6 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     view,
     remainingFilter,
   ]);
-  useEffect(() => setRankingPage(1), [sortMetric, selectedRoom]);
   useEffect(() => {
     if (entryDialogStep !== 'select') return undefined;
     const normalizedQuery = entryStrategyQuery.trim();
@@ -1984,10 +1984,13 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
   useEffect(() => {
     setFactsOpen(false);
     setScoringHelpOpen(false);
-    setRankingExpanded(false);
+    setExpandedGapKeys([]);
+    setOnlyMyBots(false);
     setMetricEditorOpen(false);
     setVisibleMetricIds(['score', 'return']);
   }, [selectedRoom]);
+  /* 정렬을 바꾸면 순위가 다시 매겨지므로 펼친 구간은 초기화한다. */
+  useEffect(() => setExpandedGapKeys([]), [sortMetric, onlyMyBots]);
   useEffect(() => {
     if (entryDialogStep === 'closed') return undefined;
     const handleEscape = (event: KeyboardEvent) => {
@@ -2021,6 +2024,7 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     ? `내 봇이 대회 ${myCompetitions.length}개에서 뛰고 있어요. 가장 급한 마감은 ${myCompetitions[0].name} D-${myCompetitions[0].remainingDays}예요.`
     : '아직 참가 중인 대회가 없어요. 모집 중인 대회에서 첫 도전을 시작해보세요.';
   const activeMetric = rankingMetrics.find((metric) => metric.id === sortMetric) ?? rankingMetrics[0];
+  /* 지표 열은 전부 켤 수 있다. 많이 켜면 표가 좁아지므로 가로 스크롤로 넘긴다. */
   const visibleMetrics = rankingMetrics.filter((metric) => visibleMetricIds.includes(metric.id));
   const toggleMetricColumn = (id: RankingMetricId) => {
     if (visibleMetricIds.includes(id)) {
@@ -2028,8 +2032,10 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
       const next = visibleMetricIds.filter((item) => item !== id);
       setVisibleMetricIds(next);
       if (sortMetric === id) setSortMetric(next[0]);
-    } else if (visibleMetricIds.length < 4) { // 그 이상은 열이 좁아져 읽히지 않는다
-      setVisibleMetricIds([...visibleMetricIds, id]);
+    } else {
+      setVisibleMetricIds(rankingMetrics.filter((metric) => (
+        visibleMetricIds.includes(metric.id) || metric.id === id
+      )).map((metric) => metric.id));
     }
   };
   const rankingSource = useMemo(() => {
@@ -2039,67 +2045,81 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     const generatedEntries = selectedRoom ? generatedEntriesByCompetition[selectedRoom.name] ?? [] : [];
     return [...baseEntries, ...generatedEntries];
   }, [generatedEntriesByCompetition, selectedRoom]);
-  const rankingPageSize = 10;
+  /* 페이지네이션은 없다 — 접기로 한 화면에 담는다(2026-07-30). */
   const rankedEntries = useMemo(() => [...rankingSource].sort((a, b) => activeMetric.better === 'low'
     ? a[activeMetric.id] - b[activeMetric.id]
     : b[activeMetric.id] - a[activeMetric.id]), [activeMetric, rankingSource]);
-  const rankingPageCount = Math.max(1, Math.ceil(rankedEntries.length / rankingPageSize));
-  const safeRankingPage = Math.min(rankingPage, rankingPageCount);
-  const visibleRankingEntries = rankedEntries.slice(
-    (safeRankingPage - 1) * rankingPageSize,
-    safeRankingPage * rankingPageSize,
-  );
   const myRankedEntries = rankedEntries.flatMap((entry, index) => (
     entry.mine ? [{ entry, position: index + 1 }] : []
   ));
   /*
-    1-a 압축(#54): 순위표의 실제 질문은 "누가 이기고 있나"와 "내 앞뒤는
-    누구인가" 둘뿐이다. 기본 화면은 상위 3 + 내 봇 ±2로 끝나고, 생략 구간은
-    줄 하나로 접는다. 참가하지 않았다면 상위 10을 보여준다.
+    순위표 표시 규칙(#54, 2026-07-30 재정의).
+
+    목표: 페이지를 넘기지 않고 한 화면에서 "누가 이기고 있나"와 "내 봇들이
+    각각 어디쯤인가"를 같이 본다. 그래서 페이지네이션이 아니라 접기다.
+
+    케이스별로 이렇게 동작한다.
+    - 데이터가 적을 때(<= 14): 접지 않는다. 전부 보여줘도 한 화면이다.
+    - 딱 맞을 때(접었는데 줄어드는 게 2줄 이하): 접지 않는다 — 접힘 줄이
+      아낀 줄만큼 자리를 먹으므로 이득이 없다.
+    - 많을 때: 상위 5 + 내 봇들 각각 ±1 + 최하위 1을 남기고 사이를 접는다.
+      최하위를 남기는 이유는 "전체가 몇 위까지 있는지"가 내 위치의 의미를
+      정하기 때문이다.
+    - 내 봇이 여러 곳에 흩어져 있으면 각 구간이 따로 살아남고, 사이 구간마다
+      접힘 줄이 하나씩 생긴다. 접힘 줄은 눌러서 그 구간만 펼친다.
+    - 내 봇이 없으면 상위 10 + 최하위 1.
   */
-  const rankingCompressed = !rankingExpanded && rankedEntries.length > RANKING_COMPRESS_LIMIT;
-  const compressedRankingRows = useMemo(() => {
-    if (!rankingCompressed) return [];
-    const keep = new Set<number>([1, 2, 3]);
-    if (myRankedEntries.length === 0) {
-      for (let position = 1; position <= Math.min(RANKING_COMPRESS_LIMIT, rankedEntries.length); position += 1) keep.add(position);
-    }
+  const rankingRows = useMemo(() => {
+    const total = rankedEntries.length;
+    const rows: Array<
+      | { kind: 'entry'; entry: LeaderboardEntry; position: number }
+      | { kind: 'gap'; key: string; hidden: number; from: number; to: number }
+    > = [];
+    const all = () => rankedEntries.map((entry, index) => ({ kind: 'entry' as const, entry, position: index + 1 }));
+    if (total <= RANKING_FULL_LIMIT) return all();
+
+    const keep = new Set<number>();
+    const topCount = myRankedEntries.length > 0 ? 5 : 10;
+    for (let position = 1; position <= Math.min(topCount, total); position += 1) keep.add(position);
     myRankedEntries.forEach(({ position }) => {
-      for (let near = Math.max(1, position - 2); near <= Math.min(rankedEntries.length, position + 2); near += 1) keep.add(near);
+      for (let near = Math.max(1, position - 1); near <= Math.min(total, position + 1); near += 1) keep.add(near);
     });
-    /*
-      생략 규칙: 숨겨지는 구간이 3개 미만이면 접지 않는다 — 생략 줄 하나가
-      행 1~2개보다 자리를 더 차지해서, 접는 의미가 없다. 3개 이상일 때만
-      "#시작–#끝 · N개 접힘" 줄 하나로 접는다.
-    */
-    const rows: Array<{ kind: 'entry'; entry: LeaderboardEntry; position: number } | { kind: 'gap'; hidden: number; from: number; to: number }> = [];
-    const pushRange = (startIndex: number, endIndex: number) => {
-      const hidden = endIndex - startIndex;
-      if (hidden <= 0) return;
-      if (hidden < 3) {
-        for (let index = startIndex; index < endIndex; index += 1) {
+    keep.add(total);
+    /* 접어서 아끼는 줄이 2줄 이하면 접지 않는다(접힘 줄 자체가 한 줄이다). */
+    if (total - keep.size <= 2) return all();
+
+    let runStart = -1;
+    const flushRun = (endIndex: number) => {
+      if (runStart < 0) return;
+      const hidden = endIndex - runStart;
+      const key = `${runStart + 1}-${endIndex}`;
+      if (hidden <= 2 || expandedGapKeys.includes(key)) {
+        for (let index = runStart; index < endIndex; index += 1) {
           rows.push({ kind: 'entry', entry: rankedEntries[index], position: index + 1 });
         }
       } else {
-        rows.push({ kind: 'gap', hidden, from: startIndex + 1, to: endIndex });
+        rows.push({ kind: 'gap', key, hidden, from: runStart + 1, to: endIndex });
       }
+      runStart = -1;
     };
-    let runStart = -1;
     rankedEntries.forEach((entry, index) => {
-      const position = index + 1;
-      if (keep.has(position)) {
-        if (runStart >= 0) {
-          pushRange(runStart, index);
-          runStart = -1;
-        }
-        rows.push({ kind: 'entry', entry, position });
+      if (keep.has(index + 1)) {
+        flushRun(index);
+        rows.push({ kind: 'entry', entry, position: index + 1 });
       } else if (runStart < 0) {
         runStart = index;
       }
     });
-    if (runStart >= 0) pushRange(runStart, rankedEntries.length);
+    flushRun(total);
     return rows;
-  }, [rankingCompressed, rankedEntries, myRankedEntries]);
+  }, [rankedEntries, myRankedEntries, expandedGapKeys]);
+  const myBotRows = useMemo(() => myRankedEntries.map(({ entry, position }) => ({
+    kind: 'entry' as const,
+    entry,
+    position,
+  })), [myRankedEntries]);
+  const displayedRankingRows = onlyMyBots ? myBotRows : rankingRows;
+  const foldedCount = rankingRows.reduce((sum, row) => sum + (row.kind === 'gap' ? row.hidden : 0), 0);
   const isRecruitingRoom = Boolean(selectedRoom && selectedRoom.status !== 'running');
   const isBacktestRoom = selectedRoom?.ranking === '백테스팅';
   const myBotEntryLimit = selectedRoom?.entryLimit ?? 3;
@@ -2201,7 +2221,8 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     setEntrySuccessMessage(
       `${newEntries.map((entry) => entry.bot).join(', ')}이 생성되어 대회에 참가했습니다.`,
     );
-    setRankingPage(1);
+    /* 새 봇이 생기면 접힌 구간을 초기화해 내 봇 주변이 다시 계산되게 한다. */
+    setExpandedGapKeys([]);
     closeEntryDialog();
   };
 
@@ -2242,6 +2263,18 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
             </div>
             <div className="competition-detail-title">
               <h1>{selectedRoom.name}</h1>
+              {/* 채점 방식은 참가 판단의 핵심 정보라 제목 옆에 둔다. 누르면
+                  전 방식의 수식 안내가 열린다. */}
+              <button
+                type="button"
+                className="competition-scoring-help"
+                aria-haspopup="dialog"
+                aria-label={`${selectedRoom.ranking} 채점 방식 안내`}
+                onClick={() => setScoringHelpOpen(true)}
+              >
+                <strong className="competition-ranking-badge" data-ranking-tone={rankingToneByLabel[selectedRoom.ranking] ?? 'backtesting'}>{selectedRoom.ranking}</strong>
+                <CircleHelp size={14} aria-hidden="true" />
+              </button>
             </div>
             <span className="competition-detail-description">{detailDescription}</span>
           </div>
@@ -2346,16 +2379,6 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
             <div className="competition-recruiting-facts">
               <span><b>{'joined' in selectedRoom ? selectedRoom.joined : selectedRoom.bots}</b><small>참여 봇</small></span>
             </div>
-            <button
-              type="button"
-              className="competition-scoring-help"
-              aria-haspopup="dialog"
-              onClick={() => setScoringHelpOpen(true)}
-            >
-              <strong className="competition-ranking-badge" data-ranking-tone={rankingToneByLabel[selectedRoom.ranking] ?? 'backtesting'}>{selectedRoom.ranking}</strong>
-              <CircleHelp size={14} aria-hidden="true" />
-              <span>채점 방식 안내</span>
-            </button>
           </section>
         </div>
         /*
@@ -2365,33 +2388,32 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
         */
         : <section className="competition-leaderboard is-single" aria-labelledby="competition-leaderboard-title">
             <header>
+              {/* 채점 방식은 헤더가 말한다 — 여기서 반복하지 않는다. */}
               <div className="competition-leaderboard-title">
                 <p>LEADERBOARD</p>
-                <div>
-                  <h2 id="competition-leaderboard-title">대회 리더보드</h2>
-                  {/* 채점 배지를 누르면 전 방식 수식 안내 모달이 열린다. */}
-                  <button
-                    type="button"
-                    className="competition-scoring-help"
-                    aria-haspopup="dialog"
-                    aria-label={`${selectedRoom.ranking} 채점 방식 안내`}
-                    onClick={() => setScoringHelpOpen(true)}
-                  >
-                    <strong className="competition-ranking-badge" data-ranking-tone={rankingToneByLabel[selectedRoom.ranking] ?? 'backtesting'}>{selectedRoom.ranking}</strong>
-                    <CircleHelp size={14} aria-hidden="true" />
-                  </button>
-                </div>
+                <h2 id="competition-leaderboard-title">대회 리더보드</h2>
               </div>
               <div className="competition-ranking-tools">
-                {myRankedEntries.length > 0 && <span
-                  className="competition-leaderboard-capacity"
-                  aria-label={`등록 봇 ${myRankedEntries.length}/${myBotEntryLimit}`}
-                >
-                  <small>등록 봇</small>
-                  <strong>{`${myRankedEntries.length} / ${myBotEntryLimit}`}</strong>
-                </span>}
-                {/* 지표는 하나씩 갈아끼우는 게 아니라 열로 고른다(최대 4개).
-                    정렬은 열 머리를 눌러 바꾼다. */}
+                {myRankedEntries.length > 0 && <>
+                  <span
+                    className="competition-leaderboard-capacity"
+                    aria-label={`등록 봇 ${myRankedEntries.length}/${myBotEntryLimit}`}
+                  >
+                    <small>등록 봇</small>
+                    <strong>{`${myRankedEntries.length} / ${myBotEntryLimit}`}</strong>
+                  </span>
+                  {/* 봇 모음: 내 봇만 모아 보는 토글. 흩어져 있어도 한눈에 본다. */}
+                  <button
+                    type="button"
+                    className={`competition-only-mine${onlyMyBots ? ' is-on' : ''}`}
+                    aria-pressed={onlyMyBots}
+                    onClick={() => setOnlyMyBots((only) => !only)}
+                  >
+                    <Bot size={13} aria-hidden="true" />
+                    {`내 봇만 ${myRankedEntries.length}`}
+                  </button>
+                </>}
+                {/* 지표는 원하는 만큼 열로 켤 수 있다. 정렬은 열 머리로. */}
                 <button
                   type="button"
                   className="competition-metric-edit"
@@ -2400,24 +2422,32 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                   onClick={() => setMetricEditorOpen((open) => !open)}
                 >
                   <SlidersHorizontal size={13} aria-hidden="true" />
-                  지표 편집
+                  {`지표 ${visibleMetrics.length}/${rankingMetrics.length}`}
                 </button>
                 {metricEditorOpen && <div id="competition-metric-editor" className="competition-metric-editor" role="group" aria-label="표시할 지표 선택">
                   {rankingMetrics.map((metric) => {
                     const checked = visibleMetricIds.includes(metric.id);
-                    const disabled = !checked && visibleMetrics.length >= 4;
-                    return <label key={metric.id} className={disabled ? 'is-disabled' : ''}>
+                    /* 마지막 하나는 끌 수 없다 — 열이 0개면 표가 아니다. */
+                    const locked = checked && visibleMetrics.length === 1;
+                    return <label key={metric.id} className={locked ? 'is-disabled' : ''}>
                       <input
                         type="checkbox"
                         checked={checked}
-                        disabled={disabled}
+                        disabled={locked}
                         onChange={() => toggleMetricColumn(metric.id)}
                       />
                       <span className="competition-metric-check" aria-hidden="true"><Check size={11} /></span>
                       {metric.label}
                     </label>;
                   })}
-                  <small>최대 4개 · 열 제목을 누르면 그 지표로 정렬돼요</small>
+                  <div className="competition-metric-editor-foot">
+                    <button type="button" onClick={() => setVisibleMetricIds(rankingMetrics.map((metric) => metric.id))}>전체 선택</button>
+                    <button type="button" onClick={() => {
+                      setVisibleMetricIds(['score', 'return']);
+                      setSortMetric('score');
+                    }}>기본값</button>
+                  </div>
+                  <small>열 제목을 누르면 그 지표로 정렬돼요</small>
                 </div>}
               </div>
             </header>
@@ -2425,7 +2455,11 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
               <div
                 className="competition-ranking is-metric-ranking"
                 aria-label={`${selectedRoom.name} 봇 순위`}
-                style={{ '--ranking-cols': `56px minmax(0, 1fr) repeat(${visibleMetrics.length}, minmax(84px, 104px))` } as CSSProperties}
+                /* 열이 많아지면 1fr로 눌리지 않고 고정 폭을 지켜 가로 스크롤로 넘긴다. */
+                style={{
+                  '--ranking-cols': `56px minmax(140px, 1fr) repeat(${visibleMetrics.length}, ${visibleMetrics.length > 3 ? '96px' : 'minmax(88px, 1fr)'})`,
+                  '--ranking-min-width': `${260 + visibleMetrics.length * 100}px`,
+                } as CSSProperties}
               >
                 <header>
                   <span>순위</span>
@@ -2439,49 +2473,49 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                     onClick={() => setSortMetric(metric.id)}
                   >{metric.label}<i aria-hidden="true">{sortMetric === metric.id ? '▼' : '↕'}</i></button>)}
                 </header>
-                {/*
-                  1-a 압축(#54): 참가자가 200명이어도 화면은 상위 3 + 내 봇 ±2로
-                  끝난다. 생략 구간은 줄 하나로 표시하고, 눌러야 전체가 열린다.
-                */}
-                {(rankingCompressed
-                  ? compressedRankingRows
-                  : visibleRankingEntries.map((entry, index) => ({
-                    kind: 'entry' as const,
-                    entry,
-                    position: (safeRankingPage - 1) * rankingPageSize + index + 1,
-                  }))
-                ).map((row, index) => (row.kind === 'gap'
-                  ? <div className="competition-ranking-gap" key={`gap-${index}`}>
-                    <button type="button" aria-label={`${row.from}위부터 ${row.to}위까지 펼치기`} onClick={() => setRankingExpanded(true)}>
-                      <ChevronDown size={12} aria-hidden="true" />
-                      {`#${row.from}–#${row.to} · ${row.hidden}개 접힘`}
-                    </button>
-                  </div>
+                {displayedRankingRows.map((row) => (row.kind === 'gap'
+                  ? <button
+                    type="button"
+                    className="competition-ranking-gap"
+                    key={row.key}
+                    aria-label={`${row.from}위부터 ${row.to}위까지 ${row.hidden}개 펼치기`}
+                    onClick={() => setExpandedGapKeys((keys) => [...keys, row.key])}
+                  >
+                    <ChevronDown size={13} aria-hidden="true" />
+                    <span>{`${row.hidden}개 더 보기`}</span>
+                    <em>{`#${row.from}–#${row.to}`}</em>
+                  </button>
                   : <div className={row.entry.mine ? 'is-mine' : ''} key={row.entry.bot}>
-                    <strong className="competition-ranking-position">#{row.position}</strong>
-                    <span>{row.entry.bot}</span>
+                    <strong className="competition-ranking-position">{`#${row.position}`}</strong>
+                    <span>
+                      {row.entry.bot}
+                      {row.entry.mine && <i className="competition-ranking-mine-tag" aria-label="내 봇"><Bot size={12} aria-hidden="true" /></i>}
+                    </span>
                     {visibleMetrics.map((metric) => (metric.id === 'return'
                       ? <span key={metric.id} className={row.entry.return >= 0 ? 'positive' : 'negative'}>{formatMetric(row.entry, metric)}</span>
                       : <b key={metric.id}>{formatMetric(row.entry, metric)}</b>))}
                   </div>))}
               </div>
             </div>
-            <footer className="competition-ranking-pagination">
-              {rankingCompressed
-                ? <button type="button" className="competition-ranking-expand" onClick={() => setRankingExpanded(true)}>{`전체 순위 보기 (${rankedEntries.length})`}</button>
-                : <>
-                  {rankedEntries.length > RANKING_COMPRESS_LIMIT && <button
-                    type="button"
-                    className="competition-ranking-expand"
-                    onClick={() => {
-                      setRankingExpanded(false);
-                      setRankingPage(1);
-                    }}
-                  >간단히 보기</button>}
-                  <button type="button" disabled={safeRankingPage === 1} onClick={() => setRankingPage((current) => Math.max(1, current - 1))}>이전</button>
-                  <span>{safeRankingPage} / {rankingPageCount}</span>
-                  <button type="button" disabled={safeRankingPage === rankingPageCount} onClick={() => setRankingPage((current) => Math.min(rankingPageCount, current + 1))}>다음</button>
-                </>}
+            {/* 상태 한 줄: 지금 몇 개를 보고 있고 몇 개가 접혀 있는지. */}
+            <footer className="competition-ranking-foot">
+              <span>
+                {onlyMyBots
+                  ? `내 봇 ${myBotRows.length}개 · 전체 ${rankedEntries.length}개 중`
+                  : foldedCount > 0
+                    ? `전체 ${rankedEntries.length}개 중 ${rankedEntries.length - foldedCount}개 표시 · ${foldedCount}개 접힘`
+                    : `전체 ${rankedEntries.length}개 모두 표시`}
+              </span>
+              {!onlyMyBots && foldedCount > 0 && <button
+                type="button"
+                className="competition-ranking-expand"
+                onClick={() => setExpandedGapKeys(rankingRows.flatMap((row) => (row.kind === 'gap' ? [row.key] : [])))}
+              >모두 펼치기</button>}
+              {!onlyMyBots && foldedCount === 0 && rankedEntries.length > RANKING_FULL_LIMIT && <button
+                type="button"
+                className="competition-ranking-expand"
+                onClick={() => setExpandedGapKeys([])}
+              >접어서 보기</button>}
             </footer>
           </section>}
 

@@ -349,16 +349,28 @@ Deliberately not on Home:
   when scoring happens — for a backtest competition, that the whole field
   replays the same past window and is scored in one batch after close.
   While running, the leaderboard leads.
-- **Leaderboard columns are user-chosen** (2026-07-30): a 지표 편집 popover
-  picks which metrics render as columns (min 1, max 4 — narrower reads
-  poorly; default 점수·수익률), and **clicking a column header sorts by that
-  metric** — the single sort-metric select is gone.
-- **Leaderboard compresses to top 3 + my bots ±2** once the field exceeds
-  ten — at 200 entrants the screen stays the same size and my neighbourhood
-  is always visible without paging. **A hidden run shorter than 3 rows is
-  never folded** (the fold line would cost more space than the rows). The
-  fold row is a centred pill between hairlines reading `#from–#to · N개
-  접힘`; clicking it or "전체 순위 보기" restores the paginated full list.
+- **The scoring method sits beside the detail title**, not in the leaderboard
+  — it decides whether the competition suits a strategy, so it ranks with the
+  name. The badge is the button that opens the scoring help dialog; nothing
+  repeats it further down.
+- **Leaderboard columns are user-chosen** (2026-07-30): a `지표 n/7` popover
+  toggles which metrics render as columns — **all seven may be on** (only the
+  last one cannot be turned off), with 전체 선택/기본값 shortcuts. Beyond
+  three columns the metric columns take a fixed 96px and the table scrolls
+  horizontally inside its own container rather than squeezing. **Clicking a
+  column header sorts by that metric**; the sort-metric select is gone.
+- **The leaderboard folds instead of paginating** — the goal is every one of
+  my bots' standings on one screen. Rules: at most `RANKING_FULL_LIMIT` (14)
+  entrants shows everything; otherwise keep top 5 (top 10 when I have no
+  bot), each of my bots ±1, and **the last place** (how deep the field runs
+  is what gives my rank meaning), folding the rest. A run of ≤2 hidden rows
+  is never folded (the fold row costs a row itself), and folding is skipped
+  entirely when it would save ≤2 rows. **Each fold row expands only its own
+  range** — a full-width button reading `N개 더 보기` with the range on the
+  right — and a footer line states `전체 N개 중 M개 표시 · K개 접힘` with
+  모두 펼치기 / 접어서 보기.
+- **`내 봇만 N` toggles a my-bots-only view** of the same table, so bots
+  scattered across the field can be compared side by side.
 - **The scoring badge opens a help dialog** listing every scoring method
   with its formula, the current competition's method highlighted — the badge
   name alone does not explain how methods differ. The lobby keeps its hover

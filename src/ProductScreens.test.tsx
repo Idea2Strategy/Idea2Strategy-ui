@@ -628,7 +628,7 @@ describe('Competition ranking', () => {
 
     /* #54: 지표는 하나씩 갈아끼우는 셀렉트가 아니라 열 편집기로 고르고,
        정렬은 열 머리를 눌러 바꾼다. */
-    await user.click(screen.getByRole('button', { name: '지표 편집' }));
+    await user.click(screen.getByRole('button', { name: /^지표 \d+\/\d+$/ }));
     await user.click(screen.getByRole('checkbox', { name: '샤프 지수' }));
     await user.click(screen.getByRole('button', { name: '샤프 지수 기준 정렬' }));
 
@@ -644,7 +644,7 @@ describe('Competition ranking', () => {
     render(<RoomsView />);
 
     await openMomentumLab(user);
-    await user.click(screen.getByRole('button', { name: '지표 편집' }));
+    await user.click(screen.getByRole('button', { name: /^지표 \d+\/\d+$/ }));
     await user.click(screen.getByRole('checkbox', { name: '변동성' }));
     await user.click(screen.getByRole('button', { name: '변동성 기준 정렬' }));
 
@@ -699,7 +699,9 @@ describe('Competition ranking', () => {
 
     /* 채점 배지는 툴팁이 아니라 수식 안내 모달을 연다 — 이 대회 방식을
        강조하고 나머지 방식의 계산법도 함께 보여준다. */
-    const scoringHelp = within(leaderboard!).getByRole('button', { name: '표준점수제 채점 방식 안내' });
+    /* 채점 방식은 참가 판단의 핵심이라 헤더 제목 옆에 있다(리더보드에서 반복 X). */
+    expect(within(leaderboard!).queryByRole('button', { name: /채점 방식 안내/ })).not.toBeInTheDocument();
+    const scoringHelp = screen.getByRole('button', { name: '표준점수제 채점 방식 안내' });
     await user.click(scoringHelp);
     const scoringDialog = screen.getByRole('dialog', { name: '채점 방식 안내' });
     expect(within(scoringDialog).getByText('이 대회의 채점 방식')).toBeInTheDocument();
@@ -830,23 +832,33 @@ describe('Competition ranking', () => {
     expect(leaderboard.querySelectorAll('.is-mine')).toHaveLength(3);
 
     /*
-      1-a 압축(#54): 18봇 중 상위 3 + 내 봇(1·5·9위) ±2 = 1~11위가 이어져
-      보이고, 나머지 7봇은 생략 줄 하나로 접힌다. 200봇이어도 화면은 같은
-      크기로 끝난다.
+      접기 규칙(#54, 2026-07-30): 18봇 중 상위 5 + 내 봇(1·5·9위) 각 ±1 +
+      최하위 1을 남기고 사이를 접는다. 여기서는 1~10위와 18위가 남고 11~17위
+      7개가 접힘 줄 하나로 접혀 행 11개 + 접힘 1개가 된다. 200봇이어도 화면
+      크기는 같다.
     */
-    expect(leaderboard.querySelectorAll(':scope > div')).toHaveLength(12);
-    expect(within(leaderboard).getByText('#11')).toBeInTheDocument();
-    expect(within(leaderboard).queryByText('#12')).not.toBeInTheDocument();
-    const gapButton = within(leaderboard).getByRole('button', { name: '12위부터 18위까지 펼치기' });
-    expect(gapButton).toHaveTextContent('#12–#18 · 7개 접힘');
+    const rowsOf = () => leaderboard.querySelectorAll(':scope > div:not(.competition-ranking-gap)').length;
+    expect(rowsOf()).toBe(11);
+    expect(within(leaderboard).getByText('#10')).toBeInTheDocument();
+    expect(within(leaderboard).getByText('#18')).toBeInTheDocument();
+    expect(within(leaderboard).queryByText('#11')).not.toBeInTheDocument();
+    // 최하위를 남기는 이유: 전체가 몇 위까지 있는지가 내 위치의 의미를 정한다.
+    const gapButton = within(leaderboard).getByRole('button', { name: '11위부터 17위까지 7개 펼치기' });
+    expect(gapButton).toHaveTextContent('7개 더 보기');
+    expect(screen.getByText('전체 18개 중 11개 표시 · 7개 접힘')).toBeInTheDocument();
 
     const user2 = userEvent.setup();
+    // 접힘 줄은 그 구간만 펼친다 — 전체를 열지 않는다.
     await user2.click(gapButton);
-    // 전체 보기: 페이지네이션으로 복귀(10개씩), 간단히 보기로 되돌릴 수 있다.
-    expect(leaderboard.querySelectorAll(':scope > div')).toHaveLength(10);
-    expect(screen.getByText('1 / 2')).toBeInTheDocument();
-    await user2.click(screen.getByRole('button', { name: '간단히 보기' }));
-    expect(leaderboard.querySelectorAll(':scope > div')).toHaveLength(12);
-    expect(screen.getByRole('button', { name: '전체 순위 보기 (18)' })).toBeInTheDocument();
+    expect(rowsOf()).toBe(18);
+    expect(screen.getByText('전체 18개 모두 표시')).toBeInTheDocument();
+    await user2.click(screen.getByRole('button', { name: '접어서 보기' }));
+    expect(rowsOf()).toBe(11);
+
+    /* 봇 모음: 내 봇만 모아 본다 — 흩어져 있어도 한 화면에서 비교된다. */
+    await user2.click(screen.getByRole('button', { name: '내 봇만 3' }));
+    expect(rowsOf()).toBe(3);
+    expect(leaderboard.querySelectorAll('.is-mine')).toHaveLength(3);
+    expect(screen.getByText('내 봇 3개 · 전체 18개 중')).toBeInTheDocument();
   });
 });
