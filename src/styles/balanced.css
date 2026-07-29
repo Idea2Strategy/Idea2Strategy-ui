@@ -9198,8 +9198,8 @@ small.dashboard-bot-scope {
     16px;
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-head.is-official-head > span {
-  color: var(--text-soft);
-  font: 700 8px var(--font-mono);
+  color: #7F5C1B;
+  font: 800 8px var(--font-mono);
 }
 .variant-balanced.theme-dark[data-design="signal-studio"] .competition-board-head.is-official-head {
   border-color: color-mix(in srgb, #C79A3E 32%, var(--line));
@@ -9209,8 +9209,8 @@ small.dashboard-bot-scope {
       color-mix(in srgb, #9A742E 8%, var(--surface)) 72%);
 }
 .variant-balanced.theme-dark[data-design="signal-studio"] .competition-board-head.is-official-head > span {
-  color: var(--text-soft);
-  font-weight: 700;
+  color: #D8BC7C;
+  font-weight: 800;
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-head > button {
   display: inline-flex;
