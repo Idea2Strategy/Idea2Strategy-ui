@@ -67,6 +67,7 @@ function Reveal({ children, delay = 0 }: { children: ReactNode; delay?: number }
 }
 
 export function LandingView({ setPage }: LandingViewProps): ReactNode {
+  const rootRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLElement>(null);
   const captionsRef = useRef<HTMLDivElement>(null);
   /* Refs and a data attribute, never state: scrolling must cause zero React
@@ -82,11 +83,23 @@ export function LandingView({ setPage }: LandingViewProps): ReactNode {
     if (!hero) return undefined;
 
     let raf = 0;
+    let appliedOffset = -1;
     const measure = () => {
       raf = 0;
+      /* The sticky top bar owns the first strip of the viewport. Measured live
+         (72px desktop, less on mobile) so the stage fills exactly the rest,
+         pins from the very first scrolled pixel, and the scrub math and the
+         CSS agree on the same offset. */
+      const topbar = document.querySelector('.app-topbar');
+      const navOffset = topbar ? Math.round(topbar.getBoundingClientRect().height) : 0;
+      if (appliedOffset !== navOffset) {
+        appliedOffset = navOffset;
+        rootRef.current?.style.setProperty('--landing-nav-offset', `${navOffset}px`);
+      }
       const rect = hero.getBoundingClientRect();
-      const denominator = Math.max(1, rect.height - window.innerHeight);
-      const progress = Math.min(1, Math.max(0, -rect.top / denominator));
+      const stageHeight = window.innerHeight - navOffset;
+      const denominator = Math.max(1, rect.height - stageHeight);
+      const progress = Math.min(1, Math.max(0, (navOffset - rect.top) / denominator));
       progressRef.current = progress;
       const stop = progress < 1 / 3 ? '0' : progress < 2 / 3 ? '1' : '2';
       const captions = captionsRef.current;
@@ -108,7 +121,7 @@ export function LandingView({ setPage }: LandingViewProps): ReactNode {
     };
   }, []);
 
-  return <Localized><div className="landing-page" data-testid="landing-page">
+  return <Localized><div ref={rootRef} className="landing-page" data-testid="landing-page">
     <section ref={heroRef} className="landing-hero" aria-label="Idea2Strategy 소개">
       <div className="landing-stage">
         <div className="landing-stage-poster" aria-hidden="true" />

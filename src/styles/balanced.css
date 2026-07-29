@@ -9797,10 +9797,15 @@ small.dashboard-bot-scope {
 .landing-page { width: 100%; }
 
 .landing-hero { position: relative; height: 320vh; }
+/* The top bar is sticky, so the stage claims the viewport BELOW it: pinned
+   from the very first scrolled pixel, no initial shove while the page travels
+   nav-height before top:0 could engage, and no strip of scene hidden under
+   the bar. The offset is measured at runtime (72px desktop, less on mobile)
+   and written to --landing-nav-offset by the scroll handler. */
 .landing-stage {
   position: sticky;
-  top: 0;
-  height: 100vh;
+  top: var(--landing-nav-offset, 0px);
+  height: calc(100vh - var(--landing-nav-offset, 0px));
   overflow: hidden;
   display: grid;
 }
