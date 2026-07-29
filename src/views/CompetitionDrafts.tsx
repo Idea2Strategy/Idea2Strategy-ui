@@ -238,22 +238,30 @@ function FilterRail({ api }: { api: FilterApi }) {
 }
 
 /*
-  게시판 행 — A·B가 공유한다. 개설자가 자기 컬럼을 갖고, 공식 대회는 그 자리에
-  "공식" 배지가 앉아 목록을 훑을 때 바로 티가 난다.
+  게시판 행 — A·B가 공유한다.
+
+  첫 컬럼이 "누가 열었나"다: 공식은 채워진 "공식" 배지, 일반은 개설자 이름.
+  목록을 위에서 아래로 훑을 때 첫 글자만 보고 공식/일반이 갈린다.
+
+  오른쪽 끝은 조용하다. 행 전체가 버튼이므로 "참가" 버튼을 줄마다 반복하지
+  않고, 참가 중인 행에만 "내 봇 N위" 배지가 예외적으로 앉는다. 화살표는
+  호버한 행에서만 나타난다.
 */
 function BoardRow({ competition, pinned = false }: { competition: Competition; pinned?: boolean }) {
   return <button type="button" className={`cdraft-row${pinned ? ' is-pinned' : ''}`} role="listitem">
+    <span className="cdraft-row-cell is-host">
+      {pinned ? <b className="cdraft-host-official">공식</b> : competition.host}
+    </span>
     <span className="cdraft-row-name">
       <strong>{pinned && <KindChip kind={competition.kind} />}{competition.name}</strong>
       <small>{competition.status}</small>
     </span>
-    <span className="cdraft-row-cell is-host">
-      {pinned ? <b className="cdraft-host-official">공식</b> : competition.host}
-    </span>
     <span className="cdraft-row-cell"><Scoring scoring={competition.scoring} /></span>
     <span className="cdraft-row-cell is-num"><Dday competition={competition} /><small>마감</small></span>
     <span className="cdraft-row-cell is-num"><b>{competition.bots}</b><small>참여 봇</small></span>
-    <span className="cdraft-row-cell is-action"><RowAction competition={competition} /></span>
+    <span className="cdraft-row-cell is-action">
+      {competition.myBot && <span className="cdraft-mine-badge"><Check size={12} aria-hidden="true" />{`내 봇 ${competition.myRank}위`}</span>}
+    </span>
     <ArrowRight className="cdraft-row-arrow" size={15} aria-hidden="true" />
   </button>;
 }
