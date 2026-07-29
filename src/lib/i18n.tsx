@@ -674,6 +674,11 @@ const english: Record<string, string> = {
   // Account settings
   '프로필, 로그인 수단, 화면 설정과 알림을 한곳에서 관리합니다.': 'Manage your profile, sign-in methods, display settings, and notifications in one place.',
   '화면 설정': 'Display',
+  /* Longer keys are replaced first, so these win over the bare '화면 설정'.
+     A bare '설정' key is deliberately absent: it would substitute inside every
+     other Korean phrase that happens to contain it. */
+  '화면 설정 열기': 'Open display settings',
+  '화면 설정 닫기': 'Close display settings',
   '선택한 값은 이 브라우저에 보관됩니다': 'Your choices are kept in this browser',
   '테마 선택': 'Select theme',
   '화면 언어 선택': 'Select display language',

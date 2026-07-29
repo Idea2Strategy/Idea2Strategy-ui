@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, Bell, CircleHelp, Moon, Palette, Sun, X } from 'lucide-react';
+import { ArrowRight, Bell, CircleHelp, Moon, Palette, Settings, Sun, X } from 'lucide-react';
 import i2sLogo from './assets/i2s-logo.svg';
 import { notifications } from './data/mockData';
 import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation';
@@ -113,29 +113,62 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarPro
         </section>}
       </div>
       <button className={`icon-button ${page === 'help' ? 'active' : ''}`} aria-label="도움말" onClick={() => setPage('help')}><CircleHelp size={17} /></button>
-      <button className="icon-button" aria-label={theme === 'light' ? '다크 모드' : '라이트 모드'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}</button>
-      <div className="nav-market-control">
-        <span className="nav-market-control-icon" title="상승·하락 색상"><Palette size={14} aria-hidden="true" /></span>
-        <div className="nav-segmented-toggle nav-market-toggle" role="group" aria-label="상승·하락 색상 선택" data-value={updown}>
-          <button
-            type="button"
-            aria-label="미국식 · 상승 초록, 하락 빨강"
-            aria-pressed={updown === 'us'}
-            title="미국식 · 상승 초록, 하락 빨강"
-            onClick={() => setUpdown('us')}
-          ><MarketFlag country="us" /></button>
-          <button
-            type="button"
-            aria-label="한국식 · 상승 빨강, 하락 파랑"
-            aria-pressed={updown === 'kr'}
-            title="한국식 · 상승 빨강, 하락 파랑"
-            onClick={() => setUpdown('kr')}
-          ><MarketFlag country="kr" /></button>
-        </div>
-      </div>
-      <div className="nav-segmented-toggle nav-language-toggle" role="group" aria-label="언어 선택" data-value={language}>
-        <button type="button" aria-label="한국어" aria-pressed={language === 'ko'} onClick={() => setLanguage('ko')}>KO</button>
-        <button type="button" aria-label="English" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>EN</button>
+      {/* Theme, market colour convention and language are all display
+          preferences set once and rarely revisited, so they sit behind one gear
+          instead of three toggles competing with the five product areas. */}
+      <div className="topbar-popover-anchor">
+        <button
+          className={`icon-button ${openPanel === 'settings' ? 'active' : ''}`}
+          aria-label="화면 설정 열기"
+          aria-expanded={openPanel === 'settings'}
+          onClick={() => togglePanel('settings')}
+        ><Settings size={17} /></button>
+        {openPanel === 'settings' && <section className="topbar-popover settings-popover" role="dialog" aria-label="화면 설정">
+          <header><div><strong>화면 설정</strong><span>테마 · 상승·하락 색상 · 언어</span></div><button aria-label="화면 설정 닫기" onClick={() => setOpenPanel(null)}><X size={15} /></button></header>
+          <div className="display-settings-rows">
+            {/* Two explicit choices rather than one flip: in a panel the current
+                theme has to be readable, not inferred from the icon. */}
+            <div className="display-settings-row">
+              <span className="display-settings-label">테마</span>
+              <div className="nav-segmented-toggle nav-theme-toggle" role="group" aria-label="테마 선택" data-value={theme}>
+                <button type="button" aria-label="라이트 모드" aria-pressed={theme === 'light'} onClick={() => setTheme('light')}><Sun size={14} aria-hidden="true" /></button>
+                <button type="button" aria-label="다크 모드" aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}><Moon size={14} aria-hidden="true" /></button>
+              </div>
+            </div>
+
+            <div className="display-settings-row">
+              {/* The control keeps its own palette icon, so the label stays text. */}
+              <span className="display-settings-label">상승·하락 색상</span>
+              <div className="nav-market-control">
+                <span className="nav-market-control-icon" title="상승·하락 색상"><Palette size={14} aria-hidden="true" /></span>
+                <div className="nav-segmented-toggle nav-market-toggle" role="group" aria-label="상승·하락 색상 선택" data-value={updown}>
+                  <button
+                    type="button"
+                    aria-label="미국식 · 상승 초록, 하락 빨강"
+                    aria-pressed={updown === 'us'}
+                    title="미국식 · 상승 초록, 하락 빨강"
+                    onClick={() => setUpdown('us')}
+                  ><MarketFlag country="us" /></button>
+                  <button
+                    type="button"
+                    aria-label="한국식 · 상승 빨강, 하락 파랑"
+                    aria-pressed={updown === 'kr'}
+                    title="한국식 · 상승 빨강, 하락 파랑"
+                    onClick={() => setUpdown('kr')}
+                  ><MarketFlag country="kr" /></button>
+                </div>
+              </div>
+            </div>
+
+            <div className="display-settings-row">
+              <span className="display-settings-label">언어</span>
+              <div className="nav-segmented-toggle nav-language-toggle" role="group" aria-label="언어 선택" data-value={language}>
+                <button type="button" aria-label="한국어" aria-pressed={language === 'ko'} onClick={() => setLanguage('ko')}>KO</button>
+                <button type="button" aria-label="English" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>EN</button>
+              </div>
+            </div>
+          </div>
+        </section>}
       </div>
       <button className={`signal-user ${page === 'account' ? 'active' : ''}`} aria-label="내 계정" onClick={() => setPage('account')}>KIM <i /></button>
     </div>

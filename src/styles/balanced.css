@@ -332,6 +332,23 @@
   box-shadow:0 0 4px color-mix(in srgb,var(--accent) 38%,transparent);
 }
 .signal-product-nav .topbar-popover { top:42px; }
+/* Display preferences, one row each: name on the left, the existing segmented
+   control on the right, so the three read as one settings sheet.
+
+   Own class names, not the account screen's `.settings-row*`: those are
+   unprefixed, so they would style this panel too and a change made for that
+   screen would silently move this one. */
+.display-settings-rows { display:grid; padding:6px; }
+.display-settings-row {
+  min-height:48px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:var(--space-3);
+  padding:4px 10px;
+}
+.display-settings-row + .display-settings-row { border-top:1px solid var(--line); }
+.display-settings-label { color:var(--text-soft); font-size:var(--fs-caption); font-weight:650; }
 .signal-product-nav .nav-segmented-toggle {
   --segment-width:32px;
   position:relative;
