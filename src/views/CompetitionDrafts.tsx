@@ -237,6 +237,35 @@ function FilterRail({ api }: { api: FilterApi }) {
   </aside>;
 }
 
+/*
+  게시판 행 — A·B가 공유한다. 개설자가 자기 컬럼을 갖고, 공식 대회는 그 자리에
+  "공식" 배지가 앉아 목록을 훑을 때 바로 티가 난다.
+*/
+function BoardRow({ competition, pinned = false }: { competition: Competition; pinned?: boolean }) {
+  return <button type="button" className={`cdraft-row${pinned ? ' is-pinned' : ''}`} role="listitem">
+    <span className="cdraft-row-name">
+      <strong>{pinned && <KindChip kind={competition.kind} />}{competition.name}</strong>
+      <small>{competition.status}</small>
+    </span>
+    <span className="cdraft-row-cell is-host">
+      {pinned ? <b className="cdraft-host-official">공식</b> : competition.host}
+    </span>
+    <span className="cdraft-row-cell"><Scoring scoring={competition.scoring} /></span>
+    <span className="cdraft-row-cell is-num"><Dday competition={competition} /><small>마감</small></span>
+    <span className="cdraft-row-cell is-num"><b>{competition.bots}</b><small>참여 봇</small></span>
+    <span className="cdraft-row-cell is-action"><RowAction competition={competition} /></span>
+    <ArrowRight className="cdraft-row-arrow" size={15} aria-hidden="true" />
+  </button>;
+}
+
+function FilterEmpty({ reset }: { reset: () => void }) {
+  return <div className="cdraft-empty">
+    <Search size={20} aria-hidden="true" />
+    <strong>조건에 맞는 대회가 없어요.</strong>
+    <button type="button" onClick={reset}>필터 초기화</button>
+  </div>;
+}
+
 function GeneralSection({ api }: { api: FilterApi }) {
   const { rows, reset } = api;
   return <section className="cdraft-board-section" aria-label="일반 대회 목록">
@@ -245,28 +274,19 @@ function GeneralSection({ api }: { api: FilterApi }) {
       <span>{`${rows.length}개 · 마감 임박 순`}</span>
     </header>
     {rows.length === 0
-      ? <div className="cdraft-empty">
-        <Search size={20} aria-hidden="true" />
-        <strong>조건에 맞는 대회가 없어요.</strong>
-        <button type="button" onClick={reset}>필터 초기화</button>
-      </div>
+      ? <FilterEmpty reset={reset} />
       : <div role="list">
-        {rows.map((competition) => <button type="button" className="cdraft-row" role="listitem" key={competition.name}>
-          <span className="cdraft-row-name">
-            <strong>{competition.name}</strong>
-            <small>{`${competition.host} · ${competition.status}`}</small>
-          </span>
-          <span className="cdraft-row-cell"><Scoring scoring={competition.scoring} /></span>
-          <span className="cdraft-row-cell is-num"><Dday competition={competition} /><small>마감</small></span>
-          <span className="cdraft-row-cell is-num"><b>{competition.bots}</b><small>참여 봇</small></span>
-          <span className="cdraft-row-cell is-action"><RowAction competition={competition} /></span>
-          <ArrowRight className="cdraft-row-arrow" size={15} aria-hidden="true" />
-        </button>)}
+        {rows.map((competition) => <BoardRow competition={competition} key={competition.name} />)}
       </div>}
   </section>;
 }
 
-/* ── A안: 공식도 행 ──────────────────────────────────────────────────────── */
+/* ── A안: 한 테이블 + 공지핀 ─────────────────────────────────────────────── */
+/*
+  게시판 하나. 공식 대회는 커뮤니티 게시판의 공지 핀처럼 최상단에 몰려 있고,
+  배경 틴트와 개설자 컬럼의 "공식" 배지로 구분된다. 필터는 일반 행에만 걸리고
+  핀은 항상 남는다 — 공지가 검색에 밀려 사라지지 않는 것과 같다.
+*/
 function DraftA({ officials }: { officials: Competition[] }) {
   const api = useFilters();
   return <div className="cdraft-page">
@@ -274,26 +294,18 @@ function DraftA({ officials }: { officials: Competition[] }) {
     <div className="cdraft-layout">
       <FilterRail api={api} />
       <div className="cdraft-board">
-        <section className="cdraft-board-section is-official" aria-label="공식 대회 목록">
+        <section className="cdraft-board-section" aria-label="대회 목록">
           <header className="cdraft-board-head">
-            <h3><Trophy size={14} aria-hidden="true" />공식 대회</h3>
-            <span>운영팀 주최 · 필터와 무관하게 항상 표시</span>
+            <h3><Trophy size={14} aria-hidden="true" />대회 목록</h3>
+            <span>{`공식 ${officials.length} · 일반 ${api.rows.length} · 마감 임박 순`}</span>
           </header>
-          {officials.length === 0 ? <OfficialEmpty /> : <div role="list">
-            {officials.map((competition) => <button type="button" className="cdraft-row is-official" role="listitem" key={competition.name}>
-              <span className="cdraft-row-name">
-                <strong><KindChip kind={competition.kind} />{competition.name}</strong>
-                <small>{competition.status}</small>
-              </span>
-              <span className="cdraft-row-cell"><Scoring scoring={competition.scoring} /></span>
-              <span className="cdraft-row-cell is-num"><Dday competition={competition} /><small>마감</small></span>
-              <span className="cdraft-row-cell is-num"><b>{competition.bots}</b><small>참여 봇</small></span>
-              <span className="cdraft-row-cell is-action"><RowAction competition={competition} /></span>
-              <ArrowRight className="cdraft-row-arrow" size={15} aria-hidden="true" />
-            </button>)}
-          </div>}
+          <div role="list">
+            {officials.length === 0 && <div className="cdraft-pinned-empty">지금 진행 중인 공식 대회가 없어요. 운영팀이 다음 시즌을 준비하고 있어요.</div>}
+            {officials.map((competition) => <BoardRow competition={competition} pinned key={competition.name} />)}
+            {api.rows.map((competition) => <BoardRow competition={competition} key={competition.name} />)}
+          </div>
+          {api.rows.length === 0 && <FilterEmpty reset={api.reset} />}
         </section>
-        <GeneralSection api={api} />
       </div>
     </div>
   </div>;

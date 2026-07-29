@@ -244,9 +244,10 @@
 .cdraft-board-section.is-official .cdraft-board-head h3 svg { color: var(--accent); }
 .cdraft-board-head span { color: var(--text-faint); font-size: var(--fs-caption); }
 
-/* 행 — 두 섹션이 같은 열 그리드를 공유한다. */
+/* 행 — A(핀 게시판)·B(일반 섹션)가 같은 열 그리드를 공유한다.
+   이름 1fr | 개설자 92 | 채점 128 | 마감 76 | 참여 봇 76 | 액션 104 | 화살표 20 */
 .cdraft-row {
-  --cols: minmax(0, 1fr) 128px 76px 76px 104px 20px;
+  --cols: minmax(0, 1fr) 92px 128px 76px 76px 104px 20px;
   width: 100%;
   min-height: 64px;
   display: grid;
@@ -264,6 +265,37 @@
 .cdraft-row:first-of-type { border-top: 0; }
 .cdraft-row:hover { background: var(--surface-2); }
 .cdraft-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/*
+  공지 핀 — 커뮤니티 게시판의 고정 공지처럼, 공식 대회는 최상단에 몰려 있고
+  배경 틴트로 구분된다. 핀 묶음이 끝나는 지점에 두꺼운 구분선 하나.
+*/
+.cdraft-row.is-pinned { background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.cdraft-row.is-pinned:hover { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.cdraft-row.is-pinned + .cdraft-row:not(.is-pinned) { border-top: 2px solid var(--line-strong); }
+/* 개설자 컬럼 — 일반은 사람 이름, 공식은 "공식" 배지가 그 자리에 앉는다. */
+.cdraft-row-cell.is-host {
+  overflow: hidden;
+  color: var(--text-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-control);
+}
+.cdraft-host-official {
+  width: max-content;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-xs);
+  color: var(--accent-ink);
+  background: var(--accent);
+  font-size: var(--fs-caption);
+  font-weight: 750;
+}
+.cdraft-pinned-empty {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 2px solid var(--line-strong);
+  color: var(--text-faint);
+  background: color-mix(in srgb, var(--accent) 4%, var(--surface));
+  font-size: var(--fs-caption);
+}
 .cdraft-row-name { min-width: 0; display: grid; gap: 2px; }
 .cdraft-row-name strong {
   display: flex;
@@ -443,9 +475,11 @@
   .cdraft-rail > header,
   .cdraft-rail > .cdraft-search { grid-column: 1 / -1; }
   .cdraft-cards { grid-template-columns: minmax(0, 1fr); }
+  /* 좁은 폭: 이름 · 마감 · 액션만 남긴다(개설자·채점·참여 봇 숨김). */
   .cdraft-row { --cols: minmax(0, 1fr) 76px 104px 20px; }
   .cdraft-row > .cdraft-row-cell:nth-child(2),
-  .cdraft-row > .cdraft-row-cell:nth-child(4) { display: none; }
+  .cdraft-row > .cdraft-row-cell:nth-child(3),
+  .cdraft-row > .cdraft-row-cell:nth-child(5) { display: none; }
 }
 
 /* 스위처 확장 — 배치안 + 공식 대회 수 컨트롤 --------------------------------- */
