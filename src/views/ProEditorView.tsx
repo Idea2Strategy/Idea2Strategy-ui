@@ -21,9 +21,10 @@ import {
   Clock3,
   Copy,
   GitBranch,
-  Grid2X2,
+  Grid3X3,
   GripVertical,
   Layers3,
+  LayoutGrid,
   ListRestart,
   MousePointer2,
   Pencil,
@@ -1009,6 +1010,8 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
   const [spacePanning, setSpacePanning] = useState(false);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const layoutRef = useRef<HTMLDivElement | null>(null);
+  const leftCollapseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const rightCollapseButtonRef = useRef<HTMLButtonElement | null>(null);
   const trashZoneRef = useRef<HTMLDivElement | null>(null);
   const moveOriginRef = useRef<GraphState | null>(null);
   const movingNodeIdsRef = useRef<string[]>([]);
@@ -1019,10 +1022,10 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
   const sequenceRef = useRef(100);
   const spacePanningRef = useRef(false);
 
-  const collapsePanel = (side: 'left' | 'right', button: HTMLButtonElement) => {
+  const collapsePanel = (side: 'left' | 'right', button: HTMLButtonElement | null) => {
     const layoutBounds = layoutRef.current?.getBoundingClientRect();
-    const buttonBounds = button.getBoundingClientRect();
-    if (layoutBounds && buttonBounds.height > 0) {
+    const buttonBounds = button?.getBoundingClientRect();
+    if (layoutBounds && buttonBounds && buttonBounds.height > 0) {
       setPanelReopenTop((current) => ({
         ...current,
         [side]: buttonBounds.top - layoutBounds.top,
@@ -1523,7 +1526,7 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
     event.preventDefault();
     event.stopPropagation();
     setSelectedNodeIds(group.nodeIds);
-    setRightCollapsed(true);
+    collapsePanel('right', rightCollapseButtonRef.current);
     movingNodeIdsRef.current = group.nodeIds;
     moveOriginRef.current = cloneGraph(graph);
     moveChangedRef.current = false;
@@ -1799,7 +1802,7 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
     }
     setSelectedNodeIds([]);
     setSelectedLinkId(null);
-    setRightCollapsed(true);
+    collapsePanel('right', rightCollapseButtonRef.current);
     setPicker(null);
     setPanGesture({ startX: event.clientX, startY: event.clientY, originX: pan.x, originY: pan.y });
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -2016,7 +2019,7 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
     });
   };
 
-  const startLibraryDrag = (event: DragEvent<HTMLButtonElement>, blueprintId: string) => {
+  const startLibraryDrag = (event: DragEvent<HTMLElement>, blueprintId: string) => {
     event.dataTransfer.effectAllowed = 'copy';
     event.dataTransfer.setData('application/x-i2s-pro-node', blueprintId);
     setDragBlueprintId(blueprintId);
@@ -2213,8 +2216,9 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
       key={`${pinned ? 'favorite' : 'category'}-${blueprint.id}`}
       style={{ '--category-color': CATEGORY_META[blueprint.category].color } as CSSProperties}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         className={`pro-library-node-main${blueprint.level === 'advanced' ? ' is-advanced' : ' is-core'}${dragBlueprintId === blueprint.id ? ' is-dragging' : ''}`}
         style={{ '--category-color': CATEGORY_META[blueprint.category].color } as CSSProperties}
         aria-label={`${blueprint.title} 노드 추가`}
@@ -2222,21 +2226,34 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
         onDragStart={(event) => startLibraryDrag(event, blueprint.id)}
         onDragEnd={() => setDragBlueprintId(null)}
         onClick={() => addNode(blueprint.id)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          addNode(blueprint.id);
+        }}
       >
         <span className="pro-library-icon">{blueprint.id === 'event' ? <Play data-testid="pro-start-library-icon" size={15} fill="currentColor" /> : <blueprint.icon size={15} />}</span>
-        <span><strong>{blueprint.title}</strong><small>{blueprint.description}</small></span>
+        <span className="pro-library-node-copy">
+          <span className="pro-library-title-row">
+            <strong>{blueprint.title}</strong>
+            <button
+              type="button"
+              className={`pro-library-favorite${favorite ? ' is-active' : ''}`}
+              aria-label={`${blueprint.title} ${favorite ? '즐겨찾기 해제' : '즐겨찾기에 추가'}`}
+              aria-pressed={favorite}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleFavoriteNode(blueprint.id);
+              }}
+              onKeyDown={(event) => event.stopPropagation()}
+            ><Star size={10} fill={favorite ? 'currentColor' : 'none'} /></button>
+            <em className={`pro-library-level-badge is-${blueprint.level}`}>{blueprint.level === 'advanced' ? '확장' : '핵심'}</em>
+          </span>
+          <small>{blueprint.description}</small>
+        </span>
         <Plus className="pro-library-add-icon" size={14} />
-      </button>
-      <span className="pro-library-badges">
-        <button
-          type="button"
-          className={`pro-library-favorite${favorite ? ' is-active' : ''}`}
-          aria-label={`${blueprint.title} ${favorite ? '즐겨찾기 해제' : '즐겨찾기에 추가'}`}
-          aria-pressed={favorite}
-          onClick={() => toggleFavoriteNode(blueprint.id)}
-        ><Star size={10} fill={favorite ? 'currentColor' : 'none'} /></button>
-        <em className={`pro-library-level-badge is-${blueprint.level}`}>{blueprint.level === 'advanced' ? '확장' : '핵심'}</em>
-      </span>
+      </div>
     </div>;
   };
 
@@ -2662,7 +2679,7 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
         <div className="palette-title">
           <span>NODES</span>
           <Boxes size={15} />
-          {!leftCollapsed && <button type="button" aria-expanded="true" aria-label="노드 라이브러리 접기" onClick={(event) => collapsePanel('left', event.currentTarget)}>
+          {!leftCollapsed && <button ref={leftCollapseButtonRef} type="button" aria-expanded="true" aria-label="노드 라이브러리 접기" onClick={(event) => collapsePanel('left', event.currentTarget)}>
             <ChevronLeft size={15} />
           </button>}
         </div>
@@ -2690,7 +2707,7 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
               aria-label="즐겨찾는 노드"
               style={{ '--category-color': 'var(--accent)' } as CSSProperties}
             >
-              <header><Star size={10} fill="currentColor" /><span>즐겨찾기</span><b>{favoriteNodeIds.length}</b></header>
+              <header className="is-sticky"><Star size={10} fill="currentColor" /><span>즐겨찾기</span><b>{favoriteNodeIds.length}</b></header>
               {favoriteNodeIds.map((id) => BLUEPRINT_BY_ID[id]).filter(Boolean).map((blueprint) => renderLibraryBlueprint(blueprint, true))}
             </section>}
             {libraryView === 'nodes' && groupedLibrary.map(([groupKey, items]) => {
@@ -2702,26 +2719,29 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
                 aria-label={`${groupKey} 색상 묶음`}
                 style={{ '--category-color': categoryMeta.color } as CSSProperties}
               >
-                <header><span>{groupKey}</span><b>{items.length}</b></header>
+                <header className="is-sticky"><span>{groupKey}</span><b>{items.length}</b></header>
                 {items.map((blueprint) => renderLibraryBlueprint(blueprint))}
               </section>;
             })}
             {libraryView === 'templates' && <>
               {(['core', 'advanced'] as const).map((level) => <section className="pro-template-section" key={level}>
-                <header><span>{level === 'core' ? '핵심 전략 패키지' : '확장 전략 패키지'}</span></header>
-                {filteredTemplates.filter((template) => template.level === level).map((template) => <button
-                  type="button"
-                  className={`template-card pro-package-card${dragTemplateId === template.id ? ' is-library-dragging' : ''}`}
-                  key={template.id}
-                  draggable
-                  onDragStart={(event) => startPackageDrag(event, template.id)}
-                  onDragEnd={() => { setDragTemplateId(null); setPackagePreview(null); }}
-                  onClick={() => insertTemplate(template)}
-                >
-                  <span className={`template-icon ${template.level === 'advanced' ? 'tone-반전' : 'tone-추세'}`}><Sparkles size={14} /></span>
-                  <span className="template-card-copy"><strong>{template.title}</strong><small>{template.description}</small><em>8개 노드 · 9개 연결</em></span>
-                  <Plus size={14} />
-                </button>)}
+                <header className="is-sticky"><span>{level === 'core' ? '핵심 전략 패키지' : '확장 전략 패키지'}</span></header>
+                {filteredTemplates.filter((template) => template.level === level).map((template) => <div className="basic-package-card-stack" key={template.id}>
+                  <span className="basic-package-layer" aria-hidden="true" />
+                  <span className="basic-package-layer" aria-hidden="true" />
+                  <button
+                    type="button"
+                    className={`template-card pro-package-card basic-package-card${dragTemplateId === template.id ? ' is-library-dragging' : ''}`}
+                    draggable
+                    onDragStart={(event) => startPackageDrag(event, template.id)}
+                    onDragEnd={() => { setDragTemplateId(null); setPackagePreview(null); }}
+                    onClick={() => insertTemplate(template)}
+                  >
+                    <span className={`template-icon basic-package-bundle-icon ${template.level === 'advanced' ? 'tone-반전' : 'tone-추세'}`}><Layers3 size={15} /></span>
+                    <span className="template-card-copy"><span className="basic-package-kind">PACKAGE</span><strong>{template.title}</strong><small>{template.description}</small><em>8개 노드 · 9개 연결</em></span>
+                    <Plus size={14} />
+                  </button>
+                </div>)}
               </section>)}
             </>}
           </div>
@@ -2746,8 +2766,8 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
             aria-label="그리드 스냅"
             aria-pressed={gridSnap}
             onClick={() => setGridSnap((value) => !value)}
-          ><Grid2X2 size={14} /> 그리드 스냅</button>
-          <button type="button" className="floating-editor-button" aria-label="노드 정리" disabled={selectedNodeIds.length < 2} onClick={organizeNodes}><Grid2X2 size={14} /> 노드 정리</button>
+          ><Grid3X3 size={14} /> 그리드 스냅</button>
+          <button type="button" className="floating-editor-button" aria-label="노드 정리" disabled={selectedNodeIds.length < 2} onClick={organizeNodes}><LayoutGrid size={14} /> 노드 정리</button>
         </div>
         <div className="floating-zoom-controls" role="group" aria-label="캔버스 확대/축소">
           <button type="button" className="floating-editor-button" aria-label="축소" disabled={zoom <= .35} onClick={() => setZoom((value) => Math.max(.35, Number((value - .1).toFixed(2))))}>−</button>
@@ -2899,7 +2919,7 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
                 onPointerDown={(event) => event.stopPropagation()}
               >
                 <b>{selected.length}</b>
-                {selected.length > 1 && <button type="button" onClick={organizeNodes}><Grid2X2 size={11} />정리</button>}
+                {selected.length > 1 && <button type="button" onClick={organizeNodes}><LayoutGrid size={11} />정리</button>}
                 {selected.length > 1 && <button type="button" onClick={createGroup}><Layers3 size={11} />그룹</button>}
                 <button type="button" className="is-copy" aria-label="선택 노드 복제" title="복제" onClick={duplicateSelected}><Copy size={12} /></button>
                 <button type="button" className="is-delete" aria-label="선택 노드 삭제" title="삭제" onClick={deleteSelectedNodes}><Trash2 size={12} /></button>
@@ -2998,7 +3018,7 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
         <div className="inspector-title">
           <span>INSPECTOR</span>
           <Settings2 size={15} />
-          {!rightCollapsed && <button type="button" aria-expanded="true" aria-label="설정 패널 접기" onClick={(event) => collapsePanel('right', event.currentTarget)}>
+          {!rightCollapsed && <button ref={rightCollapseButtonRef} type="button" aria-expanded="true" aria-label="설정 패널 접기" onClick={(event) => collapsePanel('right', event.currentTarget)}>
             <ChevronRight size={15} />
           </button>}
         </div>

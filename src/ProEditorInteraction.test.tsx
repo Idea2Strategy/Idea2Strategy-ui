@@ -305,9 +305,19 @@ describe('Pro editor library and packages', () => {
     expect(within(screen.getByRole('region', { name: '이벤트·흐름 색상 묶음' })).getByRole('button', { name: '종목 선택·반복 노드 추가' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('tab', { name: /전략 패키지/ }));
-    expect(screen.getByRole('button', { name: /RSI 반등/ })).toHaveClass('template-card');
+    const rsiPackage = screen.getByRole('button', { name: /RSI 반등/ });
+    expect(rsiPackage).toHaveClass('template-card', 'basic-package-card');
+    expect(rsiPackage.closest('.basic-package-card-stack')?.querySelectorAll('.basic-package-layer')).toHaveLength(2);
     expect(screen.getByRole('button', { name: /ATR 손절/ })).toBeInTheDocument();
     expect(screen.getAllByText('8개 노드 · 9개 연결').length).toBeGreaterThan(0);
+  });
+
+  test('keeps category headings sticky and uses the Basic editor graph tool icons', () => {
+    render(<ProEditor goBack={() => {}} />);
+
+    expect(screen.getByRole('region', { name: '이벤트·흐름 색상 묶음' }).querySelector(':scope > header')).toHaveClass('is-sticky');
+    expect(screen.getByRole('button', { name: '그리드 스냅' }).querySelector('.lucide-grid-3x3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '노드 정리' }).querySelector('.lucide-layout-grid')).toBeInTheDocument();
   });
 
   test('groups library nodes by their actual node color', () => {
@@ -384,12 +394,35 @@ describe('Pro editor library and packages', () => {
     expect(screen.getByRole('button', { name: '설정 패널 펼치기' })).toBeInTheDocument();
   });
 
+  test('keeps the inspector reopen control at the same height for automatic and manual collapse', async () => {
+    const user = userEvent.setup();
+    render(<ProEditor goBack={() => {}} />);
+
+    const workspace = screen.getByTestId('pro-editor-workspace');
+    const collapseButton = screen.getByRole('button', { name: '설정 패널 접기' });
+    vi.spyOn(workspace, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 10, top: 10, left: 0, right: 1200, bottom: 800, width: 1200, height: 790, toJSON: () => ({}) });
+    vi.spyOn(collapseButton, 'getBoundingClientRect').mockReturnValue({ x: 1150, y: 100, top: 100, left: 1150, right: 1180, bottom: 130, width: 30, height: 30, toJSON: () => ({}) });
+
+    const surface = screen.getByTestId('pro-graph-surface');
+    fireEvent.pointerDown(surface, { clientX: 70, clientY: 70, pointerId: 31, button: 0 });
+    fireEvent.pointerUp(surface, { clientX: 70, clientY: 70, pointerId: 31 });
+    expect(screen.getByRole('button', { name: '설정 패널 펼치기' })).toHaveStyle({ top: '90px' });
+
+    await user.click(screen.getByRole('button', { name: '설정 패널 펼치기' }));
+    const manualCollapseButton = screen.getByRole('button', { name: '설정 패널 접기' });
+    vi.spyOn(manualCollapseButton, 'getBoundingClientRect').mockReturnValue({ x: 1150, y: 100, top: 100, left: 1150, right: 1180, bottom: 130, width: 30, height: 30, toJSON: () => ({}) });
+    await user.click(manualCollapseButton);
+    expect(screen.getByRole('button', { name: '설정 패널 펼치기' })).toHaveStyle({ top: '90px' });
+  });
+
   test('pins favorite nodes above the categorized library and persists the choice', async () => {
     const user = userEvent.setup();
     render(<ProEditor goBack={() => {}} />);
 
     const rsiFavorite = screen.getByRole('button', { name: 'RSI 즐겨찾기에 추가' });
-    expect(rsiFavorite.closest('.pro-library-badges')).toHaveTextContent('핵심');
+    expect(rsiFavorite.closest('.pro-library-title-row')).toHaveTextContent('RSI');
+    expect(rsiFavorite.closest('.pro-library-title-row')).toHaveTextContent('핵심');
+    expect(rsiFavorite.closest('.pro-library-badges')).toBeNull();
     expect(rsiFavorite).toHaveClass('pro-library-favorite');
     expect(rsiFavorite.closest('.pro-library-node-card')?.querySelector('.pro-library-add-icon')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'RSI 즐겨찾기에 추가' }));
