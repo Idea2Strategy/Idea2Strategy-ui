@@ -83,10 +83,11 @@ export default function LandingScene({ progressRef }: LandingSceneProps) {
     const random = mulberry32(2026);
     const blocks = Array.from({ length: COUNT }, (_, index) => {
       const mesh = new THREE.Mesh(geometry, index % 6 === 0 ? accentMaterial : neutralMaterial);
-      /* Scatter on a loose shell around the lattice. */
+      /* Scatter on a loose shell around the lattice. The radius stays modest:
+         travel distance is what turns one wheel notch into a visible dart. */
       const theta = random() * Math.PI * 2;
       const phi = Math.acos(random() * 2 - 1);
-      const radius = 5 + random() * 3.5;
+      const radius = 4 + random() * 2.5;
       const scatter = new THREE.Vector3(
         Math.sin(phi) * Math.cos(theta) * radius,
         Math.cos(phi) * radius * 0.7 + 0.5,
@@ -100,7 +101,10 @@ export default function LandingScene({ progressRef }: LandingSceneProps) {
       );
       const rot = new THREE.Euler(random() * 2.4 - 1.2, random() * 2.4 - 1.2, random() * 2.4 - 1.2);
       group.add(mesh);
-      return { mesh, scatter, target, rot, delay: ((index * 7) % 12) / 12 * 0.45 };
+      /* A continuous random stagger. The previous 12 shared buckets sent
+         blocks off in visible bursts — the "뚝뚝" — because three blocks
+         departed at once at each bucket boundary. */
+      return { mesh, scatter, target, rot, delay: random() * 0.4 };
     });
 
     /*
@@ -118,13 +122,19 @@ export default function LandingScene({ progressRef }: LandingSceneProps) {
       const target = reduceMotion ? 1 : progressRef.current;
       const dt = lastFrameTime ? Math.min(0.1, (time - lastFrameTime) / 1000) : 1 / 60;
       lastFrameTime = time;
-      smoothedProgress += (target - smoothedProgress) * (1 - Math.exp(-dt * 8));
+      /* 4.5/s ≈ 220ms time constant: soft enough that a wheel notch reads as a
+         glide, quick enough that the scene never feels detached from the hand. */
+      smoothedProgress += (target - smoothedProgress) * (1 - Math.exp(-dt * 4.5));
       /* Snap the last hair so the scene truly settles instead of chasing an
          asymptote forever. */
       if (Math.abs(target - smoothedProgress) < 0.0005) smoothedProgress = target;
       const progress = reduceMotion ? 1 : smoothedProgress;
       for (const block of blocks) {
-        const local = easeInOutCubic(clamp01((progress * 1.35 - block.delay) / 0.9));
+        /* Each block starts at its own delay and everything lands by 90% of
+           the hero, spreading the assembly across the whole scroll instead of
+           compressing it into the first three quarters. The per-block window
+           is therefore long, which is most of what "smooth" means here. */
+        const local = easeInOutCubic(clamp01((progress / 0.9 - block.delay) / (1 - block.delay)));
         block.mesh.position.lerpVectors(block.scatter, block.target, local);
         block.mesh.rotation.set(block.rot.x * (1 - local), block.rot.y * (1 - local), block.rot.z * (1 - local));
         block.mesh.scale.setScalar(0.55 + 0.45 * local);

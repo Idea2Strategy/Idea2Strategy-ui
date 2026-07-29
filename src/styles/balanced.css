@@ -9796,7 +9796,7 @@ small.dashboard-bot-scope {
 .landing-scroll { overflow: visible; }
 .landing-page { width: 100%; }
 
-.landing-hero { position: relative; height: 280vh; }
+.landing-hero { position: relative; height: 320vh; }
 .landing-stage {
   position: sticky;
   top: 0;
@@ -9949,7 +9949,7 @@ small.dashboard-bot-scope {
 .reduce-motion .landing-caption { transition: none; }
 
 @media (max-width: 800px) {
-  .landing-hero { height: 240vh; }
+  .landing-hero { height: 280vh; }
   .landing-captions { right: 16px; left: 16px; bottom: 72px; max-width: none; text-align: left; }
   .landing-features { padding: 64px 16px 40px; }
   .landing-disclaimer { padding: 32px 16px; }
