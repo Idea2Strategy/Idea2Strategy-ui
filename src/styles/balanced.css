@@ -4735,12 +4735,12 @@
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-rankings {
   display:grid;
-  grid-template-columns:minmax(0,1fr) minmax(300px,340px);
+  grid-template-columns:minmax(300px,340px) minmax(0,1fr);
   align-items:start;
   gap:18px;
 }
 .variant-balanced[data-design="signal-studio"] .competition-leaderboard {
-  grid-column:1;
+  grid-column:2;
   grid-row:1;
   overflow:visible;
   border:1px solid var(--line);
@@ -4794,7 +4794,7 @@
   padding:0;
 }
 .variant-balanced[data-design="signal-studio"] .competition-my-ranks {
-  grid-column:2;
+  grid-column:1;
   grid-row:1;
   margin:0;
   overflow:hidden;
@@ -6075,11 +6075,11 @@
   }
   .variant-balanced[data-design="signal-studio"] .competition-leaderboard {
     grid-column:1;
-    grid-row:1;
+    grid-row:2;
   }
   .variant-balanced[data-design="signal-studio"] .competition-my-ranks {
     grid-column:1;
-    grid-row:2;
+    grid-row:1;
   }
   .variant-balanced[data-design="signal-studio"] .competition-detail-heading,
   .variant-balanced[data-design="signal-studio"] .competition-leaderboard > header {
@@ -9285,7 +9285,7 @@ small.dashboard-bot-scope {
   background: var(--surface);
 }
 .variant-balanced[data-design="signal-studio"] .is-general-section .competition-board-section-title {
-  background: color-mix(in srgb, var(--surface-2) 46%, var(--surface));
+  background: var(--surface);
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-row {
   position: relative;

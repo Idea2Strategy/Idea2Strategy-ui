@@ -208,7 +208,8 @@ describe('Competition lobby', () => {
     expect(within(roomButtons[2]).getByText('D-25')).toBeInTheDocument();
     expect(within(roomButtons[2]).getByText('모집 마감까지')).toBeInTheDocument();
     expect(within(roomButtons[2]).getByRole('tooltip', { name: '표준점수제 설명' })).toHaveTextContent('표준화');
-    expect(within(roomButtons[2]).getByText('운영자 · 김골든')).toBeInTheDocument();
+    expect(within(roomButtons[2]).getByText('김골든')).toBeInTheDocument();
+    expect(within(roomButtons[2]).queryByText('운영자 · 김골든')).not.toBeInTheDocument();
   });
 
   test('uses participation-size blocks instead of a range slider', async () => {
