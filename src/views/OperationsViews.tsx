@@ -487,6 +487,15 @@ function BacktestComparisonChart({ bot, benchmarks }: { bot: BacktestBot; benchm
         vectorEffect="non-scaling-stroke"
       />)}
       <polyline
+        className="backtest-chart-line bot-emphasis"
+        points={toPolyline(botPoints)}
+        data-testid="backtest-bot-emphasis"
+        data-bot={bot.name}
+        aria-hidden="true"
+        transform="translate(0 1.6)"
+        vectorEffect="non-scaling-stroke"
+      />
+      <polyline
         className="backtest-chart-line bot"
         points={toPolyline(botPoints)}
         data-testid="backtest-bot-series"
@@ -935,7 +944,7 @@ export function BacktestView() {
         ? chartExecutionIdSet.has(execution.id)
         : (!executionStartDate || execution.date >= executionStartDate)
           && (!executionEndDate || execution.date <= executionEndDate))
-      .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp));
+      .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   }, [chartExecutionFilterIds, executionEndDate, executionStartDate, selectedInstrument]);
   const executionPageCount = Math.max(1, Math.ceil(filteredExecutions.length / executionPageSize));
   const currentExecutionPage = Math.min(executionPage, executionPageCount);

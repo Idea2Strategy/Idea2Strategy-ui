@@ -343,23 +343,104 @@
   box-shadow:0 0 4px color-mix(in srgb,var(--accent) 38%,transparent);
 }
 .signal-product-nav .topbar-popover { top:42px; }
-.signal-product-nav .language-select select {
-  width:48px;
+.signal-product-nav .nav-segmented-toggle {
+  --segment-width:32px;
+  position:relative;
+  isolation:isolate;
   height:34px;
-  padding:0 7px;
+  display:grid;
+  grid-template-columns:repeat(2,var(--segment-width));
+  padding:3px;
   border:1px solid var(--line);
-  border-radius:4px;
-  outline:0;
-  color:var(--text-soft);
+  border-radius:6px;
   background:var(--surface-2);
+}
+.signal-product-nav .nav-segmented-toggle::before {
+  content:none;
+  display:none;
+}
+.signal-product-nav .nav-segmented-toggle > button {
+  min-width:0;
+  width:100%;
+  height:100%;
+  display:grid;
+  place-items:center;
+  padding:0;
+  border:1px solid transparent;
+  border-radius:4px;
+  color:var(--text-faint);
+  background:transparent;
   cursor:pointer;
-  font:700 9px var(--font-mono);
+  font:700 9px/1 var(--font-mono);
+  transition:color var(--motion-fast),border-color var(--motion-fast),background var(--motion-fast);
 }
-.signal-product-nav .language-select select:hover,
-.signal-product-nav .language-select select:focus-visible {
+.signal-product-nav .nav-segmented-toggle > button:hover {
+  color:var(--text);
+}
+.signal-product-nav .nav-segmented-toggle > button[aria-pressed="true"] {
   border-color:var(--line-strong);
-  color:var(--accent);
+  color:var(--text);
+  background:var(--surface);
+  box-shadow:0 1px 3px color-mix(in srgb,var(--bg) 30%,transparent);
 }
+.signal-product-nav .nav-segmented-toggle > button:focus-visible {
+  outline-offset:0;
+}
+.signal-product-nav .nav-market-control {
+  height:34px;
+  display:flex;
+  align-items:center;
+  padding:3px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  background:var(--surface-2);
+}
+.signal-product-nav .nav-market-control-icon {
+  width:25px;
+  height:22px;
+  display:grid;
+  place-items:center;
+  flex:0 0 auto;
+  border-right:1px solid var(--line);
+  color:var(--text-faint);
+}
+.signal-product-nav .nav-market-toggle {
+  --segment-width:31px;
+  height:28px;
+  padding:0;
+  border:0;
+  background:transparent;
+}
+.signal-product-nav .nav-market-toggle > button {
+  line-height:0;
+}
+.signal-product-nav .nav-language-toggle { --segment-width:34px; }
+.signal-product-nav .nav-market-flag {
+  width:18px;
+  height:13.5px;
+  display:block;
+  margin:auto;
+  overflow:visible;
+  border-radius:2px;
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--text) 10%,transparent);
+  transition:opacity var(--motion-fast);
+}
+.signal-product-nav .nav-market-toggle > button[aria-pressed="false"] .nav-market-flag {
+  opacity:.62;
+}
+.signal-product-nav .nav-market-toggle > button:hover .nav-market-flag {
+  opacity:1;
+}
+.signal-product-nav .nav-market-toggle > button[aria-pressed="true"] .nav-market-flag {
+  opacity:1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .signal-product-nav .nav-segmented-toggle > button,
+  .signal-product-nav .nav-market-flag { transition:none; }
+}
+.reduce-motion .signal-product-nav .nav-segmented-toggle > button,
+.reduce-motion .signal-product-nav .nav-market-flag { transition:none; }
 
 /* design.md consistency contract */
 .variant-balanced[data-design="signal-studio"] .page {
@@ -2307,14 +2388,20 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.variant-balanced[data-design="signal-studio"] .backtest-chart-line.bot-emphasis {
+  stroke: var(--text);
+  stroke-width: 3.25;
+  opacity: .45;
+}
+.theme-dark .backtest-chart-line.bot-emphasis { opacity: .72; }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.bot {
   stroke: var(--accent);
-  stroke-width: 3;
-  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--accent) 32%, transparent));
+  stroke-width: 2.75;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark {
   stroke: var(--tone-indicator);
-  stroke-width: 2;
+  stroke-width: 1.5;
+  opacity: .8;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark.sp500 { stroke: var(--tone-indicator); }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-line.benchmark.nasdaq { stroke: var(--info); }
@@ -2323,8 +2410,9 @@
   fill: var(--surface);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-end.bot {
-  stroke: var(--accent);
-  stroke-width: 3;
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 2.5;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-chart-end.benchmark {
   stroke: var(--tone-indicator);
@@ -5810,7 +5898,8 @@
 .signal-nav-tools { justify-self:end; }
 .variant-balanced[data-design="signal-studio"] .signal-product-nav .global-search,
 .variant-balanced[data-design="signal-studio"] .signal-product-nav .icon-button,
-.variant-balanced[data-design="signal-studio"] .signal-product-nav .language-select select,
+.variant-balanced[data-design="signal-studio"] .signal-product-nav .nav-market-control,
+.variant-balanced[data-design="signal-studio"] .signal-product-nav .nav-language-toggle,
 .variant-balanced[data-design="signal-studio"] .signal-product-nav .signal-user {
   height:36px;
 }
@@ -7787,21 +7876,6 @@
   width:22px;
   height:22px;
   filter:drop-shadow(0 1px 1px var(--surface));
-}
-.dashboard-chart-cluster-count {
-  position:absolute;
-  top:-8px;
-  right:-8px;
-  min-width:17px;
-  height:17px;
-  display:grid;
-  place-items:center;
-  padding:0 4px;
-  border:2px solid var(--surface);
-  border-radius:999px;
-  color:var(--surface);
-  background:var(--text);
-  font:800 9px/1 var(--font-mono);
 }
 .dashboard-chart-launch-tooltip {
   position:absolute;
