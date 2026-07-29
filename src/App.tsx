@@ -85,6 +85,27 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarPro
   const togglePanel = (panel: string) => setOpenPanel((current) => current === panel ? null : panel);
   const unreadCount = notifications.filter((item) => item.unread).length;
 
+  /*
+    A press outside the open panel closes it. `.topbar-popover-anchor` wraps
+    both the trigger and its panel, so pressing inside either keeps the panel
+    open, and pressing the other tool's trigger still switches panels through
+    togglePanel rather than being swallowed here.
+
+    pointerdown, not click: the panel should be gone before the press it was
+    dismissed by finishes, and mouse, touch and pen all report it.
+  */
+  useEffect(() => {
+    if (!openPanel) return undefined;
+
+    const dismiss = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest('.topbar-popover-anchor')) setOpenPanel(null);
+    };
+
+    document.addEventListener('pointerdown', dismiss);
+    return () => document.removeEventListener('pointerdown', dismiss);
+  }, [openPanel]);
+
   return <Localized><header className="app-topbar signal-product-nav">
     <button className="signal-product-brand" aria-label="Idea2Strategy 홈" onClick={() => setPage('home')}>
       <img src={i2sLogo} alt="Idea2Strategy" />
