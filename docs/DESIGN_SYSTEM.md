@@ -330,6 +330,29 @@ Deliberately not on Home:
   the `--tone-*` colours are shared with the detail page. Only one
   participating official competition is shown at a time (UI decision,
   2026-07-29).
+- **Detail page** (#54, 2026-07-30). The header carries only the lobby
+  eyebrow grammar (kind chip + ✔Official, or 개설자 name), the title, one
+  description line, the state + D-day text and the single entry button. The
+  old title-row progress bar is gone — a percent duplicates the D-day, and
+  during recruiting it read 0%. Progress survives in exactly one place: a
+  mini bar inside the 기간 cell of the conditions table.
+- **Conditions fold inline** behind a `대회 조건 ⌄` toggle (the old info
+  modal is deleted): expanded by default while recruiting — that is when the
+  conditions decide whether to join — and collapsed while running.
+- **Recruiting and running are different screens.** While recruiting, no
+  bot is executing, so there is no leaderboard and no fake interim ranking:
+  registered bots show as "등록 완료 · 시작 대기", and a notice panel says
+  when scoring happens — for a backtest competition, that the whole field
+  replays the same past window and is scored in one batch after close.
+  While running, the leaderboard leads.
+- **Leaderboard compresses to top 3 + my bots ±2** once the field exceeds
+  ten (gap rows fold the rest; "전체 순위 보기" restores the paginated full
+  list) — at 200 entrants the screen stays the same size and my
+  neighbourhood is always visible without paging.
+- **The scoring badge opens a help dialog** listing every scoring method
+  with its formula, the current competition's method highlighted — the badge
+  name alone does not explain how methods differ. The lobby keeps its hover
+  tooltip; the dialog is a detail-page affordance.
 
 ## Language
 

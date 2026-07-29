@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CircleHelp,
   Coins,
   History,
   Info,
@@ -1556,6 +1557,22 @@ const rankingDescriptionByLabel: Record<string, string> = {
   백테스팅: '동일한 과거 데이터에서 전략을 실행해 수익률과 위험 지표를 검증합니다.',
 };
 
+/*
+  채점 방식 도움말(#54). 상세에서 채점 배지를 누르면 이 대회의 수식을 강조한
+  채로 전 방식의 계산법을 함께 보여준다 — 배지 이름만으로는 뭐가 다른지 알 수
+  없다는 피드백에서 나왔다.
+*/
+/* 이 수보다 참가자가 많으면 순위표를 상위+내 주변으로 압축한다. */
+const RANKING_COMPRESS_LIMIT = 10;
+
+const scoringHelpEntries: Array<{ name: string; formula: string }> = [
+  { name: '표준점수제', formula: '점수 = z(수익률) + z(샤프 지수) − z(최대 낙폭)' },
+  { name: '위험조정 점수제', formula: '점수 = 수익률 ÷ (1 + |최대 낙폭|)' },
+  { name: '수익률 점수제', formula: '점수 = 대회 기간 누적 수익률(%)' },
+  { name: '샤프 점수제', formula: '점수 = (수익률 − 기준금리) ÷ 변동성' },
+  { name: '백테스팅', formula: '마감 후 같은 과거 구간을 일괄 실행 → 표준점수제 식으로 채점' },
+];
+
 function CompetitionBoardRanking({
   ranking,
   tone,
@@ -1885,11 +1902,12 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
   const [view, setView] = useState<CompetitionView>('recruiting');
   const [remainingFilter, setRemainingFilter] = useState<'all' | '7' | '30'>('all');
   const [selectedRoom, setSelectedRoom] = useState<OfficialCompetition | CompetitionRoom | null>(null);
-  /* #54 상세 헤더 후보 비교용 임시 상태. 확정 후 삭제한다. */
-  const [detailHeaderDraft, setDetailHeaderDraft] = useState<'A' | 'B' | 'C'>('A');
+  /* 상세(#54): 조건 표 접힘 · 채점 도움말 모달 · 순위표 전체 보기. */
+  const [factsOpen, setFactsOpen] = useState(true);
+  const [scoringHelpOpen, setScoringHelpOpen] = useState(false);
+  const [rankingExpanded, setRankingExpanded] = useState(false);
   const [sortMetric, setSortMetric] = useState<RankingMetricId>('score');
   const [rankingPage, setRankingPage] = useState(1);
-  const [detailInfoOpen, setDetailInfoOpen] = useState(false);
   const [entryDialogStep, setEntryDialogStep] = useState<'closed' | 'select' | 'confirm'>('closed');
   const [selectedEntryStrategies, setSelectedEntryStrategies] = useState<string[]>([]);
   const [entryStrategyQuery, setEntryStrategyQuery] = useState('');
@@ -1936,13 +1954,20 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     return () => window.clearTimeout(searchTimer);
   }, [entryDialogStep, entryStrategyQuery]);
   useEffect(() => {
-    if (!detailInfoOpen) return undefined;
+    if (!scoringHelpOpen) return undefined;
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setDetailInfoOpen(false);
+      if (event.key === 'Escape') setScoringHelpOpen(false);
     };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [detailInfoOpen]);
+  }, [scoringHelpOpen]);
+  /* 방을 옮기면 상세 상태를 초기화한다. 조건 표는 참가를 결정하는 모집 중에만
+     기본으로 펼친다. */
+  useEffect(() => {
+    setFactsOpen(selectedRoom ? selectedRoom.status !== 'running' : true);
+    setScoringHelpOpen(false);
+    setRankingExpanded(false);
+  }, [selectedRoom]);
   useEffect(() => {
     if (entryDialogStep === 'closed') return undefined;
     const handleEscape = (event: KeyboardEvent) => {
@@ -1996,6 +2021,40 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
   const myRankedEntries = rankedEntries.flatMap((entry, index) => (
     entry.mine ? [{ entry, position: index + 1 }] : []
   ));
+  /*
+    1-a 압축(#54): 순위표의 실제 질문은 "누가 이기고 있나"와 "내 앞뒤는
+    누구인가" 둘뿐이다. 기본 화면은 상위 3 + 내 봇 ±2로 끝나고, 생략 구간은
+    줄 하나로 접는다. 참가하지 않았다면 상위 10을 보여준다.
+  */
+  const rankingCompressed = !rankingExpanded && rankedEntries.length > RANKING_COMPRESS_LIMIT;
+  const compressedRankingRows = useMemo(() => {
+    if (!rankingCompressed) return [];
+    const keep = new Set<number>([1, 2, 3]);
+    if (myRankedEntries.length === 0) {
+      for (let position = 1; position <= Math.min(RANKING_COMPRESS_LIMIT, rankedEntries.length); position += 1) keep.add(position);
+    }
+    myRankedEntries.forEach(({ position }) => {
+      for (let near = Math.max(1, position - 2); near <= Math.min(rankedEntries.length, position + 2); near += 1) keep.add(near);
+    });
+    const rows: Array<{ kind: 'entry'; entry: LeaderboardEntry; position: number } | { kind: 'gap'; hidden: number }> = [];
+    let hidden = 0;
+    rankedEntries.forEach((entry, index) => {
+      const position = index + 1;
+      if (keep.has(position)) {
+        if (hidden > 0) {
+          rows.push({ kind: 'gap', hidden });
+          hidden = 0;
+        }
+        rows.push({ kind: 'entry', entry, position });
+      } else {
+        hidden += 1;
+      }
+    });
+    if (hidden > 0) rows.push({ kind: 'gap', hidden });
+    return rows;
+  }, [rankingCompressed, rankedEntries, myRankedEntries]);
+  const isRecruitingRoom = Boolean(selectedRoom && selectedRoom.status !== 'running');
+  const isBacktestRoom = selectedRoom?.ranking === '백테스팅';
   const myBotEntryLimit = selectedRoom?.entryLimit ?? 3;
   const remainingEntrySlots = Math.max(0, myBotEntryLimit - myRankedEntries.length);
   const launchableStrategies = strategies.filter((strategy) => (
@@ -2091,62 +2150,46 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     closeEntryDialog();
   };
 
+  /*
+    상세 페이지 (#54 확정).
+
+    헤더는 눈썹(종류 칩·Official·상태 D-day) · 제목 · 설명 · 참가 버튼만 —
+    진행률 바·%는 제거했다. D-day가 남은 시간을 말하고, 진행률은 대회 조건의
+    기간 칸 미니 바로만 남는다.
+
+    본문은 상태에 따라 완전히 다른 화면이다. 모집 중에는 봇이 아직 아무것도
+    하지 않으므로 순위표가 없다 — 등록한 봇은 "시작 대기"로 보이고, 참가 판단
+    정보(조건·채점 방식)가 앞에 선다. 진행 중에는 순위표가 주인공이 된다.
+  */
   if (selectedRoom) return <Localized><div className="page competition-page competition-detail-page">
     <section aria-label={`${selectedRoom.name} 상세 페이지`}>
       <button className="competition-back-button" onClick={() => {
-        setDetailInfoOpen(false);
+        setScoringHelpOpen(false);
         closeEntryDialog();
         setEntrySuccessMessage('');
         setSelectedRoom(null);
       }}><ArrowLeft size={15} /> 대회 목록으로</button>
-      {/* #54 상세 헤더 후보 비교용 임시 스위처. 안이 정해지면 이 바와 나머지
-          두 변형, cdetail- 임시 스타일을 삭제한다. */}
-      <nav className="cdetail-switch" aria-label="상세 헤더 후보">
-        <span>상세 헤더 후보 #54</span>
-        {(['A', 'B', 'C'] as const).map((variant) => <button
-          key={variant}
-          type="button"
-          aria-pressed={detailHeaderDraft === variant}
-          className={detailHeaderDraft === variant ? 'is-active' : ''}
-          onClick={() => setDetailHeaderDraft(variant)}
-        >{variant === 'A' ? 'A · 진행률 삭제' : variant === 'B' ? 'B · 기간 타임라인' : 'C · 조건 인라인'}</button>)}
-      </nav>
 
-      <header className="competition-detail-heading is-draft">
+      <header className="competition-detail-heading">
         <div>
           {/* 눈썹 줄: 로비와 같은 문법 — 공식은 종류 칩+인증마크, 일반은 개설자. */}
-          <div className="cdetail-eyebrow">
+          <div className="competition-detail-eyebrow">
             {selectedRoom.official
               ? <>
                 <CompetitionKindChip backtest={selectedRoom.ranking === '백테스팅'} />
                 <b className="competition-row-official"><BadgeCheck size={14} aria-hidden="true" />Official</b>
               </>
-              : <span className="cdetail-host">{`개설자 ${selectedRoom.host}`}</span>}
-            {detailHeaderDraft === 'C' && <span className={`cdetail-state-text${selectedRoom.remainingDays <= 7 ? ' is-urgent' : ''}`}>
+              : <span className="competition-detail-host">{`개설자 ${selectedRoom.host}`}</span>}
+            <span className={`competition-detail-state${selectedRoom.remainingDays <= 7 ? ' is-urgent' : ''}`}>
               {`· ${detailDeadlineText}`}
-            </span>}
+            </span>
           </div>
           <div className="competition-detail-title">
             <h1>{selectedRoom.name}</h1>
-            {detailHeaderDraft !== 'C' && <span
-              className={`cdetail-state-chip${selectedRoom.remainingDays <= 7 ? ' is-urgent' : ''}`}
-              data-room-status={selectedRoom.status}
-            >
-              <i aria-hidden="true" />
-              <span className={selectedRoom.remainingDays <= 7 ? 'is-urgent' : ''}>{detailDeadlineText}</span>
-            </span>}
           </div>
           <span className="competition-detail-description">{detailDescription}</span>
         </div>
         <div className="competition-detail-actions">
-          {detailHeaderDraft !== 'C' && <button
-            type="button"
-            className="competition-detail-info-button"
-            onClick={() => setDetailInfoOpen(true)}
-          >
-            <Info size={14} aria-hidden="true" />
-            대회 상세보기
-          </button>}
           <button
             type="button"
             className="competition-entry-button"
@@ -2162,156 +2205,234 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
         </div>
       </header>
 
-      {/* B안: 진행률을 제목에서 내려 실제 날짜가 붙은 기간 타임라인으로.
-          모집 중에는 바를 그리지 않는다 — 아직 시작하지 않았다. */}
-      {detailHeaderDraft === 'B' && <div className="cdetail-timeline">
-        {selectedRoom.status === 'running'
-          ? <>
-            <small>{selectedRoom.start}</small>
-            <span
-              className="cdetail-timeline-track"
-              role="progressbar"
-              aria-label={`${selectedRoom.name} 진행률`}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={detailProgress}
-            >
-              <i style={{ width: `${detailProgress}%` }} />
-              <em style={{ left: `${detailProgress}%` }} aria-hidden="true" />
-            </span>
-            <small>{selectedRoom.end}</small>
-            <b className={selectedRoom.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${selectedRoom.remainingDays}`}</b>
-          </>
-          : <>
-            <small>{`대회 기간 ${selectedRoom.start} – ${selectedRoom.end}`}</small>
-            <b className={selectedRoom.remainingDays <= 7 ? 'is-urgent' : ''}>{`모집 마감 D-${selectedRoom.remainingDays}`}</b>
-          </>}
-      </div>}
+      {/* 대회 조건: 모달 대신 접었다 펴는 인라인 표. 참가를 결정하는 모집
+          중에는 기본으로 펼치고, 진행 중에는 접어 순위에 자리를 내준다. */}
+      <div className="competition-detail-facts-block">
+        <button
+          type="button"
+          className="competition-detail-facts-toggle"
+          aria-expanded={factsOpen}
+          aria-controls="competition-detail-facts"
+          onClick={() => setFactsOpen((open) => !open)}
+        >
+          <ChevronDown size={15} aria-hidden="true" className={factsOpen ? 'is-open' : ''} />
+          대회 조건
+          <small>시작 자본·수수료는 모든 참가 봇에게 동일해요</small>
+        </button>
+        {factsOpen && <dl id="competition-detail-facts" className="competition-detail-facts" aria-label={`${selectedRoom.name} 대회 조건`}>
+          {detailFacts.map((fact) => <div key={fact.label}>
+            <dt>{fact.label}</dt>
+            <dd>
+              {fact.value}
+              {fact.label === '기간' && selectedRoom.status === 'running' && <span
+                className="competition-detail-facts-progress"
+                role="progressbar"
+                aria-label={`${selectedRoom.name} 진행률`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={detailProgress}
+              ><i style={{ width: `${detailProgress}%` }} /></span>}
+            </dd>
+          </div>)}
+        </dl>}
+      </div>
 
-      {/* C안: 모달에 숨어 있던 공통 조건을 인라인 표로. 진행률은 기간 칸의
-          미니 바로만 남는다. */}
-      {detailHeaderDraft === 'C' && <dl className="cdetail-facts" aria-label={`${selectedRoom.name} 대회 조건`}>
-        {detailFacts.map((fact) => <div key={fact.label}>
-          <dt>{fact.label}</dt>
-          <dd>
-            {fact.value}
-            {fact.label === '기간' && selectedRoom.status === 'running' && <span
-              className="cdetail-facts-progress"
-              role="progressbar"
-              aria-label={`${selectedRoom.name} 진행률`}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={detailProgress}
-            ><i style={{ width: `${detailProgress}%` }} /></span>}
-          </dd>
-        </div>)}
-      </dl>}
       {entrySuccessMessage && <div className="competition-entry-success" role="status">
         <Check size={16} aria-hidden="true" />
         <span>{entrySuccessMessage}</span>
       </div>}
 
-      <div className="competition-detail-rankings">
-        <section className="competition-my-ranks" aria-label="내 참가 봇 순위">
-          <header>
-            <div><p>MY RANK</p><h3>내 참가 봇</h3></div>
-            <span
-              className="competition-my-ranks-capacity"
-              aria-label={`등록 봇 ${myRankedEntries.length}/${myBotEntryLimit}`}
-            >
-              <small>등록 봇</small>
-              <strong>{`${myRankedEntries.length} / ${myBotEntryLimit}`}</strong>
-            </span>
-          </header>
-          {myRankedEntries.length > 0 ? <ul>
-            {myRankedEntries.map(({ entry, position }) => <li key={entry.bot}>
-              <strong className="competition-ranking-position" aria-label={`${position}위`}>{`#${position}`}</strong>
-              <span><small>내 봇</small><b>{entry.bot}</b></span>
-              <span><small>{activeMetric.label}</small><b>{formatMetric(entry, activeMetric)}</b></span>
-              <span>
-                <small>수익률</small>
-                <b className={entry.return >= 0 ? 'positive' : 'negative'}>
-                  {entry.return > 0 ? '+' : ''}{entry.return.toFixed(2)}%
-                </b>
+      {isRecruitingRoom
+        ? <div className="competition-detail-rankings is-recruiting">
+          {/* 모집 중: 순위는 아직 존재하지 않는다. 등록 봇은 시작 대기 상태로만. */}
+          <section className="competition-my-ranks" aria-label="내 참가 봇 순위">
+            <header>
+              <div><p>MY BOTS</p><h3>내 참가 봇</h3></div>
+              <span
+                className="competition-my-ranks-capacity"
+                aria-label={`등록 봇 ${myRankedEntries.length}/${myBotEntryLimit}`}
+              >
+                <small>등록 봇</small>
+                <strong>{`${myRankedEntries.length} / ${myBotEntryLimit}`}</strong>
               </span>
-            </li>)}
-          </ul> : <div className="competition-my-ranks-empty">
-            <Bot size={20} aria-hidden="true" />
-            <span>
-              <strong>참가 중인 봇이 없습니다.</strong>
-              <small>대회에 참가하면 내 봇 순위를 여기서 확인할 수 있습니다.</small>
-            </span>
-          </div>}
-        </section>
+            </header>
+            {myRankedEntries.length > 0 ? <ul>
+              {myRankedEntries.map(({ entry }) => <li key={entry.bot} className="is-waiting">
+                <span className="competition-my-ranks-wait" aria-hidden="true"><Bot size={15} /></span>
+                <span><small>내 봇</small><b>{entry.bot}</b></span>
+                <span><small>상태</small><b>등록 완료 · 시작 대기</b></span>
+              </li>)}
+            </ul> : <div className="competition-my-ranks-empty">
+              <Bot size={20} aria-hidden="true" />
+              <span>
+                <strong>참가 중인 봇이 없습니다.</strong>
+                <small>지금 참가하면 대회 시작과 함께 봇이 실행돼요.</small>
+              </span>
+            </div>}
+          </section>
 
-        <section className="competition-leaderboard" aria-labelledby="competition-leaderboard-title">
-          <header>
-            <div className="competition-leaderboard-title">
-              <p>LEADERBOARD</p>
-              <div>
-                <h2 id="competition-leaderboard-title">대회 리더보드</h2>
-                <CompetitionBoardRanking
-                  ranking={selectedRoom.ranking}
-                  tone={rankingToneByLabel[selectedRoom.ranking] ?? 'standard'}
-                  tooltipId="competition-scoring-tooltip"
-                />
+          <section className="competition-recruiting-panel" aria-label={`${selectedRoom.name} 대회 안내`}>
+            <header><p>BEFORE START</p><h2>대회 시작 전이에요</h2></header>
+            <p>
+              {isBacktestRoom
+                ? '모집이 마감되면 모든 참가 봇이 같은 과거 구간을 일괄 실행해 한 번에 채점해요. 순위는 결과 계산이 끝난 뒤 공개돼요.'
+                : '참가 봇은 대회 시작에 맞춰 일제히 실행돼요. 순위표는 시작 후에 열려요.'}
+            </p>
+            <div className="competition-recruiting-facts">
+              <span><b>{'joined' in selectedRoom ? selectedRoom.joined : selectedRoom.bots}</b><small>참여 봇</small></span>
+              <span><b className={selectedRoom.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${selectedRoom.remainingDays}`}</b><small>모집 마감</small></span>
+            </div>
+            <button
+              type="button"
+              className="competition-scoring-help"
+              aria-haspopup="dialog"
+              onClick={() => setScoringHelpOpen(true)}
+            >
+              <strong className="competition-ranking-badge" data-ranking-tone={rankingToneByLabel[selectedRoom.ranking] ?? 'backtesting'}>{selectedRoom.ranking}</strong>
+              <CircleHelp size={14} aria-hidden="true" />
+              <span>채점 방식 안내</span>
+            </button>
+          </section>
+        </div>
+        : <div className="competition-detail-rankings">
+          <section className="competition-my-ranks" aria-label="내 참가 봇 순위">
+            <header>
+              <div><p>MY RANK</p><h3>내 참가 봇</h3></div>
+              <span
+                className="competition-my-ranks-capacity"
+                aria-label={`등록 봇 ${myRankedEntries.length}/${myBotEntryLimit}`}
+              >
+                <small>등록 봇</small>
+                <strong>{`${myRankedEntries.length} / ${myBotEntryLimit}`}</strong>
+              </span>
+            </header>
+            {myRankedEntries.length > 0 ? <ul>
+              {myRankedEntries.map(({ entry, position }) => <li key={entry.bot}>
+                <strong className="competition-ranking-position" aria-label={`${position}위`}>{`#${position}`}</strong>
+                <span><small>내 봇</small><b>{entry.bot}</b></span>
+                <span><small>{activeMetric.label}</small><b>{formatMetric(entry, activeMetric)}</b></span>
+                <span>
+                  <small>수익률</small>
+                  <b className={entry.return >= 0 ? 'positive' : 'negative'}>
+                    {entry.return > 0 ? '+' : ''}{entry.return.toFixed(2)}%
+                  </b>
+                </span>
+              </li>)}
+            </ul> : <div className="competition-my-ranks-empty">
+              <Bot size={20} aria-hidden="true" />
+              <span>
+                <strong>참가 중인 봇이 없습니다.</strong>
+                <small>대회에 참가하면 내 봇 순위를 여기서 확인할 수 있습니다.</small>
+              </span>
+            </div>}
+          </section>
+
+          <section className="competition-leaderboard" aria-labelledby="competition-leaderboard-title">
+            <header>
+              <div className="competition-leaderboard-title">
+                <p>LEADERBOARD</p>
+                <div>
+                  <h2 id="competition-leaderboard-title">대회 리더보드</h2>
+                  {/* 채점 배지를 누르면 전 방식 수식 안내 모달이 열린다. */}
+                  <button
+                    type="button"
+                    className="competition-scoring-help"
+                    aria-haspopup="dialog"
+                    aria-label={`${selectedRoom.ranking} 채점 방식 안내`}
+                    onClick={() => setScoringHelpOpen(true)}
+                  >
+                    <strong className="competition-ranking-badge" data-ranking-tone={rankingToneByLabel[selectedRoom.ranking] ?? 'backtesting'}>{selectedRoom.ranking}</strong>
+                    <CircleHelp size={14} aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+              <div className="competition-ranking-tools">
+              <label>
+                <span>정렬 지표</span>
+                <select aria-label="정렬 지표 선택" value={sortMetric} onChange={(event) => setSortMetric(event.target.value as RankingMetricId)}>
+                  {rankingMetrics.map((metric) => <option key={metric.id} value={metric.id}>{metric.label}</option>)}
+                </select>
+              </label>
+              </div>
+            </header>
+            <div className="competition-ranking-list">
+              <div className="competition-ranking is-metric-ranking" aria-label={`${selectedRoom.name} 봇 순위`}>
+                <header><span>순위</span><span>봇</span><span>{activeMetric.label}</span><span>수익률</span></header>
+                {/*
+                  1-a 압축(#54): 참가자가 200명이어도 화면은 상위 3 + 내 봇 ±2로
+                  끝난다. 생략 구간은 줄 하나로 표시하고, 눌러야 전체가 열린다.
+                */}
+                {rankingCompressed
+                  ? compressedRankingRows.map((row, index) => (row.kind === 'gap'
+                    ? <div className="competition-ranking-gap" key={`gap-${index}`}>
+                      <button type="button" onClick={() => setRankingExpanded(true)}>{`··· ${row.hidden}개 봇 생략 · 전체 보기 ···`}</button>
+                    </div>
+                    : <div className={row.entry.mine ? 'is-mine' : ''} key={row.entry.bot}>
+                      <strong className="competition-ranking-position">#{row.position}</strong>
+                      <span>{row.entry.bot}</span>
+                      <b>{formatMetric(row.entry, activeMetric)}</b>
+                      <span className={row.entry.return >= 0 ? 'positive' : 'negative'}>{row.entry.return > 0 ? '+' : ''}{row.entry.return.toFixed(2)}%</span>
+                    </div>))
+                  : visibleRankingEntries.map((entry, index) => <div className={entry.mine ? 'is-mine' : ''} key={entry.bot}>
+                    <strong className="competition-ranking-position">#{(safeRankingPage - 1) * rankingPageSize + index + 1}</strong>
+                    <span>{entry.bot}</span>
+                    <b>{formatMetric(entry, activeMetric)}</b>
+                    <span className={entry.return >= 0 ? 'positive' : 'negative'}>{entry.return > 0 ? '+' : ''}{entry.return.toFixed(2)}%</span>
+                  </div>)}
               </div>
             </div>
-            <div className="competition-ranking-tools">
-            <label>
-              <span>정렬 지표</span>
-              <select aria-label="정렬 지표 선택" value={sortMetric} onChange={(event) => setSortMetric(event.target.value as RankingMetricId)}>
-                {rankingMetrics.map((metric) => <option key={metric.id} value={metric.id}>{metric.label}</option>)}
-              </select>
-            </label>
-            </div>
-          </header>
-          <div className="competition-ranking-list">
-            <div className="competition-ranking is-metric-ranking" aria-label={`${selectedRoom.name} 봇 순위`}>
-              <header><span>순위</span><span>봇</span><span>{activeMetric.label}</span><span>수익률</span></header>
-              {visibleRankingEntries.map((entry, index) => <div className={entry.mine ? 'is-mine' : ''} key={entry.bot}>
-                <strong className="competition-ranking-position">#{(safeRankingPage - 1) * rankingPageSize + index + 1}</strong>
-                <span>{entry.bot}</span>
-                <b>{formatMetric(entry, activeMetric)}</b>
-                <span className={entry.return >= 0 ? 'positive' : 'negative'}>{entry.return > 0 ? '+' : ''}{entry.return.toFixed(2)}%</span>
-              </div>)}
-            </div>
-          </div>
-          <footer className="competition-ranking-pagination">
-            <button type="button" disabled={safeRankingPage === 1} onClick={() => setRankingPage((current) => Math.max(1, current - 1))}>이전</button>
-            <span>{safeRankingPage} / {rankingPageCount}</span>
-            <button type="button" disabled={safeRankingPage === rankingPageCount} onClick={() => setRankingPage((current) => Math.min(rankingPageCount, current + 1))}>다음</button>
-          </footer>
-        </section>
-      </div>
+            <footer className="competition-ranking-pagination">
+              {rankingCompressed
+                ? <button type="button" className="competition-ranking-expand" onClick={() => setRankingExpanded(true)}>{`전체 순위 보기 (${rankedEntries.length})`}</button>
+                : <>
+                  {rankedEntries.length > RANKING_COMPRESS_LIMIT && <button
+                    type="button"
+                    className="competition-ranking-expand"
+                    onClick={() => {
+                      setRankingExpanded(false);
+                      setRankingPage(1);
+                    }}
+                  >간단히 보기</button>}
+                  <button type="button" disabled={safeRankingPage === 1} onClick={() => setRankingPage((current) => Math.max(1, current - 1))}>이전</button>
+                  <span>{safeRankingPage} / {rankingPageCount}</span>
+                  <button type="button" disabled={safeRankingPage === rankingPageCount} onClick={() => setRankingPage((current) => Math.min(rankingPageCount, current + 1))}>다음</button>
+                </>}
+            </footer>
+          </section>
+        </div>}
 
-      {detailInfoOpen && <div
+      {/* 채점 방식 안내: 이 대회의 수식을 강조하고 나머지 방식도 함께 설명한다. */}
+      {scoringHelpOpen && <div
         className="competition-detail-info-backdrop"
         onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setDetailInfoOpen(false);
+          if (event.target === event.currentTarget) setScoringHelpOpen(false);
         }}
       >
         <section
-          className="competition-detail-info-dialog"
+          className="competition-detail-info-dialog competition-scoring-dialog"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="competition-detail-info-title"
+          aria-labelledby="competition-scoring-help-title"
         >
           <header>
             <div>
-              <p>COMPETITION INFO</p>
-              <h2 id="competition-detail-info-title">{selectedRoom.name} 대회 상세 정보</h2>
+              <p>SCORING</p>
+              <h2 id="competition-scoring-help-title">채점 방식 안내</h2>
             </div>
-            <button type="button" aria-label="대회 상세 정보 닫기" onClick={() => setDetailInfoOpen(false)}>
+            <button type="button" aria-label="채점 방식 안내 닫기" onClick={() => setScoringHelpOpen(false)}>
               <X size={18} aria-hidden="true" />
             </button>
           </header>
-          <dl className="competition-detail-info-grid">
-            {detailFacts.map((fact) => <div key={fact.label}>
-              <dt>{fact.label}</dt>
-              <dd>{fact.value}</dd>
-            </div>)}
-          </dl>
+          <ul className="competition-scoring-list">
+            {scoringHelpEntries.map((method) => <li key={method.name} data-current={method.name === selectedRoom.ranking || undefined}>
+              <div className="competition-scoring-list-head">
+                <strong className="competition-ranking-badge" data-ranking-tone={rankingToneByLabel[method.name] ?? 'backtesting'}>{method.name}</strong>
+                {method.name === selectedRoom.ranking && <em>이 대회의 채점 방식</em>}
+              </div>
+              <code>{method.formula}</code>
+              <p>{rankingDescriptionByLabel[method.name]}</p>
+            </li>)}
+          </ul>
         </section>
       </div>}
       {entryDialogStep !== 'closed' && <div

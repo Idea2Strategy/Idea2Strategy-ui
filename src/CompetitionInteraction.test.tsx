@@ -176,14 +176,12 @@ describe('Competition lobby', () => {
     expect(details).toHaveTextContent('Momentum Lab 참가 봇을 동일한 시장 데이터와 체결 조건에서 비교하는 모의투자 대회입니다.');
   });
 
-  test('groups seven concise facts below the leaderboard and scoring beside its title', async () => {
+  test('folds seven concise facts behind the 대회 조건 toggle with a period progress bar', async () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
     await user.click(screen.getByRole('listitem', { name: '공식 대회 I2S Summer League 열기' }));
     const detail = screen.getByRole('region', { name: 'I2S Summer League 상세 페이지' });
-    expect(within(detail).getAllByRole('tooltip')[0]).toHaveTextContent('수익률과 위험 지표를 표준화');
-    // #54 헤더 초안: 공식 표시는 로비와 같은 인증마크+Official 문법.
     expect(within(detail).getByText('Official')).toBeInTheDocument();
 
     const myRanks = within(detail).getByLabelText('내 참가 봇 순위');
@@ -192,17 +190,18 @@ describe('Competition lobby', () => {
     expect(leaderboard).not.toBeNull();
     expect(leaderboard!.parentElement).toHaveClass('competition-detail-rankings');
     expect(myRanks.parentElement).toBe(leaderboard!.parentElement);
-    expect(within(leaderboard!).getByText('표준점수제')).toBeInTheDocument();
 
-    await user.click(within(detail).getByRole('button', { name: '대회 상세보기' }));
-    const detailDialog = screen.getByRole('dialog', { name: 'I2S Summer League 대회 상세 정보' });
-    expect(within(detailDialog).queryByText('채점 방식')).not.toBeInTheDocument();
-    expect(within(detailDialog).getByText('운영자')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('기간')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('참여 봇')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('시작 자본')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('종목 범위')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('수수료')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('슬리피지')).toBeInTheDocument();
+    /* #54 확정: 조건은 모달이 아니라 접이식 인라인 표. 진행 중엔 기본 접힘,
+       펼치면 조건 7개가 그 자리에 보이고 진행률은 기간 칸 미니 바뿐이다. */
+    expect(screen.queryByRole('button', { name: '대회 상세보기' })).not.toBeInTheDocument();
+    const factsToggle = within(detail).getByRole('button', { name: /대회 조건/ });
+    expect(factsToggle).toHaveAttribute('aria-expanded', 'false');
+    await user.click(factsToggle);
+    const facts = within(detail).getByLabelText('I2S Summer League 대회 조건');
+    ['운영자', '기간', '참여 봇', '시작 자본', '종목 범위', '수수료', '슬리피지'].forEach((label) => {
+      expect(within(facts).getByText(label)).toBeInTheDocument();
+    });
+    expect(within(facts).getByRole('progressbar', { name: 'I2S Summer League 진행률' })).toHaveAttribute('aria-valuenow', '5');
+    expect(within(detail).getAllByRole('progressbar')).toHaveLength(1);
   });
 });
