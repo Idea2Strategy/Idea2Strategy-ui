@@ -610,9 +610,9 @@ describe('Account settings', () => {
 
 describe('Competition ranking', () => {
   const openMomentumLab = async (user: ReturnType<typeof userEvent.setup>) => {
-    const progress = screen.getByRole('group', { name: '진행 상태' });
-    await user.click(within(progress).getByRole('radio', { name: '대회 진행 중' }));
-    await user.click(screen.getByRole('button', { name: 'Momentum Lab 열기' }));
+    const rail = screen.getByRole('complementary', { name: '일반 대회 필터' });
+    await user.click(within(rail).getByRole('radio', { name: '진행 중' }));
+    await user.click(screen.getByRole('listitem', { name: 'Momentum Lab 열기' }));
   };
 
   test('the ranking is re-sorted by the metric the person chooses', async () => {
@@ -626,11 +626,17 @@ describe('Competition ranking', () => {
 
     expect(names()[0]).toBe('Bot 3F9A');
 
-    await user.selectOptions(screen.getByRole('combobox', { name: '정렬 지표 선택' }), 'sharpe');
+    /* #54: 지표는 하나씩 갈아끼우는 셀렉트가 아니라 열 편집기로 고르고,
+       정렬은 열 머리를 눌러 바꾼다. */
+    await user.click(screen.getByRole('button', { name: /^지표 \d+\/\d+$/ }));
+    await user.click(screen.getByRole('checkbox', { name: '샤프 지수' }));
+    await user.click(screen.getByRole('button', { name: '샤프 지수 기준 정렬' }));
 
     // Room Beta has the best Sharpe ratio even though it is second on score.
     expect(names()[0]).toBe('Room Beta');
-    expect(screen.getByLabelText('1위')).toHaveTextContent('#1');
+    const firstRow = ranking.querySelector('div:not(.competition-ranking-gap)');
+    expect(firstRow).toHaveClass('is-mine');
+    expect(firstRow!.querySelector('.competition-ranking-position')).toHaveTextContent('#1');
   });
 
   test('lower-is-better metrics sort ascending', async () => {
@@ -638,7 +644,9 @@ describe('Competition ranking', () => {
     render(<RoomsView />);
 
     await openMomentumLab(user);
-    await user.selectOptions(screen.getByRole('combobox', { name: '정렬 지표 선택' }), 'volatility');
+    await user.click(screen.getByRole('button', { name: /^지표 \d+\/\d+$/ }));
+    await user.click(screen.getByRole('checkbox', { name: '변동성' }));
+    await user.click(screen.getByRole('button', { name: '변동성 기준 정렬' }));
 
     const ranking = screen.getByLabelText('Momentum Lab 봇 순위');
     const first = ranking.querySelectorAll('div > span:nth-child(2)')[0];
@@ -651,40 +659,57 @@ describe('Competition ranking', () => {
 
     await openMomentumLab(user);
 
-    expect(screen.queryByRole('heading', { name: 'Momentum Lab 대회 안내' })).not.toBeInTheDocument();
     expect(screen.getByText(/참가 봇을 동일한 시장 데이터와 체결 조건에서 비교/)).toBeInTheDocument();
     expect(screen.queryByText('공식 대회')).not.toBeInTheDocument();
-    expect(screen.getByText('대회 진행 중 D-8')).toBeInTheDocument();
-    expect(screen.getByText('대회 진행 중 D-8')).not.toHaveClass('is-urgent');
+    expect(screen.getByText('개설자 이서준')).toBeInTheDocument();
+    expect(screen.getByText('· 대회 진행 중 D-8')).toBeInTheDocument();
+    expect(screen.getByText('· 대회 진행 중 D-8')).not.toHaveClass('is-urgent');
     expect(screen.getByRole('button', { name: '진행중인 대회입니다.' })).toBeDisabled();
+    // 진행 중에는 순위표가 주인공 — 모집 안내 패널은 없다.
+    expect(screen.queryByRole('region', { name: 'Momentum Lab 대회 안내' })).not.toBeInTheDocument();
 
-    const myRanks = screen.getByLabelText('내 참가 봇 순위');
+    /* 진행 중엔 내 참가 봇 패널도 없다 — 압축 순위표가 내 행(강조)을 항상
+       보여주므로 같은 숫자를 옆에 한 번 더 쓰는 패널이었다. 등록 봇 카운트만
+       리더보드 머리에 남는다. */
+    expect(screen.queryByLabelText('내 참가 봇 순위')).not.toBeInTheDocument();
     const leaderboardHeading = screen.getByRole('heading', { name: '대회 리더보드' });
     const leaderboard = leaderboardHeading.closest('section');
     expect(leaderboard).not.toBeNull();
-    expect(leaderboard!.parentElement).toHaveClass('competition-detail-rankings');
-    expect(myRanks.parentElement).toBe(leaderboard!.parentElement);
-    expect(within(screen.getByLabelText('Momentum Lab 봇 순위')).queryByText('내 봇')).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Momentum Lab 대회 정보')).not.toBeInTheDocument();
+    expect(leaderboard).toHaveClass('is-single');
+    expect(within(leaderboard!).getByText('등록 봇')).toBeInTheDocument();
+    expect(within(leaderboard!).getByText('1 / 3')).toBeInTheDocument();
+    expect(screen.getByLabelText('Momentum Lab 봇 순위').querySelectorAll('.is-mine')).toHaveLength(1);
 
-    await user.click(screen.getByRole('button', { name: '대회 상세보기' }));
-    const detailDialog = screen.getByRole('dialog', { name: 'Momentum Lab 대회 상세 정보' });
-    expect(within(detailDialog).queryByText('채점 방식')).not.toBeInTheDocument();
-    expect(within(detailDialog).getByText('$10,000')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('미국 상장 주식 · ETF')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('0.20%')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('0.05%')).toBeInTheDocument();
-    await user.click(within(detailDialog).getByRole('button', { name: '대회 상세 정보 닫기' }));
+    /* #54 확정: 조건은 모달이 아니라 접었다 펴는 인라인 표. 진행 중엔 기본
+       접힘이고, 열면 공통 조건이 그 자리에서 보인다. */
+    expect(screen.queryByRole('button', { name: '대회 상세보기' })).not.toBeInTheDocument();
+    const factsToggle = screen.getByRole('button', { name: /대회 조건/ });
+    expect(factsToggle).toHaveAttribute('aria-expanded', 'false');
+    await user.click(factsToggle);
+    expect(screen.getByText('$10,000')).toBeInTheDocument();
+    /* 종목 범위는 대회마다 다르다 — 이 방은 지정 3종목만 허용한다. */
+    expect(screen.getByText('지정 3종목')).toBeInTheDocument();
+    expect(screen.getByText('지정 종목만')).toBeInTheDocument();
+    expect(screen.getByText('TSLA')).toBeInTheDocument();
+    expect(screen.getByText('MSFT')).toBeInTheDocument();
+    expect(screen.getByText('0.20%')).toBeInTheDocument();
+    expect(screen.getByText('0.05%')).toBeInTheDocument();
+    await user.click(factsToggle);
+    expect(screen.queryByText('$10,000')).not.toBeInTheDocument();
 
-    expect(within(leaderboard!).getByText('표준점수제')).toBeInTheDocument();
-    const scoringHelp = within(leaderboard!).getByText('표준점수제');
-    const scoringTooltip = within(leaderboard!).getByRole('tooltip', { name: '표준점수제 설명' });
-    expect(scoringHelp).toHaveClass('competition-ranking-badge');
-    expect(scoringHelp).not.toHaveTextContent('?');
-    expect(scoringHelp).toHaveAttribute('aria-describedby', scoringTooltip.id);
-    expect(scoringTooltip).toHaveClass('dashboard-return-info-tooltip');
-    await user.hover(scoringHelp);
-    expect(scoringTooltip).toHaveTextContent('수익률과 위험 지표를 표준화');
+    /* 채점 배지는 툴팁이 아니라 수식 안내 모달을 연다 — 이 대회 방식을
+       강조하고 나머지 방식의 계산법도 함께 보여준다. */
+    /* 채점 방식은 참가 판단의 핵심이라 헤더 제목 옆에 있다(리더보드에서 반복 X). */
+    expect(within(leaderboard!).queryByRole('button', { name: /채점 방식 안내/ })).not.toBeInTheDocument();
+    const scoringHelp = screen.getByRole('button', { name: '표준점수제 채점 방식 안내' });
+    await user.click(scoringHelp);
+    const scoringDialog = screen.getByRole('dialog', { name: '채점 방식 안내' });
+    expect(within(scoringDialog).getByText('이 대회의 채점 방식')).toBeInTheDocument();
+    expect(within(scoringDialog).getByText('점수 = z(수익률) + z(샤프 지수) − z(최대 낙폭)')).toBeInTheDocument();
+    expect(within(scoringDialog).getByText('점수 = (수익률 − 기준금리) ÷ 변동성')).toBeInTheDocument();
+    expect(within(scoringDialog).getByText(/수익률과 위험 지표를 표준화/)).toBeInTheDocument();
+    await user.click(within(scoringDialog).getByRole('button', { name: '채점 방식 안내 닫기' }));
+    expect(screen.queryByRole('dialog', { name: '채점 방식 안내' })).not.toBeInTheDocument();
 
     expect(screen.queryByRole('combobox', { name: '리더보드 표시 개수' })).not.toBeInTheDocument();
   });
@@ -693,30 +718,45 @@ describe('Competition ranking', () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    await user.click(screen.getByRole('button', { name: '공식 대회 ETF Sprint 열기' }));
+    await user.click(screen.getByRole('listitem', { name: '공식 대회 ETF Sprint 열기' }));
 
-    expect(screen.getByText('공식 대회')).toBeInTheDocument();
-    expect(screen.getByText('모집 중 D-5')).toHaveClass('is-urgent');
-    expect(screen.getByRole('progressbar', { name: 'ETF Sprint 진행률' })).toHaveAttribute('aria-valuenow', '0');
-    expect(screen.getByText('0%')).toHaveClass('competition-detail-progress-copy');
-    expect(screen.queryByText('진행률 0%')).not.toBeInTheDocument();
+    /* #54 확정: 모집 중 상세는 참가 화면이다. 봇이 아직 뛰지 않으므로 순위표가
+       없고, 등록한 봇은 시작 대기로 보이며 진행률도 없다. */
+    expect(screen.getByText('Official')).toBeInTheDocument();
+    expect(screen.getByText('· 모집 중 D-5')).toHaveClass('is-urgent');
+    expect(screen.queryByRole('progressbar', { name: 'ETF Sprint 진행률' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '대회 참가' })).toBeEnabled();
+
     const myRanks = screen.getByLabelText('내 참가 봇 순위');
     expect(within(myRanks).getAllByRole('listitem')).toHaveLength(1);
     expect(within(myRanks).getByText('ETF Runner')).toBeInTheDocument();
     expect(within(myRanks).getByText('등록 봇')).toBeInTheDocument();
     expect(within(myRanks).getByText('1 / 3')).toBeInTheDocument();
-    expect(within(myRanks).getByLabelText('4위')).toHaveTextContent('#4');
-    expect(within(myRanks).getByLabelText('4위')).toHaveClass('competition-ranking-position');
-    expect(screen.getByLabelText('ETF Sprint 봇 순위').querySelector('div > strong')).toHaveClass('competition-ranking-position');
-    expect(screen.getByLabelText('ETF Sprint 봇 순위').querySelectorAll(':scope > div')).toHaveLength(10);
+    // 상태 문구는 캡션 한 줄 — 봇마다 반복하지 않는다.
+    expect(within(myRanks).getByText('등록한 봇은 대회 시작과 함께 실행돼요.')).toBeInTheDocument();
+    expect(within(myRanks).queryByText(/^#\d/)).not.toBeInTheDocument();
+
+    expect(screen.queryByLabelText('ETF Sprint 봇 순위')).not.toBeInTheDocument();
+    const notice = screen.getByRole('region', { name: 'ETF Sprint 대회 안내' });
+    expect(notice).toHaveTextContent('대회 시작 전이에요');
+    expect(notice).toHaveTextContent('일제히 실행돼요');
+    /* 조건 토글은 헤더 안에 붙어 있고 기본은 접힘. 펼치면 대회별 종목 범위가
+       제외 목록 칩까지 보인다. */
+    const factsToggle = screen.getByRole('button', { name: /대회 조건/ });
+    expect(factsToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(factsToggle.closest('.competition-detail-heading')).not.toBeNull();
+    await user.click(factsToggle);
+    expect(screen.getByText('$10,000')).toBeInTheDocument();
+    expect(screen.getByText('미국 상장 ETF · 2종목 제외')).toBeInTheDocument();
+    expect(screen.getByText('제외 종목')).toBeInTheDocument();
+    expect(screen.getByText('TQQQ')).toBeInTheDocument();
   });
 
   test('creates competition bots through the launchable-strategy entry flow', async () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    await user.click(screen.getByRole('button', { name: '공식 대회 ETF Sprint 열기' }));
+    await user.click(screen.getByRole('listitem', { name: '공식 대회 ETF Sprint 열기' }));
     await user.click(screen.getByRole('button', { name: '대회 참가' }));
 
     const strategyDialog = screen.getByRole('dialog', { name: 'ETF Sprint 참가 전략 선택' });
@@ -753,38 +793,90 @@ describe('Competition ranking', () => {
     const myRanks = screen.getByLabelText('내 참가 봇 순위');
     expect(within(myRanks).getByText('2 / 3')).toBeInTheDocument();
     expect(within(myRanks).getByText('Opening Range Flow Bot')).toBeInTheDocument();
-    expect(screen.getByLabelText('ETF Sprint 봇 순위').querySelectorAll('.is-mine')).toHaveLength(2);
+    // 모집 중이므로 새 봇도 순위 없이 시작 대기 목록에 앉는다(캡션은 한 줄).
+    expect(within(myRanks).getByText('등록한 봇은 대회 시작과 함께 실행돼요.')).toBeInTheDocument();
+    expect(within(myRanks).getByText('ETF Runner')).toBeInTheDocument();
+    expect(screen.queryByLabelText('ETF Sprint 봇 순위')).not.toBeInTheDocument();
   });
 
-  test('shows an empty ranking state when no bot participates', async () => {
+  test('shows the backtest recruiting notice instead of a fake interim ranking', async () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    await user.click(screen.getByRole('button', { name: '공식 대회 Backtesting Challenge 열기' }));
+    await user.click(screen.getByRole('listitem', { name: '공식 대회 Backtesting Challenge 열기' }));
 
     const myRanks = screen.getByLabelText('내 참가 봇 순위');
     expect(myRanks).toHaveTextContent('참가 중인 봇이 없습니다.');
     expect(within(myRanks).getByText('0 / 3')).toBeInTheDocument();
-    expect(screen.getByLabelText('Backtesting Challenge 봇 순위').querySelectorAll('.is-mine')).toHaveLength(0);
+    /* 백테스트는 마감 후 일괄 채점이라 진행 중 순위 자체가 없다 — 가짜
+       순위표 대신 채점 시점을 설명한다. */
+    expect(screen.queryByLabelText('Backtesting Challenge 봇 순위')).not.toBeInTheDocument();
+    const notice = screen.getByRole('region', { name: 'Backtesting Challenge 대회 안내' });
+    expect(notice).toHaveTextContent('같은 과거 구간을 일괄 실행');
+    expect(notice).toHaveTextContent('결과 계산이 끝난 뒤 공개');
   });
 
   test('keeps all three of my official entries highlighted and blocks entry after the official competition starts', async () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    await user.click(within(screen.getByRole('group', { name: '진행 상태' })).getByRole('radio', { name: '대회 진행 중' }));
-    await user.click(screen.getByRole('button', { name: '공식 대회 I2S Summer League 열기' }));
+    /* 공식 핀은 보기와 무관하게 항상 게시판 최상단에 있다. */
+    await user.click(screen.getByRole('listitem', { name: '공식 대회 I2S Summer League 열기' }));
 
-    const myRanks = screen.getByLabelText('내 참가 봇 순위');
-    expect(screen.getByText('대회 진행 중 D-65')).not.toHaveClass('is-urgent');
-    expect(within(myRanks).getAllByRole('listitem')).toHaveLength(3);
-    expect(within(myRanks).getByText('3 / 5')).toBeInTheDocument();
+    expect(screen.getByText('· 대회 진행 중 D-65')).not.toHaveClass('is-urgent');
+    // 내 봇 3개는 순위표 강조 행으로 보이고, 카운트는 리더보드 머리에 있다.
+    expect(screen.queryByLabelText('내 참가 봇 순위')).not.toBeInTheDocument();
+    expect(screen.getByText('3 / 5')).toBeInTheDocument();
     const leaderboard = screen.getByLabelText('I2S Summer League 봇 순위');
     expect(screen.getByRole('button', { name: '진행중인 대회입니다.' })).toBeDisabled();
-    expect(screen.getByRole('progressbar', { name: 'I2S Summer League 진행률' })).toHaveAttribute('aria-valuenow', '5');
     expect(leaderboard.querySelectorAll('.is-mine')).toHaveLength(3);
-    expect(leaderboard.querySelectorAll(':scope > div')).toHaveLength(10);
-    expect(leaderboard.closest('.competition-ranking-list')).not.toBeNull();
-    expect(leaderboard.closest('.competition-ranking-scroll')).toBeNull();
+
+    /*
+      접기 규칙(#54, 2026-07-30): 18봇 중 상위 5 + 내 봇(1·5·9위) 각 ±1 +
+      최하위 1을 남기고 사이를 접는다. 여기서는 1~10위와 18위가 남고 11~17위
+      7개가 접힘 줄 하나로 접혀 행 11개 + 접힘 1개가 된다. 200봇이어도 화면
+      크기는 같다.
+    */
+    const rowsOf = () => leaderboard.querySelectorAll(':scope > div:not(.competition-ranking-gap)').length;
+    expect(rowsOf()).toBe(11);
+    expect(within(leaderboard).getByText('#10')).toBeInTheDocument();
+    expect(within(leaderboard).getByText('#18')).toBeInTheDocument();
+    expect(within(leaderboard).queryByText('#11')).not.toBeInTheDocument();
+    // 최하위를 남기는 이유: 전체가 몇 위까지 있는지가 내 위치의 의미를 정한다.
+    const gapButton = within(leaderboard).getByRole('button', { name: '11위부터 17위까지 7개 펼치기' });
+    expect(gapButton).toHaveTextContent('7개 더 보기');
+    expect(screen.getByText('전체 18개 중 11개 표시 · 7개 접힘')).toBeInTheDocument();
+
+    const user2 = userEvent.setup();
+    // 접힘 줄은 그 구간만 펼친다 — 전체를 열지 않는다.
+    await user2.click(gapButton);
+    expect(rowsOf()).toBe(18);
+    expect(screen.getByText('전체 18개 모두 표시')).toBeInTheDocument();
+    await user2.click(screen.getByRole('button', { name: '접어서 보기' }));
+    expect(rowsOf()).toBe(11);
+
+    /* 봇 모음: 내 봇만 모아 본다 — 흩어져 있어도 한 화면에서 비교된다. */
+    await user2.click(screen.getByRole('button', { name: '내 봇만 3' }));
+    expect(rowsOf()).toBe(3);
+    expect(leaderboard.querySelectorAll('.is-mine')).toHaveLength(3);
+    expect(screen.getByText('내 봇 3개 · 전체 18개 중')).toBeInTheDocument();
+
+    /* 내 봇들끼리의 격차 — 대회 중 형제 봇이 수백 등 벌어지는 걸 보여준다. */
+    const spread = document.querySelector('.competition-mine-spread');
+    expect(spread).not.toBeNull();
+    expect(spread).toHaveTextContent('내 봇 격차');
+    expect(spread).toHaveTextContent('↓4');
+    expect(spread).toHaveTextContent('최고 #1 · 최저 #9 · 8계단');
+  });
+
+  test('opens my bot in bot operations from the leaderboard', async () => {
+    const user = userEvent.setup();
+    const opened: string[] = [];
+    render(<RoomsView openBot={(name) => opened.push(name)} />);
+
+    await openMomentumLab(user);
+    // 운영 화면에 실제로 있는 내 봇만 링크가 된다.
+    await user.click(screen.getByRole('button', { name: 'Room Beta 봇 운영 화면 열기' }));
+    expect(opened).toEqual(['Room Beta']);
   });
 });

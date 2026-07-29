@@ -6,14 +6,14 @@ import { RoomsView } from './views/OperationsViews';
 
 const balancedStyles = readFileSync('src/styles/balanced.css', 'utf8');
 
+/*
+  모의투자 로비 (#54 확정 A안).
+
+  왼쪽 필터 레일 + 오른쪽 단일 게시판. 공식 대회는 공지처럼 최상단에 핀되어
+  보기와 무관하게 항상 보이고, 일반 대회는 행 번호를 달고 마감 임박 순으로
+  이어진다. 보기 축은 모집 중 / 진행 중 / 참여 중 셋 중 하나다.
+*/
 describe('Competition lobby', () => {
-  test('uses color emphasis without check icons for progress and scoring filters', () => {
-    const { container } = render(<RoomsView />);
-
-    expect(container.querySelector('.competition-filter-statuses svg')).not.toBeInTheDocument();
-    expect(container.querySelector('.competition-filter-scores svg')).not.toBeInTheDocument();
-  });
-
   test('uses the shared primary-page heading rhythm and divider', () => {
     const competitionHeadingRule = balancedStyles.match(
       /\.variant-balanced\[data-design="signal-studio"\] \.competition-lobby-page > \.page-heading \{([\s\S]*?)\}/,
@@ -36,9 +36,9 @@ describe('Competition lobby', () => {
 
   test('places the competition create action in the page heading', async () => {
     const user = userEvent.setup();
-    const { container } = render(<RoomsView />);
+    render(<RoomsView />);
 
-    const heading = container.querySelector('.competition-lobby-page > .page-heading');
+    const heading = screen.getByRole('heading', { name: '모의투자' }).closest('.page-heading');
     expect(heading).not.toBeNull();
     const createButton = within(heading as HTMLElement).getByRole('button', { name: '대회 만들기' });
 
@@ -50,13 +50,9 @@ describe('Competition lobby', () => {
     expect(within(dialog).getByLabelText('종료일')).toBeInTheDocument();
     expect(within(dialog).getByRole('combobox', { name: '채점 방식' })).toBeInTheDocument();
     expect(within(dialog).getByLabelText('시작 자본')).toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: '채점 방식 도움말' })).not.toBeInTheDocument();
 
     const detailSettings = within(dialog).getByRole('button', { name: '대회 세부 설정' });
-    expect(detailSettings).toHaveAttribute('aria-expanded', 'false');
-    expect(within(dialog).queryByLabelText('종목 범위')).not.toBeInTheDocument();
     await user.click(detailSettings);
-    expect(detailSettings).toHaveAttribute('aria-expanded', 'true');
     expect(within(dialog).getByLabelText('종목 범위')).toBeInTheDocument();
     expect(within(dialog).getByLabelText('참가 봇 한도')).toBeInTheDocument();
     expect(within(dialog).getByLabelText('수수료')).toBeInTheDocument();
@@ -66,240 +62,158 @@ describe('Competition lobby', () => {
     expect(screen.queryByRole('dialog', { name: '대회 만들기' })).not.toBeInTheDocument();
   });
 
-  test('removes the official carousel and keeps official competitions pinned in the board', () => {
-    render(<RoomsView />);
-
-    expect(screen.queryByRole('region', { name: '공식 대회 캐러셀' })).not.toBeInTheDocument();
-
-    const results = screen.getByRole('list', { name: '대회 탐색 결과' });
-    expect(within(results).getByRole('heading', { name: '공식 대회' })).toBeInTheDocument();
-    expect(within(results).getByRole('button', { name: '공식 대회 ETF Sprint 열기' })).toBeInTheDocument();
-    expect(within(results).getByRole('button', { name: '공식 대회 Backtesting Challenge 열기' })).toBeInTheDocument();
-    expect(within(results).queryByRole('button', { name: '공식 대회 I2S Summer League 열기' })).not.toBeInTheDocument();
-    expect(within(results).queryByRole('button', { name: '공식 대회 Risk Control Cup 열기' })).not.toBeInTheDocument();
-  });
-
-  test('filters immediately with a consistent left filter panel', async () => {
-    const user = userEvent.setup();
-    render(<RoomsView />);
-
-    const filter = screen.getByRole('complementary', { name: '대회 필터' });
-    expect(within(filter).queryByRole('button', { name: /결과 보기/ })).not.toBeInTheDocument();
-
-    const participation = within(filter).getByRole('group', { name: '참가 상태' });
-    expect(within(participation).getAllByRole('radio')[0]).toHaveAccessibleName('전체');
-    await user.click(within(participation).getByRole('radio', { name: '참가 중' }));
-
-    const results = screen.getByRole('list', { name: '대회 탐색 결과' });
-    expect(within(results).getByRole('button', { name: '공식 대회 ETF Sprint 열기' })).toBeInTheDocument();
-    expect(within(results).getByRole('button', { name: '공식 대회 Backtesting Challenge 열기' })).toBeInTheDocument();
-    expect(within(results).queryByRole('button', { name: '공식 대회 I2S Summer League 열기' })).not.toBeInTheDocument();
-    expect(within(results).queryByRole('button', { name: 'ETF Discipline 열기' })).not.toBeInTheDocument();
-
-    await user.click(within(participation).getByRole('radio', { name: '전체' }));
-    const scoring = within(filter).getByRole('group', { name: '채점 방식' });
-    await user.click(within(scoring).getByRole('checkbox', { name: '표준점수제' }));
-    expect(within(results).getByRole('button', { name: 'Macro Pulse 열기' })).toBeInTheDocument();
-    expect(within(results).queryByRole('button', { name: 'ETF Discipline 열기' })).not.toBeInTheDocument();
-    expect(within(results).getByRole('button', { name: '공식 대회 ETF Sprint 열기' })).toBeInTheDocument();
-  });
-
-  test('defaults to recruiting, switches to running, and removes bot registration', async () => {
-    const user = userEvent.setup();
-    render(<RoomsView />);
-
-    const filter = screen.getByRole('complementary', { name: '대회 필터' });
-    const progress = within(filter).getByRole('group', { name: '진행 상태' });
-    expect(within(progress).queryByRole('radio', { name: '봇 등록' })).not.toBeInTheDocument();
-    expect(within(progress).getByRole('radio', { name: '모집 중' })).toBeChecked();
-
-    const results = screen.getByRole('list', { name: '대회 탐색 결과' });
-    expect(within(results).getByRole('button', { name: 'ETF Discipline 열기' })).toBeInTheDocument();
-    expect(within(results).queryByRole('button', { name: 'Momentum Lab 열기' })).not.toBeInTheDocument();
-    expect(within(results).queryByRole('button', { name: '공식 대회 I2S Summer League 열기' })).not.toBeInTheDocument();
-
-    await user.click(within(progress).getByRole('radio', { name: '대회 진행 중' }));
-    expect(within(results).getByRole('button', { name: 'Momentum Lab 열기' })).toBeInTheDocument();
-    expect(within(results).queryByRole('button', { name: 'ETF Discipline 열기' })).not.toBeInTheDocument();
-    expect(within(results).getByRole('button', { name: '공식 대회 I2S Summer League 열기' })).toBeInTheDocument();
-    expect(within(results).queryByRole('button', { name: '공식 대회 ETF Sprint 열기' })).not.toBeInTheDocument();
-    expect(within(results).queryByRole('button', { name: '공식 대회 Backtesting Challenge 열기' })).not.toBeInTheDocument();
-
-    const remaining = within(filter).getByRole('group', { name: '남은 기간' });
-    expect(within(remaining).getAllByRole('radio')[0]).toHaveAccessibleName('전체');
-    await user.click(within(remaining).getByRole('radio', { name: '7일 이내' }));
-    expect(within(results).queryByRole('button', { name: 'Momentum Lab 열기' })).not.toBeInTheDocument();
-    const earnings = within(results).getByRole('button', { name: 'Earnings Play 열기' });
-    expect(within(earnings).getByText('D-7')).toHaveClass('is-urgent');
-  });
-
-  test('changes the page size and keeps compact pagination', async () => {
-    const user = userEvent.setup();
-    render(<RoomsView />);
-
-    const results = screen.getByRole('list', { name: '대회 탐색 결과' });
-    expect(within(results).getAllByRole('listitem')).toHaveLength(7);
-
-    const pageSize = screen.getByRole('combobox', { name: '페이지당 표시 개수' });
-    const generalGroup = within(results).getByRole('group', { name: '일반 대회 목록' });
-    expect(within(generalGroup).getByRole('combobox', { name: '페이지당 표시 개수' })).toBe(pageSize);
-    expect(within(pageSize).getAllByRole('option').map((option) => option.textContent)).toEqual([
-      '10개씩 보기',
-      '20개씩 보기',
-      '30개씩 보기',
-    ]);
-    await user.selectOptions(pageSize, '20');
-    expect(within(results).getAllByRole('listitem')).toHaveLength(7);
-
-    expect(screen.getByRole('navigation', { name: '대회 목록 페이지' })).toBeInTheDocument();
-    expect(screen.queryByText('11개 결과')).not.toBeInTheDocument();
-  });
-
-  test('prioritizes scoring and period while keeping the official room pinned', () => {
+  test('pins the three official competitions above the community rows in one board', () => {
     render(<RoomsView />);
 
     const board = screen.getByRole('region', { name: '대회 게시판' });
-    expect(within(board).queryByRole('heading', { name: '대회 게시판' })).not.toBeInTheDocument();
-    const headers = within(board).getAllByRole('button', { name: /정렬/ });
-    expect(headers.map((header) => header.getAttribute('aria-label'))).toEqual([
-      '채점 방식 정렬',
-      '대회 제목 정렬',
-      '기간 정렬',
-      '참여 봇 수 정렬',
-    ]);
-    expect(within(board).queryByRole('button', { name: '대회 상태 정렬' })).not.toBeInTheDocument();
-    expect(within(board).getByRole('button', { name: '기간 정렬' })).toHaveClass('is-sorted');
+    const rows = within(board).getAllByRole('listitem');
 
-    const results = within(board).getByRole('list', { name: '대회 탐색 결과' });
-    const officialGroup = within(results).getByRole('group', { name: '공식 대회 목록' });
-    const generalGroup = within(results).getByRole('group', { name: '일반 대회 목록' });
-    expect(within(officialGroup).getByRole('heading', { name: '공식 대회' })).toBeInTheDocument();
-    expect(within(generalGroup).getByRole('heading', { name: '일반 대회' })).toBeInTheDocument();
-    expect(within(officialGroup).getByText('대회 제목')).toBeInTheDocument();
-    expect(within(officialGroup).getByText('기간')).toBeInTheDocument();
-    expect(within(officialGroup).queryByText('진행률')).not.toBeInTheDocument();
-    expect(within(officialGroup).getByText('참여 봇 수')).toBeInTheDocument();
-    expect(within(officialGroup).getByText('채점 방식')).toBeInTheDocument();
-    expect(within(officialGroup).queryByText('OFFICIAL')).not.toBeInTheDocument();
-    expect(within(generalGroup).queryByText('COMMUNITY')).not.toBeInTheDocument();
-    expect(within(generalGroup).queryByText('5개')).not.toBeInTheDocument();
-    expect(within(officialGroup).queryByRole('button', { name: /정렬/ })).not.toBeInTheDocument();
-    expect(within(generalGroup).getAllByRole('button', { name: /정렬/ })).toHaveLength(4);
-    expect(
-      officialGroup.compareDocumentPosition(generalGroup) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    const roomButtons = within(results).getAllByRole('button', { name: /열기/ });
-    expect(roomButtons[0]).toHaveAccessibleName('공식 대회 ETF Sprint 열기');
-    expect(roomButtons[1]).toHaveAccessibleName('공식 대회 Backtesting Challenge 열기');
-    expect(within(roomButtons[0]).getByText('D-5')).toHaveClass('is-urgent');
-    expect(within(roomButtons[0]).getByText('모집 마감까지')).toBeInTheDocument();
-    expect(within(roomButtons[1]).getByText('백테스팅')).toHaveAttribute('data-ranking-tone', 'backtesting');
-    expect(within(roomButtons[1]).getByText('모집 마감까지')).toBeInTheDocument();
-    expect(within(officialGroup).queryByText('모집 중')).not.toBeInTheDocument();
-    expect(within(officialGroup).queryByText('대회 진행 중')).not.toBeInTheDocument();
-    expect(within(officialGroup).queryByText('참여 봇')).not.toBeInTheDocument();
-    expect(within(officialGroup).queryByRole('progressbar')).not.toBeInTheDocument();
-    expect(within(officialGroup).getAllByRole('tooltip')).toHaveLength(2);
-    expect(within(screen.getByRole('complementary', { name: '대회 필터' })).queryByRole('checkbox', { name: '백테스팅' })).not.toBeInTheDocument();
-    expect(within(results).queryByText('◆ 공식 대회')).not.toBeInTheDocument();
-    expect(within(roomButtons[0]).queryByText('07.21–08.01')).not.toBeInTheDocument();
-    expect(within(roomButtons[0]).getByRole('tooltip', { name: '수익률 점수제 설명' })).toHaveTextContent('누적 수익률');
-    expect(within(roomButtons[1]).getByRole('tooltip', { name: '백테스팅 설명' })).toHaveTextContent('과거 데이터');
-    expect(within(roomButtons[0]).queryByText('?')).not.toBeInTheDocument();
-    expect(within(roomButtons[1]).queryByText('?')).not.toBeInTheDocument();
-    expect(roomButtons[2]).toHaveAccessibleName('Golden Cross Club 열기');
-    expect(within(roomButtons[2]).getByText('D-25')).toBeInTheDocument();
-    expect(within(roomButtons[2]).getByText('모집 마감까지')).toBeInTheDocument();
-    expect(within(roomButtons[2]).getByRole('tooltip', { name: '표준점수제 설명' })).toHaveTextContent('표준화');
-    expect(within(roomButtons[2]).getByText('김골든')).toBeInTheDocument();
-    expect(within(roomButtons[2]).queryByText('운영자 · 김골든')).not.toBeInTheDocument();
+    // 공지 핀: 공식 3개가 최상단, 마감 임박 순.
+    expect(rows[0]).toHaveAccessibleName('공식 대회 ETF Sprint 열기');
+    expect(rows[1]).toHaveAccessibleName('공식 대회 Backtesting Challenge 열기');
+    expect(rows[2]).toHaveAccessibleName('공식 대회 I2S Summer League 열기');
+    rows.slice(0, 3).forEach((row) => expect(row).toHaveClass('is-pinned'));
+    rows.slice(3).forEach((row) => expect(row).not.toHaveClass('is-pinned'));
+
+    // 공식은 라이브/백테스트 칩 + Official 표기, 개설자 이름은 노출하지 않는다.
+    expect(within(rows[0]).getByText('라이브')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('백테스트')).toBeInTheDocument();
+    expect(within(rows[0]).getByText('Official')).toBeInTheDocument();
+    expect(within(rows[0]).queryByText('I2S 운영팀')).not.toBeInTheDocument();
+
+    // 일반 행은 같은 자리에 행 번호를 달고 개설자를 보조줄로 보여준다.
+    const firstGeneral = rows[3];
+    expect(within(firstGeneral).getByText('1')).toBeInTheDocument();
+    expect(within(firstGeneral).queryByText('Official')).not.toBeInTheDocument();
   });
 
-  test('uses participation-size blocks instead of a range slider', async () => {
-    const user = userEvent.setup();
-    render(<RoomsView />);
-
-    const filter = screen.getByRole('complementary', { name: '대회 필터' });
-    const sizeGroup = within(filter).getByRole('group', { name: '참여 봇 수' });
-    expect(within(sizeGroup).queryByRole('slider')).not.toBeInTheDocument();
-    expect(within(sizeGroup).getAllByRole('radio')).toHaveLength(4);
-    expect(within(sizeGroup).getAllByRole('radio')[0]).toHaveAccessibleName('전체');
-    expect(within(sizeGroup).getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual([
-      'all',
-      '10',
-      '11-50',
-      '51',
-    ]);
-    expect(within(sizeGroup).getByRole('radio', { name: '0–10' })).toBeInTheDocument();
-    expect(within(sizeGroup).getByRole('radio', { name: '11–50' })).toBeInTheDocument();
-    expect(within(sizeGroup).getByRole('radio', { name: '51+' })).toBeInTheDocument();
-
-    await user.click(within(sizeGroup).getByRole('radio', { name: '0–10' }));
-    const results = screen.getByRole('list', { name: '대회 탐색 결과' });
-    expect(within(results).getByRole('button', { name: '공식 대회 ETF Sprint 열기' })).toBeInTheDocument();
-    expect(within(results).getByRole('button', { name: '공식 대회 Backtesting Challenge 열기' })).toBeInTheDocument();
-    expect(within(results).queryByRole('button', { name: 'ETF Discipline 열기' })).not.toBeInTheDocument();
-
-    await user.click(within(sizeGroup).getByRole('radio', { name: '51+' }));
-    expect(within(results).queryByRole('button', { name: 'Momentum Lab 열기' })).not.toBeInTheDocument();
-    expect(within(results).getByRole('button', { name: '공식 대회 ETF Sprint 열기' })).toBeInTheDocument();
-    expect(within(results).getByRole('button', { name: '공식 대회 Backtesting Challenge 열기' })).toBeInTheDocument();
-  });
-
-  test('hides room creators from the competition board', () => {
+  test('defaults to recruiting, sorted by closing date, with no status text in rows', () => {
     render(<RoomsView />);
 
     const board = screen.getByRole('region', { name: '대회 게시판' });
-    expect(within(board).queryByText('I2S 운영팀')).not.toBeInTheDocument();
-    expect(within(board).queryByText('실적시즌')).not.toBeInTheDocument();
+    // 기본 보기는 모집 중. registering(봇 등록)도 아직 들어갈 수 있으므로 포함된다.
+    expect(within(board).getByRole('listitem', { name: 'ETF Discipline 열기' })).toBeInTheDocument();
+    expect(within(board).getByRole('listitem', { name: 'Quant Study 04 열기' })).toBeInTheDocument();
+    expect(within(board).queryByRole('listitem', { name: 'Momentum Lab 열기' })).not.toBeInTheDocument();
+
+    // 일반 행은 마감 임박 순으로 번호가 매겨진다.
+    const generalRows = within(board).getAllByRole('listitem').filter((row) => !row.className.includes('is-pinned'));
+    const ddays = generalRows.map((row) => Number(within(row).getByText(/^D-\d+$/).textContent!.slice(2)));
+    expect([...ddays].sort((a, b) => a - b)).toEqual(ddays);
+
+    // 보기가 상태를 보장하므로 행에는 모집 중/진행 중 텍스트가 없다.
+    expect(within(board).queryByText('모집 중')).not.toBeInTheDocument();
+    expect(within(board).queryByText('진행 중')).not.toBeInTheDocument();
   });
 
-  test('sorts from the list headers and opens a room detail page', async () => {
+  test('switches between recruiting, running and joined views while pins stay', async () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    await user.click(screen.getByRole('button', { name: '대회 제목 정렬' }));
-    const results = screen.getByRole('list', { name: '대회 탐색 결과' });
-    const roomButtons = within(results).getAllByRole('button', { name: /열기/ });
-    expect(roomButtons[2]).toHaveAccessibleName('Dividend Guard 열기');
+    const rail = screen.getByRole('complementary', { name: '일반 대회 필터' });
+    const board = screen.getByRole('region', { name: '대회 게시판' });
 
-    const progress = screen.getByRole('group', { name: '진행 상태' });
-    await user.click(within(progress).getByRole('radio', { name: '대회 진행 중' }));
-    await user.click(within(results).getByRole('button', { name: 'Momentum Lab 열기' }));
+    expect(within(rail).getByRole('radio', { name: '모집 중' })).toBeChecked();
+
+    await user.click(within(rail).getByRole('radio', { name: '진행 중' }));
+    expect(within(board).getByRole('listitem', { name: 'Momentum Lab 열기' })).toBeInTheDocument();
+    expect(within(board).queryByRole('listitem', { name: 'ETF Discipline 열기' })).not.toBeInTheDocument();
+
+    /* 참여 중: 상태와 무관하게 내 봇이 있는 방만. 공식 핀은 어느 보기에서도
+       사라지지 않는다 — 공지가 검색에 밀리지 않는 것과 같다. */
+    await user.click(within(rail).getByRole('radio', { name: '참여 중' }));
+    const generalRows = within(board).getAllByRole('listitem').filter((row) => !row.className.includes('is-pinned'));
+    expect(generalRows).toHaveLength(1);
+    expect(generalRows[0]).toHaveAccessibleName('Momentum Lab 열기');
+    expect(within(board).getByRole('listitem', { name: '공식 대회 ETF Sprint 열기' })).toBeInTheDocument();
+  });
+
+  test('marks rooms my bot competes in with a bot icon instead of repeating rank text', () => {
+    render(<RoomsView />);
+
+    const board = screen.getByRole('region', { name: '대회 게시판' });
+    // 공식 핀 중 내 봇이 뛰는 방은 하나뿐이고(ETF Sprint), 그 행에만 봇 아이콘이 붙는다.
+    const markers = within(board).getAllByLabelText('내 봇 참가 중');
+    expect(markers).toHaveLength(1);
+    // 행 오른쪽은 마감·참여 봇 숫자로 끝난다 — 참가 버튼을 줄마다 반복하지 않는다.
+    expect(within(board).queryByText('참가')).not.toBeInTheDocument();
+    expect(within(board).queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
+  test('filters community rooms by search, scoring and deadline without losing pins', async () => {
+    const user = userEvent.setup();
+    render(<RoomsView />);
+
+    const rail = screen.getByRole('complementary', { name: '일반 대회 필터' });
+    const board = screen.getByRole('region', { name: '대회 게시판' });
+
+    // 검색은 대회명과 개설자를 모두 맞춘다.
+    await user.type(within(rail).getByRole('searchbox', { name: '대회 검색' }), '거북이');
+    let generalRows = within(board).getAllByRole('listitem').filter((row) => !row.className.includes('is-pinned'));
+    expect(generalRows).toHaveLength(1);
+    expect(generalRows[0]).toHaveAccessibleName('Slow Turtle 열기');
+    expect(within(board).getByRole('listitem', { name: '공식 대회 ETF Sprint 열기' })).toBeInTheDocument();
+    await user.clear(within(rail).getByRole('searchbox', { name: '대회 검색' }));
+
+    // 채점 방식 체크박스.
+    await user.click(within(rail).getByRole('checkbox', { name: '표준점수제' }));
+    generalRows = within(board).getAllByRole('listitem').filter((row) => !row.className.includes('is-pinned'));
+    expect(generalRows.length).toBeGreaterThan(0);
+    expect(generalRows.every((row) => Boolean(within(row).queryByText('표준점수제')))).toBe(true);
+    await user.click(within(rail).getByRole('checkbox', { name: '표준점수제' }));
+
+    // 남은 기간.
+    await user.click(within(rail).getByRole('radio', { name: '7일 이내' }));
+    generalRows = within(board).getAllByRole('listitem').filter((row) => !row.className.includes('is-pinned'));
+    expect(generalRows).toHaveLength(0);
+    expect(screen.getByText('조건에 맞는 대회가 없습니다.')).toBeInTheDocument();
+
+    // 초기화는 기본 보기(모집 중)로 되돌린다. 빈 상태에도 같은 동작의 버튼이 있다.
+    await user.click(within(rail).getByRole('button', { name: /초기화/ }));
+    expect(within(rail).getByRole('radio', { name: '모집 중' })).toBeChecked();
+    expect(within(board).getByRole('listitem', { name: 'ETF Discipline 열기' })).toBeInTheDocument();
+  });
+
+  test('opens a room detail page from a board row', async () => {
+    const user = userEvent.setup();
+    render(<RoomsView />);
+
+    const rail = screen.getByRole('complementary', { name: '일반 대회 필터' });
+    await user.click(within(rail).getByRole('radio', { name: '진행 중' }));
+    await user.click(screen.getByRole('listitem', { name: 'Momentum Lab 열기' }));
+
     const details = screen.getByRole('region', { name: 'Momentum Lab 상세 페이지' });
     expect(within(details).getByRole('heading', { name: 'Momentum Lab' })).toBeInTheDocument();
     expect(details).toHaveTextContent('Momentum Lab 참가 봇을 동일한 시장 데이터와 체결 조건에서 비교하는 모의투자 대회입니다.');
   });
 
-  test('groups seven concise facts below the leaderboard and scoring beside its title', async () => {
+  test('folds seven concise facts behind the 대회 조건 toggle with a period progress bar', async () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    await user.click(within(screen.getByRole('group', { name: '진행 상태' })).getByRole('radio', { name: '대회 진행 중' }));
-    await user.click(screen.getByRole('button', { name: '공식 대회 I2S Summer League 열기' }));
+    await user.click(screen.getByRole('listitem', { name: '공식 대회 I2S Summer League 열기' }));
     const detail = screen.getByRole('region', { name: 'I2S Summer League 상세 페이지' });
-    expect(within(detail).getByRole('tooltip')).toHaveTextContent('수익률과 위험 지표를 표준화');
-    expect(within(detail).queryByText('?')).not.toBeInTheDocument();
-    expect(within(detail).getByText('공식 대회')).toBeInTheDocument();
+    expect(within(detail).getByText('Official')).toBeInTheDocument();
 
-    const myRanks = within(detail).getByLabelText('내 참가 봇 순위');
+    /* 진행 중엔 리더보드 단일 컬럼 — 내 참가 봇 패널은 압축 순위표와 중복이라
+       없앴다. */
+    expect(within(detail).queryByLabelText('내 참가 봇 순위')).not.toBeInTheDocument();
     const leaderboardHeading = within(detail).getByRole('heading', { name: '대회 리더보드' });
     const leaderboard = leaderboardHeading.closest('section');
     expect(leaderboard).not.toBeNull();
-    expect(leaderboard!.parentElement).toHaveClass('competition-detail-rankings');
-    expect(myRanks.parentElement).toBe(leaderboard!.parentElement);
-    expect(within(leaderboard!).getByText('표준점수제')).toBeInTheDocument();
-    expect(within(detail).queryByLabelText('I2S Summer League 대회 정보')).not.toBeInTheDocument();
+    expect(leaderboard).toHaveClass('is-single');
 
-    await user.click(within(detail).getByRole('button', { name: '대회 상세보기' }));
-    const detailDialog = screen.getByRole('dialog', { name: 'I2S Summer League 대회 상세 정보' });
-    expect(within(detailDialog).queryByText('채점 방식')).not.toBeInTheDocument();
-    expect(within(detailDialog).getByText('운영자')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('기간')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('참여 봇')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('시작 자본')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('종목 범위')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('수수료')).toBeInTheDocument();
-    expect(within(detailDialog).getByText('슬리피지')).toBeInTheDocument();
+    /* #54 확정: 조건은 모달이 아니라 접이식 인라인 표. 진행 중엔 기본 접힘,
+       펼치면 조건 7개가 그 자리에 보이고 진행률은 기간 칸 미니 바뿐이다. */
+    expect(screen.queryByRole('button', { name: '대회 상세보기' })).not.toBeInTheDocument();
+    const factsToggle = within(detail).getByRole('button', { name: /대회 조건/ });
+    expect(factsToggle).toHaveAttribute('aria-expanded', 'false');
+    await user.click(factsToggle);
+    const facts = within(detail).getByLabelText('I2S Summer League 대회 조건');
+    ['운영자', '기간', '참여 봇', '시작 자본', '종목 범위', '수수료', '슬리피지'].forEach((label) => {
+      expect(within(facts).getByText(label)).toBeInTheDocument();
+    });
+    expect(within(facts).getByRole('progressbar', { name: 'I2S Summer League 진행률' })).toHaveAttribute('aria-valuenow', '5');
+    expect(within(detail).getAllByRole('progressbar')).toHaveLength(1);
   });
 });

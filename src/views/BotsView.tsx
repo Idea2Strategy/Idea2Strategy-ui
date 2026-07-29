@@ -779,11 +779,18 @@ function StrategyLayoutModal({ botName, detail, layout, onClose, onSave }: Strat
 interface BotsViewProps {
   botIcons?: BotIconMap;
   onBotIconChange?: (botName: string, selection: BotIconSelection) => void;
+  /* 대회 리더보드에서 내 봇을 눌러 들어오는 경로(#54). 그 봇이 보이는
+     운용 유형으로 필터까지 맞춰 열어야 목록에서 사라지지 않는다. */
+  initialBot?: string;
 }
 
-export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: BotsViewProps = {}): ReactNode {
-  const [filter, setFilter] = useState<FilterId>('personal');
-  const [selectedName, setSelectedName] = useState<string>(botList[0].name);
+export function BotsView({ botIcons: controlledBotIcons, onBotIconChange, initialBot }: BotsViewProps = {}): ReactNode {
+  const requestedBot = initialBot && botList.some((bot) => bot.name === initialBot) ? initialBot : null;
+  const [filter, setFilter] = useState<FilterId>(() => {
+    const bot = requestedBot ? botList.find((item) => item.name === requestedBot) : null;
+    return bot && !matchesBotFilter(bot, 'personal') ? 'competition' : 'personal';
+  });
+  const [selectedName, setSelectedName] = useState<string>(requestedBot ?? botList[0].name);
   const [tab, setTab] = useState<TabId>('live');
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [savedLayouts, setSavedLayouts] = useState<Record<string, SnapshotLayout>>(

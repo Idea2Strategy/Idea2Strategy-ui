@@ -296,42 +296,100 @@ Deliberately not on Home:
 
 - The page is titled 모의투자 (nav label too); English locale keeps
   "Competition".
-- **Official competitions are the loudest block on the page** (2026-07-27
-  decision): a deep brand-teal gradient showcase at the top with the official
-  competitions inline as compact cards in a snap carousel. **There is no
-  shared season frame** — each competition runs its own calendar (weeks to a
-  year) and up to eight can be live at once, so the card carries its own
-  period, D-day and participant count, and there is no page-level progress
-  bar or quarter label. The dedicated page stays behind "공식 대회 전체
-  보기" for the performance chart and full leaderboard.
-- **The scoring method (채점 방식 — never "산정 방식") is THE discovery
-  signal.** It leads every official card as its tone-coloured badge, the same
-  tone edges the card (3px top border), and the room list shows it as the
-  same badge instead of plain text. Cards carry no stat block — stats live on
-  the detail page.
+- **One board, pinned officials** (#54, 2026-07-29 decision — replaces the
+  2026-07-27 carousel/showcase). The lobby is a left filter rail (232px) plus
+  a single bulletin board. Official competitions sit pinned at the top like a
+  community board's notices — accent tint plus a 3px inset edge bar, a thick
+  divider where the pin block ends — and **never follow the filters**: a
+  notice does not get pushed out by a search. Community rooms follow below in
+  the same board. The UI assumes exactly three official competitions.
+- **Row grammar** (four columns, no table header): kind/number 76px ·
+  competition 1fr · D-day 88px · participants 72px, row height 68px. The
+  first column carries a 라이브/백테스트 chip for officials (live and
+  backtest are scored differently — real-time prices vs a replayed past
+  window) and the row number for community rooms, both centre-aligned. The
+  name line holds the tone-coloured scoring badge (11px in-row) and, when my
+  bot competes there, an accent Bot icon at the end (tooltip carries my
+  rank). The sub-line is the host name, or ✔BadgeCheck + "Official" for
+  official rows — hosts' names never appear for officials. **Rows end with
+  two numbers**; there is no per-row join CTA, arrow, or rank badge — the
+  whole row is the button and the detail page says the rest.
+- **The view axis is one of three**: 모집 중 (default — people come here to
+  find a room to enter) / 진행 중 / 참여 중 (my rooms regardless of status).
+  Because the list always shows a single status, rows repeat no status text.
+  The old 참가 상태 filter group is absorbed by 참여 중. Remaining rail
+  filters: text search (name or host), scoring-method checkboxes, 남은 기간.
+  The reset button shows the active-filter count and is disabled at rest.
+- **Sorting is fixed at closing-soonest (D-day ascending)** — the row number
+  doubles as the urgency order. Column-header sorting and pagination were
+  removed with the table (2026-07-29); at ~10 rooms they were cost without
+  benefit.
 - **Rooms have no participant cap** (2026-07-27 product rule). There is no
   정원, no capacity bar, no "N / M" anywhere — only how many bots joined.
-- Every room row carries: name + scoring basis, the scoring-method badge,
-  **운영자 (host)**, **기간 (start–end)**, and participant count. **Rows
-  carry values only** — the header names the columns once; repeating the
-  column label inside every row was noise. The list has a text search,
-  scoring/size filters, and **pagination** (5 per page; the page clamps
-  instead of resetting when filters shrink the list).
-- **Sorting lives on the column headers** (list-view convention, 2026-07-27):
-  대회·기간·참여 headers are buttons — click sorts by that column with its
-  natural first direction (names A→Z, periods closing-soonest, participants
-  biggest first), click again to flip; the active header wears the accent and
-  a ▲/▼. No separate sort dropdown.
-- The showcase is **theme-aware**: the deep teal gradient pops on dark but
-  lands as a heavy slab on light, so the light theme gets a soft teal-tinted
-  surface with normal ink and a solid-accent link button — same prominence,
-  per-theme colour weight.
-- **The right panel is the selected room's ranking, not a repeat of its
-  row.** What it shows depends on participation: a room the person's bot
-  competes in leads with a "내 봇 · #N" standing card and highlights that row
-  in the top list; a room they haven't joined shows the top bots plus a hint
-  that joining puts their bot here. Full ranking and shared conditions live
-  on the detail page.
+- The scoring method is called 채점 방식 (never "산정 방식"); its badge and
+  the `--tone-*` colours are shared with the detail page. Only one
+  participating official competition is shown at a time (UI decision,
+  2026-07-29).
+- **Detail page** (#54, 2026-07-30). The header carries only the lobby
+  eyebrow grammar (kind chip + ✔Official, or 개설자 name), the title, one
+  description line, the state + D-day text and the single entry button. The
+  old title-row progress bar is gone — a percent duplicates the D-day, and
+  during recruiting it read 0%. Progress survives in exactly one place: a
+  mini bar inside the 기간 cell of the conditions table.
+- **Conditions fold inline** behind a `대회 조건 ⌄` toggle attached to the
+  bottom edge of the header card (the old info modal is deleted), collapsed
+  by default — the title and description read first. **종목 범위 is
+  per-competition data** (`universe`): a base universe optionally narrowed by
+  an exclude list or replaced by an only-these-tickers list; the fact cell
+  shows the summary ("미국 상장 ETF · 2종목 제외", "지정 3종목") with every
+  ticker as a chip underneath.
+- **Recruiting and running are different screens.** While recruiting, no
+  bot is executing, so there is no leaderboard and no fake interim ranking:
+  registered bots show as "등록 완료 · 시작 대기", and a notice panel says
+  when scoring happens — for a backtest competition, that the whole field
+  replays the same past window and is scored in one batch after close.
+  While running, the leaderboard leads.
+- **The scoring method sits beside the detail title**, not in the leaderboard
+  — it decides whether the competition suits a strategy, so it ranks with the
+  name. The badge is the button that opens the scoring help dialog; nothing
+  repeats it further down.
+- **Leaderboard columns are user-chosen** (2026-07-30): a `지표 n/7` popover
+  toggles which metrics render as columns — **all seven may be on** (only the
+  last one cannot be turned off), with 전체 선택/기본값 shortcuts. Beyond
+  three columns the metric columns take a fixed 96px and the table scrolls
+  horizontally inside its own container rather than squeezing. **Clicking a
+  column header sorts by that metric**; the sort-metric select is gone.
+- **The leaderboard folds instead of paginating** — the goal is every one of
+  my bots' standings on one screen. Rules: at most `RANKING_FULL_LIMIT` (14)
+  entrants shows everything; otherwise keep top 5 (top 10 when I have no
+  bot), each of my bots ±1, and **the last place** (how deep the field runs
+  is what gives my rank meaning), folding the rest. A run of ≤2 hidden rows
+  is never folded (the fold row costs a row itself), and folding is skipped
+  entirely when it would save ≤2 rows. **Each fold row expands only its own
+  range** — a full-width button reading `N개 더 보기` with the range on the
+  right — and a footer line states `전체 N개 중 M개 표시 · K개 접힘` with
+  모두 펼치기 / 접어서 보기.
+- **`내 봇만 N` toggles a my-bots-only view** of the same table, so bots
+  scattered across the field can be compared side by side.
+- **One frame only** (2026-07-30): the leaderboard section owns the border and
+  radius; the table inside is borderless and header/table/footer are separated
+  by hairlines — the same grammar as the lobby board. Legacy
+  `.competition-ranking` rules in `base.css` (border, 10px radius, 64px left
+  margin) were the source of the stacked-border look and are deleted. Row
+  padding is `--space-4` on both edges so the last metric column never touches
+  the frame, whatever the column count.
+- **My bots' rank spread is stated explicitly**: when two or more of my bots
+  compete, a strip above the table reads `내 봇 격차 #1 ↓4 #5 ↓4 #9` with
+  `최고 · 최저 · N계단` — during a competition sibling bots can drift hundreds
+  of places apart, and that gap is the interesting number.
+- **Clicking my bot's name opens it in 봇 운영** (only for bots that exist
+  there): `RoomsView` takes an `openBot` callback, App navigates to `/bots`
+  with router state, and `BotsView` accepts `initialBot` and switches its
+  personal/competition filter so the bot is actually visible.
+- **The scoring badge opens a help dialog** listing every scoring method
+  with its formula, the current competition's method highlighted — the badge
+  name alone does not explain how methods differ. The lobby keeps its hover
+  tooltip; the dialog is a detail-page affordance.
 
 ## Language
 
