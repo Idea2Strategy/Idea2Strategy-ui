@@ -9796,7 +9796,7 @@ small.dashboard-bot-scope {
 .landing-scroll { overflow: visible; }
 .landing-page { width: 100%; }
 
-.landing-hero { position: relative; height: 320vh; }
+.landing-hero { position: relative; height: 560vh; }
 /* The top bar is sticky, so the stage claims the viewport BELOW it: pinned
    from the very first scrolled pixel, no initial shove while the page travels
    nav-height before top:0 could engage, and no strip of scene hidden under
@@ -9830,7 +9830,21 @@ small.dashboard-bot-scope {
   justify-self: start;
   max-width: 620px;
   padding: 0 clamp(24px, 6vw, 96px);
+  transition: opacity 450ms ease, transform 450ms ease;
 }
+/* Before the blocks merge, every word leaves for its own edge: the copy on
+   the left exits left, the captions on the right exit right, and the centre
+   belongs to the cube. */
+.landing-page[data-hero-copy="hidden"] .landing-hero-copy {
+  opacity: 0;
+  transform: translateX(-56px);
+  pointer-events: none;
+}
+.landing-page[data-hero-copy="hidden"] .landing-captions {
+  opacity: 0;
+  transform: translateX(56px);
+}
+.landing-page[data-hero-copy="hidden"] .landing-scroll-hint { opacity: 0; }
 .landing-hero-copy h1 {
   margin: 0 0 14px;
   font-size: clamp(34px, 5vw, 60px);
@@ -9854,7 +9868,49 @@ small.dashboard-bot-scope {
   display: grid;
   max-width: 300px;
   text-align: right;
+  transition: opacity 450ms ease, transform 450ms ease;
 }
+.landing-scroll-hint { transition: opacity 450ms ease; }
+
+/* Second act: one feature note at centre stage. The active one rises from
+   below; when the next takes over, the previous transitions back down — the
+   sink. Driven by data-active-note, which the scroll handler writes directly,
+   so React never renders on scroll. */
+.landing-notes {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  pointer-events: none;
+}
+.landing-note {
+  grid-area: 1 / 1;
+  margin: 0;
+  max-width: 560px;
+  padding: 0 24px;
+  opacity: 0;
+  transform: translateY(36px);
+  transition: opacity 480ms ease-out, transform 480ms ease-out;
+}
+.landing-note strong {
+  display: block;
+  font-size: clamp(20px, 2.4vw, 30px);
+  letter-spacing: -0.6px;
+}
+.landing-note span {
+  display: block;
+  margin-top: 10px;
+  color: var(--text-soft);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.landing-page[data-active-note="0"] .landing-note:nth-of-type(1),
+.landing-page[data-active-note="1"] .landing-note:nth-of-type(2),
+.landing-page[data-active-note="2"] .landing-note:nth-of-type(3),
+.landing-page[data-active-note="3"] .landing-note:nth-of-type(4),
+.landing-page[data-active-note="4"] .landing-note:nth-of-type(5) { opacity: 1; transform: none; }
 .landing-caption {
   grid-area: 1 / 1;
   margin: 0;
@@ -9952,13 +10008,17 @@ small.dashboard-bot-scope {
 .landing-reveal.is-visible { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) {
   .landing-reveal { opacity: 1; transform: none; transition: none; }
-  .landing-caption { transition: none; }
+  .landing-caption, .landing-note, .landing-hero-copy, .landing-captions, .landing-scroll-hint { transition: none; }
 }
 .reduce-motion .landing-reveal { opacity: 1; transform: none; transition: none; }
-.reduce-motion .landing-caption { transition: none; }
+.reduce-motion .landing-caption,
+.reduce-motion .landing-note,
+.reduce-motion .landing-hero-copy,
+.reduce-motion .landing-captions,
+.reduce-motion .landing-scroll-hint { transition: none; }
 
 @media (max-width: 800px) {
-  .landing-hero { height: 280vh; }
+  .landing-hero { height: 480vh; }
   .landing-captions { right: 16px; left: 16px; bottom: 72px; max-width: none; text-align: left; }
   .landing-features { padding: 64px 16px 40px; }
   .landing-disclaimer { padding: 32px 16px; }

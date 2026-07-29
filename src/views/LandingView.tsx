@@ -4,6 +4,7 @@ import { ArrowRight, Bot, Boxes, FlaskConical, GitBranch, Trophy } from 'lucide-
 import { Button } from '../components/common';
 import { Localized } from '../lib/i18n';
 import type { PageId } from '../lib/navigation';
+import { ASSEMBLY_END, COPY_EXIT, clamp01, noteIndexAt } from '../lib/landingTimeline';
 
 /* three.js stays out of the main bundle: nobody pays for the hero except the
    person actually looking at it. */
@@ -101,9 +102,22 @@ export function LandingView({ setPage }: LandingViewProps): ReactNode {
       const denominator = Math.max(1, rect.height - stageHeight);
       const progress = Math.min(1, Math.max(0, (navOffset - rect.top) / denominator));
       progressRef.current = progress;
-      const stop = progress < 1 / 3 ? '0' : progress < 2 / 3 ? '1' : '2';
+      /* The three captions belong to the assembly act only, so their thirds
+         are measured inside it rather than across the whole hero. */
+      const assembly = clamp01(progress / ASSEMBLY_END);
+      const stop = assembly < 1 / 3 ? '0' : assembly < 2 / 3 ? '1' : '2';
       const captions = captionsRef.current;
       if (captions && captions.dataset.activeCaption !== stop) captions.dataset.activeCaption = stop;
+      /* Second act, DOM side: the hero copy leaves for the edges before the
+         merge, and the five feature notes then surface one at a time. Data
+         attributes + CSS transitions keep React out of the scroll path. */
+      const root = rootRef.current;
+      if (root) {
+        const copy = progress >= COPY_EXIT ? 'hidden' : 'visible';
+        if (root.dataset.heroCopy !== copy) root.dataset.heroCopy = copy;
+        const note = String(noteIndexAt(progress));
+        if (root.dataset.activeNote !== note) root.dataset.activeNote = note;
+      }
     };
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(measure);
@@ -121,7 +135,7 @@ export function LandingView({ setPage }: LandingViewProps): ReactNode {
     };
   }, []);
 
-  return <Localized><div ref={rootRef} className="landing-page" data-testid="landing-page">
+  return <Localized><div ref={rootRef} className="landing-page" data-testid="landing-page" data-hero-copy="visible" data-active-note="-1">
     <section ref={heroRef} className="landing-hero" aria-label="Idea2Strategy 소개">
       <div className="landing-stage">
         <div className="landing-stage-poster" aria-hidden="true" />
@@ -139,6 +153,15 @@ export function LandingView({ setPage }: LandingViewProps): ReactNode {
           {CAPTIONS.map((caption) => <p key={caption.title} className="landing-caption">
             <strong>{caption.title}</strong>
             <span>{caption.detail}</span>
+          </p>)}
+        </div>
+        {/* Second act: the five features surface at centre stage one at a
+            time — each rises as the previous sinks away. Decorative here
+            (aria-hidden): the cards below carry the accessible copy. */}
+        <div className="landing-notes" aria-hidden="true">
+          {FEATURES.map((feature) => <p key={feature.title} className="landing-note">
+            <strong>{feature.title}</strong>
+            <span>{feature.body}</span>
           </p>)}
         </div>
         <p className="landing-scroll-hint" aria-hidden="true">스크롤해서 살펴보기</p>
