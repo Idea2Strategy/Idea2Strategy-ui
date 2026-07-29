@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button, DataTable, EmptyState, MetricRow, PageHeading, Panel, Status, type DataTableColumn } from '../components/common';
-import { leaderboard, strategies, type LeaderboardEntry } from '../data/mockData';
+import { bots as botRecords, leaderboard, strategies, type LeaderboardEntry } from '../data/mockData';
 import { Localized, useLanguage } from '../lib/i18n';
 
 interface Benchmark {
@@ -1911,7 +1911,14 @@ const competitionViewLabels: Record<CompetitionView, string> = {
   joined: '참여 중',
 };
 
-export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'default' | 'image' }) {
+export function RoomsView({
+  visualVariant = 'default',
+  openBot,
+}: {
+  visualVariant?: 'default' | 'image';
+  /* 리더보드의 내 봇을 눌렀을 때 봇 운영 화면으로 넘기는 경로(#54). */
+  openBot?: (botName: string) => void;
+}) {
   const [query, setQuery] = useState('');
   const [scoreFilters, setScoreFilters] = useState<string[]>([]);
   const [view, setView] = useState<CompetitionView>('recruiting');
@@ -2118,6 +2125,24 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     entry,
     position,
   })), [myRankedEntries]);
+  /*
+    내 봇들끼리의 순위 격차(#54). 같은 전략에서 출시했어도 대회 중에는 수백
+    등씩 벌어질 수 있어서, 최고·최저와 사이 간격을 함께 보여준다.
+  */
+  const myBotSpread = useMemo(() => {
+    if (myRankedEntries.length < 2) return null;
+    const positions = myRankedEntries.map(({ position }) => position);
+    return {
+      best: positions[0],
+      worst: positions[positions.length - 1],
+      total: positions[positions.length - 1] - positions[0],
+      steps: positions.map((position, index) => ({
+        position,
+        bot: myRankedEntries[index].entry.bot,
+        gap: index === 0 ? null : position - positions[index - 1],
+      })),
+    };
+  }, [myRankedEntries]);
   const displayedRankingRows = onlyMyBots ? myBotRows : rankingRows;
   const foldedCount = rankingRows.reduce((sum, row) => sum + (row.kind === 'gap' ? row.hidden : 0), 0);
   const isRecruitingRoom = Boolean(selectedRoom && selectedRoom.status !== 'running');
@@ -2451,11 +2476,23 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                 </div>}
               </div>
             </header>
+            {/* 내 봇들끼리의 격차 — 같은 손에서 나온 봇도 수백 등 벌어진다. */}
+            {myBotSpread && <div className="competition-mine-spread">
+              <span className="competition-mine-spread-label">내 봇 격차</span>
+              <span className="competition-mine-spread-track">
+                {myBotSpread.steps.map((step) => <span key={step.bot}>
+                  {step.gap !== null && <em aria-label={`${step.gap}계단 차이`}>{`↓${step.gap}`}</em>}
+                  <b title={step.bot}>{`#${step.position}`}</b>
+                </span>)}
+              </span>
+              <span className="competition-mine-spread-total">{`최고 #${myBotSpread.best} · 최저 #${myBotSpread.worst} · ${myBotSpread.total}계단`}</span>
+            </div>}
             <div className="competition-ranking-list">
               <div
                 className="competition-ranking is-metric-ranking"
                 aria-label={`${selectedRoom.name} 봇 순위`}
-                /* 열이 많아지면 1fr로 눌리지 않고 고정 폭을 지켜 가로 스크롤로 넘긴다. */
+                /* 열이 많아지면 1fr로 눌리지 않고 고정 폭을 지켜 가로 스크롤로 넘긴다.
+                   마지막 열은 오른쪽 여백을 별도로 확보해 끝에 붙지 않게 한다. */
                 style={{
                   '--ranking-cols': `56px minmax(140px, 1fr) repeat(${visibleMetrics.length}, ${visibleMetrics.length > 3 ? '96px' : 'minmax(88px, 1fr)'})`,
                   '--ranking-min-width': `${260 + visibleMetrics.length * 100}px`,
@@ -2488,7 +2525,18 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                   : <div className={row.entry.mine ? 'is-mine' : ''} key={row.entry.bot}>
                     <strong className="competition-ranking-position">{`#${row.position}`}</strong>
                     <span>
-                      {row.entry.bot}
+                      {/* 내 봇이고 운영 화면에 있는 봇이면 눌러서 그 봇을 연다. */}
+                      {row.entry.mine && openBot && botRecords.some((bot) => bot.name === row.entry.bot)
+                        ? <button
+                          type="button"
+                          className="competition-ranking-bot-link"
+                          aria-label={`${row.entry.bot} 봇 운영 화면 열기`}
+                          onClick={() => openBot(row.entry.bot)}
+                        >
+                          {row.entry.bot}
+                          <ArrowUpRight size={12} aria-hidden="true" />
+                        </button>
+                        : row.entry.bot}
                       {row.entry.mine && <i className="competition-ranking-mine-tag" aria-label="내 봇"><Bot size={12} aria-hidden="true" /></i>}
                     </span>
                     {visibleMetrics.map((metric) => (metric.id === 'return'

@@ -371,6 +371,21 @@ Deliberately not on Home:
   모두 펼치기 / 접어서 보기.
 - **`내 봇만 N` toggles a my-bots-only view** of the same table, so bots
   scattered across the field can be compared side by side.
+- **One frame only** (2026-07-30): the leaderboard section owns the border and
+  radius; the table inside is borderless and header/table/footer are separated
+  by hairlines — the same grammar as the lobby board. Legacy
+  `.competition-ranking` rules in `base.css` (border, 10px radius, 64px left
+  margin) were the source of the stacked-border look and are deleted. Row
+  padding is `--space-4` on both edges so the last metric column never touches
+  the frame, whatever the column count.
+- **My bots' rank spread is stated explicitly**: when two or more of my bots
+  compete, a strip above the table reads `내 봇 격차 #1 ↓4 #5 ↓4 #9` with
+  `최고 · 최저 · N계단` — during a competition sibling bots can drift hundreds
+  of places apart, and that gap is the interesting number.
+- **Clicking my bot's name opens it in 봇 운영** (only for bots that exist
+  there): `RoomsView` takes an `openBot` callback, App navigates to `/bots`
+  with router state, and `BotsView` accepts `initialBot` and switches its
+  personal/competition filter so the bot is actually visible.
 - **The scoring badge opens a help dialog** listing every scoring method
   with its formula, the current competition's method highlighted — the badge
   name alone does not explain how methods differ. The lobby keeps its hover

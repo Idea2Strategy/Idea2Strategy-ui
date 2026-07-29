@@ -234,16 +234,22 @@ function ProductApp() {
   const changeBotIcon = (botName: string, selection: BotIconSelection) => {
     setBotIcons((current) => ({ ...current, [botName]: selection }));
   };
+  /* 대회 리더보드에서 내 봇을 누르면 봇 운영 화면의 그 봇을 연다(#54).
+     라우터 state로 이름을 넘기고, BotsView가 필터까지 맞춰 선택한다. */
+  const openBot = (botName: string) => {
+    navigate(pagePaths.bots, { state: { bot: botName } });
+  };
+  const requestedBot = (location.state as { bot?: string } | null)?.bot;
 
   const content = <Routes>
     <Route path="/" element={<DashboardView setPage={setPage} botIcons={botIcons} />} />
     <Route path="/strategies" element={<StrategyHome openEditor={openEditor} />} />
     <Route path="/strategies/new/basic" element={<BasicEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
     <Route path="/strategies/new/pro" element={<ProEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} />} />
-    <Route path="/bots" element={<BotsView botIcons={botIcons} onBotIconChange={changeBotIcon} />} />
+    <Route path="/bots" element={<BotsView key={requestedBot ?? 'bots'} botIcons={botIcons} onBotIconChange={changeBotIcon} initialBot={requestedBot} />} />
     <Route path="/backtests" element={<BacktestView />} />
-    <Route path="/competition" element={<RoomsView />} />
-    <Route path="/competition-v2" element={<RoomsView visualVariant="image" />} />
+    <Route path="/competition" element={<RoomsView openBot={openBot} />} />
+    <Route path="/competition-v2" element={<RoomsView visualVariant="image" openBot={openBot} />} />
     <Route path="/notifications" element={<NotificationsView setPage={setPage} />} />
     <Route path="/help" element={<HelpView />} />
     <Route path="/account" element={<AccountView

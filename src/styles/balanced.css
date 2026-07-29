@@ -7572,3 +7572,105 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .competition-ranking-foot .competition-ranking-expand:hover {
   border-color: var(--accent);
 }
+
+/*
+  #54 리더보드 3차: 테두리 한 겹, 지표 열 여백, 내 봇 링크·격차 줄.
+
+  이전에는 섹션 테두리 안에 표 테두리가 또 있어 테두리가 겹쳐 보였다. 이제
+  섹션 하나가 프레임이고, 안쪽은 로비 게시판과 같은 문법 — 머리·표·바닥을
+  헤어라인으로만 나눈다.
+*/
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard.is-single {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard.is-single > header {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+/* 표 자체는 테두리가 없다 — 섹션이 이미 프레임이다. */
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard.is-single .competition-ranking-list {
+  border: 0;
+  border-radius: 0;
+}
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard.is-single .competition-ranking-foot {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+/*
+  지표 열 여백: 열 개수와 무관하게 좌우 패딩이 같고, 마지막 열이 오른쪽
+  끝에 붙지 않도록 표 안쪽 패딩을 한 단계 키운다.
+*/
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard.is-single .competition-ranking > header,
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard.is-single .competition-ranking > div:not(.competition-ranking-gap) {
+  padding: 0 var(--space-4);
+  gap: var(--space-4);
+}
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard.is-single .competition-ranking-gap {
+  padding: 0 var(--space-4);
+}
+
+/* 내 봇 이름은 봇 운영 화면으로 가는 링크다. */
+.variant-balanced[data-design="signal-studio"] .competition-ranking-bot-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  color: var(--accent);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-bot-link:hover { text-decoration: underline; }
+.variant-balanced[data-design="signal-studio"] .competition-ranking-bot-link svg { opacity: .7; }
+
+/* 내 봇 격차 줄 — 순위 사이 간격을 그대로 보여준다. */
+.variant-balanced[data-design="signal-studio"] .competition-mine-spread {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-mine-spread-label {
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .competition-mine-spread-track {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.variant-balanced[data-design="signal-studio"] .competition-mine-spread-track > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.variant-balanced[data-design="signal-studio"] .competition-mine-spread-track b {
+  padding: 2px var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 99px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font: 700 var(--fs-caption) var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .competition-mine-spread-track em {
+  color: var(--text-faint);
+  font-style: normal;
+  font: 650 var(--fs-micro) var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .competition-mine-spread-total {
+  margin-left: auto;
+  color: var(--text-soft);
+  font: 650 var(--fs-caption) var(--font-mono);
+}

@@ -860,5 +860,23 @@ describe('Competition ranking', () => {
     expect(rowsOf()).toBe(3);
     expect(leaderboard.querySelectorAll('.is-mine')).toHaveLength(3);
     expect(screen.getByText('내 봇 3개 · 전체 18개 중')).toBeInTheDocument();
+
+    /* 내 봇들끼리의 격차 — 대회 중 형제 봇이 수백 등 벌어지는 걸 보여준다. */
+    const spread = document.querySelector('.competition-mine-spread');
+    expect(spread).not.toBeNull();
+    expect(spread).toHaveTextContent('내 봇 격차');
+    expect(spread).toHaveTextContent('↓4');
+    expect(spread).toHaveTextContent('최고 #1 · 최저 #9 · 8계단');
+  });
+
+  test('opens my bot in bot operations from the leaderboard', async () => {
+    const user = userEvent.setup();
+    const opened: string[] = [];
+    render(<RoomsView openBot={(name) => opened.push(name)} />);
+
+    await openMomentumLab(user);
+    // 운영 화면에 실제로 있는 내 봇만 링크가 된다.
+    await user.click(screen.getByRole('button', { name: 'Room Beta 봇 운영 화면 열기' }));
+    expect(opened).toEqual(['Room Beta']);
   });
 });
