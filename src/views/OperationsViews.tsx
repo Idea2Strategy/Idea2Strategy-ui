@@ -2147,12 +2147,10 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
   const detailDeadlineText = selectedRoom
     ? `${detailDeadlineLabel} D-${selectedRoom.remainingDays}`
     : '';
-  const detailProgress = selectedRoom
+  const detailProgress = selectedRoom?.status === 'running'
     ? 'progress' in selectedRoom
       ? selectedRoom.progress
-      : selectedRoom.status === 'running'
-        ? Math.max(5, Math.min(95, 100 - selectedRoom.remainingDays))
-        : Math.max(5, Math.min(45, 35 - selectedRoom.remainingDays))
+      : Math.max(5, Math.min(95, 100 - selectedRoom.remainingDays))
     : 0;
   const detailDescription = selectedRoom
     ? competitionDetailDescriptions[selectedRoom.name]

@@ -676,8 +676,8 @@ describe('Competition ranking', () => {
 
     expect(screen.getByText('공식 대회')).toBeInTheDocument();
     expect(screen.getByText('모집 마감 D-5')).toHaveClass('is-urgent');
-    expect(screen.getByRole('progressbar', { name: 'ETF Sprint 진행률' })).toHaveAttribute('aria-valuenow', '18');
-    expect(screen.getByText('진행률 18%')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'ETF Sprint 진행률' })).toHaveAttribute('aria-valuenow', '0');
+    expect(screen.getByText('진행률 0%')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '대회 참가' })).toBeEnabled();
     const myRanks = screen.getByLabelText('내 참가 봇 순위');
     expect(within(myRanks).getAllByRole('listitem')).toHaveLength(1);
