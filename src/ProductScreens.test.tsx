@@ -748,6 +748,7 @@ describe('Competition ranking', () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
+    await user.click(within(screen.getByRole('group', { name: '진행 상태' })).getByRole('radio', { name: '대회 진행 중' }));
     await user.click(screen.getByRole('button', { name: '공식 대회 I2S Summer League 열기' }));
 
     const myRanks = screen.getByLabelText('내 참가 봇 순위');

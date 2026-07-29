@@ -1452,13 +1452,8 @@ const officialCompetitionLeaderboards: Record<string, LeaderboardEntry[]> = {
   }),
 };
 
-const orderedOfficialCompetitions = [...officialCompetitions].sort((a, b) => {
-  if (a.tone === 'backtesting' || b.tone === 'backtesting') {
-    return a.tone === 'backtesting' ? -1 : 1;
-  }
-  if (a.status !== b.status) return a.status === 'recruiting' ? -1 : 1;
-  return a.remainingDays - b.remainingDays;
-});
+const orderedOfficialCompetitions = [...officialCompetitions]
+  .sort((a, b) => a.remainingDays - b.remainingDays);
 
 const officialStatusLabels: Record<OfficialCompetitionStatus, string> = {
   recruiting: '모집 중',
@@ -1599,6 +1594,39 @@ const rankingToneByLabel: Record<string, CompetitionTone> = {
   '수익률 점수제': 'return',
   '샤프 점수제': 'sharpe',
 };
+
+const rankingDescriptionByLabel: Record<string, string> = {
+  표준점수제: '수익률과 위험 지표를 표준화한 뒤 합산해 순위를 계산합니다.',
+  '위험조정 점수제': '수익률을 변동성과 최대 낙폭 등 위험 대비 성과로 조정해 평가합니다.',
+  '수익률 점수제': '대회 기간 동안의 누적 수익률이 높은 순서로 평가합니다.',
+  '샤프 점수제': '초과 수익을 변동성으로 나눈 샤프 비율이 높은 순서로 평가합니다.',
+  백테스팅: '동일한 과거 데이터에서 전략을 실행해 수익률과 위험 지표를 검증합니다.',
+};
+
+function CompetitionBoardRanking({
+  ranking,
+  tone,
+  tooltipId,
+}: {
+  ranking: string;
+  tone: CompetitionTone;
+  tooltipId: string;
+}) {
+  return <span className="competition-board-ranking">
+    <strong className="competition-ranking-badge" data-ranking-tone={tone}>{ranking}</strong>
+    <span className="dashboard-return-info competition-board-ranking-help">
+      <span className="dashboard-return-info-button competition-board-ranking-help-mark" aria-hidden="true">?</span>
+      <span
+        id={tooltipId}
+        className="dashboard-return-info-tooltip"
+        role="tooltip"
+        aria-label={`${ranking} 설명`}
+      >
+        {rankingDescriptionByLabel[ranking] ?? '동일한 조건에서 대회 참가 봇의 성과를 비교합니다.'}
+      </span>
+    </span>
+  </span>;
+}
 
 function CompetitionRankingMethod({ ranking }: { ranking: string }) {
   // Nested components render after the Localized walk, so translate directly.
@@ -1954,6 +1982,10 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     participationFilter,
     roomSort,
   ]);
+  const visibleOfficialCompetitions = useMemo(
+    () => orderedOfficialCompetitions.filter((competition) => competition.status === statusFilter),
+    [statusFilter],
+  );
   useEffect(() => setPage(1), [
     query,
     scoreFilters,
@@ -2581,20 +2613,22 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
               <h3 id="official-competition-list-title">공식 대회</h3>
             </header>
             <div className="competition-board-head is-official-head" aria-hidden="true">
-              <span />
+              <span>채점 방식</span>
               <span>대회 제목</span>
               <span>기간</span>
               <span>참여 봇 수</span>
               <span />
             </div>
-            {orderedOfficialCompetitions.map((competition) => (
-              <div className="competition-board-row is-official" role="listitem" key={competition.name}>
+            {visibleOfficialCompetitions.map((competition, index) => {
+              const tooltipId = `official-scoring-help-${index}`;
+              return <div className="competition-board-row is-official" role="listitem" key={competition.name}>
                 <button
                   type="button"
                   aria-label={`공식 대회 ${competition.name} 열기`}
+                  aria-describedby={tooltipId}
                   onClick={() => setSelectedRoom(competition)}
                 >
-                  <span><strong className="competition-ranking-badge" data-ranking-tone={competition.tone}>{competition.ranking}</strong></span>
+                  <CompetitionBoardRanking ranking={competition.ranking} tone={competition.tone} tooltipId={tooltipId} />
                   <span className="competition-board-name">
                     <span>
                       <strong>{competition.name}</strong>
@@ -2610,7 +2644,7 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                   <ArrowUpRight size={15} aria-hidden="true" />
                 </button>
               </div>
-            ))}
+            })}
           </section>
 
           <section
@@ -2644,9 +2678,20 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
               <span aria-hidden="true" />
             </div>
 
-            {pageRooms.map((room) => <div className="competition-board-row" role="listitem" key={room.name}>
-              <button type="button" aria-label={`${room.name} 열기`} onClick={() => setSelectedRoom(room)}>
-                <span><strong className="competition-ranking-badge" data-ranking-tone={rankingToneByLabel[room.ranking] ?? 'standard'}>{room.ranking}</strong></span>
+            {pageRooms.map((room, index) => {
+              const tooltipId = `general-scoring-help-${index}`;
+              return <div className="competition-board-row" role="listitem" key={room.name}>
+              <button
+                type="button"
+                aria-label={`${room.name} 열기`}
+                aria-describedby={tooltipId}
+                onClick={() => setSelectedRoom(room)}
+              >
+                <CompetitionBoardRanking
+                  ranking={room.ranking}
+                  tone={rankingToneByLabel[room.ranking] ?? 'standard'}
+                  tooltipId={tooltipId}
+                />
                 <span className="competition-board-name"><strong>{room.name}</strong></span>
                 <span className="competition-board-period">
                   <b className={room.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${room.remainingDays}`}</b>
@@ -2655,7 +2700,7 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                 <span className="competition-board-bots"><strong>{`${room.joined} BOT`}</strong></span>
                 <ArrowUpRight size={15} aria-hidden="true" />
               </button>
-            </div>)}
+            </div>})}
 
             {visibleRooms.length === 0 && <div className="competition-empty">
               <Search size={20} aria-hidden="true" />

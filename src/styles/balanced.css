@@ -3605,8 +3605,15 @@
   --ranking-color:var(--tone-sharpe);
 }
 .variant-balanced[data-design="signal-studio"] .competition-ranking-badge[data-ranking-tone="backtesting"] {
-  --ranking-color:#63B47C;
-  background:color-mix(in srgb,#BDEBC9 28%,var(--surface));
+  --ranking-color:#4F9F68;
+  border-color:#83C695;
+  background:#EAF8EE;
+}
+.variant-balanced.theme-dark[data-design="signal-studio"] .competition-ranking-badge[data-ranking-tone="backtesting"] {
+  --ranking-color:#A7E8B8;
+  border-color:#4E9F67;
+  color:#A7E8B8;
+  background:#173824;
 }
 .variant-balanced[data-design="signal-studio"] .competition-card-counts {
   display:grid;
@@ -9352,6 +9359,26 @@ small.dashboard-bot-scope {
   padding-inline: 9px;
   font-size: 8px;
   white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .competition-board-ranking {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-board-ranking-help {
+  z-index: 2;
+  flex: 0 0 auto;
+}
+.variant-balanced[data-design="signal-studio"] .competition-board-ranking-help-mark {
+  width: 15px;
+  height: 15px;
+  font-size: 9px;
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .competition-board-ranking-help .dashboard-return-info-tooltip {
+  left: -10px;
+  width: min(280px, calc(100vw - 64px));
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-period {
   display: grid;
