@@ -13,14 +13,12 @@ import { BotsView } from './views/BotsView';
 import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
 import { DashboardView } from './views/DashboardView';
 import { DesignConceptLab } from './views/DesignConceptLab';
-import { CompetitionDrafts } from './views/CompetitionDrafts';
 import { BOT_ICON_STORAGE_KEY, loadBotIcons } from './components/BotGlyph';
 import type { BotIconMap, BotIconSelection } from './components/BotGlyph';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
 import './styles/concepts.css';
-import './styles/competition-drafts.css';
 
 type SetPage = (page: PageId) => void;
 
@@ -258,8 +256,6 @@ function ProductApp() {
       updown={updown}
       setUpdown={setUpdown}
     />} />
-    {/* #54 모의투자 화면 초안 비교용 임시 라우트. 안을 고르면 삭제한다. */}
-    <Route path="/drafts/competition" element={<CompetitionDrafts />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;
 

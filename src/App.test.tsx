@@ -438,25 +438,25 @@ describe('Signal product UI', () => {
     expect(screen.queryByText('입력 필요')).not.toBeInTheDocument();
   });
 
-  test('separates the official season from the searchable Competition list', async () => {
+  test('keeps official pins above the searchable Competition list', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
     await user.click(screen.getByRole('button', { name: '모의투자' }));
 
     expect(screen.getByRole('heading', { name: '모의투자' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '공식 대회 전체 보기' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'OFFICAL' })).not.toBeInTheDocument();
+    /* #54: 한 게시판. 검색은 일반 대회만 좁히고 공식 핀은 항상 남는다. */
     const search = screen.getByRole('searchbox', { name: '대회 검색' });
     await user.type(search, 'ETF Disc');
     const results = screen.getByRole('list', { name: '대회 탐색 결과' });
-    expect(within(results).getByRole('button', { name: 'ETF Discipline 열기' })).toBeInTheDocument();
+    expect(within(results).getByRole('listitem', { name: 'ETF Discipline 열기' })).toBeInTheDocument();
+    expect(within(results).getByRole('listitem', { name: '공식 대회 ETF Sprint 열기' })).toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: 'ETF Discipline 순위' })).not.toBeInTheDocument();
     expect(screen.queryByText('Momentum Lab')).not.toBeInTheDocument();
 
     await user.clear(search);
-    const progress = screen.getByRole('group', { name: '진행 상태' });
-    await user.click(within(progress).getByRole('radio', { name: '대회 진행 중' }));
-    await user.click(screen.getByRole('button', { name: 'Momentum Lab 열기' }));
+    const rail = screen.getByRole('complementary', { name: '일반 대회 필터' });
+    await user.click(within(rail).getByRole('radio', { name: '진행 중' }));
+    await user.click(screen.getByRole('listitem', { name: 'Momentum Lab 열기' }));
     expect(screen.getAllByText('Room Beta')).toHaveLength(2);
   });
 });

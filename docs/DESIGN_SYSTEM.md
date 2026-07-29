@@ -296,42 +296,40 @@ Deliberately not on Home:
 
 - The page is titled 모의투자 (nav label too); English locale keeps
   "Competition".
-- **Official competitions are the loudest block on the page** (2026-07-27
-  decision): a deep brand-teal gradient showcase at the top with the official
-  competitions inline as compact cards in a snap carousel. **There is no
-  shared season frame** — each competition runs its own calendar (weeks to a
-  year) and up to eight can be live at once, so the card carries its own
-  period, D-day and participant count, and there is no page-level progress
-  bar or quarter label. The dedicated page stays behind "공식 대회 전체
-  보기" for the performance chart and full leaderboard.
-- **The scoring method (채점 방식 — never "산정 방식") is THE discovery
-  signal.** It leads every official card as its tone-coloured badge, the same
-  tone edges the card (3px top border), and the room list shows it as the
-  same badge instead of plain text. Cards carry no stat block — stats live on
-  the detail page.
+- **One board, pinned officials** (#54, 2026-07-29 decision — replaces the
+  2026-07-27 carousel/showcase). The lobby is a left filter rail (232px) plus
+  a single bulletin board. Official competitions sit pinned at the top like a
+  community board's notices — accent tint plus a 3px inset edge bar, a thick
+  divider where the pin block ends — and **never follow the filters**: a
+  notice does not get pushed out by a search. Community rooms follow below in
+  the same board. The UI assumes exactly three official competitions.
+- **Row grammar** (four columns, no table header): kind/number 76px ·
+  competition 1fr · D-day 88px · participants 72px, row height 68px. The
+  first column carries a 라이브/백테스트 chip for officials (live and
+  backtest are scored differently — real-time prices vs a replayed past
+  window) and the row number for community rooms, both centre-aligned. The
+  name line holds the tone-coloured scoring badge (11px in-row) and, when my
+  bot competes there, an accent Bot icon at the end (tooltip carries my
+  rank). The sub-line is the host name, or ✔BadgeCheck + "Official" for
+  official rows — hosts' names never appear for officials. **Rows end with
+  two numbers**; there is no per-row join CTA, arrow, or rank badge — the
+  whole row is the button and the detail page says the rest.
+- **The view axis is one of three**: 모집 중 (default — people come here to
+  find a room to enter) / 진행 중 / 참여 중 (my rooms regardless of status).
+  Because the list always shows a single status, rows repeat no status text.
+  The old 참가 상태 filter group is absorbed by 참여 중. Remaining rail
+  filters: text search (name or host), scoring-method checkboxes, 남은 기간.
+  The reset button shows the active-filter count and is disabled at rest.
+- **Sorting is fixed at closing-soonest (D-day ascending)** — the row number
+  doubles as the urgency order. Column-header sorting and pagination were
+  removed with the table (2026-07-29); at ~10 rooms they were cost without
+  benefit.
 - **Rooms have no participant cap** (2026-07-27 product rule). There is no
   정원, no capacity bar, no "N / M" anywhere — only how many bots joined.
-- Every room row carries: name + scoring basis, the scoring-method badge,
-  **운영자 (host)**, **기간 (start–end)**, and participant count. **Rows
-  carry values only** — the header names the columns once; repeating the
-  column label inside every row was noise. The list has a text search,
-  scoring/size filters, and **pagination** (5 per page; the page clamps
-  instead of resetting when filters shrink the list).
-- **Sorting lives on the column headers** (list-view convention, 2026-07-27):
-  대회·기간·참여 headers are buttons — click sorts by that column with its
-  natural first direction (names A→Z, periods closing-soonest, participants
-  biggest first), click again to flip; the active header wears the accent and
-  a ▲/▼. No separate sort dropdown.
-- The showcase is **theme-aware**: the deep teal gradient pops on dark but
-  lands as a heavy slab on light, so the light theme gets a soft teal-tinted
-  surface with normal ink and a solid-accent link button — same prominence,
-  per-theme colour weight.
-- **The right panel is the selected room's ranking, not a repeat of its
-  row.** What it shows depends on participation: a room the person's bot
-  competes in leads with a "내 봇 · #N" standing card and highlights that row
-  in the top list; a room they haven't joined shows the top bots plus a hint
-  that joining puts their bot here. Full ranking and shared conditions live
-  on the detail page.
+- The scoring method is called 채점 방식 (never "산정 방식"); its badge and
+  the `--tone-*` colours are shared with the detail page. Only one
+  participating official competition is shown at a time (UI decision,
+  2026-07-29).
 
 ## Language
 

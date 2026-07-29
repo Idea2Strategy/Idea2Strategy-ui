@@ -610,9 +610,9 @@ describe('Account settings', () => {
 
 describe('Competition ranking', () => {
   const openMomentumLab = async (user: ReturnType<typeof userEvent.setup>) => {
-    const progress = screen.getByRole('group', { name: '진행 상태' });
-    await user.click(within(progress).getByRole('radio', { name: '대회 진행 중' }));
-    await user.click(screen.getByRole('button', { name: 'Momentum Lab 열기' }));
+    const rail = screen.getByRole('complementary', { name: '일반 대회 필터' });
+    await user.click(within(rail).getByRole('radio', { name: '진행 중' }));
+    await user.click(screen.getByRole('listitem', { name: 'Momentum Lab 열기' }));
   };
 
   test('the ranking is re-sorted by the metric the person chooses', async () => {
@@ -693,7 +693,7 @@ describe('Competition ranking', () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    await user.click(screen.getByRole('button', { name: '공식 대회 ETF Sprint 열기' }));
+    await user.click(screen.getByRole('listitem', { name: '공식 대회 ETF Sprint 열기' }));
 
     expect(screen.getByText('공식 대회')).toBeInTheDocument();
     expect(screen.getByText('모집 중 D-5')).toHaveClass('is-urgent');
@@ -716,7 +716,7 @@ describe('Competition ranking', () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    await user.click(screen.getByRole('button', { name: '공식 대회 ETF Sprint 열기' }));
+    await user.click(screen.getByRole('listitem', { name: '공식 대회 ETF Sprint 열기' }));
     await user.click(screen.getByRole('button', { name: '대회 참가' }));
 
     const strategyDialog = screen.getByRole('dialog', { name: 'ETF Sprint 참가 전략 선택' });
@@ -760,7 +760,7 @@ describe('Competition ranking', () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    await user.click(screen.getByRole('button', { name: '공식 대회 Backtesting Challenge 열기' }));
+    await user.click(screen.getByRole('listitem', { name: '공식 대회 Backtesting Challenge 열기' }));
 
     const myRanks = screen.getByLabelText('내 참가 봇 순위');
     expect(myRanks).toHaveTextContent('참가 중인 봇이 없습니다.');
@@ -772,8 +772,8 @@ describe('Competition ranking', () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
-    await user.click(within(screen.getByRole('group', { name: '진행 상태' })).getByRole('radio', { name: '대회 진행 중' }));
-    await user.click(screen.getByRole('button', { name: '공식 대회 I2S Summer League 열기' }));
+    /* 공식 핀은 보기와 무관하게 항상 게시판 최상단에 있다. */
+    await user.click(screen.getByRole('listitem', { name: '공식 대회 I2S Summer League 열기' }));
 
     const myRanks = screen.getByLabelText('내 참가 봇 순위');
     expect(screen.getByText('대회 진행 중 D-65')).not.toHaveClass('is-urgent');

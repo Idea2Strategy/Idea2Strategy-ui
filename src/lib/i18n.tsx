@@ -430,6 +430,23 @@ const english: Record<string, string> = {
   '내 봇': 'My bot',
   '진행 중': 'Active',
   '모집 중': 'Recruiting',
+  /*
+    모의투자 로비(#54): 보기 축·게시판 행.
+    '마감'·'보기'·'초기화' 같은 두세 글자 항목은 다른 문장을 부분 치환으로
+    망가뜨려서 넣지 않는다. 대신 그 글자를 품은 긴 문장을 통째로 등록한다.
+  */
+  '참여 중': 'Joined',
+  '내 봇 참가 중': 'My bot is competing',
+  '참가 중인 봇이 없습니다.': 'No bots are competing yet.',
+  '아직 참가 중인 대회가 없어요. 모집 중인 대회에서 첫 도전을 시작해보세요.': 'You are not in any competition yet. Pick a recruiting one and enter your first bot.',
+  '일반 대회 필터': 'Community competition filters',
+  '대회명 · 개설자 검색': 'Search by name or host',
+  '남은 기간': 'Time left',
+  '7일 이내': 'Within 7 days',
+  '30일 이내': 'Within 30 days',
+  '대회 목록': 'Competitions',
+  '마감 임박 순': 'closing soonest',
+  '라이브': 'Live',
   '현황 보기': 'View status',
   '참가 준비': 'Prepare to join',
   '모든 점수 방식': 'All scoring methods',
