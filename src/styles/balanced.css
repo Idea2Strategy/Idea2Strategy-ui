@@ -9706,7 +9706,9 @@ small.dashboard-bot-scope {
   bottom: auto;
   transform: translateY(-50%);
 }
-.variant-balanced[data-design="signal-studio"] .basic-library-favorites {
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.basic-library-favorites {
+  --block-tone-color: #d6ae43;
+  --category-color: #d6ae43;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--line);
 }
@@ -9973,16 +9975,16 @@ small.dashboard-bot-scope {
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group .condition-chain-mark {
   z-index: 1;
-  color: #8f9a9a;
+  color: #d9e0df;
   filter: drop-shadow(0 1px 0 rgba(var(--shadow-rgb), .18));
   transition: color 140ms ease-out;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card:hover .condition-chain-mark {
-  color: #aeb8b6;
+  color: #edf1f0;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card.is-selected .condition-chain-mark,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card:focus-within .condition-chain-mark {
-  color: #c5cecc;
+  color: #fff;
 }
 
 /* Retire every pseudo rail from the previous bracket treatment. */
@@ -10089,38 +10091,38 @@ small.dashboard-bot-scope {
 /* Distinct Basic category palette, separate from buy/sell/risk card chrome. */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-data,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-data {
-  --block-tone-color: #277963;
-  --block-tone-surface: #82d0b6;
+  --block-tone-color: #24866a;
+  --block-tone-surface: #a1e4cc;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-indicator,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-indicator {
-  --block-tone-color: #62409f;
-  --block-tone-surface: #b294e3;
+  --block-tone-color: #7048b5;
+  --block-tone-surface: #cdb5f2;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-condition,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-condition {
-  --block-tone-color: #765541;
-  --block-tone-surface: #c99f83;
+  --block-tone-color: #825b43;
+  --block-tone-surface: #deb89d;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-logic,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-logic {
-  --block-tone-color: #705480;
-  --block-tone-surface: #c0a6cf;
+  --block-tone-color: #7c5b91;
+  --block-tone-surface: #d3bce0;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-time,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-time {
-  --block-tone-color: #26766f;
-  --block-tone-surface: #75c8c1;
+  --block-tone-color: #1f8178;
+  --block-tone-surface: #96ddd6;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-risk,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-risk {
-  --block-tone-color: #70427e;
-  --block-tone-surface: #b783c8;
+  --block-tone-color: #7b478d;
+  --block-tone-surface: #cda3dc;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-order,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-order {
-  --block-tone-color: #725f4d;
-  --block-tone-surface: #bfa78f;
+  --block-tone-color: #80684f;
+  --block-tone-surface: #d4bca3;
 }
 
 /* Responsive Basic toolbar: remove explanatory width first, then use two rows. */
@@ -10354,7 +10356,7 @@ small.dashboard-bot-scope {
 }
 .variant-balanced[data-design="signal-studio"] .basic-library-title-row .basic-library-favorite:hover,
 .variant-balanced[data-design="signal-studio"] .basic-library-title-row .basic-library-favorite.is-active {
-  color: var(--accent);
+  color: #d6ae43;
   background: transparent;
 }
 
