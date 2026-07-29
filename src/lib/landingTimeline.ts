@@ -16,8 +16,10 @@
     MERGE_END ───── …and snap into one small solid cube (the sudden "확")
     → SHAKE_END ─── the camera pushes in while the cube trembles harder and
                    harder and turns white — the cube itself stays small
-    → EXPLODE_END ─ it bursts, shards flying past the screen edges
-    NOTES_START/END five feature notes surface one by one near the bottom
+    → EXPLODE_END ─ it bursts into dust that drifts past the screen edges
+    LINES ───────── three story lines, one per act of the second half; the
+                   last one leaves before the dust settles, so no text is
+                   still talking after the motion has finished
 */
 
 export const ASSEMBLY_END = 0.34;
@@ -27,9 +29,12 @@ export const MERGE_END = 0.54;
 export const SHAKE_END = 0.78;
 export const EXPLODE_END = 0.94;
 
-export const NOTES_START = 0.54;
-export const NOTES_END = 0.97;
-export const NOTE_COUNT = 5;
+/* [start, end) windows for the three story lines: merge, charge, burst. */
+export const LINES: ReadonlyArray<readonly [number, number]> = [
+  [MERGE_START, 0.62],
+  [0.62, SHAKE_END],
+  [SHAKE_END, 0.9],
+];
 
 /* Reduced motion shows the assembled lattice — the one still frame that says
    "blocks build a strategy" — not the empty post-explosion stage at p=1. */
@@ -50,9 +55,15 @@ export const easeInQuart = (x: number): number => x * x * x * x;
 /* Full speed at the first instant, then decaying: the burst of the explosion. */
 export const easeOutQuart = (x: number): number => 1 - ((1 - x) ** 4);
 
-/* Which feature note floats at centre stage, or -1 outside the note act. */
-export function noteIndexAt(progress: number): number {
-  if (progress < NOTES_START || progress >= NOTES_END) return -1;
-  const span = (NOTES_END - NOTES_START) / NOTE_COUNT;
-  return Math.min(NOTE_COUNT - 1, Math.floor((progress - NOTES_START) / span));
+/*
+  Which story line is on stage. -1 before the first window; LINES.length once
+  the last window has closed — a distinct "done" state, so lines that have
+  had their turn exit upward instead of waiting at the bottom.
+*/
+export function lineIndexAt(progress: number): number {
+  if (progress < LINES[0][0]) return -1;
+  for (let i = 0; i < LINES.length; i++) {
+    if (progress < LINES[i][1]) return i;
+  }
+  return LINES.length;
 }

@@ -4,7 +4,7 @@ import { ArrowRight, Bot, Boxes, FlaskConical, GitBranch, Trophy } from 'lucide-
 import { Button } from '../components/common';
 import { Localized } from '../lib/i18n';
 import type { PageId } from '../lib/navigation';
-import { ASSEMBLY_END, COPY_EXIT, clamp01, noteIndexAt } from '../lib/landingTimeline';
+import { ASSEMBLY_END, COPY_EXIT, clamp01, lineIndexAt } from '../lib/landingTimeline';
 
 /* three.js stays out of the main bundle: nobody pays for the hero except the
    person actually looking at it. */
@@ -27,6 +27,19 @@ const CAPTIONS = [
   { title: '블록을 조립해 규칙을 만듭니다', detail: 'Basic 문장형 블록, Pro 노드 그래프' },
   { title: '봇은 서버에서 규칙 그대로 실행합니다', detail: '브라우저를 닫아도 계속 평가합니다' },
   { title: '모든 판단이 기록으로 남습니다', detail: '주문하지 않은 판단까지 근거와 함께' },
+] as const;
+
+/*
+  The three story lines of the second half, one per act: the merge (a locked
+  strategy becomes one bot), the charge (it runs on the server), the burst
+  (every decision leaves a record). One connected sentence across the three,
+  so the type reads as narration for the motion rather than a feature list —
+  the feature list itself lives in the cards below the hero.
+*/
+const STORY_LINES = [
+  { eyebrow: '01 · ONE BOT', text: '조립한 전략은 하나의 봇이 되고' },
+  { eyebrow: '02 · ON SERVER', text: '봇은 서버에서 쉬지 않고 시장을 지켜보다가' },
+  { eyebrow: '03 · ON RECORD', text: '판단의 순간, 근거까지 기록으로 남깁니다' },
 ] as const;
 
 const FEATURES = [
@@ -109,14 +122,14 @@ export function LandingView({ setPage }: LandingViewProps): ReactNode {
       const captions = captionsRef.current;
       if (captions && captions.dataset.activeCaption !== stop) captions.dataset.activeCaption = stop;
       /* Second act, DOM side: the hero copy leaves for the edges before the
-         merge, and the five feature notes then surface one at a time. Data
+         merge, and the three story lines then narrate the acts. Data
          attributes + CSS transitions keep React out of the scroll path. */
       const root = rootRef.current;
       if (root) {
         const copy = progress >= COPY_EXIT ? 'hidden' : 'visible';
         if (root.dataset.heroCopy !== copy) root.dataset.heroCopy = copy;
-        const note = String(noteIndexAt(progress));
-        if (root.dataset.activeNote !== note) root.dataset.activeNote = note;
+        const line = String(lineIndexAt(progress));
+        if (root.dataset.actLine !== line) root.dataset.actLine = line;
       }
     };
     const schedule = () => {
@@ -135,7 +148,7 @@ export function LandingView({ setPage }: LandingViewProps): ReactNode {
     };
   }, []);
 
-  return <Localized><div ref={rootRef} className="landing-page" data-testid="landing-page" data-hero-copy="visible" data-active-note="-1">
+  return <Localized><div ref={rootRef} className="landing-page" data-testid="landing-page" data-hero-copy="visible" data-act-line="-1">
     <section ref={heroRef} className="landing-hero" aria-label="Idea2Strategy 소개">
       <div className="landing-stage">
         <div className="landing-stage-poster" aria-hidden="true" />
@@ -155,13 +168,16 @@ export function LandingView({ setPage }: LandingViewProps): ReactNode {
             <span>{caption.detail}</span>
           </p>)}
         </div>
-        {/* Second act: the five features surface at centre stage one at a
-            time — each rises as the previous sinks away. Decorative here
-            (aria-hidden): the cards below carry the accessible copy. */}
-        <div className="landing-notes" aria-hidden="true">
-          {FEATURES.map((feature) => <p key={feature.title} className="landing-note">
-            <strong>{feature.title}</strong>
-            <span>{feature.body}</span>
+        {/* Second act: three story lines narrate the merge, the charge and
+            the burst from where the hero copy stood. Each rises in and, when
+            its act is over, continues upward and out — the narration keeps
+            moving in the direction the story does, and the last line leaves
+            with the dust. Decorative (aria-hidden): the cards below carry
+            the accessible copy. */}
+        <div className="landing-lines" aria-hidden="true">
+          {STORY_LINES.map((line) => <p key={line.eyebrow} className="landing-line">
+            <small>{line.eyebrow}</small>
+            {line.text}
           </p>)}
         </div>
         <p className="landing-scroll-hint" aria-hidden="true">스크롤해서 살펴보기</p>

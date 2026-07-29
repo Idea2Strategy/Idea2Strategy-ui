@@ -7,13 +7,11 @@ import {
   ASSEMBLY_END,
   COPY_EXIT,
   EXPLODE_END,
+  LINES,
   MERGE_END,
   MERGE_START,
-  NOTES_END,
-  NOTES_START,
-  NOTE_COUNT,
   SHAKE_END,
-  noteIndexAt,
+  lineIndexAt,
 } from './lib/landingTimeline';
 
 /*
@@ -78,7 +76,7 @@ describe('Landing page', () => {
     expect(screen.getByRole('heading', { name: '아이디어를, 전략으로' })).toBeInTheDocument();
   });
 
-  test('the second-act timeline is ordered and the notes visit all five features', () => {
+  test('the second-act timeline is ordered and the story ends with the motion', () => {
     /* The 3D scene and the DOM overlays import these same boundaries; if the
        ordering breaks, acts overlap or leave dead scroll. */
     expect(ASSEMBLY_END).toBeLessThan(COPY_EXIT);
@@ -87,31 +85,35 @@ describe('Landing page', () => {
     expect(MERGE_END).toBeLessThan(SHAKE_END);
     expect(SHAKE_END).toBeLessThan(EXPLODE_END);
     expect(EXPLODE_END).toBeLessThanOrEqual(1);
-    /* Notes surface only after the merge snap and clear before release. */
-    expect(NOTES_START).toBeGreaterThanOrEqual(MERGE_END);
-    expect(NOTES_END).toBeLessThanOrEqual(1);
 
-    expect(noteIndexAt(NOTES_START - 0.001)).toBe(-1);
-    expect(noteIndexAt(NOTES_START)).toBe(0);
-    expect(noteIndexAt(NOTES_END - 0.001)).toBe(NOTE_COUNT - 1);
-    expect(noteIndexAt(NOTES_END)).toBe(-1);
-    expect(noteIndexAt(1)).toBe(-1);
+    /* Contiguous line windows, starting with the merge. */
+    expect(LINES[0][0]).toBe(MERGE_START);
+    for (let i = 1; i < LINES.length; i++) expect(LINES[i][0]).toBe(LINES[i - 1][1]);
+    /* The last line must leave BEFORE the dust finishes: no text still
+       talking after the motion has ended. */
+    expect(LINES[LINES.length - 1][1]).toBeLessThan(EXPLODE_END);
+
+    expect(lineIndexAt(MERGE_START - 0.001)).toBe(-1);
+    expect(lineIndexAt(MERGE_START)).toBe(0);
+    expect(lineIndexAt(LINES[2][1] - 0.001)).toBe(2);
+    expect(lineIndexAt(LINES[2][1])).toBe(LINES.length);
+    expect(lineIndexAt(1)).toBe(LINES.length);
 
     const seen = new Set<number>();
-    for (let p = 0; p <= 1; p += 0.0005) seen.add(noteIndexAt(p));
-    expect([...seen].sort((a, b) => a - b)).toEqual([-1, 0, 1, 2, 3, 4]);
+    for (let p = 0; p <= 1; p += 0.0005) seen.add(lineIndexAt(p));
+    expect([...seen].sort((a, b) => a - b)).toEqual([-1, 0, 1, 2, 3]);
   });
 
-  test('the stage carries the five feature notes, hidden until their act', () => {
+  test('the stage carries the three story lines, hidden until their act', () => {
     render(<App />);
 
     const page = screen.getByTestId('landing-page');
     expect(page).toHaveAttribute('data-hero-copy', 'visible');
-    expect(page).toHaveAttribute('data-active-note', '-1');
-    /* Decorative duplicates of the cards below — hidden from the tree. */
-    const notes = page.querySelectorAll('.landing-notes .landing-note');
-    expect(notes).toHaveLength(NOTE_COUNT);
-    expect(notes[0].closest('.landing-notes')).toHaveAttribute('aria-hidden', 'true');
+    expect(page).toHaveAttribute('data-act-line', '-1');
+    /* Decorative narration — the cards below carry the accessible copy. */
+    const lines = page.querySelectorAll('.landing-lines .landing-line');
+    expect(lines).toHaveLength(LINES.length);
+    expect(lines[0].closest('.landing-lines')).toHaveAttribute('aria-hidden', 'true');
   });
 
   test('Localized hands *Ref props to children by identity, not as clones', () => {

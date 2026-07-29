@@ -26,8 +26,11 @@ describe('Competition lobby', () => {
     expect(balancedStyles).not.toMatch(
       /\.competition-lobby-page \.page-heading \{\s*margin-bottom:\s*0;\s*\}/,
     );
+    /* [^}] keeps the match inside the one rule block: with [\s\S] the lazy
+       span crossed rule boundaries and any unrelated margin-bottom: 12px
+       thousands of lines later failed this assertion. */
     expect(balancedStyles).not.toMatch(
-      /\.competition-page \.page-heading \{[\s\S]*?margin-bottom:\s*12px;[\s\S]*?\}/,
+      /\.competition-page \.page-heading \{[^}]*?margin-bottom:\s*12px;[^}]*?\}/,
     );
   });
 

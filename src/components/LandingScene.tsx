@@ -87,8 +87,6 @@ export default function LandingScene({ progressRef }: LandingSceneProps) {
     const geometry = new THREE.BoxGeometry(0.62, 0.62, 0.62);
     const neutralMaterial = new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.15 });
     const accentMaterial = new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.2 });
-    /* Shards share one material so the whole burst fades as one cloud. */
-    const shardMaterial = new THREE.MeshStandardMaterial({ color: WHITE, roughness: 0.35, metalness: 0.1, transparent: true });
 
     /* The single cube the blocks merge into. Same geometry and same scale as
        the fully converged blob of blocks, so the handoff is size-continuous:
@@ -135,20 +133,51 @@ export default function LandingScene({ progressRef }: LandingSceneProps) {
         (Math.floor(index / 12) - 1) * 0.78,
       );
       const rot = new THREE.Euler(random() * 2.4 - 1.2, random() * 2.4 - 1.2, random() * 2.4 - 1.2);
-      /* Burst direction: biased toward the view plane so the shards head for
-         the screen edges rather than diving into the camera or the horizon. */
-      const burstAngle = random() * Math.PI * 2;
-      const burst = new THREE.Vector3(
-        Math.cos(burstAngle) * (0.8 + random() * 0.4),
-        Math.sin(burstAngle) * (0.8 + random() * 0.4),
-        (random() - 0.5) * 0.7,
-      ).normalize();
-      const spin = new THREE.Euler(random() * 6 - 3, random() * 6 - 3, random() * 6 - 3);
       group.add(mesh);
       /* A continuous random stagger, so blocks join one by one instead of in
          bursts of shared delay buckets. */
-      return { mesh, material, scatter, target, rot, burst, spin, delay: random() * 0.4 };
+      return { mesh, material, scatter, target, rot, delay: random() * 0.4 };
     });
+
+    /*
+      The burst is dust, not flying blocks: hundreds of tiny points spraying
+      from the cube. Every position is a pure function of the burst phase (a
+      per-point direction, reach, and a quadratic downward drift), so the
+      cloud rewinds perfectly when the page scrolls back up.
+    */
+    const DUST_COUNT = 420;
+    const dustDirections = new Float32Array(DUST_COUNT * 3);
+    const dustReach = new Float32Array(DUST_COUNT);
+    const dustFall = new Float32Array(DUST_COUNT);
+    for (let i = 0; i < DUST_COUNT; i++) {
+      /* Biased toward the view plane so the dust heads for the screen edges
+         rather than diving into the camera or the horizon. */
+      const burstAngle = random() * Math.PI * 2;
+      const planar = 0.75 + random() * 0.45;
+      const dx = Math.cos(burstAngle) * planar;
+      const dy = Math.sin(burstAngle) * planar;
+      const dz = (random() - 0.5) * 0.6;
+      const norm = Math.hypot(dx, dy, dz) || 1;
+      dustDirections[i * 3] = dx / norm;
+      dustDirections[i * 3 + 1] = dy / norm;
+      dustDirections[i * 3 + 2] = dz / norm;
+      dustReach[i] = 7 + random() * 9;
+      dustFall[i] = 0.6 + random() * 1.8;
+    }
+    const dustPositions = new Float32Array(DUST_COUNT * 3);
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+    const dustMaterial = new THREE.PointsMaterial({
+      color: WHITE,
+      size: 0.06,
+      transparent: true,
+      depthWrite: false,
+      sizeAttenuation: true,
+    });
+    const dust = new THREE.Points(dustGeometry, dustMaterial);
+    dust.visible = false;
+    dust.frustumCulled = false;
+    group.add(dust);
 
     const workPosition = new THREE.Vector3();
 
@@ -186,21 +215,8 @@ export default function LandingScene({ progressRef }: LandingSceneProps) {
       accentMaterial.color.copy(baseAccent);
 
       for (const block of blocks) {
-        if (burst > 0) {
-          /* Act 4: shards. Full speed at the first instant — the "펑". They
-             leave at the merged blob's own size, so the burst grows out of
-             the small cube instead of appearing around it. */
-          const fly = easeOutQuart(burst);
-          block.mesh.visible = true;
-          block.mesh.material = shardMaterial;
-          block.mesh.position.copy(CENTER).addScaledVector(block.burst, fly * 14);
-          block.mesh.rotation.set(block.spin.x * fly * 4, block.spin.y * fly * 4, block.spin.z * fly * 4);
-          block.mesh.scale.setScalar(MERGED_SCALE * (1 - 0.5 * fly));
-          continue;
-        }
-        block.mesh.material = block.material;
         if (merge >= 1) {
-          /* Fully merged: the cube stands in for all of them. */
+          /* Fully merged: the cube (then the dust) stands in for all of them. */
           block.mesh.visible = false;
           continue;
         }
@@ -218,25 +234,39 @@ export default function LandingScene({ progressRef }: LandingSceneProps) {
         block.mesh.scale.setScalar((0.55 + 0.45 * local) * (1 - (1 - MERGED_SCALE) * merge));
       }
 
-      /* Shards thin out over the last stretch of the flight. */
-      shardMaterial.opacity = 1 - clamp01((burst - 0.55) / 0.45);
+      /* Act 4: dust. Full speed at the first instant — the "펑" — every mote
+         drifting slightly downward as it thins out toward the edges. */
+      dust.visible = burst > 0;
+      if (dust.visible) {
+        const fly = easeOutQuart(burst);
+        for (let i = 0; i < DUST_COUNT; i++) {
+          const reach = dustReach[i] * fly;
+          dustPositions[i * 3] = CENTER.x + dustDirections[i * 3] * reach;
+          dustPositions[i * 3 + 1] = CENTER.y + dustDirections[i * 3 + 1] * reach - dustFall[i] * fly * fly;
+          dustPositions[i * 3 + 2] = CENTER.z + dustDirections[i * 3 + 2] * reach;
+        }
+        dustGeometry.attributes.position.needsUpdate = true;
+        dustMaterial.opacity = 1 - clamp01((burst - 0.5) / 0.5);
+        dustMaterial.size = 0.06 * (1 - 0.35 * fly);
+      }
 
       /* Act 3: the cube stays at the merged size — no pop, no overshoot. The
-         tremble grows quadratically (position and a hint of rotation) and is
-         time-oscillated but scroll-gated, so scrolling back calms it down. */
+         tremble is a fine, fast vibration: small amplitude, high frequency —
+         a charge building up, not a box being shoved around. Amplitude is
+         scroll-gated, so scrolling back calms it down. */
       cube.visible = merge >= 1 && burst <= 0;
       if (cube.visible) {
-        const amplitude = shake * shake * 0.09;
+        const amplitude = shake * shake * 0.03;
         const wobble = reduceMotion ? 0 : 1;
         cube.position.set(
-          CENTER.x + Math.sin(time * 0.043) * amplitude * wobble,
-          CENTER.y + Math.sin(time * 0.031 + 1.7) * amplitude * wobble,
-          CENTER.z + Math.sin(time * 0.05 + 0.6) * amplitude * wobble,
+          CENTER.x + Math.sin(time * 0.13) * amplitude * wobble,
+          CENTER.y + Math.sin(time * 0.11 + 1.7) * amplitude * wobble,
+          CENTER.z + Math.sin(time * 0.15 + 0.6) * amplitude * wobble,
         );
         cube.rotation.set(
-          Math.sin(time * 0.037 + 0.9) * amplitude * 0.8 * wobble,
+          Math.sin(time * 0.12 + 0.9) * amplitude * 1.2 * wobble,
           0,
-          Math.sin(time * 0.047) * amplitude * 0.8 * wobble,
+          Math.sin(time * 0.14) * amplitude * 1.2 * wobble,
         );
         cubeMaterial.color.copy(baseAccent).lerp(WHITE, shake);
         cubeMaterial.emissive.copy(WHITE).multiplyScalar(shake * 0.6);
@@ -337,9 +367,10 @@ export default function LandingScene({ progressRef }: LandingSceneProps) {
       themeObserver?.disconnect();
       window.removeEventListener('resize', resize);
       geometry.dispose();
+      dustGeometry.dispose();
       neutralMaterial.dispose();
       accentMaterial.dispose();
-      shardMaterial.dispose();
+      dustMaterial.dispose();
       cubeMaterial.dispose();
       renderer.dispose();
     };
