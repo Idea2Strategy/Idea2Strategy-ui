@@ -9186,7 +9186,7 @@ small.dashboard-bot-scope {
   background: color-mix(in srgb, var(--surface-2) 78%, var(--surface));
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-head.is-official-head {
-  background: color-mix(in srgb, var(--surface-2) 78%, var(--surface));
+  background: color-mix(in srgb, #9A742E 5%, var(--surface));
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-head.is-official-head,
 .variant-balanced[data-design="signal-studio"] .competition-board-row.is-official > button {
@@ -9202,12 +9202,15 @@ small.dashboard-bot-scope {
   font: 700 8px var(--font-mono);
 }
 .variant-balanced.theme-dark[data-design="signal-studio"] .competition-board-head.is-official-head {
-  border-color: var(--line);
-  background: color-mix(in srgb, var(--surface-2) 78%, var(--surface));
+  border-color: color-mix(in srgb, #C79A3E 32%, var(--line));
+  background:
+    linear-gradient(90deg,
+      color-mix(in srgb, #9A742E 18%, var(--surface-2)),
+      color-mix(in srgb, #9A742E 8%, var(--surface)) 72%);
 }
 .variant-balanced.theme-dark[data-design="signal-studio"] .competition-board-head.is-official-head > span {
-  color: var(--text-faint);
-  font-weight: 700;
+  color: #D8BC7C;
+  font-weight: 800;
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-head > button {
   display: inline-flex;
@@ -9309,7 +9312,7 @@ small.dashboard-bot-scope {
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-row.is-official {
   background: transparent;
-  box-shadow: none;
+  box-shadow: inset 3px 0 #9A742E;
 }
 .variant-balanced[data-design="signal-studio"] .is-official-section .competition-board-row > button:hover,
 .variant-balanced[data-design="signal-studio"] .is-official-section .competition-board-row > button:focus-visible {
@@ -9322,7 +9325,7 @@ small.dashboard-bot-scope {
       color-mix(in srgb, #9A742E 24%, var(--surface)) 0%,
       color-mix(in srgb, #9A742E 13%, var(--surface)) 56%,
       color-mix(in srgb, #9A742E 8%, var(--surface)) 100%);
-  box-shadow: none;
+  box-shadow: inset 4px 0 #D1A44A;
 }
 .variant-balanced.theme-dark[data-design="signal-studio"] .is-official-section .competition-board-row > button:hover .competition-board-name strong,
 .variant-balanced.theme-dark[data-design="signal-studio"] .is-official-section .competition-board-row > button:focus-visible .competition-board-name strong {
