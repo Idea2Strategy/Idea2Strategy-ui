@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { ReactElement } from 'react';
+import type { CSSProperties, ReactElement } from 'react';
 import {
   ArrowRight,
   Check,
@@ -12,35 +12,32 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Localized } from '../lib/i18n';
+import alphaDashArt from '../assets/competition-v2/alpha-dash.png';
+import dividendMarathonArt from '../assets/competition-v2/dividend-marathon.png';
+import etfSprintArt from '../assets/competition-v2/etf-sprint.png';
+import summerLeagueArt from '../assets/competition-v2/i2s-summer-league.png';
+import riskControlArt from '../assets/competition-v2/risk-control-cup.png';
+import volatilityShieldArt from '../assets/competition-v2/volatility-shield.png';
 
 /*
-  모의투자 초안 5차 (#54, 임시) — 배치 확정 전 비교용 A·B안.
+  모의투자 초안 6차 (#54, 임시) — A·B·C 비교 + 공식 대회 수 조절.
 
-  이번에는 "무엇을 어디에"를 먼저 확정하고 그렸다.
+  A안 — 원래 구조(레일+게시판) 그대로, 공식도 행. 두 섹션이 같은 열 그리드.
+  B안 — 원래 구조, 공식만 종류색 테두리 카드. 이미지 없음.
+  C안 — 5차 직전 안: 내 대회 현황 스트립 + 공식 아트워크 카드 + 일반은
+        탭·검색·정렬의 자기설명 행 리스트(필터 레일 없음).
 
-  목록에 보여주는 것: 이름 · 종류 칩 · 채점 배지 · D-day(기본 정렬 축) ·
-  참여 봇 수 · 개설자(일반만) · 내 순위(참가 중일 때만).
-  상세로 미룬 것: 기간 날짜범위, 진행률 %, 시작자본·수수료·슬리피지(모든
-  대회 동일), 설명 문장.
-
-  두 안 모두 원래 구조(왼쪽 필터 레일 + 오른쪽 게시판, 공식이 일반 위에
-  고정)를 유지한다. 차이는 공식 대회의 형태뿐이다.
-
-  A안 — 공식도 행. 게시판 안의 두 섹션이 같은 열 그리드를 공유해 가장
-        보수적이고 밀도가 높다.
-  B안 — 공식만 카드 3장으로 승격. 카드(종류색 테두리) vs 행이라는 형태
-        차이가 공식/일반을 가른다. 이미지는 쓰지 않는다.
-
-  필터는 일반 대회에만 적용된다(공식은 3개뿐이고 항상 보여야 하는 기준점).
-  레일 제목에 "일반 대회 필터"로 명시한다. 클래스는 cdraft- 로 격리하고,
-  안이 확정되면 이 화면은 삭제한다.
+  공식 대회는 시즌에 따라 0~6개가 동시에 열릴 수 있다. 상단 컨트롤로 개수를
+  바꿔가며 각 안이 어떻게 버티는지 본다: 0개(빈 상태), 1개(카드 한 장이 전폭을
+  못 채울 때), 4~6개(줄바꿈). 클래스는 cdraft-/cdraftc- 로 격리, 확정 후 삭제.
 */
 
-type DraftId = 'A' | 'B';
+type DraftId = 'A' | 'B' | 'C';
 type Kind = 'official-live' | 'official-backtest' | 'general';
 type StatusFilter = 'all' | '모집 중' | '진행 중';
 type JoinFilter = 'all' | 'joined' | 'open';
 type UrgencyFilter = 'all' | '7' | '30';
+type SortKey = 'dday' | 'bots' | 'name';
 
 interface Competition {
   name: string;
@@ -48,10 +45,14 @@ interface Competition {
   scoring: string;
   bots: number;
   dday: number;
+  lengthDays: number;
   status: '모집 중' | '진행 중';
   host: string;
+  period: string;
   myBot: string | null;
   myRank: number | null;
+  myReturn: string | null;
+  tagline: string;
 }
 
 const KIND_META: Record<Kind, { label: string; icon: LucideIcon }> = {
@@ -62,35 +63,43 @@ const KIND_META: Record<Kind, { label: string; icon: LucideIcon }> = {
 
 const SCORINGS = ['표준점수제', '위험조정 점수제', '수익률 점수제', '샤프 점수제'];
 
-const OFFICIAL: Competition[] = [
-  { name: 'ETF Sprint', kind: 'official-live', scoring: '수익률 점수제', bots: 128, dday: 5, status: '모집 중', host: 'I2S 운영팀', myBot: 'ETF Runner', myRank: 2 },
-  { name: 'Backtesting Challenge', kind: 'official-backtest', scoring: '백테스팅', bots: 42, dday: 12, status: '모집 중', host: 'I2S 운영팀', myBot: null, myRank: null },
-  { name: 'I2S Summer League', kind: 'official-live', scoring: '표준점수제', bots: 184, dday: 65, status: '진행 중', host: 'I2S 운영팀', myBot: 'Room Beta', myRank: 1 },
+const ARTWORK: Record<string, string> = {
+  'ETF Sprint': etfSprintArt,
+  'Risk Control Cup': riskControlArt,
+  'Backtesting Challenge': alphaDashArt,
+  'Volatility Shield': volatilityShieldArt,
+  'Dividend Marathon': dividendMarathonArt,
+  'I2S Summer League': summerLeagueArt,
+};
+
+/* 마감 임박 순. 개수 컨트롤은 이 배열의 앞에서부터 자른다. */
+const OFFICIAL_ALL: Competition[] = [
+  { name: 'ETF Sprint', kind: 'official-live', scoring: '수익률 점수제', bots: 128, dday: 5, lengthDays: 11, status: '모집 중', host: 'I2S 운영팀', period: '07.21–08.01', myBot: 'ETF Runner', myRank: 2, myReturn: '+12.44%', tagline: '11일 안에 누가 가장 많이 벌었나' },
+  { name: 'Risk Control Cup', kind: 'official-live', scoring: '위험조정 점수제', bots: 66, dday: 9, lengthDays: 30, status: '진행 중', host: 'I2S 운영팀', period: '07.10–08.09', myBot: null, myRank: null, myReturn: null, tagline: '떨어질 때 덜 잃는 전략이 이긴다' },
+  { name: 'Backtesting Challenge', kind: 'official-backtest', scoring: '백테스팅', bots: 42, dday: 12, lengthDays: 30, status: '모집 중', host: 'I2S 운영팀', period: '08.01–08.31', myBot: null, myRank: null, myReturn: null, tagline: '같은 과거 한 달, 내 전략은 몇 위였을까' },
+  { name: 'Volatility Shield', kind: 'official-live', scoring: '샤프 점수제', bots: 51, dday: 23, lengthDays: 45, status: '진행 중', host: 'I2S 운영팀', period: '07.08–08.21', myBot: null, myRank: null, myReturn: null, tagline: '흔들리는 장에서 꾸준함을 증명하라' },
+  { name: 'Dividend Marathon', kind: 'official-live', scoring: '표준점수제', bots: 73, dday: 40, lengthDays: 60, status: '모집 중', host: 'I2S 운영팀', period: '07.09–09.07', myBot: null, myRank: null, myReturn: null, tagline: '배당과 함께 달리는 60일' },
+  { name: 'I2S Summer League', kind: 'official-live', scoring: '표준점수제', bots: 184, dday: 65, lengthDays: 92, status: '진행 중', host: 'I2S 운영팀', period: '07.01–09.30', myBot: 'Room Beta', myRank: 1, myReturn: '+13.18%', tagline: '한 시즌 동안 수익과 안정성을 함께' },
 ];
 
 const GENERAL: Competition[] = [
-  { name: 'Earnings Play', kind: 'general', scoring: '수익률 점수제', bots: 9, dday: 7, status: '진행 중', host: '실적시즌', myBot: null, myRank: null },
-  { name: 'Momentum Lab', kind: 'general', scoring: '표준점수제', bots: 8, dday: 8, status: '진행 중', host: '이서준', myBot: 'Room Beta', myRank: 2 },
-  { name: 'Gap Hunters', kind: 'general', scoring: '수익률 점수제', bots: 15, dday: 11, status: '진행 중', host: '한지민', myBot: null, myRank: null },
-  { name: 'Swing Lab 12', kind: 'general', scoring: '표준점수제', bots: 6, dday: 21, status: '진행 중', host: '윤도현', myBot: null, myRank: null },
-  { name: 'ETF Discipline', kind: 'general', scoring: '위험조정 점수제', bots: 18, dday: 29, status: '모집 중', host: 'ETF연구회', myBot: null, myRank: null },
-  { name: 'Dividend Guard', kind: 'general', scoring: '샤프 점수제', bots: 7, dday: 32, status: '모집 중', host: '배당사냥꾼', myBot: null, myRank: null },
-  { name: 'Macro Pulse', kind: 'general', scoring: '표준점수제', bots: 12, dday: 46, status: '모집 중', host: '거시경제방', myBot: null, myRank: null },
-  { name: 'Slow Turtle', kind: 'general', scoring: '위험조정 점수제', bots: 5, dday: 55, status: '모집 중', host: '거북이클럽', myBot: null, myRank: null },
-  { name: 'Low Volatility Club', kind: 'general', scoring: '샤프 점수제', bots: 24, dday: 61, status: '진행 중', host: '차분한투자', myBot: null, myRank: null },
+  { name: 'Earnings Play', kind: 'general', scoring: '수익률 점수제', bots: 9, dday: 7, lengthDays: 21, status: '진행 중', host: '실적시즌', period: '07.22–08.12', myBot: null, myRank: null, myReturn: null, tagline: '' },
+  { name: 'Momentum Lab', kind: 'general', scoring: '표준점수제', bots: 8, dday: 8, lengthDays: 28, status: '진행 중', host: '이서준', period: '07.07–08.04', myBot: 'Room Beta', myRank: 2, myReturn: '+11.85%', tagline: '' },
+  { name: 'Gap Hunters', kind: 'general', scoring: '수익률 점수제', bots: 15, dday: 11, lengthDays: 28, status: '진행 중', host: '한지민', period: '07.10–08.07', myBot: null, myRank: null, myReturn: null, tagline: '' },
+  { name: 'Swing Lab 12', kind: 'general', scoring: '표준점수제', bots: 6, dday: 21, lengthDays: 28, status: '진행 중', host: '윤도현', period: '07.20–08.17', myBot: null, myRank: null, myReturn: null, tagline: '' },
+  { name: 'ETF Discipline', kind: 'general', scoring: '위험조정 점수제', bots: 18, dday: 29, lengthDays: 42, status: '모집 중', host: 'ETF연구회', period: '07.14–08.25', myBot: null, myRank: null, myReturn: null, tagline: '' },
+  { name: 'Dividend Guard', kind: 'general', scoring: '샤프 점수제', bots: 7, dday: 32, lengthDays: 42, status: '모집 중', host: '배당사냥꾼', period: '07.17–08.28', myBot: null, myRank: null, myReturn: null, tagline: '' },
+  { name: 'Macro Pulse', kind: 'general', scoring: '표준점수제', bots: 12, dday: 46, lengthDays: 70, status: '모집 중', host: '거시경제방', period: '07.03–09.11', myBot: null, myRank: null, myReturn: null, tagline: '' },
+  { name: 'Slow Turtle', kind: 'general', scoring: '위험조정 점수제', bots: 5, dday: 55, lengthDays: 77, status: '모집 중', host: '거북이클럽', period: '07.05–09.20', myBot: null, myRank: null, myReturn: null, tagline: '' },
+  { name: 'Low Volatility Club', kind: 'general', scoring: '샤프 점수제', bots: 24, dday: 61, lengthDays: 87, status: '진행 중', host: '차분한투자', period: '07.01–09.26', myBot: null, myRank: null, myReturn: null, tagline: '' },
 ];
-
-const MY_COUNT = [...OFFICIAL, ...GENERAL].filter((competition) => competition.myBot).length;
-const MOST_URGENT = [...OFFICIAL, ...GENERAL]
-  .filter((competition) => competition.myBot)
-  .sort((a, b) => a.dday - b.dday)[0];
 
 /* ── 공용 조각 ───────────────────────────────────────────────────────────── */
 
-const KindChip = ({ kind }: { kind: Kind }) => {
+const KindChip = ({ kind, onImage = false }: { kind: Kind; onImage?: boolean }) => {
   const meta = KIND_META[kind];
   const Icon = meta.icon;
-  return <span className="cdraft-kind" data-kind={kind}>
+  return <span className={`cdraft-kind${onImage ? ' is-on-image' : ''}`} data-kind={kind}>
     <Icon size={11} aria-hidden="true" />{meta.label}
   </span>;
 };
@@ -101,12 +110,35 @@ const Dday = ({ competition }: { competition: Competition }) => <b
   className={`cdraft-dday${competition.dday <= 7 ? ' is-urgent' : ''}`}
 >{`D-${competition.dday}`}</b>;
 
-/* 마지막 칸: 참가 중이면 내 순위, 아니면 참가 CTA. */
 const RowAction = ({ competition }: { competition: Competition }) => (
   competition.myBot
     ? <span className="cdraft-mine-badge"><Check size={12} aria-hidden="true" />{`내 봇 ${competition.myRank}위`}</span>
     : <span className="cdraft-cta">참가</span>
 );
+
+function OfficialEmpty() {
+  return <div className="cdraft-official-empty">
+    <Trophy size={18} aria-hidden="true" />
+    <strong>지금 진행 중인 공식 대회가 없어요.</strong>
+    <span>운영팀이 다음 시즌을 준비하고 있어요. 아래 일반 대회는 언제나 열려 있어요.</span>
+  </div>;
+}
+
+function PageHead({ officials }: { officials: Competition[] }) {
+  const mine = [...officials, ...GENERAL].filter((competition) => competition.myBot)
+    .sort((a, b) => a.dday - b.dday);
+  const line = mine.length > 0
+    ? `내 봇이 대회 ${mine.length}개에서 뛰고 있어요. 가장 급한 마감은 ${mine[0].name} D-${mine[0].dday}예요.`
+    : '아직 참가 중인 대회가 없어요. 모집 중인 대회에서 첫 도전을 시작해보세요.';
+  return <header className="cdraft-page-head">
+    <div>
+      <p>BOT COMPETITION</p>
+      <h1>모의투자</h1>
+      <span>{line}</span>
+    </div>
+    <button type="button" className="cdraft-primary">대회 만들기</button>
+  </header>;
+}
 
 interface Filters {
   query: string;
@@ -126,7 +158,6 @@ const useFilters = () => {
       ? filters.scorings.filter((item) => item !== scoring)
       : [...filters.scorings, scoring],
   });
-  /* 기본 정렬은 마감 임박(D- 짧은 순) 하나로 못박는다. */
   const rows = useMemo(() => {
     const query = filters.query.trim().toLowerCase();
     return GENERAL.filter((competition) => {
@@ -151,8 +182,6 @@ const useFilters = () => {
 
 type FilterApi = ReturnType<typeof useFilters>;
 
-/* 왼쪽 필터 레일 — 원래 구조의 필터 항목 그대로, 가독성만 고친다.
-   라벨은 13px, 항목 행 높이 34px, 그룹 제목이 항상 보인다. */
 function FilterRail({ api }: { api: FilterApi }) {
   const { filters, patch, toggleScoring, activeCount, reset } = api;
   const radioRow = (
@@ -208,7 +237,6 @@ function FilterRail({ api }: { api: FilterApi }) {
   </aside>;
 }
 
-/* 일반 대회 행 — 두 안이 공유. 이름+개설자 | 채점 | D-day | 봇 | 액션. */
 function GeneralSection({ api }: { api: FilterApi }) {
   const { rows, reset } = api;
   return <section className="cdraft-board-section" aria-label="일반 대회 목록">
@@ -238,22 +266,11 @@ function GeneralSection({ api }: { api: FilterApi }) {
   </section>;
 }
 
-function PageHead() {
-  return <header className="cdraft-page-head">
-    <div>
-      <p>BOT COMPETITION</p>
-      <h1>모의투자</h1>
-      <span>{`내 봇이 대회 ${MY_COUNT}개에서 뛰고 있어요. 가장 급한 마감은 ${MOST_URGENT.name} D-${MOST_URGENT.dday}예요.`}</span>
-    </div>
-    <button type="button" className="cdraft-primary">대회 만들기</button>
-  </header>;
-}
-
 /* ── A안: 공식도 행 ──────────────────────────────────────────────────────── */
-function DraftA() {
+function DraftA({ officials }: { officials: Competition[] }) {
   const api = useFilters();
   return <div className="cdraft-page">
-    <PageHead />
+    <PageHead officials={officials} />
     <div className="cdraft-layout">
       <FilterRail api={api} />
       <div className="cdraft-board">
@@ -262,8 +279,8 @@ function DraftA() {
             <h3><Trophy size={14} aria-hidden="true" />공식 대회</h3>
             <span>운영팀 주최 · 필터와 무관하게 항상 표시</span>
           </header>
-          <div role="list">
-            {OFFICIAL.map((competition) => <button type="button" className="cdraft-row is-official" role="listitem" key={competition.name}>
+          {officials.length === 0 ? <OfficialEmpty /> : <div role="list">
+            {officials.map((competition) => <button type="button" className="cdraft-row is-official" role="listitem" key={competition.name}>
               <span className="cdraft-row-name">
                 <strong><KindChip kind={competition.kind} />{competition.name}</strong>
                 <small>{competition.status}</small>
@@ -274,7 +291,7 @@ function DraftA() {
               <span className="cdraft-row-cell is-action"><RowAction competition={competition} /></span>
               <ArrowRight className="cdraft-row-arrow" size={15} aria-hidden="true" />
             </button>)}
-          </div>
+          </div>}
         </section>
         <GeneralSection api={api} />
       </div>
@@ -283,10 +300,10 @@ function DraftA() {
 }
 
 /* ── B안: 공식만 카드 ───────────────────────────────────────────────────── */
-function DraftB() {
+function DraftB({ officials }: { officials: Competition[] }) {
   const api = useFilters();
   return <div className="cdraft-page">
-    <PageHead />
+    <PageHead officials={officials} />
     <div className="cdraft-layout">
       <FilterRail api={api} />
       <div className="cdraft-board">
@@ -295,8 +312,8 @@ function DraftB() {
             <h3><Trophy size={14} aria-hidden="true" />공식 대회</h3>
             <span>운영팀 주최 · 필터와 무관하게 항상 표시</span>
           </header>
-          <div className="cdraft-cards" role="list">
-            {OFFICIAL.map((competition) => <button type="button" className="cdraft-card" role="listitem" data-kind={competition.kind} key={competition.name}>
+          {officials.length === 0 ? <OfficialEmpty /> : <div className="cdraft-cards" role="list">
+            {officials.map((competition) => <button type="button" className="cdraft-card" role="listitem" data-kind={competition.kind} key={competition.name}>
               <span className="cdraft-card-top">
                 <KindChip kind={competition.kind} />
                 <Dday competition={competition} />
@@ -311,7 +328,7 @@ function DraftB() {
                 <ArrowRight size={14} aria-hidden="true" />
               </span>
             </button>)}
-          </div>
+          </div>}
         </section>
         <GeneralSection api={api} />
       </div>
@@ -319,19 +336,184 @@ function DraftB() {
   </div>;
 }
 
-const VIEWS: Record<DraftId, () => ReactElement> = { A: DraftA, B: DraftB };
+/* ── C안: 5차 직전 안(스트립 + 아트워크 히어로 + 탭 리스트) ────────────────── */
+const SORT_LABELS: Record<SortKey, string> = {
+  dday: '마감 임박 순',
+  bots: '참여 봇 많은 순',
+  name: '이름 순',
+};
+
+function DraftC({ officials }: { officials: Competition[] }) {
+  const [tab, setTab] = useState<StatusFilter>('all');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<SortKey>('dday');
+  const mine = [...officials, ...GENERAL].filter((competition) => competition.myBot)
+    .sort((a, b) => a.dday - b.dday);
+  const rows = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return GENERAL.filter((competition) => {
+      const matchesTab = tab === 'all' || competition.status === tab;
+      const matchesQuery = !normalized
+        || competition.name.toLowerCase().includes(normalized)
+        || competition.host.toLowerCase().includes(normalized);
+      return matchesTab && matchesQuery;
+    }).sort((a, b) => {
+      if (sort === 'bots') return b.bots - a.bots;
+      if (sort === 'name') return a.name.localeCompare(b.name);
+      return a.dday - b.dday;
+    });
+  }, [tab, query, sort]);
+  const tabCount = (status: StatusFilter) => (status === 'all'
+    ? GENERAL.length
+    : GENERAL.filter((competition) => competition.status === status).length);
+  return <div className="cdraft-page">
+    <PageHead officials={officials} />
+
+    {mine.length > 0 && <section className="cdraftc-mine" aria-label="내 대회 현황">
+      {mine.map((competition) => <button type="button" className="cdraftc-mine-card" key={competition.name}>
+        <span className="cdraftc-mine-rank"><em>{competition.myRank}</em><small>위</small></span>
+        <span className="cdraftc-mine-copy">
+          <strong>{competition.name}</strong>
+          <small>{`${competition.myBot} · ${competition.bots}봇 중`}</small>
+        </span>
+        <span className="cdraftc-mine-facts">
+          <b>{competition.myReturn}</b>
+          <small className={competition.dday <= 7 ? 'is-urgent' : ''}>{`D-${competition.dday}`}</small>
+        </span>
+      </button>)}
+    </section>}
+
+    <section className="cdraftc-official" aria-label="공식 대회">
+      <header className="cdraft-section-head">
+        <h2>공식 대회</h2>
+        <p>운영팀이 같은 조건으로 열어요. 참가비 없음 · 결과는 프로필에 남아요.</p>
+      </header>
+      {officials.length === 0 ? <OfficialEmpty /> : <div className="cdraftc-art-cards" data-count={officials.length}>
+        {officials.map((competition) => <button
+          type="button"
+          className="cdraftc-art-card"
+          key={competition.name}
+          style={{ '--art': `url("${ARTWORK[competition.name]}")` } as CSSProperties}
+        >
+          <span className="cdraftc-art-image" aria-hidden="true" />
+          <span className="cdraftc-art-top">
+            <KindChip kind={competition.kind} onImage />
+            <b className={competition.dday <= 7 ? 'is-urgent' : ''}>{`D-${competition.dday}`}</b>
+          </span>
+          <span className="cdraftc-art-body">
+            <strong>{competition.name}</strong>
+            <small>{competition.tagline}</small>
+            <span className="cdraftc-art-meta">{`${competition.scoring} · ${competition.bots}봇 · ${competition.lengthDays}일`}</span>
+          </span>
+          <span className="cdraftc-art-foot">
+            {competition.myBot
+              ? <span className="cdraftc-art-mine"><Check size={13} aria-hidden="true" />{`내 봇 ${competition.myRank}위`}</span>
+              : <span className="cdraftc-art-idle">아직 참가하지 않았어요</span>}
+            <span className="cdraftc-art-cta">{competition.myBot ? '순위 보기' : '참가하기'}<ArrowRight size={14} aria-hidden="true" /></span>
+          </span>
+        </button>)}
+      </div>}
+    </section>
+
+    <section className="cdraftc-general" aria-label="일반 대회">
+      <header className="cdraft-section-head">
+        <h2>일반 대회</h2>
+        <p>사용자가 직접 열어요. 시작 자본·수수료는 공식 대회와 같아요.</p>
+      </header>
+      <div className="cdraftc-toolbar">
+        <div className="cdraftc-tabs" role="tablist" aria-label="진행 상태">
+          {([['all', '전체'], ['모집 중', '모집 중'], ['진행 중', '진행 중']] as const).map(([value, label]) => <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            className={tab === value ? 'is-active' : ''}
+            onClick={() => setTab(value)}
+          >{label}<b>{tabCount(value)}</b></button>)}
+        </div>
+        <label className="cdraft-search">
+          <Search size={14} aria-hidden="true" />
+          <input
+            type="search"
+            aria-label="일반 대회 검색"
+            placeholder="대회명 · 개설자 검색"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <select
+          className="cdraftc-sort"
+          aria-label="정렬 기준"
+          value={sort}
+          onChange={(event) => setSort(event.target.value as SortKey)}
+        >
+          {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => <option key={key} value={key}>{SORT_LABELS[key]}</option>)}
+        </select>
+      </div>
+      {rows.length === 0
+        ? <div className="cdraft-empty">
+          <Search size={20} aria-hidden="true" />
+          <strong>조건에 맞는 대회가 없어요.</strong>
+          <button type="button" onClick={() => { setTab('all'); setQuery(''); }}>전체 보기</button>
+        </div>
+        : <div className="cdraftc-rows" role="list">
+          {rows.map((competition) => <button type="button" className="cdraftc-row" role="listitem" key={competition.name}>
+            <span className="cdraftc-row-main">
+              <span className="cdraftc-row-title">
+                <strong>{competition.name}</strong>
+                <Scoring scoring={competition.scoring} />
+                {competition.myBot && <span className="cdraft-mine-badge"><Check size={12} aria-hidden="true" />{`내 봇 ${competition.myRank}위`}</span>}
+              </span>
+              <span className="cdraftc-row-meta">
+                {`개설자 ${competition.host} · ${competition.period} · ${competition.lengthDays}일 대회 · `}
+                <em data-status={competition.status}>{competition.status}</em>
+              </span>
+            </span>
+            <span className="cdraftc-row-side">
+              <span><b>{competition.bots}</b><small>참여 봇</small></span>
+              <span><b className={competition.dday <= 7 ? 'is-urgent' : ''}>{`D-${competition.dday}`}</b><small>{competition.status === '모집 중' ? '모집 마감' : '대회 마감'}</small></span>
+              <ArrowRight className="cdraft-row-arrow" size={16} aria-hidden="true" />
+            </span>
+          </button>)}
+        </div>}
+    </section>
+  </div>;
+}
+
+const VIEWS: Record<DraftId, (props: { officials: Competition[] }) => ReactElement> = {
+  A: DraftA,
+  B: DraftB,
+  C: DraftC,
+};
 
 export function CompetitionDrafts() {
   const [draft, setDraft] = useState<DraftId>('B');
+  const [officialCount, setOfficialCount] = useState(3);
+  const officials = OFFICIAL_ALL.slice(0, officialCount);
   const View = VIEWS[draft];
   return <Localized><div className="cdraft-root">
     <nav className="cdraft-switch" aria-label="모의투자 배치안">
-      <span className="cdraft-switch-label"><Trophy size={14} aria-hidden="true" />모의투자 배치안 #54 — 원래 구조 유지</span>
-      <div>
-        <button type="button" aria-pressed={draft === 'A'} className={draft === 'A' ? 'is-active' : ''} onClick={() => setDraft('A')}>A · 공식도 행</button>
-        <button type="button" aria-pressed={draft === 'B'} className={draft === 'B' ? 'is-active' : ''} onClick={() => setDraft('B')}>B · 공식만 카드</button>
+      <span className="cdraft-switch-label"><Trophy size={14} aria-hidden="true" />모의투자 배치안 #54</span>
+      <div className="cdraft-switch-group" role="group" aria-label="배치안 선택">
+        {([['A', 'A · 공식도 행'], ['B', 'B · 공식만 카드'], ['C', 'C · 스트립+히어로']] as const).map(([value, label]) => <button
+          key={value}
+          type="button"
+          aria-pressed={draft === value}
+          className={draft === value ? 'is-active' : ''}
+          onClick={() => setDraft(value)}
+        >{label}</button>)}
+      </div>
+      <div className="cdraft-switch-group" role="group" aria-label="공식 대회 수">
+        <small>공식 대회 수</small>
+        {[0, 1, 2, 3, 4, 5, 6].map((count) => <button
+          key={count}
+          type="button"
+          aria-pressed={officialCount === count}
+          className={officialCount === count ? 'is-active' : ''}
+          onClick={() => setOfficialCount(count)}
+        >{count}</button>)}
       </div>
     </nav>
-    <View key={draft} />
+    <View key={draft} officials={officials} />
   </div></Localized>;
 }
