@@ -2232,7 +2232,7 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
               >
                 {detailDeadlineText}
               </span>
-              <span className="competition-detail-progress-copy">{`진행률 ${detailProgress}%`}</span>
+              <span className="competition-detail-progress-copy">{`${detailProgress}%`}</span>
               <span
                 className="competition-detail-progress"
                 role="progressbar"

@@ -4132,17 +4132,17 @@
   color:var(--accent);
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-heading {
-  min-height:142px;
+  min-height:156px;
   display:flex;
-  align-items:flex-start;
+  align-items:center;
   justify-content:space-between;
   gap:28px;
-  padding:24px 26px;
+  padding:28px 26px;
   border:1px solid var(--line-strong);
   border-radius:12px;
   background:var(--surface);
 }
-.variant-balanced[data-design="signal-studio"] .competition-detail-heading > div {
+.variant-balanced[data-design="signal-studio"] .competition-detail-heading > div:first-child {
   min-width:0;
   flex:1 1 auto;
   display:grid;
@@ -4206,9 +4206,15 @@
   cursor:not-allowed;
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-actions {
+  width:180px;
+  flex:0 0 180px;
   display:flex;
-  align-items:center;
+  align-items:stretch;
+  flex-direction:column;
   gap:8px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-actions > button {
+  width:100%;
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-info-button {
   min-height:34px;
@@ -4227,7 +4233,7 @@
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-deadline {
   color:var(--text-soft);
-  font:750 11px/1 var(--font-mono);
+  font:800 13px/1 var(--font-mono);
   white-space:nowrap;
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-deadline.is-urgent {
@@ -4243,13 +4249,13 @@
   padding-top:2px;
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-progress-copy {
-  color:var(--text-faint);
-  font:700 9px/1 var(--font-mono);
+  color:var(--text-soft);
+  font:800 12px/1 var(--font-mono);
   white-space:nowrap;
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-progress {
   grid-column:1 / -1;
-  height:5px;
+  height:6px;
   overflow:hidden;
   border-radius:999px;
   background:var(--surface-3);
@@ -6084,6 +6090,8 @@
     width:100%;
   }
   .variant-balanced[data-design="signal-studio"] .competition-detail-actions {
+    width:100%;
+    flex:1 1 auto;
     align-items:stretch;
   }
   .variant-balanced[data-design="signal-studio"] .competition-detail-info-grid {
