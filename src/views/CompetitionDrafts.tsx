@@ -35,7 +35,9 @@ import volatilityShieldArt from '../assets/competition-v2/volatility-shield.png'
 
 type DraftId = 'A' | 'B' | 'C';
 type Kind = 'official-live' | 'official-backtest' | 'general';
-type StatusFilter = 'all' | '모집 중' | '진행 중';
+/* 상태는 양자택일 — 목록은 언제나 모집 중이거나 진행 중 한쪽만 보인다.
+   그래서 행마다 상태 텍스트를 반복할 필요가 없다. */
+type StatusFilter = '모집 중' | '진행 중';
 type JoinFilter = 'all' | 'joined' | 'open';
 type UrgencyFilter = 'all' | '7' | '30';
 type SortKey = 'dday' | 'bots' | 'name';
@@ -169,7 +171,7 @@ const useFilters = () => {
       const matchesQuery = !query
         || competition.name.toLowerCase().includes(query)
         || competition.host.toLowerCase().includes(query);
-      const matchesStatus = filters.status === 'all' || competition.status === filters.status;
+      const matchesStatus = competition.status === filters.status;
       const matchesJoin = filters.join === 'all'
         || (filters.join === 'joined' ? Boolean(competition.myBot) : !competition.myBot);
       const matchesScoring = filters.scorings.length === 0 || filters.scorings.includes(competition.scoring);
@@ -218,8 +220,8 @@ function FilterRail({ api }: { api: FilterApi }) {
     </label>
     <fieldset>
       <legend>진행 상태</legend>
-      {([['모집 중', '모집 중'], ['진행 중', '진행 중'], ['all', '전체']] as const)
-        .map(([value, label]) => radioRow('status', filters.status === value, label, () => patch({ status: value })))}
+      {(['모집 중', '진행 중'] as const)
+        .map((value) => radioRow('status', filters.status === value, value, () => patch({ status: value })))}
     </fieldset>
     <fieldset>
       <legend>참가 상태</legend>
@@ -250,7 +252,6 @@ function BoardRow({ competition, pinned = false }: { competition: Competition; p
   return <button type="button" className={`cdraft-row${pinned ? ' is-pinned' : ''}`} role="listitem">
     <span className="cdraft-row-name">
       <strong>{pinned && <KindChip kind={competition.kind} />}{competition.name}</strong>
-      <small>{competition.status}</small>
     </span>
     <span className="cdraft-row-cell is-host">
       {/* 공식은 글자 대신 인증마크. 색과 모양이 이름보다 먼저 읽힌다. */}
@@ -366,7 +367,7 @@ const SORT_LABELS: Record<SortKey, string> = {
 };
 
 function DraftC({ officials }: { officials: Competition[] }) {
-  /* 기본 탭도 모집 중 — 들어갈 방을 찾으러 오는 페이지다. */
+  /* 기본 탭도 모집 중 — 들어갈 방을 찾으러 오는 페이지다. 양자택일. */
   const [tab, setTab] = useState<StatusFilter>('모집 중');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('dday');
@@ -375,7 +376,7 @@ function DraftC({ officials }: { officials: Competition[] }) {
   const rows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return GENERAL.filter((competition) => {
-      const matchesTab = tab === 'all' || competition.status === tab;
+      const matchesTab = competition.status === tab;
       const matchesQuery = !normalized
         || competition.name.toLowerCase().includes(normalized)
         || competition.host.toLowerCase().includes(normalized);
@@ -386,9 +387,7 @@ function DraftC({ officials }: { officials: Competition[] }) {
       return a.dday - b.dday;
     });
   }, [tab, query, sort]);
-  const tabCount = (status: StatusFilter) => (status === 'all'
-    ? GENERAL.length
-    : GENERAL.filter((competition) => competition.status === status).length);
+  const tabCount = (status: StatusFilter) => GENERAL.filter((competition) => competition.status === status).length;
   return <div className="cdraft-page">
     <PageHead officials={officials} />
 
@@ -445,14 +444,14 @@ function DraftC({ officials }: { officials: Competition[] }) {
       </header>
       <div className="cdraftc-toolbar">
         <div className="cdraftc-tabs" role="tablist" aria-label="진행 상태">
-          {([['모집 중', '모집 중'], ['진행 중', '진행 중'], ['all', '전체']] as const).map(([value, label]) => <button
+          {(['모집 중', '진행 중'] as const).map((value) => <button
             key={value}
             type="button"
             role="tab"
             aria-selected={tab === value}
             className={tab === value ? 'is-active' : ''}
             onClick={() => setTab(value)}
-          >{label}<b>{tabCount(value)}</b></button>)}
+          >{value}<b>{tabCount(value)}</b></button>)}
         </div>
         <label className="cdraft-search">
           <Search size={14} aria-hidden="true" />
@@ -477,7 +476,7 @@ function DraftC({ officials }: { officials: Competition[] }) {
         ? <div className="cdraft-empty">
           <Search size={20} aria-hidden="true" />
           <strong>조건에 맞는 대회가 없어요.</strong>
-          <button type="button" onClick={() => { setTab('all'); setQuery(''); }}>전체 보기</button>
+          <button type="button" onClick={() => { setTab('모집 중'); setQuery(''); }}>모집 중 보기</button>
         </div>
         : <div className="cdraftc-rows" role="list">
           {rows.map((competition) => <button type="button" className="cdraftc-row" role="listitem" key={competition.name}>
@@ -487,9 +486,9 @@ function DraftC({ officials }: { officials: Competition[] }) {
                 <Scoring scoring={competition.scoring} />
                 {competition.myBot && <span className="cdraft-mine-badge"><Check size={12} aria-hidden="true" />{`내 봇 ${competition.myRank}위`}</span>}
               </span>
+              {/* 상태는 탭이 이미 말한다 — 행에서 반복하지 않는다. */}
               <span className="cdraftc-row-meta">
-                {`개설자 ${competition.host} · ${competition.period} · ${competition.lengthDays}일 대회 · `}
-                <em data-status={competition.status}>{competition.status}</em>
+                {`개설자 ${competition.host} · ${competition.period} · ${competition.lengthDays}일 대회`}
               </span>
             </span>
             <span className="cdraftc-row-side">
