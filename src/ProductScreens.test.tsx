@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { RoomsView } from './views/OperationsViews';
@@ -601,7 +601,7 @@ describe('Competition ranking', () => {
     await openMomentumLab(user);
 
     const ranking = screen.getByLabelText('Momentum Lab 봇 순위');
-    const names = () => [...ranking.querySelectorAll('div > span:nth-child(2)')].map((el) => el.textContent.replace('내 봇', '').trim());
+    const names = () => [...ranking.querySelectorAll('div > span:nth-child(2)')].map((el) => el.textContent.trim());
 
     expect(names()[0]).toBe('Bot 3F9A');
 
@@ -609,7 +609,7 @@ describe('Competition ranking', () => {
 
     // Room Beta has the best Sharpe ratio even though it is second on score.
     expect(names()[0]).toBe('Room Beta');
-    expect(screen.getByText(/1위/)).toBeInTheDocument();
+    expect(screen.getByLabelText('1위')).toHaveTextContent('#1');
   });
 
   test('lower-is-better metrics sort ascending', async () => {
@@ -624,17 +624,141 @@ describe('Competition ranking', () => {
     expect(first.textContent).toContain('Room Beta');
   });
 
-  test('states the conditions held equal across entries', async () => {
+  test('places my bots beside the leaderboard and competition facts after it', async () => {
     const user = userEvent.setup();
     render(<RoomsView />);
 
     await openMomentumLab(user);
 
-    const conditions = screen.getByLabelText('Momentum Lab 공통 조건');
-    expect(within(conditions).getAllByRole('listitem')).toHaveLength(4);
-    expect(within(conditions).getByText('$10,000')).toBeInTheDocument();
-    expect(within(conditions).getByText('미국 상장 주식 · ETF')).toBeInTheDocument();
-    expect(within(conditions).getByText('0.20%')).toBeInTheDocument();
-    expect(within(conditions).getByText('0.05%')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Momentum Lab 대회 안내' })).not.toBeInTheDocument();
+    expect(screen.getByText(/참가 봇을 동일한 시장 데이터와 체결 조건에서 비교/)).toBeInTheDocument();
+    expect(screen.queryByText('공식 대회')).not.toBeInTheDocument();
+    expect(screen.getByText('대회 마감 D-8')).toBeInTheDocument();
+    expect(screen.getByText('대회 마감 D-8')).not.toHaveClass('is-urgent');
+    expect(screen.getByRole('button', { name: '마감된 대회입니다.' })).toBeDisabled();
+
+    const myRanks = screen.getByLabelText('내 참가 봇 순위');
+    const leaderboardHeading = screen.getByRole('heading', { name: '대회 리더보드' });
+    const leaderboard = leaderboardHeading.closest('section');
+    expect(leaderboard).not.toBeNull();
+    expect(leaderboard!.parentElement).toHaveClass('competition-detail-rankings');
+    expect(myRanks.parentElement).toBe(leaderboard!.parentElement);
+    expect(within(screen.getByLabelText('Momentum Lab 봇 순위')).queryByText('내 봇')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Momentum Lab 대회 정보')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '대회 상세보기' }));
+    const detailDialog = screen.getByRole('dialog', { name: 'Momentum Lab 대회 상세 정보' });
+    expect(within(detailDialog).queryByText('채점 방식')).not.toBeInTheDocument();
+    expect(within(detailDialog).getByText('$10,000')).toBeInTheDocument();
+    expect(within(detailDialog).getByText('미국 상장 주식 · ETF')).toBeInTheDocument();
+    expect(within(detailDialog).getByText('0.20%')).toBeInTheDocument();
+    expect(within(detailDialog).getByText('0.05%')).toBeInTheDocument();
+    await user.click(within(detailDialog).getByRole('button', { name: '대회 상세 정보 닫기' }));
+
+    expect(within(leaderboard!).getByText('표준점수제')).toBeInTheDocument();
+    const scoringHelp = within(leaderboard!).getByRole('button', { name: '표준점수제 계산 방식 보기' });
+    const scoringTooltip = within(leaderboard!).getByRole('tooltip', { name: '표준점수제 계산 방식 보기' });
+    expect(scoringHelp).toHaveClass('dashboard-return-info-button');
+    expect(scoringHelp).toHaveTextContent('?');
+    expect(scoringHelp).toHaveAttribute('aria-describedby', scoringTooltip.id);
+    expect(scoringTooltip).toHaveClass('dashboard-return-info-tooltip');
+    await user.hover(scoringHelp);
+    expect(scoringTooltip).toHaveTextContent('추후 추가 예정입니다.');
+
+    expect(screen.queryByRole('combobox', { name: '리더보드 표시 개수' })).not.toBeInTheDocument();
+  });
+
+  test('marks official competitions and enables entry while recruiting', async () => {
+    const user = userEvent.setup();
+    render(<RoomsView />);
+
+    await user.click(screen.getByRole('button', { name: '공식 대회 ETF Sprint 열기' }));
+
+    expect(screen.getByText('공식 대회')).toBeInTheDocument();
+    expect(screen.getByText('모집 마감 D-5')).toHaveClass('is-urgent');
+    expect(screen.getByRole('button', { name: '대회 참가' })).toBeEnabled();
+    const myRanks = screen.getByLabelText('내 참가 봇 순위');
+    expect(within(myRanks).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(myRanks).getByText('ETF Runner')).toBeInTheDocument();
+    expect(within(myRanks).getByText('등록 봇')).toBeInTheDocument();
+    expect(within(myRanks).getByText('1 / 3')).toBeInTheDocument();
+    expect(within(myRanks).getByLabelText('4위')).toHaveTextContent('#4');
+    expect(within(myRanks).getByLabelText('4위')).toHaveClass('competition-ranking-position');
+    expect(screen.getByLabelText('ETF Sprint 봇 순위').querySelector('div > strong')).toHaveClass('competition-ranking-position');
+    expect(screen.getByLabelText('ETF Sprint 봇 순위').querySelectorAll(':scope > div')).toHaveLength(10);
+  });
+
+  test('creates competition bots through the launchable-strategy entry flow', async () => {
+    const user = userEvent.setup();
+    render(<RoomsView />);
+
+    await user.click(screen.getByRole('button', { name: '공식 대회 ETF Sprint 열기' }));
+    await user.click(screen.getByRole('button', { name: '대회 참가' }));
+
+    const strategyDialog = screen.getByRole('dialog', { name: 'ETF Sprint 참가 전략 선택' });
+    expect(within(strategyDialog).getByText('출시 가능')).toBeInTheDocument();
+    expect(within(strategyDialog).getByText(/전략만 표시됩니다/)).toBeInTheDocument();
+    expect(within(strategyDialog).queryByText('내 전략')).not.toBeInTheDocument();
+    const strategySearch = within(strategyDialog).getByRole('searchbox', { name: '참가 전략 검색' });
+    expect(strategySearch).toBeInTheDocument();
+    expect(within(strategyDialog).getByText('Opening Range Flow')).toBeInTheDocument();
+    expect(within(strategyDialog).queryByText('Pair Spread Monitor')).not.toBeInTheDocument();
+    expect(within(strategyDialog).queryByText('Volume Regime Draft')).not.toBeInTheDocument();
+    expect(within(strategyDialog).getByText('선택 0 / 2')).toBeInTheDocument();
+    expect(within(strategyDialog).queryByText('0개 선택')).not.toBeInTheDocument();
+    expect(within(strategyDialog).getByRole('button', { name: '확인' })).toBeDisabled();
+
+    await user.type(strategySearch, 'Opening');
+    expect(within(strategyDialog).getByRole('status')).toHaveTextContent('전략을 검색하는 중입니다.');
+    await waitFor(() => expect(within(strategyDialog).queryByRole('status')).not.toBeInTheDocument());
+    expect(within(strategyDialog).getByText('Opening Range Flow')).toBeInTheDocument();
+    await user.click(within(strategyDialog).getByRole('button', { name: '참가 전략 검색 초기화' }));
+
+    await user.click(within(strategyDialog).getByRole('checkbox', { name: 'Opening Range Flow 선택' }));
+    expect(within(strategyDialog).getByText('선택 1 / 2')).toBeInTheDocument();
+    await user.click(within(strategyDialog).getByRole('button', { name: '확인' }));
+
+    const confirmationDialog = screen.getByRole('dialog', { name: 'ETF Sprint 참가 확인' });
+    expect(within(confirmationDialog).getByText('Opening Range Flow')).toBeInTheDocument();
+    expect(within(confirmationDialog).queryByText(/선택한 전략으로 대회 전용 봇이 생성/)).not.toBeInTheDocument();
+    await user.click(within(confirmationDialog).getByRole('button', { name: '참가 확정' }));
+
+    expect(screen.queryByRole('dialog', { name: 'ETF Sprint 참가 확인' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'ETF Sprint 상세 페이지' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Opening Range Flow Bot이 생성되어 대회에 참가했습니다.');
+    const myRanks = screen.getByLabelText('내 참가 봇 순위');
+    expect(within(myRanks).getByText('2 / 3')).toBeInTheDocument();
+    expect(within(myRanks).getByText('Opening Range Flow Bot')).toBeInTheDocument();
+    expect(screen.getByLabelText('ETF Sprint 봇 순위').querySelectorAll('.is-mine')).toHaveLength(2);
+  });
+
+  test('shows an empty ranking state when no bot participates', async () => {
+    const user = userEvent.setup();
+    render(<RoomsView />);
+
+    await user.click(screen.getByRole('button', { name: '공식 대회 Risk Control Cup 열기' }));
+
+    const myRanks = screen.getByLabelText('내 참가 봇 순위');
+    expect(myRanks).toHaveTextContent('참가 중인 봇이 없습니다.');
+    expect(within(myRanks).getByText('0 / 3')).toBeInTheDocument();
+    expect(screen.getByLabelText('Risk Control Cup 봇 순위').querySelectorAll('.is-mine')).toHaveLength(0);
+  });
+
+  test('keeps all three of my official entries highlighted in the full leaderboard', async () => {
+    const user = userEvent.setup();
+    render(<RoomsView />);
+
+    await user.click(screen.getByRole('button', { name: '공식 대회 I2S Summer League 열기' }));
+
+    const myRanks = screen.getByLabelText('내 참가 봇 순위');
+    expect(screen.getByText('대회 마감 D-65')).not.toHaveClass('is-urgent');
+    expect(within(myRanks).getAllByRole('listitem')).toHaveLength(3);
+    expect(within(myRanks).getByText('3 / 5')).toBeInTheDocument();
+    const leaderboard = screen.getByLabelText('I2S Summer League 봇 순위');
+    expect(screen.getByRole('button', { name: '대회 참가' })).toBeEnabled();
+    expect(leaderboard.querySelectorAll('.is-mine')).toHaveLength(3);
+    expect(leaderboard.querySelectorAll(':scope > div')).toHaveLength(10);
+    expect(leaderboard.closest('.competition-ranking-list')).not.toBeNull();
+    expect(leaderboard.closest('.competition-ranking-scroll')).toBeNull();
   });
 });
