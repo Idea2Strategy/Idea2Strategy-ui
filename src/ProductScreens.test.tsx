@@ -633,8 +633,8 @@ describe('Competition ranking', () => {
     expect(screen.queryByRole('heading', { name: 'Momentum Lab 대회 안내' })).not.toBeInTheDocument();
     expect(screen.getByText(/참가 봇을 동일한 시장 데이터와 체결 조건에서 비교/)).toBeInTheDocument();
     expect(screen.queryByText('공식 대회')).not.toBeInTheDocument();
-    expect(screen.getByText('대회 마감 D-8')).toBeInTheDocument();
-    expect(screen.getByText('대회 마감 D-8')).not.toHaveClass('is-urgent');
+    expect(screen.getByText('대회 진행 중 D-8')).toBeInTheDocument();
+    expect(screen.getByText('대회 진행 중 D-8')).not.toHaveClass('is-urgent');
     expect(screen.getByRole('button', { name: '진행중인 대회입니다.' })).toBeDisabled();
 
     const myRanks = screen.getByLabelText('내 참가 봇 순위');
@@ -675,7 +675,7 @@ describe('Competition ranking', () => {
     await user.click(screen.getByRole('button', { name: '공식 대회 ETF Sprint 열기' }));
 
     expect(screen.getByText('공식 대회')).toBeInTheDocument();
-    expect(screen.getByText('모집 마감 D-5')).toHaveClass('is-urgent');
+    expect(screen.getByText('모집 중 D-5')).toHaveClass('is-urgent');
     expect(screen.getByRole('progressbar', { name: 'ETF Sprint 진행률' })).toHaveAttribute('aria-valuenow', '0');
     expect(screen.getByText('0%')).toHaveClass('competition-detail-progress-copy');
     expect(screen.queryByText('진행률 0%')).not.toBeInTheDocument();
@@ -755,7 +755,7 @@ describe('Competition ranking', () => {
     await user.click(screen.getByRole('button', { name: '공식 대회 I2S Summer League 열기' }));
 
     const myRanks = screen.getByLabelText('내 참가 봇 순위');
-    expect(screen.getByText('대회 마감 D-65')).not.toHaveClass('is-urgent');
+    expect(screen.getByText('대회 진행 중 D-65')).not.toHaveClass('is-urgent');
     expect(within(myRanks).getAllByRole('listitem')).toHaveLength(3);
     expect(within(myRanks).getByText('3 / 5')).toBeInTheDocument();
     const leaderboard = screen.getByLabelText('I2S Summer League 봇 순위');

@@ -9198,7 +9198,7 @@ small.dashboard-bot-scope {
     16px;
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-head.is-official-head > span {
-  color: var(--text-faint);
+  color: var(--text-soft);
   font: 700 8px var(--font-mono);
 }
 .variant-balanced.theme-dark[data-design="signal-studio"] .competition-board-head.is-official-head {
@@ -9209,8 +9209,8 @@ small.dashboard-bot-scope {
       color-mix(in srgb, #9A742E 8%, var(--surface)) 72%);
 }
 .variant-balanced.theme-dark[data-design="signal-studio"] .competition-board-head.is-official-head > span {
-  color: #D8BC7C;
-  font-weight: 800;
+  color: var(--text-soft);
+  font-weight: 700;
 }
 .variant-balanced[data-design="signal-studio"] .competition-board-head > button {
   display: inline-flex;
@@ -9218,7 +9218,7 @@ small.dashboard-bot-scope {
   gap: 4px;
   padding: 0;
   border: 0;
-  color: var(--text-faint);
+  color: var(--text-soft);
   background: transparent;
   cursor: pointer;
   font: 700 8px var(--font-mono);

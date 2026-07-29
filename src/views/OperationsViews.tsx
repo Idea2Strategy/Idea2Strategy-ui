@@ -2143,7 +2143,7 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
     && remainingEntrySlots > 0
     && selectedRoom.status === 'recruiting',
   );
-  const detailDeadlineLabel = selectedRoom?.status === 'recruiting' ? '모집 마감' : '대회 마감';
+  const detailDeadlineLabel = selectedRoom?.status === 'recruiting' ? '모집 중' : '대회 진행 중';
   const detailDeadlineText = selectedRoom
     ? `${detailDeadlineLabel} D-${selectedRoom.remainingDays}`
     : '';
