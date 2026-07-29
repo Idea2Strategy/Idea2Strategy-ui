@@ -149,7 +149,11 @@ interface Filters {
   urgency: UrgencyFilter;
 }
 
-const EMPTY_FILTERS: Filters = { query: '', status: 'all', join: 'all', scorings: [], urgency: 'all' };
+/*
+  기본은 모집 중만. 이 페이지에 오는 목적은 "들어갈 방 찾기"이므로, 이미 닫힌
+  진행 중 대회는 직접 골랐을 때만 보인다. 공식 핀은 예외로 항상 남는다.
+*/
+const EMPTY_FILTERS: Filters = { query: '', status: '모집 중', join: 'all', scorings: [], urgency: 'all' };
 
 const useFilters = () => {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -174,7 +178,7 @@ const useFilters = () => {
     }).sort((a, b) => a.dday - b.dday);
   }, [filters]);
   const activeCount = (filters.query ? 1 : 0)
-    + (filters.status === 'all' ? 0 : 1)
+    + (filters.status === EMPTY_FILTERS.status ? 0 : 1)
     + (filters.join === 'all' ? 0 : 1)
     + filters.scorings.length
     + (filters.urgency === 'all' ? 0 : 1);
@@ -214,7 +218,7 @@ function FilterRail({ api }: { api: FilterApi }) {
     </label>
     <fieldset>
       <legend>진행 상태</legend>
-      {([['all', '전체'], ['모집 중', '모집 중'], ['진행 중', '진행 중']] as const)
+      {([['모집 중', '모집 중'], ['진행 중', '진행 중'], ['all', '전체']] as const)
         .map(([value, label]) => radioRow('status', filters.status === value, label, () => patch({ status: value })))}
     </fieldset>
     <fieldset>
@@ -252,7 +256,7 @@ function BoardRow({ competition, pinned = false }: { competition: Competition; p
       {/* 공식은 글자 대신 인증마크. 색과 모양이 이름보다 먼저 읽힌다. */}
       {pinned
         ? <b className="cdraft-host-official" title="공식 대회" aria-label="공식 대회">
-          <BadgeCheck size={16} aria-hidden="true" />운영팀
+          <BadgeCheck size={16} aria-hidden="true" />Official
         </b>
         : competition.host}
     </span>
@@ -362,7 +366,8 @@ const SORT_LABELS: Record<SortKey, string> = {
 };
 
 function DraftC({ officials }: { officials: Competition[] }) {
-  const [tab, setTab] = useState<StatusFilter>('all');
+  /* 기본 탭도 모집 중 — 들어갈 방을 찾으러 오는 페이지다. */
+  const [tab, setTab] = useState<StatusFilter>('모집 중');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('dday');
   const mine = [...officials, ...GENERAL].filter((competition) => competition.myBot)
@@ -440,7 +445,7 @@ function DraftC({ officials }: { officials: Competition[] }) {
       </header>
       <div className="cdraftc-toolbar">
         <div className="cdraftc-tabs" role="tablist" aria-label="진행 상태">
-          {([['all', '전체'], ['모집 중', '모집 중'], ['진행 중', '진행 중']] as const).map(([value, label]) => <button
+          {([['모집 중', '모집 중'], ['진행 중', '진행 중'], ['all', '전체']] as const).map(([value, label]) => <button
             key={value}
             type="button"
             role="tab"
