@@ -212,6 +212,43 @@ describe('Signal product UI', () => {
     expect(screen.getByRole('heading', { name: 'Bot operations' })).toBeInTheDocument();
   });
 
+  test('closes an open top-bar panel on the next press outside it', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await openDisplaySettings(user);
+    expect(screen.getByRole('dialog', { name: '화면 설정' })).toBeInTheDocument();
+
+    // Pressing a control inside must not dismiss the panel that holds it.
+    await user.click(screen.getByRole('button', { name: '라이트 모드' }));
+    expect(screen.getByRole('dialog', { name: '화면 설정' })).toBeInTheDocument();
+    expect(screen.getByTestId('app-shell')).toHaveAttribute('data-theme', 'light');
+
+    // Anywhere outside closes it, without needing the ✕.
+    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 홈' }));
+    expect(screen.queryByRole('dialog', { name: '화면 설정' })).not.toBeInTheDocument();
+  });
+
+  test('switches directly between top-bar panels and dismisses the notifications panel outside', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '알림' }));
+    expect(screen.getByRole('dialog', { name: '최근 알림' })).toBeInTheDocument();
+
+    /* The other trigger lives in its own anchor, so the press is not treated as
+       "outside": the panels swap instead of the first one just closing. */
+    await openDisplaySettings(user);
+    expect(screen.queryByRole('dialog', { name: '최근 알림' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: '화면 설정' })).toBeInTheDocument();
+
+    // One handler serves both panels, so notifications dismiss the same way.
+    await user.click(screen.getByRole('button', { name: '알림' }));
+    expect(screen.getByRole('dialog', { name: '최근 알림' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 홈' }));
+    expect(screen.queryByRole('dialog', { name: '최근 알림' })).not.toBeInTheDocument();
+  });
+
   test('does not show a global search box in the top navigation', () => {
     render(<App />);
 
