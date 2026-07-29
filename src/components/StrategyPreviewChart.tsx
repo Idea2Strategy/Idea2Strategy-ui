@@ -36,6 +36,7 @@ const PAD_BOTTOM = 20;
   보이도록 선 굵기보다 확실히 큰 크기를 준다.
 */
 const MARKER_HALF_WIDTH = 5;
+const MARKER_HEAD_HEIGHT = 4;
 const MARKER_HEIGHT = 9;
 const MARKER_GAP = 4;
 
@@ -77,7 +78,7 @@ export function StrategyPreviewChart({
   const [focusedFlowId, setFocusedFlowId] = useState<string | null>(null);
   const [position, setPosition] = useState<CardPosition>(() => clampToViewport({
     x: (typeof window === 'undefined' ? 1200 : window.innerWidth) - CARD_WIDTH - 28,
-    y: 128,
+    y: (typeof window === 'undefined' ? 720 : window.innerHeight) - CARD_HEIGHT - 28,
   }));
 
   /* 파티션 종목이 바뀌면 선택을 유효한 값으로 되돌린다. */
@@ -96,6 +97,9 @@ export function StrategyPreviewChart({
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+  useEffect(() => {
+    setPosition((current) => clampToViewport(current, cardRef.current?.offsetHeight || CARD_HEIGHT));
+  }, [flows.length, symbols.length]);
 
   const preview = useMemo(() => evaluateStrategyPreview({ symbol, flows }), [flows, symbol]);
 
@@ -223,6 +227,7 @@ export function StrategyPreviewChart({
           ].map(geometry.yFor);
           const y = marker.side === 'buy' ? Math.max(...nearby) : Math.min(...nearby);
           const tip = marker.side === 'buy' ? y + MARKER_GAP : y - MARKER_GAP;
+          const shoulder = marker.side === 'buy' ? tip + MARKER_HEAD_HEIGHT : tip - MARKER_HEAD_HEIGHT;
           const base = marker.side === 'buy' ? tip + MARKER_HEIGHT : tip - MARKER_HEIGHT;
           return <polygon
             key={`${marker.side}-${marker.index}`}
@@ -230,7 +235,7 @@ export function StrategyPreviewChart({
             data-testid={`preview-marker-${marker.side}`}
             data-flow={marker.flowId}
             vectorEffect="non-scaling-stroke"
-            points={`${x},${tip} ${x - MARKER_HALF_WIDTH},${base} ${x + MARKER_HALF_WIDTH},${base}`}
+            points={`${x},${tip} ${x - MARKER_HALF_WIDTH},${shoulder} ${x - MARKER_HALF_WIDTH},${base} ${x + MARKER_HALF_WIDTH},${base} ${x + MARKER_HALF_WIDTH},${shoulder}`}
           ><title>{t(`${marker.flowLabel} · ${marker.reason} · ${money(marker.price)}`)}</title></polygon>;
         })}
         <circle className="strategy-preview-end" cx={geometry.last.x} cy={geometry.last.y} r="2.6" vectorEffect="non-scaling-stroke" />

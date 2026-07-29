@@ -728,6 +728,35 @@ const english: Record<string, string> = {
      other Korean phrase that happens to contain it. */
   '화면 설정 열기': 'Open display settings',
   '화면 설정 닫기': 'Close display settings',
+  // Landing page (reached from the brand logo)
+  'Idea2Strategy 소개': 'About Idea2Strategy',
+  '아이디어를, 전략으로': 'Ideas, into strategies',
+  '코드 없이 전략을 조립하고, 서버의 봇이 규칙 그대로 실행하는 가상 트레이딩 워크스페이스입니다.': 'Assemble strategies without code, and a server-side bot runs them exactly as written — a virtual trading workspace.',
+  '전략 만들기': 'Create a strategy',
+  '대시보드 둘러보기': 'Explore the dashboard',
+  '스크롤해서 살펴보기': 'Scroll to explore',
+  '블록을 조립해 규칙을 만듭니다': 'Assemble blocks into rules',
+  'Basic 문장형 블록, Pro 노드 그래프': 'Basic sentence blocks, Pro node graph',
+  '봇은 서버에서 규칙 그대로 실행합니다': 'The bot runs them on the server, exactly as written',
+  '브라우저를 닫아도 계속 평가합니다': 'It keeps evaluating after you close the browser',
+  '모든 판단이 기록으로 남습니다': 'Every decision leaves a record',
+  '주문하지 않은 판단까지 근거와 함께': 'Including decisions that placed no order, with their reasoning',
+  '거래 화면이 아니라, 전략을 검증하는 작업대': 'Not a trading screen — a workbench for verifying strategies',
+  'Basic·Pro 전략 편집기': 'Basic & Pro strategy editors',
+  '문장처럼 읽히는 블록과 노드 그래프로, 코드 없이 매수·매도 규칙을 조립합니다.': 'Sentence-like blocks and a node graph assemble buy and sell rules without any code.',
+  '서버에서 실행되는 봇': 'Bots that run on the server',
+  '브라우저를 닫아도 봇은 서버에서 계속 시장을 평가합니다. 직접 주문을 내는 일은 없습니다.': 'Close the browser and the bot keeps evaluating the market on the server. You never place an order yourself.',
+  '체결된 주문만이 아니라 주문으로 이어지지 않은 판단까지 근거와 함께 남습니다.': 'Not just fills — decisions that led to no order are kept too, with their reasoning.',
+  /* '자동 백테스트' already translates via the entry above. */
+  '출시된 전략 버전을 같은 기간과 같은 비용 가정으로 검증합니다.': 'Every released strategy version is verified over the same period and the same cost assumptions.',
+  '모의투자 대회': 'Competitions',
+  '익명 봇끼리 같은 규칙에서 겨룹니다. 비교 대상은 사람이 아니라 봇입니다.': 'Anonymous bots compete under the same rules — bots are compared, never people.',
+  'Idea2Strategy는 실제 계좌와 연결되지 않는 가상 모의투자 서비스입니다. 실제 주문을 내지 않으며, 특정 종목이나 전략을 추천하지 않습니다. 화면의 가격과 성과는 샘플 데이터입니다.': 'Idea2Strategy is a virtual paper-trading service with no connection to real accounts. It places no real orders and recommends no symbols or strategies. Prices and performance on screen are sample data.',
+  '조립한 전략은 하나의 봇이 되고': 'The strategy you assembled becomes one bot,',
+  '봇은 서버에서 쉬지 않고 시장을 지켜보다가': 'the bot watches the market from the server without rest,',
+  '판단의 순간, 근거까지 기록으로 남깁니다': 'and the moment it decides, the reasoning goes on record.',
+  '주요 기능': 'Key features',
+  '서비스 안내': 'Service notes',
   '선택한 값은 이 브라우저에 보관됩니다': 'Your choices are kept in this browser',
   '테마 선택': 'Select theme',
   '화면 언어 선택': 'Select display language',
@@ -1065,7 +1094,15 @@ const isIdentifierProp = (propName: string): boolean =>
   UNTRANSLATED_PROPS.has(propName) || propName.startsWith('data-');
 
 function localizeValue(value: unknown, language: Language, propName = ''): unknown {
-  if (propName === 'ref' || propName === 'key') return value;
+  /*
+    Any *Ref prop gets the same treatment as `ref` itself: a useRef box is a
+    plain object, so the clone rule below would hand the child a frozen copy —
+    the owner keeps writing to the original while the child reads a snapshot,
+    and effect dependencies see a "new" object every render, remounting
+    whatever the effect built. The landing 3D scene was torn down and rebuilt
+    on every caption change for exactly this reason.
+  */
+  if (propName === 'ref' || propName === 'key' || propName.endsWith('Ref')) return value;
   if (typeof value === 'string') {
     if (isIdentifierProp(propName)) return value;
     return translateString(value, language);

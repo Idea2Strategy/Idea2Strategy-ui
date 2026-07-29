@@ -63,6 +63,17 @@ describe('Signal product UI', () => {
     window.history.replaceState({}, '', '/strategies/new/basic');
     render(<App />);
 
+    const buyRsi = screen.getByTestId('buy-rsi-block');
+    await user.type(within(buyRsi).getByLabelText('RSI 반등 값'), '30');
+    await user.click(within(buyRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
+    await user.click(screen.getByRole('option', { name: '상승' }));
+    const sellRsi = screen.getByTestId('sell-rsi-block');
+    await user.type(within(sellRsi).getByLabelText('RSI 반등 값'), '70');
+    await user.click(within(sellRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
+    await user.click(screen.getByRole('option', { name: '하락' }));
+    await user.click(screen.getByRole('button', { name: '매도 전략 실행 설정' }));
+    await user.type(screen.getByRole('spinbutton', { name: '매도 비율' }), '100');
+
     await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
     const dialog = screen.getByRole('dialog', { name: '개인 운용 봇 출시' });
     await user.type(within(dialog).getByRole('textbox', { name: '봇 이름' }), 'Momentum Scout');
@@ -86,8 +97,10 @@ describe('Signal product UI', () => {
 
     await user.click(screen.getByRole('button', { name: '전략' }));
     expect(screen.getByRole('heading', { name: '전략' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 홈' }));
-    expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
+    // The logo is the front door to the landing introduction, not the dashboard.
+    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
+    expect(window.location.pathname).toBe('/landing');
+    expect(screen.getByRole('heading', { name: '아이디어를, 전략으로' })).toBeInTheDocument();
   });
 
   test('shows each bot custom icon on the home dashboard after it is changed', async () => {
@@ -212,6 +225,43 @@ describe('Signal product UI', () => {
     expect(screen.getByRole('heading', { name: 'Bot operations' })).toBeInTheDocument();
   });
 
+  test('closes an open top-bar panel on the next press outside it', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await openDisplaySettings(user);
+    expect(screen.getByRole('dialog', { name: '화면 설정' })).toBeInTheDocument();
+
+    // Pressing a control inside must not dismiss the panel that holds it.
+    await user.click(screen.getByRole('button', { name: '라이트 모드' }));
+    expect(screen.getByRole('dialog', { name: '화면 설정' })).toBeInTheDocument();
+    expect(screen.getByTestId('app-shell')).toHaveAttribute('data-theme', 'light');
+
+    // Anywhere outside closes it, without needing the ✕.
+    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
+    expect(screen.queryByRole('dialog', { name: '화면 설정' })).not.toBeInTheDocument();
+  });
+
+  test('switches directly between top-bar panels and dismisses the notifications panel outside', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '알림' }));
+    expect(screen.getByRole('dialog', { name: '최근 알림' })).toBeInTheDocument();
+
+    /* The other trigger lives in its own anchor, so the press is not treated as
+       "outside": the panels swap instead of the first one just closing. */
+    await openDisplaySettings(user);
+    expect(screen.queryByRole('dialog', { name: '최근 알림' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: '화면 설정' })).toBeInTheDocument();
+
+    // One handler serves both panels, so notifications dismiss the same way.
+    await user.click(screen.getByRole('button', { name: '알림' }));
+    expect(screen.getByRole('dialog', { name: '최근 알림' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
+    expect(screen.queryByRole('dialog', { name: '최근 알림' })).not.toBeInTheDocument();
+  });
+
   test('does not show a global search box in the top navigation', () => {
     render(<App />);
 
@@ -315,35 +365,31 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('button', { name: '균형형 보기' })).not.toBeInTheDocument();
   });
 
-  test('shows the buy rule as one natural-language note per block', async () => {
+  test('keeps natural-language rule notes attached to the selected Basic strategy card', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
     await user.click(screen.getByRole('button', { name: '전략' }));
     await user.click(screen.getByRole('button', { name: '새 전략' }));
     await user.click(screen.getByRole('button', { name: 'Basic으로 시작' }));
-    await user.hover(screen.getByTestId('buy-rsi-block'));
-    expect(screen.queryByRole('note')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '매수 컨테이너 자연어 설명' }));
-    const explanations = screen.getAllByRole('note');
-    expect(explanations).toHaveLength(4);
-    expect(explanations[0]).toHaveTextContent('1분봉');
-    expect(explanations[1]).toHaveTextContent('RSI(14)');
-    expect(explanations[1]).toHaveTextContent('30 미만');
-    expect(explanations[2]).toHaveTextContent('25%');
-    expect(explanations[3]).toHaveTextContent('시장가 매수');
+    expect(screen.getAllByRole('note')).toHaveLength(2);
+    expect(screen.getByTestId('basic-narrative-budget')).toHaveTextContent('전략 예산');
+    fireEvent.keyDown(screen.getByLabelText('매도 전략 카드 이동 영역'), { key: 'Enter' });
+    expect(screen.getAllByRole('note')).toHaveLength(2);
+    expect(screen.getByTestId('basic-narrative-budget')).toHaveTextContent('매도 비율');
   });
 
-  test('opens a categorized compatible-node picker where a Pro connection is released', async () => {
+  test('opens a typed compatible-node picker where a Pro connection is released', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="terminal" />);
     await user.click(screen.getByRole('button', { name: '전략' }));
     await user.click(screen.getByRole('button', { name: '새 전략' }));
     await user.click(screen.getByRole('button', { name: 'Pro로 시작' }));
-    fireEvent.pointerUp(screen.getByTestId('true-output'), { clientX: 438, clientY: 276 });
+    fireEvent.pointerDown(screen.getByTestId('true-output'), { clientX: 438, clientY: 276, pointerId: 4, button: 0 });
+    fireEvent.pointerUp(screen.getByTestId('true-output'), { clientX: 438, clientY: 276, pointerId: 4 });
     const picker = screen.getByRole('dialog', { name: '호환 노드 선택' });
     expect(picker).toHaveStyle({ left: '438px', top: '276px' });
-    expect(screen.getByText('조건 · 비교')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '포지션 확인' })).toBeEnabled();
+    expect(screen.getByText('실행 흐름 출력')).toBeInTheDocument();
+    expect(within(picker).getByRole('button', { name: /주문 요청/ })).toBeEnabled();
   });
 
   test.each(['balanced', 'terminal'])('uses one Signal horizontal menu for the legacy %s entry', (variant) => {

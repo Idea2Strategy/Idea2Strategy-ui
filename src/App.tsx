@@ -8,6 +8,7 @@ import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from 
 import type { PageId } from './lib/navigation';
 import { LanguageProvider, Localized, useLanguage } from './lib/i18n';
 import { BasicEditor, ProEditor, StrategyHome } from './views/StrategyViews';
+import { LandingView } from './views/LandingView';
 import { BacktestView, RoomsView } from './views/OperationsViews';
 import { BotsView } from './views/BotsView';
 import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
@@ -18,6 +19,7 @@ import type { BotIconMap, BotIconSelection } from './components/BotGlyph';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
+import './styles/pro-editor.css';
 import './styles/concepts.css';
 
 type SetPage = (page: PageId) => void;
@@ -85,8 +87,31 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarPro
   const togglePanel = (panel: string) => setOpenPanel((current) => current === panel ? null : panel);
   const unreadCount = notifications.filter((item) => item.unread).length;
 
+  /*
+    A press outside the open panel closes it. `.topbar-popover-anchor` wraps
+    both the trigger and its panel, so pressing inside either keeps the panel
+    open, and pressing the other tool's trigger still switches panels through
+    togglePanel rather than being swallowed here.
+
+    pointerdown, not click: the panel should be gone before the press it was
+    dismissed by finishes, and mouse, touch and pen all report it.
+  */
+  useEffect(() => {
+    if (!openPanel) return undefined;
+
+    const dismiss = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest('.topbar-popover-anchor')) setOpenPanel(null);
+    };
+
+    document.addEventListener('pointerdown', dismiss);
+    return () => document.removeEventListener('pointerdown', dismiss);
+  }, [openPanel]);
+
   return <Localized><header className="app-topbar signal-product-nav">
-    <button className="signal-product-brand" aria-label="Idea2Strategy 홈" onClick={() => setPage('home')}>
+    {/* The logo is the front door: it opens the landing introduction, while
+        the HOME menu item remains the operational dashboard. */}
+    <button className="signal-product-brand" aria-label="Idea2Strategy 소개" onClick={() => setPage('landing')}>
       <img src={i2sLogo} alt="Idea2Strategy" />
       <strong>IDEA<span>2</span>STRATEGY</strong>
     </button>
@@ -243,9 +268,10 @@ function ProductApp() {
 
   const content = <Routes>
     <Route path="/" element={<DashboardView setPage={setPage} botIcons={botIcons} />} />
+    <Route path="/landing" element={<LandingView setPage={setPage} />} />
     <Route path="/strategies" element={<StrategyHome openEditor={openEditor} />} />
     <Route path="/strategies/new/basic" element={<BasicEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
-    <Route path="/strategies/new/pro" element={<ProEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} />} />
+    <Route path="/strategies/new/pro" element={<ProEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
     <Route path="/bots" element={<BotsView key={requestedBot ?? 'bots'} botIcons={botIcons} onBotIconChange={changeBotIcon} initialBot={requestedBot} />} />
     <Route path="/backtests" element={<BacktestView />} />
     <Route path="/competition" element={<RoomsView openBot={openBot} />} />
@@ -281,7 +307,10 @@ function ProductApp() {
         ? <div className="strategy-editor-surface" data-testid="strategy-editor-surface">
           <div className="page-scroll strategy-editor-scroll">{content}</div>
         </div>
-        : <div className="page-scroll">{content}</div>}
+        /* The landing hero pins with position:sticky against the window, and
+           the default overflow:hidden would make it a scroll container that
+           never scrolls — the sticky stage would simply not stick. */
+        : <div className={`page-scroll${page === 'landing' ? ' landing-scroll' : ''}`}>{content}</div>}
     </div>
     <Localized><div className="palette-dock" role="group" aria-label="색상 템플릿 선택">
       <Palette size={13} aria-hidden="true" />
