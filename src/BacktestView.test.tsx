@@ -181,7 +181,9 @@ describe('BacktestView', () => {
     await user.click(screen.getByRole('button', { name: '1시간 차트 보기' }));
 
     expect(screen.getByRole('button', { name: '1시간 차트 보기' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('img', { name: 'SPY 캔들 차트와 매수 매도 기록' })).toHaveAttribute('data-timeframe', '1시간');
+    /* 기간은 번역되지 않는 식별자로 넘긴다. 표시 이름을 키로 쓰면 영어 로케일에서
+       조회가 빗나가 차트가 죽는다(#47). */
+    expect(screen.getByRole('img', { name: 'SPY 캔들 차트와 매수 매도 기록' })).toHaveAttribute('data-timeframe', 'hour');
     expect(screen.getAllByTestId('market-candle')).toHaveLength(48);
 
     await user.click(screen.getByRole('button', { name: '거래 종목 선택 열기' }));

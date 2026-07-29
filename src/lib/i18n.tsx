@@ -444,6 +444,7 @@ const english: Record<string, string> = {
   '기간 정렬': 'Sort by period',
   '참여 정렬': 'Sort by participants',
   '운영자': 'Host',
+  '차트 기간': 'Chart period',
   '기간': 'Period',
   '대회 목록 페이지': 'Competition list pages',
   '이전 페이지': 'Previous page',
