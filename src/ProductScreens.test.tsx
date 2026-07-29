@@ -5,11 +5,19 @@ import { RoomsView } from './views/OperationsViews';
 import { BotsView } from './views/BotsView';
 import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
 
+/* The page opens on 실시간 so the live chart costs no clicks; the standing
+   figures moved to their own 개요 tab, which these tests have to open. */
+const openOverview = (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole('tab', { name: /개요/ }));
+
 describe('Bot operations', () => {
-  test('keeps the bot launch action without a manual refresh button', () => {
+  test('carries no page-level launch or refresh action', () => {
     render(<BotsView />);
 
-    expect(screen.getByRole('button', { name: '봇 출시' })).toBeInTheDocument();
+    /* Launching belongs to the strategy release flow, which owns the locked
+       version and the launch configuration; a shortcut here would start a flow
+       this page cannot finish. A manual refresh never belonged here either. */
+    expect(screen.queryByRole('button', { name: '봇 출시' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '새로고침' })).not.toBeInTheDocument();
   });
 
@@ -19,6 +27,7 @@ describe('Bot operations', () => {
 
     const detail = screen.getByRole('region', { name: 'Atlas 07 운영 상세' });
     expect(within(detail).getByRole('heading', { name: 'Atlas 07' })).toBeInTheDocument();
+    await openOverview(user);
     expect(within(detail).getByText('$10,540.00')).toBeInTheDocument();
     expect(within(detail).getByText('+$540.00 · +5.40%')).toBeInTheDocument();
 
@@ -27,6 +36,8 @@ describe('Bot operations', () => {
 
     const next = screen.getByRole('region', { name: 'Room Beta 운영 상세' });
     expect(within(next).getByRole('heading', { name: 'Room Beta' })).toBeInTheDocument();
+    // Selecting a bot returns to 실시간, so the figures need the tab again.
+    await openOverview(user);
     expect(within(next).getByText('$10,490.00')).toBeInTheDocument();
     expect(within(next).getByText('+$490.00 · +4.90%')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Atlas 07 운영 상세' })).not.toBeInTheDocument();
@@ -58,6 +69,7 @@ describe('Bot operations', () => {
     render(<BotsView />);
 
     const atlas = screen.getByRole('region', { name: 'Atlas 07 운영 상세' });
+    await openOverview(user);
     expect(within(atlas).queryByText('초기 자산')).not.toBeInTheDocument();
     expect(within(atlas).getByText('운용 시작 시간')).toBeInTheDocument();
     expect(within(atlas).getByText('2025.07.08 09:30 ET')).toBeInTheDocument();
@@ -65,6 +77,7 @@ describe('Bot operations', () => {
     await user.click(screen.getByRole('button', { name: '대회 참가 중' }));
 
     const competitionBot = screen.getByRole('region', { name: 'Room Beta 운영 상세' });
+    await openOverview(user);
     expect(within(competitionBot).queryByText('초기 자산')).not.toBeInTheDocument();
     expect(within(competitionBot).getByText('대회 참가 시간')).toBeInTheDocument();
     expect(within(competitionBot).getByText('2026.06.08 09:30 ET')).toBeInTheDocument();
@@ -77,6 +90,7 @@ describe('Bot operations', () => {
     await user.click(screen.getByRole('button', { name: 'Pair Lab 상세 보기' }));
 
     const detail = screen.getByRole('region', { name: 'Pair Lab 운영 상세' });
+    await openOverview(user);
     expect(within(detail).getAllByText('$9,790.00')).toHaveLength(2);
     expect(within(detail).getByRole('heading', { name: '운용 시작 후 18일 손익' })).toBeInTheDocument();
     expect(within(detail).getByText('07.05–07.23 · 18일')).toBeInTheDocument();
@@ -119,11 +133,13 @@ describe('Bot operations', () => {
     expect(within(log()).getByText('예산 상한 검사 통과')).toBeInTheDocument();
   });
 
-  test('the decision log pairs live candles with symbol-specific execution markers', async () => {
+  test('the live chart opens with the page and pairs candles with symbol-specific execution markers', async () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
-    await user.click(screen.getByRole('tab', { name: /판단 기록/ }));
+    // The point of the 실시간 tab: reaching the chart costs no clicks. It used
+    // to live inside the decision log, two steps into the page.
+    expect(screen.getByRole('tab', { name: /실시간/ })).toHaveAttribute('aria-selected', 'true');
 
     const chart = screen.getByRole('region', { name: 'Atlas 07 실시간 체결 차트' });
     expect(within(chart).getByText('SPY')).toBeInTheDocument();
@@ -133,6 +149,11 @@ describe('Bot operations', () => {
     await user.click(within(chart).getByRole('button', { name: 'AAPL 차트 보기' }));
     expect(within(chart).getByRole('heading', { name: 'AAPL 실시간 차트' })).toBeInTheDocument();
     expect(within(chart).getByTestId('live-trade-marker')).toHaveAttribute('data-side', '매도');
+
+    // The log keeps the written record of the same fills; it must not draw the
+    // chart a second time.
+    await user.click(screen.getByRole('tab', { name: /판단 기록/ }));
+    expect(screen.queryByRole('region', { name: 'Atlas 07 실시간 체결 차트' })).not.toBeInTheDocument();
   });
 
   test('the decision log filters by search text and period', async () => {

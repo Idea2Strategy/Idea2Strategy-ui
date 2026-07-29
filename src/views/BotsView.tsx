@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Plus, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
+import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
 import { Button, DataTable, EmptyState, PageHeading, Status, TabPanel, Tabs } from '../components/common';
 import { EquityChart } from '../components/EquityChart';
 import { LiveExecutionChart } from '../components/LiveExecutionChart';
@@ -26,7 +26,7 @@ import { ReadOnlyStrategyBlock } from './StrategyViews';
 /* ---------- Types ----------------------------------------------------------- */
 
 type FilterId = 'personal' | 'competition';
-type TabId = 'overview' | 'positions' | 'decisions';
+type TabId = 'live' | 'overview' | 'positions' | 'decisions';
 type StepTone = 'universe' | 'data' | 'indicator' | 'condition' | 'risk' | 'order' | 'portfolio' | 'time';
 type LogScope = 'fills' | 'all';
 type LogPeriod = 'all' | 'today' | 'week' | 'month';
@@ -784,7 +784,7 @@ interface BotsViewProps {
 export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: BotsViewProps = {}): ReactNode {
   const [filter, setFilter] = useState<FilterId>('personal');
   const [selectedName, setSelectedName] = useState<string>(botList[0].name);
-  const [tab, setTab] = useState<TabId>('overview');
+  const [tab, setTab] = useState<TabId>('live');
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [savedLayouts, setSavedLayouts] = useState<Record<string, SnapshotLayout>>(
     () => Object.fromEntries(Object.entries(botDetails).map(([name, item]) => [name, cloneLayout(item.snapshot.layout)])),
@@ -852,7 +852,7 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
 
   const selectBot = (bot: BotRecord) => {
     setSelectedName(bot.name);
-    setTab('overview');
+    setTab('live');
     setLayoutOpen(false);
     setIconPickerOpen(false);
     setColorVariantsOpen(false);
@@ -903,7 +903,6 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
       description={attention.length > 0
         ? `봇 ${botList.length}개 중 ${healthyCount}개가 정상 실행 중이에요. ${attention.map((bot) => bot.name).join(', ')} 하나만 확인하면 됩니다.`
         : `봇 ${botList.length}개가 모두 정상 실행 중이에요. 확인할 문제가 없습니다.`}
-      actions={<Button kind="primary" icon={Plus}>봇 출시</Button>}
     />
 
     <div className="bots-workspace">
@@ -1042,6 +1041,7 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
             value={tab}
             onChange={(next: TabId) => setTab(next)}
             items={[
+              { id: 'live', label: '실시간' },
               { id: 'overview', label: '개요' },
               { id: 'positions', label: '포지션', count: detail.positions.length },
               { id: 'decisions', label: '판단 기록', count: detail.events.length },
@@ -1051,6 +1051,19 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
             <Boxes size={14} aria-hidden="true" />전략 구성 보기
           </button>
         </div>
+
+        {/* The opening tab is the fills the bot is making right now, drawn on a
+            price axis. Reaching it used to mean a trip into the decision log,
+            which is two steps from opening the page. */}
+        {tab === 'live' && <TabPanel id="live">
+          {decisionSymbol && <LiveExecutionChart
+            botName={selected.name}
+            executions={fillEvents}
+            symbols={decisionSymbols}
+            symbol={decisionSymbol}
+            onSymbolChange={setDecisionSymbol}
+          />}
+        </TabPanel>}
 
         {tab === 'overview' && <TabPanel id="overview">
           <div className="bots-overview-figures">
@@ -1120,14 +1133,8 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
           {/* One timeline, one row grammar: kind chip · what happened · where
               and when. Fills show by default; engine records (unmet
               conditions, deferrals, passed checks) join when the person opts
-              into the full record. */}
-          {decisionSymbol && <LiveExecutionChart
-            botName={selected.name}
-            executions={fillEvents}
-            symbols={decisionSymbols}
-            symbol={decisionSymbol}
-            onSymbolChange={setDecisionSymbol}
-          />}
+              into the full record. The chart of these same fills is the 실시간
+              tab, so it is not drawn above the list a second time. */}
           <div className="bots-log-tools">
             <label className="bots-log-search">
               <Search size={14} aria-hidden="true" />
