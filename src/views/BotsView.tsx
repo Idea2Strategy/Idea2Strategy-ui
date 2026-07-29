@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Plus, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
+import { Bot, Boxes, ChevronDown, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Plus, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
 import { Button, DataTable, EmptyState, PageHeading, Status, TabPanel, Tabs } from '../components/common';
 import { EquityChart } from '../components/EquityChart';
 import { LiveExecutionChart } from '../components/LiveExecutionChart';
@@ -788,6 +788,10 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
   const [filter, setFilter] = useState<FilterId>('personal');
   const [selectedName, setSelectedName] = useState<string>(botList[0].name);
   const [tab, setTab] = useState<TabId>('live');
+  /* The picker is a dropdown, not a strip of chips: an account may run ten bots
+     at once, and ten chips either overflow sideways or eat the page. */
+  const [botPickerOpen, setBotPickerOpen] = useState(false);
+  const [botQuery, setBotQuery] = useState('');
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [savedLayouts, setSavedLayouts] = useState<Record<string, SnapshotLayout>>(
     () => Object.fromEntries(Object.entries(botDetails).map(([name, item]) => [name, cloneLayout(item.snapshot.layout)])),
@@ -811,6 +815,13 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
   };
 
   const visibleBots = botList.filter((bot) => matchesBotFilter(bot, filter));
+  /* The dropdown searches within the current operation-type filter, so the
+     footer count reads "matches / bots in this filter". */
+  const pickerBots = visibleBots.filter((bot) => {
+    const query = botQuery.trim().toLowerCase();
+    if (!query) return true;
+    return `${bot.name} ${bot.room} ${bot.labels.join(' ')}`.toLowerCase().includes(query);
+  });
   const selected = visibleBots.find((bot) => bot.name === selectedName) ?? visibleBots[0] ?? null;
   const detail = selected ? botDetails[selected.name] : null;
   const attention = botList.filter((bot) => bot.state === '조치 필요');
@@ -829,6 +840,27 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
       setDecisionSymbol(decisionSymbols[0] ?? '');
     }
   }, [decisionSymbol, decisionSymbols]);
+
+  /* Same dismissal contract as the icon picker: click anywhere outside the
+     anchor, or press Escape, and the dropdown closes without selecting. */
+  useEffect(() => {
+    if (!botPickerOpen) return undefined;
+
+    const dismiss = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest('.bots-picker-anchor')) setBotPickerOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setBotPickerOpen(false);
+    };
+
+    document.addEventListener('pointerdown', dismiss);
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', dismiss);
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [botPickerOpen]);
 
   useEffect(() => {
     if (!iconPickerOpen) return undefined;
@@ -856,6 +888,8 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
   const selectBot = (bot: BotRecord) => {
     setSelectedName(bot.name);
     setTab('live');
+    setBotPickerOpen(false);
+    setBotQuery('');
     setLayoutOpen(false);
     setIconPickerOpen(false);
     setColorVariantsOpen(false);
@@ -923,26 +957,66 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
             >{option.label}</button>)}
           </div>
         </header>
-        {/* The list item and the control are separate elements: putting
-            role="listitem" on the button itself would drop its button semantics,
-            so it would no longer be announced as something you can activate. */}
-        {visibleBots.length > 0 ? <div className="bots-list" role="list" aria-label="봇 목록 결과">
-          {visibleBots.map((bot) => <div role="listitem" key={bot.name}><button
+        {selected ? <div className="bots-picker-anchor">
+          {/* The trigger states the current bot and how many it was chosen from,
+              so the count is visible without opening anything. */}
+          <button
             type="button"
-            aria-label={`${bot.name} 상세 보기`}
-            aria-pressed={selected?.name === bot.name}
-            className={selected?.name === bot.name ? 'active' : ''}
-            onClick={() => selectBot(bot)}
+            className="bots-picker-trigger"
+            aria-expanded={botPickerOpen}
+            aria-label={`${selected.name} 선택됨 · 봇 바꾸기`}
+            onClick={() => {
+              setBotQuery('');
+              setBotPickerOpen((open) => !open);
+            }}
           >
-            <span className="bots-list-icon" aria-hidden="true">
-              <BotGlyph selection={botIcons[bot.name] ?? FALLBACK_BOT_ICON} testId={`bot-icon-${bot.name}-list`} />
+            <span className="bots-picker-glyph" aria-hidden="true">
+              <BotGlyph selection={botIcons[selected.name] ?? FALLBACK_BOT_ICON} testId={`bot-icon-${selected.name}-picker`} />
             </span>
-            {/* The picker only answers "which bot". Capital, change, room and
-                strategy count all sit in the summary panel directly below it,
-                so carrying them on every row would just crowd the column. */}
-            <span className="bots-list-copy"><strong>{bot.name}</strong></span>
-            <Status tone={botTone(bot.state)}>{bot.state}</Status>
-          </button></div>)}
+            <strong>{selected.name}</strong>
+            <Status tone={botTone(selected.state)}>{selected.state}</Status>
+            <small>{`${visibleBots.length}개 중 선택`}</small>
+            <ChevronDown size={14} aria-hidden="true" />
+          </button>
+
+          {botPickerOpen && <div className="bots-picker-menu" role="group" aria-label="봇 선택">
+            <label className="bots-picker-search">
+              <Search size={14} aria-hidden="true" />
+              <input
+                type="search"
+                aria-label="봇 검색"
+                placeholder="봇 이름 또는 방 검색"
+                value={botQuery}
+                onChange={(event) => setBotQuery(event.target.value)}
+              />
+              {botQuery && <button type="button" aria-label="봇 검색 초기화" onClick={() => setBotQuery('')}><X size={13} /></button>}
+            </label>
+
+            {/* The list item and the control are separate elements: putting
+                role="listitem" on the button itself would drop its button
+                semantics, so it would no longer be announced as activatable. */}
+            {pickerBots.length > 0 ? <div className="bots-list" role="list" aria-label="봇 목록 결과">
+              {pickerBots.map((bot) => <div role="listitem" key={bot.name}><button
+                type="button"
+                aria-label={`${bot.name} 상세 보기`}
+                aria-pressed={selected.name === bot.name}
+                className={selected.name === bot.name ? 'active' : ''}
+                onClick={() => selectBot(bot)}
+              >
+                <span className="bots-list-icon" aria-hidden="true">
+                  <BotGlyph selection={botIcons[bot.name] ?? FALLBACK_BOT_ICON} testId={`bot-icon-${bot.name}-list`} />
+                </span>
+                {/* Which bot, and is it healthy — that is all a chooser needs.
+                    Capital and change belong to the summary panel below. */}
+                <span className="bots-list-copy"><strong>{bot.name}</strong><small>{bot.room}</small></span>
+                <Status tone={botTone(bot.state)}>{bot.state}</Status>
+              </button></div>)}
+            </div> : <p className="bots-picker-empty" role="status">일치하는 봇이 없습니다.</p>}
+
+            <footer className="bots-picker-foot">
+              <strong>{`${pickerBots.length} / ${visibleBots.length}개 표시`}</strong>
+            </footer>
+          </div>}
         </div> : <EmptyState
           icon={Bot}
           title="조건에 맞는 봇이 없습니다."

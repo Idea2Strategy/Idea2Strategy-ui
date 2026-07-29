@@ -5,6 +5,11 @@ import { RoomsView } from './views/OperationsViews';
 import { BotsView } from './views/BotsView';
 import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
 
+/* The bot list lives in a dropdown so ten bots cost no layout: open it before
+   reaching for a bot row. The trigger is named "<bot> 선택됨 · 봇 바꾸기". */
+const openBotPicker = (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole('button', { name: /봇 바꾸기$/ }));
+
 describe('Bot operations', () => {
   test('keeps the bot launch action without a manual refresh button', () => {
     render(<BotsView />);
@@ -23,6 +28,7 @@ describe('Bot operations', () => {
     expect(within(detail).getByText('+$540.00 · +5.40%')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '대회 참가 중' }));
+    await openBotPicker(user);
     await user.click(screen.getByRole('button', { name: 'Room Beta 상세 보기' }));
 
     const next = screen.getByRole('region', { name: 'Room Beta 운영 상세' });
@@ -38,6 +44,8 @@ describe('Bot operations', () => {
 
     const filter = screen.getByRole('group', { name: '봇 운용 유형 필터' });
     const list = () => within(screen.getByRole('list', { name: '봇 목록 결과' })).getAllByRole('listitem');
+
+    await openBotPicker(user);
     expect(list()).toHaveLength(3);
     expect(within(filter).queryByRole('button', { name: '전체' })).not.toBeInTheDocument();
     expect(within(filter).getByRole('button', { name: '개인 운용' })).toHaveAttribute('aria-pressed', 'true');
@@ -46,7 +54,10 @@ describe('Bot operations', () => {
     expect(screen.getByRole('button', { name: 'Pulse Grid 상세 보기' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Room Beta 상세 보기' })).not.toBeInTheDocument();
 
+    // The filter sits outside the dropdown anchor, so using it dismisses the
+    // dropdown; reopen it to read the narrowed list.
     await user.click(within(filter).getByRole('button', { name: '대회 참가 중' }));
+    await openBotPicker(user);
     expect(list()).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Room Beta 상세 보기' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Atlas 07 상세 보기' })).not.toBeInTheDocument();
@@ -74,6 +85,7 @@ describe('Bot operations', () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
+    await openBotPicker(user);
     await user.click(screen.getByRole('button', { name: 'Pair Lab 상세 보기' }));
 
     const detail = screen.getByRole('region', { name: 'Pair Lab 운영 상세' });
@@ -87,6 +99,7 @@ describe('Bot operations', () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
+    await openBotPicker(user);
     await user.click(screen.getByRole('button', { name: 'Pair Lab 상세 보기' }));
 
     // No problem banner, no attention state: the bot retries by itself.
@@ -214,11 +227,13 @@ describe('Bot operations', () => {
     await user.click(within(reopenedVariants).getByRole('button', { name: '분석형 봇 아이콘 파란색 적용' }));
 
     const detailIcon = screen.getByTestId('bot-icon-Atlas 07-detail');
-    const listIcon = screen.getByTestId('bot-icon-Atlas 07-list');
+    // The picker trigger carries the other copy of the glyph and is always on
+    // screen, so a new icon has to reach it without opening the dropdown.
+    const pickerIcon = screen.getByTestId('bot-icon-Atlas 07-picker');
     expect(detailIcon).toHaveAttribute('data-icon', 'analytical');
     expect(detailIcon).toHaveAttribute('data-color', 'blue');
-    expect(listIcon).toHaveAttribute('data-icon', 'analytical');
-    expect(listIcon).toHaveAttribute('data-color', 'blue');
+    expect(pickerIcon).toHaveAttribute('data-icon', 'analytical');
+    expect(pickerIcon).toHaveAttribute('data-color', 'blue');
     expect(screen.queryByRole('group', { name: '봇 아이콘 선택' })).not.toBeInTheDocument();
   });
 
@@ -437,6 +452,7 @@ describe('Bot operations', () => {
     render(<BotsView />);
 
     await user.click(screen.getByRole('button', { name: '대회 참가 중' }));
+    await openBotPicker(user);
     await user.click(screen.getByRole('button', { name: 'Room Beta 상세 보기' }));
     await user.click(screen.getByRole('button', { name: '전략 구성 보기' }));
 
@@ -453,6 +469,7 @@ describe('Bot operations', () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
+    await openBotPicker(user);
     await user.click(screen.getByRole('button', { name: 'Pair Lab 상세 보기' }));
     await user.click(screen.getByRole('tab', { name: /포지션/ }));
 
