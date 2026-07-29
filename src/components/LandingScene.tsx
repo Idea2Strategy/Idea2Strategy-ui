@@ -90,11 +90,15 @@ export default function LandingScene({ progressRef }: LandingSceneProps) {
     /* Shards share one material so the whole burst fades as one cloud. */
     const shardMaterial = new THREE.MeshStandardMaterial({ color: WHITE, roughness: 0.35, metalness: 0.1, transparent: true });
 
-    /* The single cube the blocks merge into. */
-    const cubeGeometry = new THREE.BoxGeometry(2, 2, 2);
+    /* The single cube the blocks merge into. Same geometry and same scale as
+       the fully converged blob of blocks, so the handoff is size-continuous:
+       the cube stays exactly as small as the merge left it, and the camera —
+       not the cube — provides the presence by pushing in. */
+    const MERGED_SCALE = 0.7;
     const cubeMaterial = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.2 });
-    const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+    const cube = new THREE.Mesh(geometry, cubeMaterial);
     cube.position.copy(CENTER);
+    cube.scale.setScalar(MERGED_SCALE);
     cube.visible = false;
     group.add(cube);
 
@@ -183,13 +187,15 @@ export default function LandingScene({ progressRef }: LandingSceneProps) {
 
       for (const block of blocks) {
         if (burst > 0) {
-          /* Act 4: shards. Full speed at the first instant — the "펑". */
+          /* Act 4: shards. Full speed at the first instant — the "펑". They
+             leave at the merged blob's own size, so the burst grows out of
+             the small cube instead of appearing around it. */
           const fly = easeOutQuart(burst);
           block.mesh.visible = true;
           block.mesh.material = shardMaterial;
-          block.mesh.position.copy(CENTER).addScaledVector(block.burst, fly * 15);
+          block.mesh.position.copy(CENTER).addScaledVector(block.burst, fly * 14);
           block.mesh.rotation.set(block.spin.x * fly * 4, block.spin.y * fly * 4, block.spin.z * fly * 4);
-          block.mesh.scale.setScalar(0.9 * (1 - 0.45 * fly));
+          block.mesh.scale.setScalar(MERGED_SCALE * (1 - 0.5 * fly));
           continue;
         }
         block.mesh.material = block.material;
@@ -204,38 +210,49 @@ export default function LandingScene({ progressRef }: LandingSceneProps) {
            the approach read as smooth. */
         const local = easeInOutCubic(clamp01((assembly - block.delay) / (1 - block.delay)));
         workPosition.copy(block.scatter).lerp(block.target, local);
-        /* Act 2: accelerate from the lattice into the centre. */
+        /* Act 2: accelerate from the lattice into the centre, shrinking to
+           the exact size the cube will take over at. */
         block.mesh.position.copy(workPosition).lerp(CENTER, merge);
         const unrolled = (1 - local) * (1 - merge);
         block.mesh.rotation.set(block.rot.x * unrolled, block.rot.y * unrolled, block.rot.z * unrolled);
-        block.mesh.scale.setScalar((0.55 + 0.45 * local) * (1 - 0.3 * merge));
+        block.mesh.scale.setScalar((0.55 + 0.45 * local) * (1 - (1 - MERGED_SCALE) * merge));
       }
 
       /* Shards thin out over the last stretch of the flight. */
       shardMaterial.opacity = 1 - clamp01((burst - 0.55) / 0.45);
 
-      /* Act 3: the cube. A brief overshoot right after the snap sells the
-         impact; the tremble grows quadratically and is time-oscillated but
-         scroll-gated, so scrolling back calms it down. */
+      /* Act 3: the cube stays at the merged size — no pop, no overshoot. The
+         tremble grows quadratically (position and a hint of rotation) and is
+         time-oscillated but scroll-gated, so scrolling back calms it down. */
       cube.visible = merge >= 1 && burst <= 0;
       if (cube.visible) {
-        const settle = phaseLocal(p, MERGE_END, MERGE_END + 0.02);
-        const amplitude = shake * shake * 0.12;
+        const amplitude = shake * shake * 0.09;
         const wobble = reduceMotion ? 0 : 1;
         cube.position.set(
           CENTER.x + Math.sin(time * 0.043) * amplitude * wobble,
           CENTER.y + Math.sin(time * 0.031 + 1.7) * amplitude * wobble,
           CENTER.z + Math.sin(time * 0.05 + 0.6) * amplitude * wobble,
         );
-        cube.scale.setScalar(1.12 - 0.12 * settle);
+        cube.rotation.set(
+          Math.sin(time * 0.037 + 0.9) * amplitude * 0.8 * wobble,
+          0,
+          Math.sin(time * 0.047) * amplitude * 0.8 * wobble,
+        );
         cubeMaterial.color.copy(baseAccent).lerp(WHITE, shake);
-        cubeMaterial.emissive.copy(WHITE).multiplyScalar(shake * 0.5);
+        cubeMaterial.emissive.copy(WHITE).multiplyScalar(shake * 0.6);
       }
 
-      group.rotation.y = reduceMotion ? 0 : Math.sin(time * 0.00035) * 0.05;
+      /* Showcase: once assembled, the lattice turns slowly for the camera
+         before the merge pulls it in. The turn holds afterwards (invisible
+         once everything sits at the centre) so nothing snaps back. */
+      const showcase = easeInOutCubic(phaseLocal(p, ASSEMBLY_END, MERGE_START));
+      const sway = reduceMotion ? 0 : Math.sin(time * 0.00035) * 0.05;
+      group.rotation.y = sway + showcase * 0.55;
 
-      /* Camera: orbit in during assembly, creep closer while the cube charges,
-         pull back a touch as the shards pass. */
+      /* Camera: orbit in during assembly, hold through the showcase, then a
+         slow push-in on the small charging cube — the cube keeps its size and
+         the camera provides the growing presence — and a pull-back with a
+         decaying kick when it blows. */
       let angle: number;
       let distance: number;
       let height: number;
@@ -243,17 +260,29 @@ export default function LandingScene({ progressRef }: LandingSceneProps) {
         angle = -0.55 + assembly * 0.6;
         distance = 11.5 - 3.7 * assembly;
         height = 3.6 - assembly;
+      } else if (p <= MERGE_END) {
+        const q = phaseLocal(p, ASSEMBLY_END, MERGE_END);
+        angle = 0.05 + q * 0.11;
+        distance = 7.8 - 0.8 * q;
+        height = 2.6 - 0.15 * q;
       } else if (p <= SHAKE_END) {
-        const q = phaseLocal(p, ASSEMBLY_END, SHAKE_END);
-        angle = 0.05 + q * 0.13;
-        distance = 7.8 - 1.4 * q;
-        height = 2.6 - 0.2 * q;
+        const q = easeInOutCubic(phaseLocal(p, MERGE_END, SHAKE_END));
+        angle = 0.16 + q * 0.34;
+        distance = 7 - 4 * q;
+        height = 2.45 - 1.25 * q;
       } else {
-        angle = 0.18;
-        distance = 6.4 + 0.8 * burst;
-        height = 2.4;
+        angle = 0.5;
+        distance = 3 + 2.5 * easeOutQuart(burst);
+        height = 1.2 + 0.6 * burst;
       }
-      camera.position.set(Math.sin(angle) * distance, height, Math.cos(angle) * distance);
+      /* The blast kick: strongest the instant it bursts, decaying with scroll
+         so rewinding un-kicks it. */
+      const kick = burst > 0 ? ((1 - burst) ** 3) * 0.12 * (reduceMotion ? 0 : 1) : 0;
+      camera.position.set(
+        Math.sin(angle) * distance + Math.sin(time * 0.09) * kick,
+        height + Math.sin(time * 0.073 + 1.3) * kick,
+        Math.cos(angle) * distance,
+      );
       camera.lookAt(CENTER);
       renderer.render(scene, camera);
     };
@@ -308,7 +337,6 @@ export default function LandingScene({ progressRef }: LandingSceneProps) {
       themeObserver?.disconnect();
       window.removeEventListener('resize', resize);
       geometry.dispose();
-      cubeGeometry.dispose();
       neutralMaterial.dispose();
       accentMaterial.dispose();
       shardMaterial.dispose();

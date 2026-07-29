@@ -10,23 +10,25 @@
     0 ──────────── ASSEMBLY_END: scattered blocks assemble into the lattice
                    (the original act — its px-per-progress pacing is preserved
                    by the hero height in CSS)
+    → MERGE_START ─ showcase: the finished lattice turns slowly for the camera
     COPY_EXIT ───── hero copy and captions slide out to the edges
     MERGE_START ─── blocks accelerate into the centre…
-    MERGE_END ───── …and snap into one solid cube (the sudden "확")
-    → SHAKE_END ─── the cube trembles harder and harder while turning white
+    MERGE_END ───── …and snap into one small solid cube (the sudden "확")
+    → SHAKE_END ─── the camera pushes in while the cube trembles harder and
+                   harder and turns white — the cube itself stays small
     → EXPLODE_END ─ it bursts, shards flying past the screen edges
-    NOTES_START/END five feature notes surface one by one at centre stage
+    NOTES_START/END five feature notes surface one by one near the bottom
 */
 
-export const ASSEMBLY_END = 0.44;
-export const COPY_EXIT = 0.46;
-export const MERGE_START = 0.5;
-export const MERGE_END = 0.58;
-export const SHAKE_END = 0.76;
-export const EXPLODE_END = 0.92;
+export const ASSEMBLY_END = 0.34;
+export const COPY_EXIT = 0.42;
+export const MERGE_START = 0.46;
+export const MERGE_END = 0.54;
+export const SHAKE_END = 0.78;
+export const EXPLODE_END = 0.94;
 
-export const NOTES_START = 0.58;
-export const NOTES_END = 0.95;
+export const NOTES_START = 0.54;
+export const NOTES_END = 0.97;
 export const NOTE_COUNT = 5;
 
 /* Reduced motion shows the assembled lattice — the one still frame that says

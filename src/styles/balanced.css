@@ -9796,7 +9796,7 @@ small.dashboard-bot-scope {
 .landing-scroll { overflow: visible; }
 .landing-page { width: 100%; }
 
-.landing-hero { position: relative; height: 560vh; }
+.landing-hero { position: relative; height: 700vh; }
 /* The top bar is sticky, so the stage claims the viewport BELOW it: pinned
    from the very first scrolled pixel, no initial shove while the page travels
    nav-height before top:0 could engage, and no strip of scene hidden under
@@ -9876,20 +9876,28 @@ small.dashboard-bot-scope {
    below; when the next takes over, the previous transitions back down — the
    sink. Driven by data-active-note, which the scroll handler writes directly,
    so React never renders on scroll. */
+/* Notes sit low on the stage, clear of the cube and the shards that own the
+   centre, on a glass card (same material language as the top bar) so they
+   stay readable over the bright white burst in either theme. */
 .landing-notes {
   position: absolute;
   inset: 0;
   z-index: 2;
   display: grid;
-  place-items: center;
+  place-items: end center;
+  padding-bottom: max(10vh, 72px);
   text-align: center;
   pointer-events: none;
 }
 .landing-note {
   grid-area: 1 / 1;
   margin: 0;
-  max-width: 560px;
-  padding: 0 24px;
+  max-width: 620px;
+  padding: 20px 30px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  backdrop-filter: blur(10px);
   opacity: 0;
   transform: translateY(36px);
   transition: opacity 480ms ease-out, transform 480ms ease-out;
@@ -10018,7 +10026,7 @@ small.dashboard-bot-scope {
 .reduce-motion .landing-scroll-hint { transition: none; }
 
 @media (max-width: 800px) {
-  .landing-hero { height: 480vh; }
+  .landing-hero { height: 600vh; }
   .landing-captions { right: 16px; left: 16px; bottom: 72px; max-width: none; text-align: left; }
   .landing-features { padding: 64px 16px 40px; }
   .landing-disclaimer { padding: 32px 16px; }
