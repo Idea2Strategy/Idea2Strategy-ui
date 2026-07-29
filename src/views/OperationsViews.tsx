@@ -1612,7 +1612,14 @@ function CompetitionBoardRanking({
   tooltipId: string;
 }) {
   return <span className="competition-board-ranking dashboard-return-info">
-    <strong className="competition-ranking-badge" data-ranking-tone={tone}>{ranking}</strong>
+    <strong
+      className="competition-ranking-badge"
+      data-ranking-tone={tone}
+      tabIndex={0}
+      aria-describedby={tooltipId}
+    >
+      {ranking}
+    </strong>
     <span
       id={tooltipId}
       className="dashboard-return-info-tooltip"
@@ -2140,11 +2147,17 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
   const detailDeadlineText = selectedRoom
     ? `${detailDeadlineLabel} D-${selectedRoom.remainingDays}`
     : '';
+  const detailProgress = selectedRoom
+    ? 'progress' in selectedRoom
+      ? selectedRoom.progress
+      : selectedRoom.status === 'running'
+        ? Math.max(5, Math.min(95, 100 - selectedRoom.remainingDays))
+        : Math.max(5, Math.min(45, 35 - selectedRoom.remainingDays))
+    : 0;
   const detailDescription = selectedRoom
     ? competitionDetailDescriptions[selectedRoom.name]
       ?? `${selectedRoom.name} 참가 봇을 동일한 시장 데이터와 체결 조건에서 비교하는 모의투자 대회입니다.`
     : '';
-  const scoringHelp = '추후 추가 예정입니다.';
   const detailFacts = selectedRoom ? [
     { label: '운영자', value: selectedRoom.host },
     { label: '기간', value: `${selectedRoom.start} – ${selectedRoom.end}` },
@@ -2215,10 +2228,23 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
           <div className="competition-detail-title">
             <h1>{selectedRoom.name}</h1>
             {selectedRoom.official && <span className="competition-detail-official">공식 대회</span>}
-            <span
-              className={`competition-detail-deadline${selectedRoom.remainingDays <= 7 ? ' is-urgent' : ''}`}
-            >
-              {detailDeadlineText}
+            <span className="competition-detail-status">
+              <span
+                className={`competition-detail-deadline${selectedRoom.remainingDays <= 7 ? ' is-urgent' : ''}`}
+              >
+                {detailDeadlineText}
+              </span>
+              <span className="competition-detail-progress-copy">{`진행률 ${detailProgress}%`}</span>
+              <span
+                className="competition-detail-progress"
+                role="progressbar"
+                aria-label={`${selectedRoom.name} 진행률`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={detailProgress}
+              >
+                <i style={{ width: `${detailProgress}%` }} />
+              </span>
             </span>
           </div>
           <span className="competition-detail-description">{detailDescription}</span>
@@ -2240,7 +2266,9 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
           >
             {canEnterSelectedRoom
               ? '대회 참가'
-              : remainingEntrySlots === 0 ? '참가 가능한 봇을 모두 등록했습니다.' : '마감된 대회입니다.'}
+              : remainingEntrySlots === 0
+                ? '참가 가능한 봇을 모두 등록했습니다.'
+                : selectedRoom.status === 'running' ? '진행중인 대회입니다.' : '마감된 대회입니다.'}
           </button>
         </div>
       </header>
@@ -2288,25 +2316,11 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
               <p>LEADERBOARD</p>
               <div>
                 <h2 id="competition-leaderboard-title">대회 리더보드</h2>
-                <strong className="competition-ranking-badge" data-ranking-tone={rankingToneByLabel[selectedRoom.ranking] ?? 'standard'}>
-                  {selectedRoom.ranking}
-                </strong>
-                <span className="dashboard-return-info">
-                  <button
-                    type="button"
-                    className="dashboard-return-info-button"
-                    aria-label={`${selectedRoom.ranking} 계산 방식 보기`}
-                    aria-describedby="competition-scoring-tooltip"
-                  >?</button>
-                  <span
-                    id="competition-scoring-tooltip"
-                    className="dashboard-return-info-tooltip"
-                    role="tooltip"
-                    aria-label={`${selectedRoom.ranking} 계산 방식 보기`}
-                  >
-                    {scoringHelp}
-                  </span>
-                </span>
+                <CompetitionBoardRanking
+                  ranking={selectedRoom.ranking}
+                  tone={rankingToneByLabel[selectedRoom.ranking] ?? 'standard'}
+                  tooltipId="competition-scoring-tooltip"
+                />
               </div>
             </div>
             <div className="competition-ranking-tools">

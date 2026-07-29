@@ -635,7 +635,7 @@ describe('Competition ranking', () => {
     expect(screen.queryByText('공식 대회')).not.toBeInTheDocument();
     expect(screen.getByText('대회 마감 D-8')).toBeInTheDocument();
     expect(screen.getByText('대회 마감 D-8')).not.toHaveClass('is-urgent');
-    expect(screen.getByRole('button', { name: '마감된 대회입니다.' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '진행중인 대회입니다.' })).toBeDisabled();
 
     const myRanks = screen.getByLabelText('내 참가 봇 순위');
     const leaderboardHeading = screen.getByRole('heading', { name: '대회 리더보드' });
@@ -656,14 +656,14 @@ describe('Competition ranking', () => {
     await user.click(within(detailDialog).getByRole('button', { name: '대회 상세 정보 닫기' }));
 
     expect(within(leaderboard!).getByText('표준점수제')).toBeInTheDocument();
-    const scoringHelp = within(leaderboard!).getByRole('button', { name: '표준점수제 계산 방식 보기' });
-    const scoringTooltip = within(leaderboard!).getByRole('tooltip', { name: '표준점수제 계산 방식 보기' });
-    expect(scoringHelp).toHaveClass('dashboard-return-info-button');
-    expect(scoringHelp).toHaveTextContent('?');
+    const scoringHelp = within(leaderboard!).getByText('표준점수제');
+    const scoringTooltip = within(leaderboard!).getByRole('tooltip', { name: '표준점수제 설명' });
+    expect(scoringHelp).toHaveClass('competition-ranking-badge');
+    expect(scoringHelp).not.toHaveTextContent('?');
     expect(scoringHelp).toHaveAttribute('aria-describedby', scoringTooltip.id);
     expect(scoringTooltip).toHaveClass('dashboard-return-info-tooltip');
     await user.hover(scoringHelp);
-    expect(scoringTooltip).toHaveTextContent('추후 추가 예정입니다.');
+    expect(scoringTooltip).toHaveTextContent('수익률과 위험 지표를 표준화');
 
     expect(screen.queryByRole('combobox', { name: '리더보드 표시 개수' })).not.toBeInTheDocument();
   });
@@ -676,6 +676,8 @@ describe('Competition ranking', () => {
 
     expect(screen.getByText('공식 대회')).toBeInTheDocument();
     expect(screen.getByText('모집 마감 D-5')).toHaveClass('is-urgent');
+    expect(screen.getByRole('progressbar', { name: 'ETF Sprint 진행률' })).toHaveAttribute('aria-valuenow', '18');
+    expect(screen.getByText('진행률 18%')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '대회 참가' })).toBeEnabled();
     const myRanks = screen.getByLabelText('내 참가 봇 순위');
     expect(within(myRanks).getAllByRole('listitem')).toHaveLength(1);
@@ -756,7 +758,8 @@ describe('Competition ranking', () => {
     expect(within(myRanks).getAllByRole('listitem')).toHaveLength(3);
     expect(within(myRanks).getByText('3 / 5')).toBeInTheDocument();
     const leaderboard = screen.getByLabelText('I2S Summer League 봇 순위');
-    expect(screen.getByRole('button', { name: '마감된 대회입니다.' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '진행중인 대회입니다.' })).toBeDisabled();
+    expect(screen.getByRole('progressbar', { name: 'I2S Summer League 진행률' })).toHaveAttribute('aria-valuenow', '5');
     expect(leaderboard.querySelectorAll('.is-mine')).toHaveLength(3);
     expect(leaderboard.querySelectorAll(':scope > div')).toHaveLength(10);
     expect(leaderboard.closest('.competition-ranking-list')).not.toBeNull();

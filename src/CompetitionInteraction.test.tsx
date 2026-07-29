@@ -274,7 +274,8 @@ describe('Competition lobby', () => {
     await user.click(within(screen.getByRole('group', { name: '진행 상태' })).getByRole('radio', { name: '대회 진행 중' }));
     await user.click(screen.getByRole('button', { name: '공식 대회 I2S Summer League 열기' }));
     const detail = screen.getByRole('region', { name: 'I2S Summer League 상세 페이지' });
-    expect(within(detail).getByRole('tooltip')).toHaveTextContent('추후 추가 예정입니다.');
+    expect(within(detail).getByRole('tooltip')).toHaveTextContent('수익률과 위험 지표를 표준화');
+    expect(within(detail).queryByText('?')).not.toBeInTheDocument();
     expect(within(detail).getByText('공식 대회')).toBeInTheDocument();
 
     const myRanks = within(detail).getByLabelText('내 참가 봇 순위');

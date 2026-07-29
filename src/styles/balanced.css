@@ -4163,7 +4163,7 @@
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-title {
   display:flex;
-  align-items:center;
+  align-items:flex-start;
   flex-wrap:wrap;
   gap:10px;
 }
@@ -4231,6 +4231,32 @@
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-deadline.is-urgent {
   color:var(--negative);
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-status {
+  width:min(220px,100%);
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:7px 12px;
+  padding-top:2px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-progress-copy {
+  color:var(--text-faint);
+  font:700 9px/1 var(--font-mono);
+  white-space:nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-progress {
+  grid-column:1 / -1;
+  height:5px;
+  overflow:hidden;
+  border-radius:999px;
+  background:var(--surface-3);
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-progress > i {
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:var(--accent);
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-info-button:hover,
 .variant-balanced[data-design="signal-studio"] .competition-detail-info-button:focus-visible {
@@ -4750,6 +4776,11 @@
   min-height:26px;
   padding:4px 10px;
   font-size:10px;
+  cursor:help;
+}
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard-title .competition-ranking-badge:focus-visible {
+  outline:2px solid color-mix(in srgb,var(--accent) 55%,transparent);
+  outline-offset:2px;
 }
 .variant-balanced[data-design="signal-studio"] .competition-leaderboard .competition-ranking-tools {
   padding:0;
