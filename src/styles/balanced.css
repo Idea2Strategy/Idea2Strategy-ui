@@ -1512,8 +1512,17 @@
   word-break:keep-all;
 }
 .variant-balanced[data-design="signal-studio"] .strategy-rule-note b {
-  color:var(--text);
-  font-weight:800;
+  color:var(--block-tone-color,var(--text));
+  font-weight:900;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-rule-note.tone-buy {
+  --block-tone-color:#d95359;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-rule-note.tone-sell {
+  --block-tone-color:#638cf0;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-rule-note.tone-risk {
+  --block-tone-color:#d9a827;
 }
 
 .variant-balanced[data-design="signal-studio"] .strategy-container-footer {
@@ -8792,4 +8801,1626 @@ small.dashboard-bot-scope {
   font: 700 7px/1.2 var(--font-mono);
   font-style: normal;
   white-space: nowrap;
+}
+
+/* Basic editor: one Pro-style library drawer, denser cards and shared canvas tools. */
+.variant-balanced[data-design="signal-studio"] .basic-layout {
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+.variant-balanced[data-design="signal-studio"] .basic-layout.is-library-collapsed {
+  grid-template-columns: 44px minmax(0, 1fr);
+}
+.variant-balanced[data-design="signal-studio"] .basic-layout.is-library-collapsed .basic-editor-left-rail {
+  width: 44px;
+  min-width: 44px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-left-rail,
+.variant-balanced[data-design="signal-studio"] .basic-library-panel {
+  min-height: 0;
+  height: 100%;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.variant-balanced[data-design="signal-studio"] .editor-shell-page .basic-editor-left-rail .basic-library-panel {
+  position: relative;
+  top: auto;
+  left: auto;
+  width: 100%;
+  max-height: none;
+  min-height: 0;
+  flex: 1;
+  pointer-events: auto;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .palette-title {
+  min-height: 52px;
+  flex: 0 0 auto;
+  gap: 8px;
+  padding: 0 12px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .palette-title > span {
+  margin-right: auto;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  margin: 10px 11px 8px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-tabs button {
+  min-height: 31px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+  font: 750 9px/1 var(--font-sans);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-tabs button.active {
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgba(var(--shadow-rgb), .12);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-tabs small {
+  color: var(--text-faint);
+  font: 700 7px/1 var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-view {
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-view .template-list,
+.variant-balanced[data-design="signal-studio"] .basic-library-view .block-category-list {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel.is-collapsed .basic-library-tabs,
+.variant-balanced[data-design="signal-studio"] .basic-library-panel.is-collapsed .basic-library-view {
+  visibility: hidden;
+}
+
+.variant-balanced[data-design="signal-studio"] .basic-history-controls {
+  display: flex;
+  gap: 7px;
+  margin-left: 2px;
+  padding-left: 7px;
+  border-left: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .basic-history-controls .floating-editor-button {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-trigger {
+  gap: 6px;
+  min-height: 36px;
+  padding-inline: 13px;
+  border-radius: var(--radius-sm);
+  font: 700 12px/1 var(--font-sans);
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-trigger.is-incomplete {
+  color: var(--warning);
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-trigger.is-active {
+  border-color: color-mix(in srgb, var(--warning) 66%, var(--line-strong));
+  background: color-mix(in srgb, var(--warning) 10%, var(--surface-2));
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-popover {
+  position: fixed;
+  z-index: 190;
+  top: 74px;
+  right: 246px;
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(360px, 60vh);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 97%, transparent);
+  box-shadow: 0 18px 44px rgba(var(--shadow-rgb), .28);
+  backdrop-filter: blur(14px);
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-popover header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-popover header > span {
+  color: var(--warning);
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-popover header div {
+  display: grid;
+  gap: 2px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-popover header strong {
+  font-size: 10px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-popover header small {
+  color: var(--text-faint);
+  font-size: 8px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-popover ul {
+  display: grid;
+  gap: 5px;
+  margin: 10px 0 0;
+  padding: 9px 0 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-popover li button {
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-soft);
+  background: var(--surface-2);
+  text-align: left;
+  cursor: pointer;
+  font-size: 8px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-layout:not(.is-validation-highlighting) .has-validation-error {
+  border-color: var(--line-strong);
+  box-shadow: 0 18px 38px rgba(var(--shadow-rgb), .14);
+}
+.variant-balanced[data-design="signal-studio"] .basic-layout.is-validation-highlighting .strategy-card.has-validation-error {
+  animation: basic-validation-pulse 1.7s ease-in-out infinite;
+}
+@keyframes basic-validation-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 20%, transparent), 0 18px 38px rgba(var(--shadow-rgb), .18); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning) 38%, transparent), 0 18px 42px rgba(var(--shadow-rgb), .24); }
+}
+
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .section-strategy-grid .strategy-card {
+  width: 344px;
+  min-width: 344px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .scratch-block > span:not([class]) {
+  max-width: 88px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select:not(.is-compact) {
+  width: 132px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-container-header,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-container-footer {
+  cursor: grab;
+  touch-action: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-container-header:active,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-container-footer:active,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card.is-free-moving .strategy-container-header,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card.is-free-moving .strategy-container-footer {
+  cursor: grabbing;
+}
+.variant-balanced[data-design="signal-studio"] .settings-compact-note {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+/* Block tones intentionally avoid the saturated red/blue/yellow card chrome. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-data,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .block-data {
+  --block-tone-color: #69b8aa;
+  --block-tone-surface: color-mix(in srgb, #69b8aa 62%, #fff);
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-indicator,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .block-indicator {
+  --block-tone-color: #a98be8;
+  --block-tone-surface: color-mix(in srgb, #a98be8 65%, #fff);
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-condition,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .block-condition {
+  --block-tone-color: #70b995;
+  --block-tone-surface: color-mix(in srgb, #70b995 64%, #fff);
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-time,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .block-time {
+  --block-tone-color: #66c4c3;
+  --block-tone-surface: color-mix(in srgb, #66c4c3 62%, #fff);
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-risk,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .block-risk {
+  --block-tone-color: #d98fae;
+  --block-tone-surface: color-mix(in srgb, #d98fae 61%, #fff);
+}
+
+/* AND is one non-directional set: a shared frame and symmetric clasps replace a vertical rail. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.has-condition-blocks {
+  gap: 5px;
+  padding: 28px 9px 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-2) 76%, var(--surface));
+  box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent-soft) 18%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.has-condition-blocks::before {
+  display: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .condition-stack-label {
+  top: 7px;
+  left: 50%;
+  gap: 4px;
+  padding: 3px 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: 999px;
+  background: var(--surface);
+  transform: translateX(-50%);
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.has-condition-blocks .draggable-strategy-block + .draggable-strategy-block {
+  margin-top: 0;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.has-condition-blocks .draggable-strategy-block + .draggable-strategy-block::after {
+  content: "";
+  top: -5px;
+  left: calc(50% - 13px);
+  width: 26px;
+  height: 5px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+/* Basic library follows the Pro drawer's category rhythm and card silhouette. */
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .library-intro {
+  margin: 0;
+  padding: 13px 14px 10px;
+  color: var(--text-soft);
+  font-size: 9px;
+  line-height: 1.65;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .palette-search { margin: 0 12px 10px; }
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-list,
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category-list { padding: 0 10px 12px; }
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card {
+  position: relative;
+  width: 100%;
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 15px;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 6px;
+  padding: 9px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+  text-align: left;
+  cursor: grab;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line-strong));
+  background: color-mix(in srgb, var(--accent-soft) 24%, var(--surface-2));
+  transform: translateY(-1px);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-advanced-break { margin: 10px 2px 8px; }
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category {
+  --category-color: var(--accent);
+  padding: 0 0 12px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-data { --category-color: #69b8aa; }
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-indicator { --category-color: #9180d8; }
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-condition { --category-color: #d2b04d; }
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-time { --category-color: #69b7c1; }
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-risk { --category-color: #d06f6b; }
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-chip-list {
+  display: grid;
+  gap: 6px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .library-block-button {
+  position: relative;
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 9px;
+  margin: 0;
+  padding: 8px 34px 8px 11px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+  text-align: left;
+  cursor: grab;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .library-block-button::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--category-color);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .library-block-button:hover {
+  border-color: color-mix(in srgb, var(--category-color) 44%, var(--line));
+  background: color-mix(in srgb, var(--category-color) 7%, var(--surface-2));
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-block-icon {
+  color: var(--category-color);
+  background: color-mix(in srgb, var(--category-color) 14%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-block-copy {
+  min-width: 0;
+  display: grid;
+  flex: 1;
+  gap: 3px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-block-copy strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-block-copy small {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .pro-library-add-icon {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+}
+
+/* Follow-up: align the Basic drawer and contextual explanation with Pro. */
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-tabs.pro-library-primary-tabs {
+  margin: 12px 12px 10px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category {
+  --category-color: var(--block-tone-color);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-data,
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-indicator,
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-condition,
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-time,
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-risk {
+  --category-color: var(--block-tone-color);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .library-block-button.has-tone-band::before {
+  background: var(--category-color);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .library-block-button.has-tone-band {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--category-color) 18%, var(--surface-2)) 0,
+      color-mix(in srgb, var(--category-color) 7%, var(--surface-2)) 42px,
+      color-mix(in srgb, var(--surface-2) 84%, var(--surface)) 74px
+    );
+}
+.variant-balanced[data-design="signal-studio"] .basic-package-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  margin: 0;
+  padding: 6px 4px;
+  color: var(--text-faint);
+  font: 800 8px var(--font-mono);
+  letter-spacing: .08em;
+}
+.variant-balanced[data-design="signal-studio"] .basic-package-section-heading::before {
+  content: "";
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-advanced-break.basic-package-section-heading {
+  min-height: 31px;
+  margin: 4px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card.pro-package-card {
+  min-height: 66px;
+  margin: 0;
+  padding: 10px;
+  overflow: visible;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card.pro-package-card .template-card-copy {
+  align-content: center;
+  gap: 4px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card.pro-package-card .template-card-copy strong {
+  font-size: 10px;
+  line-height: 1.25;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card.pro-package-card .template-card-copy small {
+  font-size: 8px;
+  line-height: 1.3;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card.pro-package-card .template-card-copy em {
+  min-height: 15px;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.variant-balanced[data-design="signal-studio"] .editor-shell-page .basic-narrative-panel {
+  position: absolute;
+  z-index: 12;
+  top: 116px;
+  right: 18px;
+  bottom: 18px;
+  left: auto;
+  width: 300px;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-title {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-title > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-title > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-title small {
+  color: var(--accent);
+  font: 750 7px var(--font-mono);
+  letter-spacing: .08em;
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-title strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-title em {
+  color: var(--text-faint);
+  font: 700 7px var(--font-mono);
+  font-style: normal;
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-scroll {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  scrollbar-width: thin;
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-intro {
+  margin: 0 0 10px;
+  color: var(--text-faint);
+  font-size: 8px;
+  line-height: 1.55;
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-list {
+  display: grid;
+  gap: 7px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-card {
+  --narrative-tone: var(--block-tone-color, var(--accent));
+  position: relative;
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 9px 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--narrative-tone) 5%, var(--surface-2));
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--narrative-tone) 72%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-card > span {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--narrative-tone);
+  background: color-mix(in srgb, var(--narrative-tone) 12%, var(--surface));
+  font: 800 7px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-card > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-card strong { font-size: 9px; }
+.variant-balanced[data-design="signal-studio"] .basic-narrative-card p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 8px;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-card p b { color: var(--text); }
+.variant-balanced[data-design="signal-studio"] .basic-narrative-card > em {
+  padding: 3px 5px;
+  border-radius: 999px;
+  color: var(--text-faint);
+  background: var(--surface);
+  font-size: 7px;
+  font-style: normal;
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-card.is-budget {
+  --narrative-tone: var(--accent);
+  grid-template-columns: 24px minmax(0, 1fr);
+  margin-top: 3px;
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
+}
+.variant-balanced[data-design="signal-studio"] .basic-narrative-card.is-budget.is-buy { --narrative-tone: var(--buy-block-color); }
+.variant-balanced[data-design="signal-studio"] .basic-narrative-card.is-budget.is-sell { --narrative-tone: var(--sell-block-color); }
+.variant-balanced[data-design="signal-studio"] .basic-narrative-empty {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+  color: var(--text-faint);
+  font-size: 8px;
+  text-align: center;
+}
+.variant-balanced[data-design="signal-studio"] .section-strategy-grid .strategy-card.is-selected {
+  z-index: 4;
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--line-strong));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 26%, transparent),
+    0 22px 48px rgba(var(--shadow-rgb), .24);
+}
+
+/* Directionless symmetric clips bind all conditions without implying order. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.has-condition-blocks {
+  gap: 5px;
+  padding: 11px 18px;
+  overflow: visible;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.has-condition-blocks::before {
+  display: none;
+}
+.variant-balanced[data-design="signal-studio"] .condition-stack-clips {
+  position: absolute;
+  z-index: 3;
+  inset: 6px 6px;
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .condition-stack-clips i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  border-top: 2px solid color-mix(in srgb, var(--accent) 62%, var(--line-strong));
+  border-bottom: 2px solid color-mix(in srgb, var(--accent) 62%, var(--line-strong));
+}
+.variant-balanced[data-design="signal-studio"] .condition-stack-clips i:first-child {
+  left: 0;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 62%, var(--line-strong));
+  border-radius: 8px 0 0 8px;
+}
+.variant-balanced[data-design="signal-studio"] .condition-stack-clips i:last-child {
+  right: 0;
+  border-right: 2px solid color-mix(in srgb, var(--accent) 62%, var(--line-strong));
+  border-radius: 0 8px 8px 0;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-segmented-condition .draggable-strategy-block,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-segmented-condition .draggable-strategy-block .scratch-block {
+  border-radius: 8px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-segmented-condition .draggable-strategy-block + .draggable-strategy-block {
+  margin-top: 5px;
+}
+
+.variant-balanced[data-design="signal-studio"] .basic-validation-popover {
+  top: 148px;
+  right: 22px;
+}
+
+/* Basic follow-up: viewport-safe drawer, contextual rule callouts and quieter cards. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-left-rail {
+  height: calc(100dvh - 154px);
+  max-height: calc(100dvh - 154px);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel {
+  height: 100%;
+  max-height: 100%;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-tabs.pro-library-primary-tabs {
+  margin: 8px 12px 0;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-view > .palette-search {
+  margin: 8px 12px 10px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-view .pro-library-scroll {
+  padding-bottom: 64px;
+  scroll-padding-bottom: 64px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .library-block-button {
+  min-height: 52px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-block-copy small {
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer {
+  position: absolute;
+  z-index: 70;
+  top: 10px;
+  right: 10px;
+  bottom: 10px;
+  width: 304px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+  animation: basic-drawer-enter .18s ease-out;
+}
+@keyframes basic-drawer-enter {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer-title {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer-title > span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 13%, var(--surface-2));
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer.is-launchable .basic-validation-drawer-title > span {
+  color: var(--positive);
+  background: color-mix(in srgb, var(--positive) 13%, var(--surface-2));
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer-title > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer-title small {
+  color: var(--text-faint);
+  font: 750 7px var(--font-mono);
+  letter-spacing: .09em;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer-title strong {
+  font-size: 11px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer-title button {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer-summary {
+  display: grid;
+  gap: 5px;
+  margin: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 7%, var(--surface-2));
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer-summary strong {
+  font-size: 9px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer-summary small {
+  color: var(--text-faint);
+  font-size: 8px;
+  line-height: 1.45;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer ul {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  margin: 0;
+  padding: 0 12px 16px;
+  overflow: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer li button {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--text-soft);
+  background: var(--surface-2);
+  text-align: left;
+  cursor: pointer;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer li button:hover {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--line-strong));
+  background: color-mix(in srgb, var(--warning) 6%, var(--surface-2));
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer li button > span:first-child {
+  color: var(--warning);
+  font: 800 7px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer li button > span:nth-child(2) {
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.variant-balanced[data-design="signal-studio"] .section-strategy-grid:has(.strategy-card.is-explained) .strategy-card:not(.is-explained) {
+  opacity: 1;
+  filter: none;
+}
+.variant-balanced[data-design="signal-studio"] .section-strategy-grid .strategy-card.is-explained {
+  overflow: visible;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card.is-explained .strategy-rule-note {
+  min-width: 210px;
+  max-width: 290px;
+  padding-block: 7px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card.is-explained .strategy-rule-note p {
+  white-space: normal;
+}
+
+/* Basic library: node-like single blocks, visibly bundled packages and sticky wayfinding. */
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category-divider.is-sticky {
+  position: sticky;
+  z-index: 4;
+  top: -1px;
+  min-height: 26px;
+  padding-block: 4px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(10px);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category-divider.is-sticky > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-node-card {
+  --category-color: var(--block-tone-color);
+  position: relative;
+  min-width: 0;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-node-card .library-block-button {
+  min-height: 48px;
+  padding: 8px 58px 8px 11px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-node-card .library-block-button.has-tone-band {
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-node-card .basic-library-block-icon {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  flex: 0 0 27px;
+  place-items: center;
+  border-radius: 8px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-node-card .basic-library-block-copy strong {
+  font-size: 10px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-node-card .basic-library-block-copy small {
+  overflow: hidden;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-card-badges {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  right: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-card-badges > em,
+.variant-balanced[data-design="signal-studio"] .basic-library-favorite {
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  box-sizing: border-box;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--category-color) 32%, var(--line));
+  border-radius: 7px;
+  color: var(--category-color);
+  background: color-mix(in srgb, var(--category-color) 9%, var(--surface-2));
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-card-badges > em {
+  padding: 0 6px;
+  font: 750 7px/1 var(--font-mono);
+  font-style: normal;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-favorite {
+  width: 14px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-favorite:hover,
+.variant-balanced[data-design="signal-studio"] .basic-library-favorite.is-active {
+  color: var(--accent);
+  background: transparent;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-node-card .pro-library-add-icon {
+  top: 50%;
+  right: 10px;
+  bottom: auto;
+  transform: translateY(-50%);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-favorites {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.variant-balanced[data-design="signal-studio"] .basic-package-card-stack {
+  position: relative;
+  min-height: 78px;
+  margin: 0 0 8px;
+  padding: 0 5px 6px 0;
+}
+.variant-balanced[data-design="signal-studio"] .basic-package-layer {
+  position: absolute;
+  inset: 5px 1px 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-2) 94%, var(--accent-soft));
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-package-layer:first-child {
+  inset: 3px 3px 3px 3px;
+  opacity: .72;
+}
+.variant-balanced[data-design="signal-studio"] .basic-package-layer:nth-child(2) {
+  opacity: .42;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card.basic-package-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 72px;
+  grid-template-columns: 40px minmax(0, 1fr) 18px;
+  margin: 0;
+  padding: 10px 11px;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-2) 90%, var(--accent-soft));
+  box-shadow: inset 44px 0 0 color-mix(in srgb, var(--accent-soft) 32%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card.basic-package-card::before {
+  content: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-package-bundle-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 78%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .basic-package-kind {
+  color: var(--accent);
+  font: 800 6px/1 var(--font-mono);
+  letter-spacing: .12em;
+}
+
+/* Explanations behave as a contextual focus layer, not permanent wiring. */
+.variant-balanced[data-design="signal-studio"] .section-strategy-grid:has(.strategy-card.is-explained) .strategy-card:not(.is-explained) {
+  opacity: .38;
+  filter: blur(.55px) saturate(.55);
+}
+.variant-balanced[data-design="signal-studio"] .strategy-card.is-explained .strategy-rule-note {
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--surface) 96%, var(--accent-soft));
+  box-shadow: 0 12px 32px rgba(var(--shadow-rgb), .3), inset 0 1px var(--inset-highlight);
+}
+.variant-balanced[data-design="signal-studio"] .strategy-rule-note::after {
+  display: none;
+}
+.variant-balanced[data-design="signal-studio"] .block-with-copy:has(.strategy-rule-note:hover) .scratch-block {
+  filter: brightness(1.08);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 44%, transparent);
+  transform: translateY(-1px);
+}
+
+.variant-balanced[data-design="signal-studio"] .basic-validation-groups {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 0 12px 16px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-group {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-group > header {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-group > header strong {
+  color: var(--text-soft);
+  font: 800 8px var(--font-mono);
+  letter-spacing: .06em;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-group > header span {
+  min-width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  border-radius: 999px;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 13%, transparent);
+  font: 800 7px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer .basic-validation-group ul {
+  overflow: visible;
+  padding: 7px;
+}
+
+/* Keep the Basic command affordances on the same scale as the Pro editor. */
+.variant-balanced[data-design="signal-studio"] .basic-validation-trigger {
+  height: 34px;
+  min-height: 34px;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 10px;
+  font: 700 9px/1 var(--font-sans);
+}
+.variant-balanced[data-design="signal-studio"] .section-draw-controls > button,
+.variant-balanced[data-design="signal-studio"] .section-draw-controls > span {
+  min-height: 34px;
+  box-sizing: border-box;
+}
+.variant-balanced[data-design="signal-studio"] .section-draw-controls > button {
+  padding-inline: 12px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+}
+.variant-balanced[data-design="signal-studio"] .section-draw-controls > span {
+  padding: 7px 9px;
+  font: 10px var(--font-mono);
+}
+
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.has-condition-blocks {
+  gap: 5px;
+  padding: 9px 24px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.has-condition-blocks .scratch-block {
+  border: 1px solid color-mix(in srgb, var(--block-tone-color) 48%, rgba(20, 32, 35, .16));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .16),
+    0 2px 3px rgba(20, 32, 35, .12);
+}
+.variant-balanced[data-design="signal-studio"] .condition-stack-clips {
+  inset: 9px 8px;
+  height: auto;
+  transform: none;
+}
+.variant-balanced[data-design="signal-studio"] .condition-stack-clips i {
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  height: auto;
+  border-top: 2px solid color-mix(in srgb, var(--accent) 58%, var(--line-strong));
+  border-bottom: 2px solid color-mix(in srgb, var(--accent) 58%, var(--line-strong));
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.variant-balanced[data-design="signal-studio"] .condition-stack-clips i:first-child {
+  left: 0;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 58%, var(--line-strong));
+  border-radius: 8px 0 0 8px;
+}
+.variant-balanced[data-design="signal-studio"] .condition-stack-clips i:last-child {
+  right: 0;
+  border-right: 2px solid color-mix(in srgb, var(--accent) 58%, var(--line-strong));
+  border-radius: 0 8px 8px 0;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-single-condition .condition-stack-clips {
+  display: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-multi-condition .block-with-copy {
+  position: relative;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-multi-condition .block-with-copy::before,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-multi-condition .block-with-copy::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  width: 8px;
+  height: 2px;
+  background: color-mix(in srgb, var(--accent) 58%, var(--line-strong));
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-multi-condition .block-with-copy::before {
+  left: -8px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-multi-condition .block-with-copy::after {
+  right: -8px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-segmented-condition .draggable-strategy-block + .draggable-strategy-block {
+  margin-top: 4px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-segmented-condition .draggable-strategy-block + .draggable-strategy-block::after {
+  content: none;
+}
+
+/*
+ * Basic multi-condition chain
+ * Each condition keeps its own readable surface. A small, background-cut link
+ * joins adjacent rules without a surrounding box or directional flow.
+ */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group {
+  position: relative;
+  gap: 0;
+  margin: 0;
+  padding: 10px 14px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group .draggable-strategy-block {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group .condition-chain-link {
+  position: relative;
+  z-index: 60;
+  isolation: isolate;
+  width: 34px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  margin: -7px 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group .condition-chain-link svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  transform: translate(-50%, -50%);
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group .condition-chain-outline {
+  z-index: 0;
+  color: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group .condition-chain-mark {
+  z-index: 1;
+  color: #8f9a9a;
+  filter: drop-shadow(0 1px 0 rgba(var(--shadow-rgb), .18));
+  transition: color 140ms ease-out;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card:hover .condition-chain-mark {
+  color: #aeb8b6;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card.is-selected .condition-chain-mark,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card:focus-within .condition-chain-mark {
+  color: #c5cecc;
+}
+
+/* Retire every pseudo rail from the previous bracket treatment. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group .block-with-copy::before,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group .block-with-copy::after {
+  content: none;
+  display: none;
+}
+
+/* The insertion marker is a separate drag-only edge, never a persistent rail. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group .draggable-strategy-block[data-drop-target="true"]::before {
+  content: "";
+  position: absolute;
+  z-index: 8;
+  top: -5px;
+  right: 0;
+  left: 0;
+  width: auto;
+  height: 2px;
+  display: block;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group .draggable-strategy-block[data-drop-target="true"][data-drop-position="after"]::before {
+  top: auto;
+  bottom: -5px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group .block-with-copy:hover {
+  z-index: 5;
+}
+/* One card-coloured center marker represents the complete condition set. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.has-condition-blocks.has-center-marker::before {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 5px;
+  width: 7px;
+  height: 34px;
+  display: block;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 999px;
+  background: var(--buy-block-color);
+  box-shadow: none;
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .sell-container .block-stack.has-condition-blocks.has-center-marker::before {
+  background: var(--sell-block-color);
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .risk-container .block-stack.has-condition-blocks.has-center-marker::before {
+  background: #d9a827;
+}
+
+/* Basic cards and their rule stacks keep one compact width at every count. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .section-strategy-grid .strategy-card {
+  width: 320px;
+  min-width: 320px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.has-condition-blocks,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.has-condition-blocks.is-chain-linked-group {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  grid-template-columns: minmax(0, 1fr);
+  padding: 9px 24px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-with-copy,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .scratch-block {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .draggable-strategy-block,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .draggable-strategy-block .scratch-block {
+  height: 46px;
+  min-height: 46px;
+  max-height: 46px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .scratch-block {
+  --block-tone-ink: #142023;
+  color: var(--block-tone-ink);
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select-trigger[data-value=""],
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper input::placeholder {
+  color: color-mix(in srgb, #142023 68%, transparent);
+  opacity: 1;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .scratch-block > span:not([class]) {
+  max-width: 72px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select:not(.is-compact) {
+  width: 116px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group .condition-chain-link {
+  width: 18px;
+  height: 12px;
+  margin: -4px 0;
+}
+
+/* Distinct Basic category palette, separate from buy/sell/risk card chrome. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-data,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .block-data {
+  --block-tone-color: #277963;
+  --block-tone-surface: #82d0b6;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-indicator,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .block-indicator {
+  --block-tone-color: #62409f;
+  --block-tone-surface: #b294e3;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-condition,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .block-condition {
+  --block-tone-color: #765541;
+  --block-tone-surface: #c99f83;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-logic,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .block-logic {
+  --block-tone-color: #705480;
+  --block-tone-surface: #c0a6cf;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-time,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .block-time {
+  --block-tone-color: #26766f;
+  --block-tone-surface: #75c8c1;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-risk,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .block-risk {
+  --block-tone-color: #70427e;
+  --block-tone-surface: #b783c8;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-order,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .block-order {
+  --block-tone-color: #725f4d;
+  --block-tone-surface: #bfa78f;
+}
+
+/* Responsive Basic toolbar: remove explanatory width first, then use two rows. */
+@media (max-width: 1600px) {
+  .variant-balanced[data-design="signal-studio"] .basic-editor-page .canvas-gesture-guide {
+    display: none;
+  }
+  .variant-balanced[data-design="signal-studio"] .basic-editor-page .section-draw-controls {
+    gap: 6px;
+  }
+}
+@media (min-width: 801px) and (max-width: 1180px) {
+  .variant-balanced[data-design="signal-studio"] .basic-editor-commandbar {
+    min-height: 112px;
+    align-content: flex-start;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .variant-balanced[data-design="signal-studio"] .basic-editor-page .section-draw-controls {
+    top: 68px;
+    left: 20px;
+    justify-content: flex-start;
+    transform: none;
+  }
+  .variant-balanced[data-design="signal-studio"] .basic-editor-page .floating-zoom-controls {
+    top: 68px;
+  }
+  .variant-balanced[data-design="signal-studio"] .basic-editor-page .basic-editor-left-rail {
+    top: 116px;
+  }
+}
+
+/*
+ * Basic block editors use a compact, recessed Udon-style control surface.
+ * The block remains the foreground object; editable values sit visually
+ * inside it instead of reading as raised pills.
+ */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-recessed-control .block-custom-select-trigger,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper.is-recessed-control {
+  border: 1px solid color-mix(in srgb, var(--block-tone-color) 38%, rgba(20, 32, 35, .2));
+  border-right-color: color-mix(in srgb, var(--block-tone-surface) 72%, rgba(255, 255, 255, .42));
+  border-bottom-color: color-mix(in srgb, var(--block-tone-surface) 72%, rgba(255, 255, 255, .42));
+  border-radius: 7px;
+  color: var(--block-control-ink);
+  background: color-mix(in srgb, var(--block-tone-surface) 83%, #53615d 17%);
+  box-shadow:
+    inset 1px 1px 0 rgba(20, 32, 35, .12),
+    0 1px 1px rgba(20, 32, 35, .08);
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-recessed-control .block-custom-select-trigger:hover,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-recessed-control.is-open .block-custom-select-trigger,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper.is-recessed-control button:hover {
+  background: color-mix(in srgb, var(--block-tone-surface) 77%, #53615d 23%);
+  box-shadow:
+    inset 1px 1px 0 rgba(20, 32, 35, .15),
+    0 1px 1px rgba(20, 32, 35, .08);
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-recessed-control .block-custom-select-trigger:focus-visible,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper.is-recessed-control:focus-within {
+  outline: 0;
+  border-color: color-mix(in srgb, var(--block-tone-color) 58%, rgba(20, 32, 35, .24));
+  box-shadow:
+    inset 1px 1px 0 rgba(20, 32, 35, .14),
+    0 0 0 1px color-mix(in srgb, var(--block-tone-color) 22%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select.is-fixed-width,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select.is-fixed-width.is-null,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select.is-fixed-width .block-custom-select-trigger,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select.is-fixed-width.is-null .block-custom-select-trigger {
+  width: 44px;
+  min-width: 44px;
+  flex-basis: 44px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select .block-custom-select-trigger {
+  min-height: 24px;
+  padding-inline: 4px;
+  border-radius: 7px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-value-select {
+  width: auto;
+  min-width: 64px;
+  max-width: 116px;
+  flex-basis: auto;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-value-select .block-custom-select-trigger {
+  width: max-content;
+  min-width: 64px;
+  max-width: 116px;
+  min-height: 26px;
+  padding-inline: 8px 6px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select-trigger[data-value=""],
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper.is-null {
+  border-style: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper.is-null {
+  width: 68px;
+  height: 26px;
+  flex-basis: 68px;
+  grid-template-columns: 18px minmax(0, 1fr) 18px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper label {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper input {
+  width: 24px;
+  min-width: 24px;
+  padding: 0;
+  text-align: center;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper label > b {
+  min-width: 6px;
+  padding: 0;
+  justify-content: flex-start;
+}
+.block-custom-select-menu.is-compact {
+  width: 80px !important;
+  padding: 4px;
+}
+.block-custom-select-menu.is-compact > button {
+  min-height: 28px;
+  padding-inline: 7px;
+}
+
+/* Basic library uses the same interaction model as the Pro node drawer. */
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-node-card > .pro-library-node-main.has-tone-band {
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-node-card > .pro-library-node-main.has-tone-band:hover,
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-node-card > .pro-library-node-main.has-tone-band:focus-visible {
+  border-color: color-mix(in srgb, var(--category-color) 44%, var(--line));
+  background: color-mix(in srgb, var(--category-color) 7%, var(--surface-2));
+  transform: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-node-card .basic-library-card-badges {
+  top: 8px;
+  right: 34px;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-node-card .basic-library-card-badges .basic-library-favorite {
+  inline-size: 16px !important;
+  block-size: 16px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 16px;
+  max-height: 16px;
+  display: grid;
+  place-items: center;
+  padding: 0 !important;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-faint);
+  background: transparent;
+  box-shadow: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-node-card .basic-library-card-badges .basic-library-favorite:hover,
+.variant-balanced[data-design="signal-studio"] .basic-library-node-card .basic-library-card-badges .basic-library-favorite.is-active {
+  color: var(--accent);
+  background: transparent;
+}
+
+/* A collapsed Basic library is fully docked, leaving the same edge handle as Pro. */
+.variant-balanced[data-design="signal-studio"] .basic-library-panel {
+  transition: transform .18s ease, opacity .14s ease, visibility .14s ease;
+}
+.variant-balanced[data-design="signal-studio"] .basic-layout.is-library-collapsed .basic-editor-left-rail {
+  width: 0;
+  min-width: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-layout.is-library-collapsed .basic-library-panel.is-docked-hidden {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateX(calc(-100% - 12px));
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-panel-edge-handle {
+  top: 9px;
+}
+
+/* Package colour is carried by the icon and outline, not a split card fill. */
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card.basic-package-card,
+.variant-balanced[data-design="signal-studio"] .basic-package-layer {
+  background: var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card.basic-package-card {
+  box-shadow: none;
+}
+
+.variant-balanced[data-design="signal-studio"] .basic-validation-drawer li button > span:nth-child(2) strong {
+  color: var(--text);
+  font-weight: 800;
+}
+
+/* Keep the favorite attached to the block name instead of floating near Add. */
+.variant-balanced[data-design="signal-studio"] .basic-library-node-card .library-block-button {
+  padding-right: 34px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-title-row > strong {
+  flex: 0 1 auto;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-title-row .basic-library-favorite {
+  width: 14px;
+  min-width: 14px;
+  height: 14px;
+  min-height: 14px;
+  display: grid;
+  flex: 0 0 14px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: var(--text-faint);
+  background: transparent;
+  box-shadow: none;
+}
+.variant-balanced[data-design="signal-studio"] .basic-library-title-row .basic-library-favorite:hover,
+.variant-balanced[data-design="signal-studio"] .basic-library-title-row .basic-library-favorite.is-active {
+  color: var(--accent);
+  background: transparent;
+}
+
+/* Captions are centered on their own controls, so differing text lengths stay orderly. */
+.variant-balanced[data-design="signal-studio"] .strategy-section-header .section-settings label {
+  grid-template-rows: 12px 32px;
+  align-items: stretch;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-section-header .section-setting-caption {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* Strategy add buttons carry a restrained cue from the card they create. */
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-buy { --strategy-action-color: #d95359; }
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-sell { --strategy-action-color: #638cf0; }
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-risk { --strategy-action-color: #d2b04d; }
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-buy,
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-sell,
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-risk {
+  color: color-mix(in srgb, var(--strategy-action-color) 74%, var(--text));
+  border-color: color-mix(in srgb, var(--strategy-action-color) 34%, var(--line));
+  background: color-mix(in srgb, var(--strategy-action-color) 7%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-buy:hover,
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-sell:hover,
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-risk:hover {
+  color: color-mix(in srgb, var(--strategy-action-color) 88%, var(--text));
+  border-color: color-mix(in srgb, var(--strategy-action-color) 58%, var(--line));
+  background: color-mix(in srgb, var(--strategy-action-color) 12%, var(--surface));
+}
+
+/* Follow-up: keep the star immediately after the rendered title. */
+.variant-balanced[data-design="signal-studio"] .basic-library-node-card > .pro-library-node-main .basic-library-title-row > strong {
+  flex: 0 0 auto;
+  max-width: calc(100% - 19px);
+  padding-right: 0;
+}
+
+/* Short captions read cleanly from one shared left edge. */
+.variant-balanced[data-design="signal-studio"] .strategy-section-header .section-setting-caption {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+/* Preserve the original button surface; only the plus sign identifies its role. */
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-buy,
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-sell,
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-risk {
+  color: var(--text-soft);
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-buy > svg,
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-sell > svg,
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-risk > svg {
+  color: var(--strategy-action-color);
+}
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-buy:hover,
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-sell:hover,
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-risk:hover {
+  color: var(--text);
+  border-color: var(--line-strong);
+  background: var(--surface-2);
 }

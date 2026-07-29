@@ -200,18 +200,6 @@ describe('Basic editor partition preview chart', () => {
     fireEvent.click(screen.getByTestId('strategy-section-1'));
     expect(screen.queryByTestId('strategy-preview-panel')).not.toBeInTheDocument();
 
-    const blockLibrary = screen.getByTestId('basic-block-library');
-    blockLibrary.getBoundingClientRect = () => ({
-      x: 900,
-      y: 100,
-      left: 900,
-      top: 100,
-      right: 1180,
-      bottom: 800,
-      width: 280,
-      height: 700,
-      toJSON: () => ({}),
-    });
     fireEvent.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
 
     const panel = screen.getByTestId('strategy-preview-panel');
@@ -221,7 +209,7 @@ describe('Basic editor partition preview chart', () => {
     expect(screen.getByTestId('strategy-section-1')).not.toContainElement(panel);
     expect(screen.getByTestId('section-world')).not.toContainElement(panel);
     expect(Number.parseInt(panel.style.top, 10)).toBeGreaterThan(window.innerHeight / 2);
-    expect(Number.parseInt(panel.style.left, 10)).toBe(568);
+    expect(Number.parseInt(panel.style.left, 10)).toBe(window.innerWidth - 320 - 28);
     // The chart canvas is mounted; the chart library itself is skipped in jsdom.
     expect(within(panel).getByTestId('strategy-preview-canvas')).toBeInTheDocument();
   });
@@ -245,7 +233,7 @@ describe('Basic editor partition preview chart', () => {
 
     const draggedLeft = panel.style.left;
     grip.focus();
-    await user.keyboard('{ArrowLeft}');
+    await user.keyboard('{ArrowRight}');
     expect(panel.style.left).not.toBe(draggedLeft);
   });
 
@@ -384,7 +372,7 @@ describe('Basic editor partition preview chart', () => {
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
     expect(within(screen.getByRole('group', { name: '신호를 만든 플로우' })).getAllByRole('button')).toHaveLength(2);
 
-    await user.click(screen.getByRole('button', { name: 'PARTITION 01 매수 컨테이너 추가' }));
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 매수 전략 추가' }));
 
     const flows = within(screen.getByRole('group', { name: '신호를 만든 플로우' })).getAllByRole('button');
     expect(flows).toHaveLength(3);

@@ -10,7 +10,7 @@ import type {
   WheelEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowDown, ArrowLeft, ArrowUp, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, CircleDot, GitBranch, GripVertical, History, Import, Layers3, Minus, Mouse, MousePointer2, Pencil, Play, Plus, Rocket, Save, Search, Settings2, ShieldCheck, Sparkles, Split, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, X } from 'lucide-react';
+import { Activity, ArrowDown, ArrowLeft, ArrowUp, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, CircleDot, Gauge, GitBranch, Grid3X3, GripVertical, History, Import, Layers3, LayoutGrid, Link2, Minus, Mouse, MousePointer2, Pencil, Play, Plus, Redo2, RefreshCw, Repeat2, Rocket, Save, Scale, Search, Settings2, ShieldCheck, Sparkles, Split, Star, Target, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, Undo2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { strategies } from '../data/mockData';
 import type { StrategySummary } from '../data/mockData';
@@ -24,7 +24,6 @@ import {
   getDefaultBasicCardPosition,
   getMovedBasicCardPosition,
   getStrategyCanvasWheelZoom,
-  resolveBasicCardCollision,
 } from '../lib/strategyCanvasLayout';
 import type { CanvasPoint, CanvasSize, CardMoveGesture } from '../lib/strategyCanvasLayout';
 
@@ -127,6 +126,56 @@ const createDefaultBuySettings = (): BuyContainerSettings => ({
   maxEntries: 1,
 });
 
+interface SellContainerSettings {
+  sellPercent: number | '';
+}
+
+const createDefaultSellSettings = (): SellContainerSettings => ({
+  sellPercent: '',
+});
+
+interface BasicEditorSnapshot {
+  sections: StrategySection[];
+  cardBlocks: Record<string, BasicBlock[]>;
+  cardMeta: Record<string, CardMeta>;
+  buySettings: Record<string, BuyContainerSettings>;
+  sellSettings: Record<string, SellContainerSettings>;
+  symbolLimits: Record<string, Record<string, number>>;
+}
+
+const cloneBasicEditorSnapshot = (snapshot: BasicEditorSnapshot): BasicEditorSnapshot => ({
+  sections: snapshot.sections.map((section) => ({
+    ...section,
+    cards: {
+      buy: [...section.cards.buy],
+      sell: [...section.cards.sell],
+      risk: [...section.cards.risk],
+    },
+    cardOrder: [...section.cardOrder],
+    cardPositions: Object.fromEntries(
+      Object.entries(section.cardPositions).map(([cardId, position]) => [cardId, { ...position }]),
+    ),
+  })),
+  cardBlocks: Object.fromEntries(
+    Object.entries(snapshot.cardBlocks).map(([cardId, blocks]) => [
+      cardId,
+      blocks.map((block) => ({ ...block })),
+    ]),
+  ),
+  cardMeta: Object.fromEntries(
+    Object.entries(snapshot.cardMeta).map(([cardId, meta]) => [cardId, { ...meta }]),
+  ),
+  buySettings: Object.fromEntries(
+    Object.entries(snapshot.buySettings).map(([cardId, settings]) => [cardId, { ...settings }]),
+  ),
+  sellSettings: Object.fromEntries(
+    Object.entries(snapshot.sellSettings).map(([cardId, settings]) => [cardId, { ...settings }]),
+  ),
+  symbolLimits: Object.fromEntries(
+    Object.entries(snapshot.symbolLimits).map(([sectionId, limits]) => [sectionId, { ...limits }]),
+  ),
+});
+
 interface StrategyListItem extends StrategySummary {
   id: string;
   symbols: string[];
@@ -153,11 +202,13 @@ interface DraftRect extends CanvasPoint, CanvasSize {}
 
 interface SectionMoveGesture extends CardMoveGesture {
   sectionId: string;
+  historyRecorded?: boolean;
 }
 
 interface CardMoveState extends CardMoveGesture {
   sectionId: string;
   cardId: string;
+  historyRecorded?: boolean;
 }
 
 interface BlockRuleInput {
@@ -306,7 +357,7 @@ const INITIAL_STRATEGY_SECTIONS: StrategySection[] = [{
   cardOrder: ['primary-buy', 'primary-sell'],
   cardPositions: {
     'primary-buy': { x: 24, y: 136 },
-    'primary-sell': { x: 320, y: 136 },
+    'primary-sell': { x: 384, y: 136 },
   },
 }];
 
@@ -347,14 +398,19 @@ const BLOCK_LIBRARY: BlockLibraryCategory[] = [
   { name: '위기관리', tone: 'risk', items: ['현재 수익률', '보유 기간', '최고 수익률', '고점 대비 하락'] },
 ];
 
+const BASIC_FAVORITE_BLOCKS_STORAGE_KEY = 'i2s-basic-editor-favorite-blocks-v1';
+const getLibraryBlockTone = (label: string): BlockTone => (
+  BLOCK_LIBRARY.find((category) => category.items.includes(label))?.tone ?? 'neutral'
+);
+
 const INITIAL_CARD_META: Record<string, CardMeta> = {
   'primary-buy': {
-    title: '매수 컨테이너',
+    title: '매수 전략',
     detail: '가격 갱신 · 종목별 평가',
     explanation: '새로운 1분봉이 완성되고, RSI가 30 아래로 내려오면 전략 예산의 25%로 시장가 매수 후보를 만듭니다.',
   },
   'primary-sell': {
-    title: '매도 컨테이너',
+    title: '매도 전략',
     detail: '포지션 상태 · 종목별 평가',
     explanation: '포지션을 보유한 상태에서 RSI가 70 위로 올라가면 보유 수량 100%의 매도 후보를 만듭니다.',
   },
@@ -367,9 +423,29 @@ const getTemplateBlockDefinitions = (template: StrategyTemplate, side: Exclude<S
   return [{ label, tone: side === 'buy' ? (template.buyTone ?? 'indicator') : (template.sellTone ?? 'indicator') }];
 };
 
+const getBasicBlockIcon = (label: string, tone: BlockTone): LucideIcon => {
+  if (label.includes('RSI')) return Activity;
+  if (label.includes('MACD')) return RefreshCw;
+  if (label.includes('평균선')) return GitBranch;
+  if (label.includes('연속')) return Repeat2;
+  if (label.includes('변화율')) return Gauge;
+  if (label.includes('비교') || label === '가격') return Scale;
+  if (label.includes('정기')) return CalendarDays;
+  if (label.includes('보유 기간')) return History;
+  if (label.includes('최고 수익')) return Target;
+  if (label.includes('수익률')) return TrendingUp;
+  if (label.includes('하락')) return TrendingDown;
+  if (label.includes('반전')) return ArrowUp;
+  if (tone === 'risk') return ShieldCheck;
+  if (tone === 'time') return Timer;
+  if (tone === 'order') return CircleDollarSign;
+  if (tone === 'indicator') return Sparkles;
+  return CandlestickChart;
+};
+
 const createBlocksFromDefinitions = (cardId: string, definitions: StrategyTemplateBlock[]): BasicBlock[] => definitions.map((definition, index) => ({
     id: `${cardId}-condition-${index + 1}`,
-    icon: Timer,
+    icon: getBasicBlockIcon(definition.label, definition.tone),
     label: definition.label,
     op: definition.label === '정기 실행' || definition.label === '보유 기간' ? '=' : NULL_BLOCK_VALUE,
     value: NULL_BLOCK_VALUE,
@@ -381,14 +457,9 @@ const createTemplateBlocks = (template: StrategyTemplate, cardId: string, side: 
 );
 
 const createLibraryBlock = (label: string, tone: BlockTone, id: string): BasicBlock => {
-  const iconByTone: Partial<Record<BlockTone, LucideIcon>> = {
-    time: Timer,
-    order: CircleDollarSign,
-    risk: ShieldCheck,
-  };
   return {
     id,
-    icon: iconByTone[tone] ?? GitBranch,
+    icon: getBasicBlockIcon(label, tone),
     label,
     op: label === '정기 실행' || label === '보유 기간' ? '=' : NULL_BLOCK_VALUE,
     value: NULL_BLOCK_VALUE,
@@ -427,6 +498,42 @@ const getBlockDisplayLabel = (label: string): string => ({
   '최고 수익률': '최고 수익',
   '고점 대비 하락': '고점 하락',
 }[label] ?? label);
+
+const getBlockLibraryDescription = (label: string): string => ({
+  '가격 비교': '기준 가격과 현재가를 비교하는 블록이다.',
+  '가격 변화율': '기준 시점부터의 변화를 확인하는 블록이다.',
+  '연속 상승·하락': '같은 방향의 연속 봉을 확인하는 블록이다.',
+  '평균선 교차': '두 평균선이 만나는 시점을 찾는 블록이다.',
+  'RSI 반등': 'RSI가 방향을 바꾸는지 확인하는 블록이다.',
+  'MACD 전환': 'MACD 신호의 방향 전환을 확인하는 블록이다.',
+  '가격 띠 반전': '가격이 기준 띠로 돌아오는지 확인하는 블록이다.',
+  '정기 실행': '정해 둔 거래 일정에 실행하는 블록이다.',
+  '현재 수익률': '현재 포지션의 수익률을 확인하는 블록이다.',
+  '보유 기간': '진입 뒤 지난 기간을 확인하는 블록이다.',
+  '최고 수익률': '보유 중 기록한 최고 수익을 확인하는 블록이다.',
+  '고점 대비 하락': '최고 수익에서 줄어든 폭을 확인하는 블록이다.',
+}[label] ?? `${getBlockDisplayLabel(label)} 조건을 설정하는 블록이다.`);
+
+const BASIC_VALIDATION_EMPHASIS = [
+  '매수 전략 카드',
+  '매도 전략 카드',
+  '위기관리 전략 카드',
+  '매도 비율',
+  '입력하지 않은',
+  '블록 설정',
+  '거래 종목',
+  '전략 예산',
+  '봉 주기',
+];
+
+const renderBasicValidationMessage = (message: string): ReactNode => {
+  const pattern = new RegExp(`(${BASIC_VALIDATION_EMPHASIS.join('|')})`, 'g');
+  return message.split(pattern).map((part, index) => (
+    BASIC_VALIDATION_EMPHASIS.includes(part)
+      ? <strong key={`${part}-${index}`}>{part}</strong>
+      : <Fragment key={`${part}-${index}`}>{part}</Fragment>
+  ));
+};
 
 const getBlockValueOptions = (block: BlockRuleInput): string[] => {
   const normalizedLabel = block.label.toUpperCase();
@@ -488,13 +595,36 @@ const getTerminalRule = (side?: string): ReactNode => side === 'buy'
   ? <>다음 봉에서 <b>시장가 매수</b> 후보를 만듭니다.</>
   : <>보유 수량의 <b>100%</b>를 <b>시장가 매도</b> 후보로 만듭니다.</>;
 
+const getBlockNarrative = (block: BasicBlock, isLast: boolean): ReactNode => {
+  const label = getBlockDisplayLabel(block.label);
+  const operator = blockOperatorCopy[String(block.op ?? '')] ?? String(block.op ?? '');
+  const value = String(block.value ?? '').trim();
+  if (DIRECTION_BLOCKS.has(block.label)) {
+    const valueCopy = value || '기준값';
+    const directionCopy = block.op === '↑' ? '상향 돌파' : block.op === '↓' ? '하향 돌파' : null;
+    const movementCopy = directionCopy
+      ? isLast ? `${directionCopy}할 때` : `${directionCopy}하고`
+      : isLast ? '선택한 방향으로 움직일 때' : '선택한 방향으로 움직이고';
+    return <><b>{label}</b>가 <b>{valueCopy}</b>에서 <b>{movementCopy}</b></>;
+  }
+  if (!operator && !value) return <><b>{label}</b>가 기준값과 <b>비교 방식</b>에 {isLast ? '맞을 때' : '맞고'}</>;
+  if (!operator) return <><b>{label}</b>가 <b>{value}</b>와 선택한 방식으로 {isLast ? '비교될 때' : '비교되고'}</>;
+  if (!value) return <><b>{label}</b>가 기준값보다 <b>{operator}</b>{isLast ? '일 때' : '이고'}</>;
+  if (block.tone === 'time') return <><b>{label}</b> 시점이 <b>{value}</b>{isLast ? '일 때' : '이고'}</>;
+  if (block.tone === 'risk') return <><b>{label}</b> 기준이 <b>{[operator, value].filter(Boolean).join(' ')}</b>{isLast ? '일 때' : '이고'}</>;
+  const condition = [operator, value].filter(Boolean).join(' ');
+  return <><b>{label}</b>{condition && <>이(가) <b>{condition}</b></>}{isLast ? '인 조건일 때' : '인 조건이고'}</>;
+};
+
 interface BlockRuleNoteProps {
   side: string;
   step: number;
+  tone?: BlockTone;
+  testId?: string;
   children?: ReactNode;
 }
 
-const BlockRuleNote = ({ side, step, children }: BlockRuleNoteProps) => <aside role="note" aria-label={`${step}단계 규칙 설명`} className={`strategy-rule-note is-${side}`}>
+const BlockRuleNote = ({ side, step, tone = 'neutral', testId, children }: BlockRuleNoteProps) => <aside role="note" aria-label={`${step}단계 규칙 설명`} className={`strategy-rule-note is-${side} tone-${tone}`} data-testid={testId}>
   <span>{String(step).padStart(2, '0')}</span>
   <p>{children}</p>
 </aside>;
@@ -569,7 +699,7 @@ const NumericBlockValue = ({ label, value, onChange }: NumericBlockValueProps) =
     };
   }, []);
 
-  return <span className={`block-number-stepper is-fixed-width ${isNull ? 'is-null' : ''}`} aria-label={`${label} 숫자 설정`} onPointerDown={(event) => event.stopPropagation()}>
+  return <span className={`block-number-stepper is-fixed-width is-recessed-control ${isNull ? 'is-null' : ''}`} aria-label={`${label} 숫자 설정`} onPointerDown={(event) => event.stopPropagation()}>
     <button
       type="button"
       aria-label={`${label} 값 감소`}
@@ -580,8 +710,7 @@ const NumericBlockValue = ({ label, value, onChange }: NumericBlockValueProps) =
       onPointerLeave={cancelRepeating}
       onClick={() => clickOnce(-1)}
     ><Minus size={11} aria-hidden="true" /></button>
-    <label><span className="sr-only">{label} 값</span><input className="is-centered-number" type="number" min="0" max={numeric.suffix === '%' || label.includes('RSI') ? 100 : 9999} value={isNull ? '' : numeric.number} placeholder={UNSET_NUMBER_PLACEHOLDER} onChange={(event) => update(event.target.value)} /></label>
-    <b aria-hidden="true">{numeric.suffix}</b>
+    <label><span className="sr-only">{label} 값</span><input className="is-centered-number" type="number" min="0" max={numeric.suffix === '%' || label.includes('RSI') ? 100 : 9999} value={isNull ? '' : numeric.number} placeholder={UNSET_NUMBER_PLACEHOLDER} onChange={(event) => update(event.target.value)} /><b aria-hidden="true">{numeric.suffix}</b></label>
     <button
       type="button"
       aria-label={`${label} 값 증가`}
@@ -697,7 +826,7 @@ const CustomBlockSelect = ({ label, value, options, onChange, compact = false }:
   const hasSelectedIcon = value !== NULL_BLOCK_VALUE;
 
   return <span
-    className={`block-custom-select ${compact ? 'is-compact is-relation-select is-fixed-width' : 'is-value-select'} ${value === NULL_BLOCK_VALUE ? 'is-null' : ''} ${open ? 'is-open' : ''}`}
+    className={`block-custom-select is-recessed-control ${compact ? 'is-compact is-relation-select is-fixed-width' : 'is-value-select'} ${value === NULL_BLOCK_VALUE ? 'is-null' : ''} ${open ? 'is-open' : ''}`}
     ref={rootRef}
     onPointerDown={(event) => event.stopPropagation()}
     onWheel={(event) => event.stopPropagation()}
@@ -792,9 +921,10 @@ interface StrategyBlockProps extends BlockProps {
   rule?: ReactNode;
   ruleSide?: 'left' | 'right';
   ruleStep?: number;
+  ruleTestId?: string;
 }
 
-const StrategyBlock = ({ id, fixed = false, dragging = false, dragProps = {}, showRule = false, rule, ruleSide = 'right', ruleStep = 1, ...blockProps }: StrategyBlockProps) => <div
+const StrategyBlock = ({ id, fixed = false, dragging = false, dragProps = {}, showRule = false, rule, ruleSide = 'right', ruleStep = 1, ruleTestId, ...blockProps }: StrategyBlockProps) => <div
   className={`block-with-copy ${fixed ? 'fixed-terminal-block' : 'draggable-strategy-block'} ${dragging ? 'is-dragging' : ''}`}
   data-testid={id}
   aria-disabled={fixed ? 'true' : undefined}
@@ -802,7 +932,7 @@ const StrategyBlock = ({ id, fixed = false, dragging = false, dragProps = {}, sh
   draggable={fixed ? undefined : true}
   tabIndex={fixed ? undefined : 0}
   {...dragProps}
->{!fixed && <GripVertical className="block-drag-handle" size={14} aria-hidden="true" />}<Block {...blockProps} locked={fixed} />{showRule && <BlockRuleNote side={ruleSide} step={ruleStep}>{rule}</BlockRuleNote>}</div>;
+>{!fixed && <GripVertical className="block-drag-handle" size={14} aria-hidden="true" />}<Block {...blockProps} locked={fixed} />{showRule && <BlockRuleNote side={ruleSide} step={ruleStep} tone={blockProps.tone} testId={ruleTestId}>{rule}</BlockRuleNote>}</div>;
 
 /* Shared by read-only strategy surfaces so launched snapshots keep the exact
    block silhouette, tone system, spacing, and terminal shape of the editor. */
@@ -834,7 +964,7 @@ export const ReadOnlyStrategyBlock = ({
   >
     {!fixed && <GripVertical className="block-drag-handle" size={14} aria-hidden="true" />}
     <Block {...blockProps} locked />
-    {showRule && <BlockRuleNote side={ruleSide} step={ruleStep}>{resolvedRule}</BlockRuleNote>}
+    {showRule && <BlockRuleNote side={ruleSide} step={ruleStep} tone={blockProps.tone}>{resolvedRule}</BlockRuleNote>}
   </div>;
 };
 
@@ -856,12 +986,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   const [buySettings, setBuySettings] = useState<Record<string, BuyContainerSettings>>({
     'primary-buy': createDefaultBuySettings(),
   });
+  const [sellSettings, setSellSettings] = useState<Record<string, SellContainerSettings>>({
+    'primary-sell': createDefaultSellSettings(),
+  });
   const [symbolLimits, setSymbolLimits] = useState<Record<string, Record<string, number>>>({
     'section-1': { AAPL: 40, MSFT: 40, SPY: 40 },
   });
   const [symbolManagerSectionId, setSymbolManagerSectionId] = useState<string | null>(null);
   const [draggedBlock, setDraggedBlock] = useState<{ cardId: string; blockId: string } | null>(null);
-  const [draggedCard, setDraggedCard] = useState<{ sectionId: string; side: Side; cardId: string } | null>(null);
   const [libraryDrag, setLibraryDrag] = useState<LibraryDragPayload | null>(null);
   const [dragTarget, setDragTarget] = useState<{ cardId: string; index: number } | null>(null);
   const [customBlockCount, setCustomBlockCount] = useState(0);
@@ -877,6 +1009,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   const pointerPositionRef = useRef<CanvasPoint | null>(null);
   const [sectionMove, setSectionMove] = useState<SectionMoveGesture | null>(null);
   const [cardMove, setCardMove] = useState<CardMoveState | null>(null);
+  const cardSelectionAtPointerDownRef = useRef<{ cardId: string; wasSelected: boolean } | null>(null);
   const trashZoneRef = useRef<HTMLDivElement | null>(null);
   const [trashReady, setTrashReady] = useState(false);
   const cardElementsRef = useRef(new Map<string, HTMLDivElement>());
@@ -888,8 +1021,21 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   const [botDescription, setBotDescription] = useState('');
   const [templateQuery, setTemplateQuery] = useState('');
   const [blockQuery, setBlockQuery] = useState('');
+  const [libraryView, setLibraryView] = useState<'packages' | 'blocks'>('blocks');
+  const [favoriteBlockLabels, setFavoriteBlockLabels] = useState<string[]>(() => {
+    try {
+      const saved = window.localStorage.getItem(BASIC_FAVORITE_BLOCKS_STORAGE_KEY);
+      return saved ? JSON.parse(saved) as string[] : [];
+    } catch {
+      return [];
+    }
+  });
   const [templatesCollapsed, setTemplatesCollapsed] = useState(false);
-  const [blocksCollapsed, setBlocksCollapsed] = useState(false);
+  const [gridSnap, setGridSnap] = useState(false);
+  const [highlightValidation, setHighlightValidation] = useState(false);
+  const [selectedCardIds, setSelectedCardIds] = useState<string[]>(['primary-buy']);
+  const [undoStack, setUndoStack] = useState<BasicEditorSnapshot[]>([]);
+  const [redoStack, setRedoStack] = useState<BasicEditorSnapshot[]>([]);
   /* 미리보기 차트를 열어 둔 파티션. 파티션을 누르면 그 파티션 기준으로 열린다. */
   const [previewSectionId, setPreviewSectionId] = useState<string | null>(null);
   const filteredTemplates = useMemo(() => TEMPLATE_LIBRARY.filter((template) => (
@@ -905,7 +1051,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         id: 'strategy-no-section',
         sectionId: null,
         cardId: null,
-        message: '매수 컨테이너가 포함된 파티션을 하나 이상 만들어 주세요.',
+        message: '매수 전략 카드가 포함된 파티션을 하나 이상 만들어 주세요.',
       }];
     }
 
@@ -916,7 +1062,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           id: `${section.id}-no-buy`,
           sectionId: section.id,
           cardId: null,
-          message: `${sectionLabel}에 매수 컨테이너가 필요합니다.`,
+          message: `${sectionLabel}에 매수 전략 카드가 필요합니다.`,
         }];
       }
       return (['buy', 'sell', 'risk'] as Side[]).flatMap((side) => {
@@ -928,27 +1074,170 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
               id: `${cardId}-empty`,
               sectionId: section.id,
               cardId,
-              message: `${sectionLabel}의 ${sideLabel} 컨테이너에 조건 블록을 하나 이상 추가해 주세요.`,
+              message: `${sectionLabel}의 ${sideLabel} 전략 카드에 조건 블록을 하나 이상 추가해 주세요.`,
             }];
           }
           const hasNullField = blocks.some((block) => {
             const operatorRequired = getBlockOperatorOptions(block).length > 1;
             return !String(block.value ?? '').trim() || (operatorRequired && !String(block.op ?? '').trim());
           });
+          if (side === 'sell' && !sellSettings[cardId]?.sellPercent) {
+            return [{
+              id: `${cardId}-sell-percent`,
+              sectionId: section.id,
+              cardId,
+              message: `${sectionLabel}의 매도 전략 카드에서 매도 비율을 설정해 주세요.`,
+            }];
+          }
           return hasNullField ? [{
             id: `${cardId}-null-fields`,
             sectionId: section.id,
             cardId,
-            message: `${sectionLabel}의 ${sideLabel} 컨테이너에서 입력하지 않은 블록 설정을 완료해 주세요.`,
+            message: `${sectionLabel}의 ${sideLabel} 전략 카드에서 입력하지 않은 블록 설정을 완료해 주세요.`,
           }] : [];
         });
       });
     });
-  }, [cardBlocks, sections]);
+  }, [cardBlocks, sections, sellSettings]);
   const validationSignature = validationIssues.map((issue) => issue.id).join('|');
   const isLaunchable = validationIssues.length === 0;
+  const groupedValidationIssues = useMemo(() => {
+    const groups = new Map<string, { label: string; issues: ValidationIssue[] }>();
+    validationIssues.forEach((issue) => {
+      const sectionIndex = issue.sectionId
+        ? sections.findIndex((section) => section.id === issue.sectionId)
+        : -1;
+      const key = issue.sectionId ?? 'strategy';
+      const label = sectionIndex >= 0
+        ? `PARTITION ${String(sectionIndex + 1).padStart(2, '0')}`
+        : '전체 전략';
+      const group = groups.get(key) ?? { label, issues: [] };
+      group.issues.push(issue);
+      groups.set(key, group);
+    });
+    return [...groups.entries()].map(([key, group]) => ({ key, ...group }));
+  }, [sections, validationIssues]);
   const invalidSectionIds = new Set(validationIssues.map((issue) => issue.sectionId).filter(Boolean));
   const invalidCardIds = new Set(validationIssues.map((issue) => issue.cardId).filter(Boolean));
+
+  useEffect(() => {
+    window.localStorage.setItem(BASIC_FAVORITE_BLOCKS_STORAGE_KEY, JSON.stringify(favoriteBlockLabels));
+  }, [favoriteBlockLabels]);
+  const captureEditorSnapshot = (): BasicEditorSnapshot => cloneBasicEditorSnapshot({
+    sections,
+    cardBlocks,
+    cardMeta,
+    buySettings,
+    sellSettings,
+    symbolLimits,
+  });
+
+  const restoreEditorSnapshot = (snapshot: BasicEditorSnapshot) => {
+    const next = cloneBasicEditorSnapshot(snapshot);
+    setSections(next.sections);
+    setCardBlocks(next.cardBlocks);
+    setCardMeta(next.cardMeta);
+    setBuySettings(next.buySettings);
+    setSellSettings(next.sellSettings);
+    setSymbolLimits(next.symbolLimits);
+    const availableCardIds = new Set(next.sections.flatMap((section) => section.cardOrder));
+    setSelectedCardId((current) => current && availableCardIds.has(current) ? current : (next.sections[0]?.cardOrder[0] ?? null));
+    setSelectedCardIds((current) => {
+      const remaining = current.filter((cardId) => availableCardIds.has(cardId));
+      return remaining.length > 0 ? remaining : (next.sections[0]?.cardOrder.slice(0, 1) ?? []);
+    });
+  };
+
+  const rememberEditorChange = () => {
+    const snapshot = captureEditorSnapshot();
+    setUndoStack((current) => [...current.slice(-39), snapshot]);
+    setRedoStack([]);
+  };
+
+  const undoEditorChange = () => {
+    const previous = undoStack[undoStack.length - 1];
+    if (!previous) return;
+    setRedoStack((current) => [...current.slice(-39), captureEditorSnapshot()]);
+    setUndoStack((current) => current.slice(0, -1));
+    restoreEditorSnapshot(previous);
+    setAnnouncement('마지막 편집을 되돌렸습니다.');
+  };
+
+  const redoEditorChange = () => {
+    const next = redoStack[redoStack.length - 1];
+    if (!next) return;
+    setUndoStack((current) => [...current.slice(-39), captureEditorSnapshot()]);
+    setRedoStack((current) => current.slice(0, -1));
+    restoreEditorSnapshot(next);
+    setAnnouncement('되돌린 편집을 다시 적용했습니다.');
+  };
+
+  const duplicateSelectedCards = () => {
+    const selected = selectedCardIds.filter((cardId) => sections.some((section) => section.cardOrder.includes(cardId)));
+    if (selected.length === 0) return;
+    rememberEditorChange();
+    const copies = selected.map((cardId, index) => {
+      const section = sections.find((item) => item.cardOrder.includes(cardId))!;
+      const side: Side = section.cards.buy.includes(cardId)
+        ? 'buy'
+        : section.cards.sell.includes(cardId)
+          ? 'sell'
+          : 'risk';
+      const copyId = `${section.id}-${side}-copy-${cardCount + index + 1}`;
+      const origin = section.cardPositions[cardId] ?? getDefaultCardPosition(section.cardOrder.indexOf(cardId));
+      return { cardId, copyId, sectionId: section.id, side, position: { x: origin.x + 32, y: origin.y + 32 } };
+    });
+    setCardCount((current) => current + copies.length);
+    setCardBlocks((current) => ({
+      ...current,
+      ...Object.fromEntries(copies.map(({ cardId, copyId }) => [
+        copyId,
+        (current[cardId] ?? []).map((block, index) => ({ ...block, id: `${copyId}-block-${index + 1}` })),
+      ])),
+    }));
+    setCardMeta((current) => ({
+      ...current,
+      ...Object.fromEntries(copies.map(({ cardId, copyId }) => [
+        copyId,
+        { ...(current[cardId] ?? { title: '전략 복사본', detail: '', explanation: '' }), title: `${current[cardId]?.title ?? '전략'} 복사본` },
+      ])),
+    }));
+    setBuySettings((current) => ({
+      ...current,
+      ...Object.fromEntries(copies.filter(({ side }) => side === 'buy').map(({ cardId, copyId }) => [
+        copyId,
+        { ...(current[cardId] ?? createDefaultBuySettings()) },
+      ])),
+    }));
+    setSellSettings((current) => ({
+      ...current,
+      ...Object.fromEntries(copies.filter(({ side }) => side === 'sell').map(({ cardId, copyId }) => [
+        copyId,
+        { ...(current[cardId] ?? createDefaultSellSettings()) },
+      ])),
+    }));
+    setSections((current) => current.map((section) => {
+      const sectionCopies = copies.filter((copy) => copy.sectionId === section.id);
+      if (sectionCopies.length === 0) return section;
+      return {
+        ...section,
+        cards: {
+          buy: [...section.cards.buy, ...sectionCopies.filter(({ side }) => side === 'buy').map(({ copyId }) => copyId)],
+          sell: [...section.cards.sell, ...sectionCopies.filter(({ side }) => side === 'sell').map(({ copyId }) => copyId)],
+          risk: [...section.cards.risk, ...sectionCopies.filter(({ side }) => side === 'risk').map(({ copyId }) => copyId)],
+        },
+        cardOrder: [...section.cardOrder, ...sectionCopies.map(({ copyId }) => copyId)],
+        cardPositions: {
+          ...section.cardPositions,
+          ...Object.fromEntries(sectionCopies.map(({ copyId, position }) => [copyId, position])),
+        },
+      };
+    }));
+    const copiedIds = copies.map(({ copyId }) => copyId);
+    setSelectedCardIds(copiedIds);
+    setSelectedCardId(copiedIds[0] ?? null);
+    setAnnouncement(`${copiedIds.length}개 전략 카드를 복사했습니다.`);
+  };
 
   useEffect(() => {
     setSaveFeedback(null);
@@ -974,7 +1263,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       : {
         tone: 'warning',
         title: '미완성 상태로 저장했습니다.',
-        detail: '모든 컨테이너의 조건을 완성하면 출시할 수 있습니다.',
+        detail: '모든 전략 카드의 조건을 완성하면 출시할 수 있습니다.',
       };
     setSaveFeedback(nextFeedback);
     setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
@@ -1051,7 +1340,44 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       setSpacePanning(false);
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== 'Space' || isTypingTarget(event.target)) return;
+      if (isTypingTarget(event.target)) return;
+      const commandKey = event.ctrlKey || event.metaKey;
+      if (commandKey && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) redoEditorChange();
+        else undoEditorChange();
+        return;
+      }
+      if (commandKey && event.key.toLowerCase() === 'a') {
+        event.preventDefault();
+        const allCardIds = sections.flatMap((section) => section.cardOrder);
+        setSelectedCardIds(allCardIds);
+        setSelectedCardId(allCardIds[0] ?? null);
+        setAnnouncement(`${allCardIds.length}개 전략 카드를 선택했습니다.`);
+        return;
+      }
+      if (commandKey && event.key.toLowerCase() === 'd') {
+        event.preventDefault();
+        duplicateSelectedCards();
+        return;
+      }
+      if (event.key === 'Escape') {
+        setSelectedCardIds([]);
+        setSelectedCardId(null);
+        setExpandedSettingsCardId(null);
+        return;
+      }
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedCardIds.length > 0) {
+        event.preventDefault();
+        rememberEditorChange();
+        selectedCardIds.forEach((cardId) => {
+          const section = sections.find((item) => item.cardOrder.includes(cardId));
+          if (section) deleteStrategyCard(section.id, cardId, false);
+        });
+        setSelectedCardIds([]);
+        return;
+      }
+      if (event.code !== 'Space') return;
       event.preventDefault();
       if (spacePanningRef.current) return;
       spacePanningRef.current = true;
@@ -1068,9 +1394,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', stopSpacePanning);
     };
-  }, []);
+  });
 
   const moveBlock = (sourceCardId: string, blockId: string, targetCardId: string, targetIndex: number) => {
+    rememberEditorChange();
     const movingLabel = cardBlocks[sourceCardId].find((block) => block.id === blockId)?.label ?? '선택한';
     setCardBlocks((current) => {
       const sourceBlocks = [...current[sourceCardId]];
@@ -1092,10 +1419,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
 
   const startDragging = (event: DragEvent<HTMLDivElement>, cardId: string, blockId: string) => {
     event.stopPropagation();
-    if ((event.target as Element).closest?.('button, input, select')) {
-      event.preventDefault();
-      return;
-    }
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', blockId);
     setDraggedBlock({ cardId, blockId });
@@ -1126,9 +1449,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     }
   };
 
-  const applyTemplate = (template: StrategyTemplate, targetSectionId: string = activeSectionId) => {
+  const applyTemplate = (template: StrategyTemplate, targetSectionId: string = activeSectionId, dropOrigin?: CanvasPoint) => {
     const targetSection = sections.find((section) => section.id === targetSectionId) ?? sections[0];
     if (!targetSection) return;
+    rememberEditorChange();
     const includeSell = template.includeSell !== false;
     const riskContainers = template.riskContainers ?? [];
     const firstCardNumber = cardCount + 1;
@@ -1175,25 +1499,35 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         cardOrder: [...section.cardOrder, ...addedCardIds],
         cardPositions: {
           ...section.cardPositions,
-          ...Object.fromEntries(addedCardIds.map((cardId, index) => [
-            cardId,
-            getDefaultCardPosition(section.cardOrder.length + index),
-          ])),
+          ...Object.fromEntries(addedCardIds.map((cardId, index) => {
+            const position = dropOrigin
+              ? {
+                x: Math.max(24, dropOrigin.x + index * 360),
+                y: Math.max(136, dropOrigin.y),
+              }
+              : getDefaultCardPosition(section.cardOrder.length + index);
+            return [cardId, position];
+          })),
         },
       }
       : section));
     setBuySettings((current) => ({ ...current, [buyCardId]: createDefaultBuySettings() }));
+    if (includeSell) {
+      setSellSettings((current) => ({ ...current, [sellCardId]: createDefaultSellSettings() }));
+    }
     setSelectedCardId(buyCardId);
+    setSelectedCardIds([buyCardId]);
     setActiveSectionId(targetSection.id);
     const addedKinds = ['매수', ...(includeSell ? ['매도'] : []), ...(riskCards.length > 0 ? ['위기관리'] : [])].join('·');
-    setAnnouncement(`${template.name} 패키지의 ${addedKinds} 컨테이너를 ${targetSection.id.replace('section-', 'PARTITION ')}에 추가했습니다.`);
+    setAnnouncement(`${template.name} 패키지의 ${addedKinds} 전략 카드를 ${targetSection.id.replace('section-', 'PARTITION ')}에 추가했습니다.`);
   };
 
   const addLibraryBlock = (label: string, tone: BlockTone, targetCardId: string | null = selectedCardId, targetIndex?: number) => {
     if (!targetCardId || !cardBlocks[targetCardId]) {
-      setAnnouncement('먼저 블록을 넣을 매수 또는 매도 컨테이너를 선택해 주세요.');
+      setAnnouncement('먼저 블록을 넣을 전략 카드를 선택해 주세요.');
       return;
     }
+    rememberEditorChange();
     const nextCount = customBlockCount + 1;
     setCustomBlockCount(nextCount);
     setCardBlocks((current) => {
@@ -1205,10 +1539,11 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       return { ...current, [targetCardId]: nextBlocks };
     });
     setSelectedCardId(targetCardId);
-    setAnnouncement(`${label} 블록을 대상 컨테이너에 추가했습니다.`);
+    setSelectedCardIds([targetCardId]);
+    setAnnouncement(`${label} 블록을 대상 전략 카드에 추가했습니다.`);
   };
 
-  const startLibraryDrag = (event: DragEvent<HTMLButtonElement>, payload: LibraryDragPayload) => {
+  const startLibraryDrag = (event: DragEvent<HTMLElement>, payload: LibraryDragPayload) => {
     event.stopPropagation();
     event.dataTransfer.effectAllowed = 'copy';
     event.dataTransfer.setData('text/plain', payload.type === 'template' ? payload.template.name : payload.label);
@@ -1221,6 +1556,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   };
 
   const deleteBlock = (cardId: string, blockId: string) => {
+    rememberEditorChange();
     const blockLabel = cardBlocks[cardId]?.find((block) => block.id === blockId)?.label ?? '선택한';
     setCardBlocks((current) => ({
       ...current,
@@ -1232,7 +1568,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     setAnnouncement(`${blockLabel} 블록을 삭제했습니다.`);
   };
 
-  const deleteStrategyCard = (sectionId: string, cardId: string) => {
+  const deleteStrategyCard = (sectionId: string, cardId: string, remember = true) => {
+    if (remember) rememberEditorChange();
     setSections((current) => current.map((section) => {
       if (section.id !== sectionId) return section;
       const cardPositions = { ...section.cardPositions };
@@ -1264,13 +1601,19 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       delete next[cardId];
       return next;
     });
-    setDraggedCard(null);
+    setSellSettings((current) => {
+      const next = { ...current };
+      delete next[cardId];
+      return next;
+    });
+    setSelectedCardIds((current) => current.filter((id) => id !== cardId));
     setCardMove(null);
     setTrashReady(false);
-    setAnnouncement('컨테이너를 삭제했습니다.');
+    setAnnouncement('전략 카드를 삭제했습니다.');
   };
 
-  const deleteSection = (sectionId: string) => {
+  const deleteSection = (sectionId: string, remember = true) => {
+    if (remember) rememberEditorChange();
     const targetSection = sections.find((section) => section.id === sectionId);
     const deletedCardIds = new Set<string | null>(targetSection?.cardOrder ?? []);
     const remainingSections = sections.filter((section) => section.id !== sectionId);
@@ -1282,6 +1625,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       Object.entries(current).filter(([cardId]) => !deletedCardIds.has(cardId))
     ));
     setBuySettings((current) => Object.fromEntries(
+      Object.entries(current).filter(([cardId]) => !deletedCardIds.has(cardId))
+    ));
+    setSellSettings((current) => Object.fromEntries(
       Object.entries(current).filter(([cardId]) => !deletedCardIds.has(cardId))
     ));
     setSymbolLimits((current) => {
@@ -1311,8 +1657,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     event.stopPropagation();
     if (draggedBlock) {
       deleteBlock(draggedBlock.cardId, draggedBlock.blockId);
-    } else if (draggedCard) {
-      deleteStrategyCard(draggedCard.sectionId, draggedCard.cardId);
     }
   };
 
@@ -1326,11 +1670,63 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   };
 
   const updateStrategyBlock = (cardId: string, blockId: string, patch: Partial<BasicBlock>) => {
+    rememberEditorChange();
     setCardBlocks((current) => ({
       ...current,
       [cardId]: current[cardId].map((block) => block.id === blockId ? { ...block, ...patch } : block),
     }));
     setAnnouncement('블록 설정을 변경했습니다.');
+  };
+
+  const toggleFavoriteBlock = (label: string) => {
+    setFavoriteBlockLabels((current) => current.includes(label)
+      ? current.filter((item) => item !== label)
+      : [...current, label]);
+  };
+
+  const renderLibraryBlock = (item: string, tone: BlockTone, pinned = false) => {
+    const isFavorite = favoriteBlockLabels.includes(item);
+    const LibraryBlockIcon = getBasicBlockIcon(item, tone);
+    return <div
+      className={`basic-library-node-card pro-library-node-card tone-${tone} ${pinned ? 'is-pinned' : ''}`}
+      key={`${pinned ? 'favorite' : 'library'}-${item}`}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        className={`library-block-button pro-library-node-main has-tone-band ${libraryDrag?.type === 'block' && libraryDrag.label === item && libraryDrag.tone === tone ? 'is-library-dragging' : ''}`}
+        aria-label={`${item} 블록 추가`}
+        draggable
+        onDragStart={(event) => startLibraryDrag(event, { type: 'block', label: item, tone })}
+        onDragEnd={finishLibraryDrag}
+        onClick={() => addLibraryBlock(item, tone)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          addLibraryBlock(item, tone);
+        }}
+      >
+        <span className="pro-library-icon basic-library-block-icon"><LibraryBlockIcon size={15} /></span>
+        <span className="basic-library-block-copy">
+          <span className="basic-library-title-row">
+            <strong>{item}</strong>
+            <button
+              type="button"
+              className={`pro-library-favorite basic-library-favorite ${isFavorite ? 'is-active' : ''}`}
+              aria-label={`${item} ${isFavorite ? '즐겨찾기 해제' : '즐겨찾기에 추가'}`}
+              aria-pressed={isFavorite}
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleFavoriteBlock(item);
+              }}
+              onKeyDown={(event) => event.stopPropagation()}
+            ><Star size={10} fill={isFavorite ? 'currentColor' : 'none'} /></button>
+          </span>
+          <small>{getBlockLibraryDescription(item)}</small>
+        </span>
+        <Plus className="pro-library-add-icon" size={14} />
+      </div>
+    </div>;
   };
 
   const resolveBlockDropIndex = (event: DragEvent<HTMLElement>, index: number) => {
@@ -1339,42 +1735,52 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     return event.clientY >= bounds.top + bounds.height / 2 ? index + 1 : index;
   };
 
-  const renderEditableBlocks = (cardId: string, side: Side) => cardBlocks[cardId].map((block, index) => <StrategyBlock
-    key={block.id}
-    {...block}
-    onChange={(patch) => updateStrategyBlock(cardId, block.id, patch)}
-    dragging={draggedBlock?.blockId === block.id}
-    dragProps={{
-      onDragStart: (event) => startDragging(event, cardId, block.id),
-      onDragEnd: () => { setDraggedBlock(null); setDragTarget(null); setTrashReady(false); },
-      onDragOver: (event) => {
-        const insertionIndex = resolveBlockDropIndex(event, index);
-        if (libraryDrag?.type === 'block') {
+  const renderEditableBlocks = (cardId: string, side: Side, ruleSide: 'left' | 'right' = 'right') => cardBlocks[cardId].map((block, index) => <Fragment key={block.id}>
+    {index > 0 && <span className="condition-chain-link is-cutout is-outline-only is-foreground tone-neutral-metal" aria-hidden="true">
+      <Link2 className="condition-chain-outline" size={14} strokeWidth={4} />
+      <Link2 className="condition-chain-mark" size={14} strokeWidth={1.8} />
+    </span>}
+    <StrategyBlock
+      {...block}
+      showRule={selectedCardId === cardId}
+      rule={getBlockNarrative(block, index === cardBlocks[cardId].length - 1)}
+      ruleSide={ruleSide}
+      ruleStep={index + 1}
+      ruleTestId="basic-narrative-block"
+      onChange={(patch) => updateStrategyBlock(cardId, block.id, patch)}
+      dragging={draggedBlock?.blockId === block.id}
+      dragProps={{
+        onDragStart: (event) => startDragging(event, cardId, block.id),
+        onDragEnd: () => { setDraggedBlock(null); setDragTarget(null); setTrashReady(false); },
+        onDragOver: (event) => {
+          const insertionIndex = resolveBlockDropIndex(event, index);
+          if (libraryDrag?.type === 'block') {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+            setDragTarget({ cardId, index: insertionIndex });
+            return;
+          }
           event.preventDefault();
-          event.dataTransfer.dropEffect = 'copy';
+          event.dataTransfer.dropEffect = 'move';
           setDragTarget({ cardId, index: insertionIndex });
-          return;
-        }
-        event.preventDefault();
-        event.dataTransfer.dropEffect = 'move';
-        setDragTarget({ cardId, index: insertionIndex });
-      },
-      onDragLeave: () => setDragTarget(null),
-      onDrop: (event) => {
-        const insertionIndex = resolveBlockDropIndex(event, index);
-        if (!dropLibraryBlock(event, cardId, insertionIndex)) dropBlock(event, cardId, insertionIndex);
-      },
-      onKeyDown: (event) => moveWithKeyboard(event, cardId, block.id, index),
-      'data-drop-target': dragTarget?.cardId === cardId && (dragTarget.index === index || dragTarget.index === index + 1) ? 'true' : undefined,
-      'data-drop-position': dragTarget?.cardId === cardId
-        ? dragTarget.index === index
-          ? 'before'
-          : dragTarget.index === index + 1
-            ? 'after'
-            : undefined
-        : undefined,
-    }}
-  />);
+        },
+        onDragLeave: () => setDragTarget(null),
+        onDrop: (event) => {
+          const insertionIndex = resolveBlockDropIndex(event, index);
+          if (!dropLibraryBlock(event, cardId, insertionIndex)) dropBlock(event, cardId, insertionIndex);
+        },
+        onKeyDown: (event) => moveWithKeyboard(event, cardId, block.id, index),
+        'data-drop-target': dragTarget?.cardId === cardId && (dragTarget.index === index || dragTarget.index === index + 1) ? 'true' : undefined,
+        'data-drop-position': dragTarget?.cardId === cardId
+          ? dragTarget.index === index
+            ? 'before'
+            : dragTarget.index === index + 1
+              ? 'after'
+              : undefined
+          : undefined,
+      }}
+    />
+  </Fragment>);
 
   const updateSection = (sectionId: string, patch: Partial<StrategySection>) => setSections((current) => current.map((section) => (
     section.id === sectionId ? { ...section, ...patch } : section
@@ -1392,6 +1798,41 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       : section));
   };
 
+  const snapCanvasPoint = (point: CanvasPoint): CanvasPoint => gridSnap
+    ? {
+      x: Math.round(point.x / 16) * 16,
+      y: Math.round(point.y / 16) * 16,
+    }
+    : point;
+
+  const organizeActiveSection = () => {
+    const section = sections.find((item) => item.id === activeSectionId);
+    if (!section || section.cardOrder.length < 2) return;
+    rememberEditorChange();
+    const orderedCards = [
+      ...section.cards.buy,
+      ...section.cards.sell,
+      ...section.cards.risk,
+    ];
+    setSections((current) => current.map((item) => item.id === section.id
+      ? {
+        ...item,
+        cardOrder: orderedCards,
+        cardPositions: {
+          ...item.cardPositions,
+          ...Object.fromEntries(orderedCards.map((cardId, index) => [
+            cardId,
+            {
+              x: 24 + (index % 3) * 360,
+              y: 136 + Math.floor(index / 3) * 320,
+            },
+          ])),
+        },
+      }
+      : item));
+    setAnnouncement('선택한 파티션의 전략 카드를 종류별로 정리했습니다.');
+  };
+
   const getSectionLayout = (section: StrategySection) => {
     const layout = getBasicSectionLayout(
       section.cardOrder,
@@ -1402,7 +1843,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   };
 
   /*
-    미리보기 차트에 넘길 파티션 구성. 파티션의 모든 매수·매도 컨테이너 블록을
+    미리보기 차트에 넘길 파티션 구성. 파티션의 모든 매수·매도 전략 카드 블록을
     한 벌로 모아 전달하므로, 블록을 추가하거나 값을 바꾸면 이 memo가 새 배열을
     만들고 차트가 그 자리에서 다시 계산된다.
   */
@@ -1418,8 +1859,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     [previewSection],
   );
   /*
-    컨테이너 하나가 미리보기의 플로우 하나다. 여러 매수 컨테이너를 한 벌로
-    합치면 어느 컨테이너가 주문을 만들었는지 알 수 없고, 두 번째 컨테이너의
+    전략 카드 하나가 미리보기의 플로우 하나다. 여러 매수 전략 카드를 한 벌로
+    합치면 어느 전략 카드가 주문을 만들었는지 알 수 없고, 두 번째 전략 카드의
     조건은 계산에서 빠진다. 이름은 카드 헤더에 보이는 제목을 그대로 쓴다.
   */
   const previewFlows = useMemo<PreviewFlow[]>(() => {
@@ -1437,6 +1878,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
 
   const addStrategyCard = (sectionId: string, side: Side) => {
     const section = sections.find((item) => item.id === sectionId)!;
+    rememberEditorChange();
     const nextCardCount = cardCount + 1;
     const cardId = `${sectionId}-${side}-${section.cards[side].length + 1}-${nextCardCount}`;
     setCardCount(nextCardCount);
@@ -1444,13 +1886,15 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     setCardMeta((current) => ({
       ...current,
       [cardId]: {
-        title: `${side === 'buy' ? '매수' : side === 'sell' ? '매도' : '위기관리'} 컨테이너`,
+        title: `${side === 'buy' ? '매수' : side === 'sell' ? '매도' : '위기관리'} 전략`,
         detail: '조건을 모두 만족하면 실행',
         explanation: '',
       },
     }));
     if (side === 'buy') {
       setBuySettings((current) => ({ ...current, [cardId]: createDefaultBuySettings() }));
+    } else if (side === 'sell') {
+      setSellSettings((current) => ({ ...current, [cardId]: createDefaultSellSettings() }));
     }
     setSections((current) => current.map((item) => item.id === sectionId
       ? {
@@ -1465,93 +1909,24 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       : item));
     setActiveSectionId(sectionId);
     setSelectedCardId(cardId);
-    setAnnouncement(`${sectionId.replace('section-', 'PARTITION ')}에 ${side === 'buy' ? '매수' : side === 'sell' ? '매도' : '위기관리'} 컨테이너를 추가했습니다.`);
-  };
-
-  const startCardDrag = (event: DragEvent<HTMLDivElement>, sectionId: string, side: Side, cardId: string) => {
-    if (draggedBlock) return;
-    if ((event.target as Element).closest?.('.strategy-card-move-handle')) {
-      event.preventDefault();
-      return;
-    }
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', cardId);
-    setDraggedCard({ sectionId, side, cardId });
-  };
-
-  const moveStrategyCard = (targetSectionId: string, targetIndex: number) => {
-    if (!draggedCard || draggedBlock) return;
-    const sourceSection = sections.find((section) => section.id === draggedCard.sectionId)!;
-    if (draggedCard.side === 'buy' && sourceSection.cards.buy.length === 1 && sourceSection.id !== targetSectionId) {
-      setAnnouncement('각 파티션에는 매수 컨테이너가 하나 이상 필요합니다.');
-      setDraggedCard(null);
-      return;
-    }
-    setSections((current) => current.map((section) => {
-      const side = draggedCard.side;
-      if (section.id === draggedCard.sectionId && section.id === targetSectionId) {
-        const cardOrder = [...section.cardOrder];
-        const sourceIndex = cardOrder.indexOf(draggedCard.cardId);
-        if (sourceIndex < 0) return section;
-        cardOrder.splice(sourceIndex, 1);
-        const adjustedIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
-        cardOrder.splice(Math.max(0, Math.min(adjustedIndex, cardOrder.length)), 0, draggedCard.cardId);
-        return { ...section, cardOrder };
-      }
-      if (section.id === draggedCard.sectionId) {
-        const cardPositions = { ...section.cardPositions };
-        delete cardPositions[draggedCard.cardId];
-        return {
-          ...section,
-          cards: { ...section.cards, [side]: section.cards[side].filter((id) => id !== draggedCard.cardId) },
-          cardOrder: section.cardOrder.filter((id) => id !== draggedCard.cardId),
-          cardPositions,
-        };
-      }
-      if (section.id === targetSectionId && !section.cards[side].includes(draggedCard.cardId)) {
-        const cards = [...section.cards[side]];
-        cards.push(draggedCard.cardId);
-        const cardOrder = [...section.cardOrder];
-        cardOrder.splice(Math.max(0, Math.min(targetIndex, cardOrder.length)), 0, draggedCard.cardId);
-        return {
-          ...section,
-          cards: { ...section.cards, [side]: cards },
-          cardOrder,
-          cardPositions: {
-            ...section.cardPositions,
-            [draggedCard.cardId]: getDefaultCardPosition(section.cardOrder.length),
-          },
-        };
-      }
-      return section;
-    }));
-    setAnnouncement(`${draggedCard.side === 'buy' ? '매수' : draggedCard.side === 'sell' ? '매도' : '위기관리'} 컨테이너의 위치를 변경했습니다.`);
-    setDraggedCard(null);
-  };
-
-  const dropCardOnSection = (event: DragEvent<HTMLElement>, targetSectionId: string) => {
-    event.preventDefault();
-    if (!draggedCard) return;
-    const targetSection = sections.find((section) => section.id === targetSectionId)!;
-    moveStrategyCard(targetSectionId, targetSection.cardOrder.length);
+    setSelectedCardIds([cardId]);
+    setAnnouncement(`${sectionId.replace('section-', 'PARTITION ')}에 ${side === 'buy' ? '매수' : side === 'sell' ? '매도' : '위기관리'} 전략 카드를 추가했습니다.`);
   };
 
   const dropOnSection = (event: DragEvent<HTMLElement>, targetSectionId: string) => {
     if (libraryDrag?.type === 'template') {
       event.preventDefault();
       event.stopPropagation();
-      applyTemplate(libraryDrag.template, targetSectionId);
+      const sectionBounds = event.currentTarget.getBoundingClientRect();
+      const localX = (event.clientX - sectionBounds.left) / zoom;
+      const localY = (event.clientY - sectionBounds.top) / zoom;
+      const dropOrigin = {
+        x: Number.isFinite(localX) ? Math.max(24, localX) : 24,
+        y: Number.isFinite(localY) ? Math.max(136, localY) : 136,
+      };
+      applyTemplate(libraryDrag.template, targetSectionId, dropOrigin);
       finishLibraryDrag();
-      return;
     }
-    dropCardOnSection(event, targetSectionId);
-  };
-
-  const dropCardBefore = (event: DragEvent<HTMLElement>, targetSectionId: string, targetIndex: number) => {
-    if (!draggedCard) return;
-    event.preventDefault();
-    event.stopPropagation();
-    moveStrategyCard(targetSectionId, targetIndex);
   };
 
   const pointInSurface = (event: ReactPointerEvent<HTMLDivElement>): CanvasPoint => {
@@ -1563,6 +1938,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   };
 
   const beginCanvasGesture = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!(event.target as Element).closest?.('.strategy-card')) {
+      setSelectedCardId(null);
+      setSelectedCardIds([]);
+    }
     if (event.target !== event.currentTarget) return;
     if (drawMode) {
       const point = pointInSurface(event);
@@ -1605,20 +1984,29 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     const previousPointer = pointerPositionRef.current;
     pointerPositionRef.current = { x: event.clientX, y: event.clientY };
     if (cardMove) {
+      if (!cardMove.historyRecorded) {
+        rememberEditorChange();
+        setCardMove((current) => current ? { ...current, historyRecorded: true } : current);
+      }
       setTrashReady(isPointerOverTrash(event));
       updateCardPosition(
         cardMove.sectionId,
         cardMove.cardId,
-        getMovedBasicCardPosition(cardMove, event.clientX, event.clientY, zoom),
+        snapCanvasPoint(getMovedBasicCardPosition(cardMove, event.clientX, event.clientY, zoom)),
       );
       return;
     }
     if (sectionMove) {
+      if (!sectionMove.historyRecorded) {
+        rememberEditorChange();
+        setSectionMove((current) => current ? { ...current, historyRecorded: true } : current);
+      }
       setTrashReady(isPointerOverTrash(event));
-      updateSection(sectionMove.sectionId, {
+      const nextPosition = snapCanvasPoint({
         x: sectionMove.originX + (event.clientX - sectionMove.startX) / zoom,
         y: sectionMove.originY + (event.clientY - sectionMove.startY) / zoom,
       });
+      updateSection(sectionMove.sectionId, nextPosition);
       return;
     }
     if (panGesture) {
@@ -1651,20 +2039,21 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   const finishCanvasGesture = (event: ReactPointerEvent<HTMLDivElement>) => {
     const shouldDelete = event?.type !== 'pointercancel' && isPointerOverTrash(event);
     if (shouldDelete && cardMove) {
-      deleteStrategyCard(cardMove.sectionId, cardMove.cardId);
+      deleteStrategyCard(cardMove.sectionId, cardMove.cardId, !cardMove.historyRecorded);
       setDrawStart(null);
       setDraftRect(null);
       setPanGesture(null);
       return;
     }
     if (shouldDelete && sectionMove) {
-      deleteSection(sectionMove.sectionId);
+      deleteSection(sectionMove.sectionId, !sectionMove.historyRecorded);
       setDrawStart(null);
       setDraftRect(null);
       setPanGesture(null);
       return;
     }
     if (drawStart && draftRect && draftRect.width >= 120 && draftRect.height >= 100) {
+      rememberEditorChange();
       const sectionNumber = sections.length + 1;
       const sectionId = `section-${sectionNumber}`;
       const buyCardId = `${sectionId}-buy-1`;
@@ -1672,9 +2061,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       setCardMeta((current) => ({
         ...current,
         [buyCardId]: {
-          title: '매수 컨테이너',
+          title: '매수 전략',
           detail: '직접 구성 · 블록을 추가해 보세요',
-          explanation: '오른쪽 BLOCKS에서 조건을 골라 매수 규칙을 구성합니다.',
+          explanation: '왼쪽 라이브러리의 블록 탭에서 조건을 골라 매수 규칙을 구성합니다.',
         },
       }));
       setBuySettings((current) => ({ ...current, [buyCardId]: createDefaultBuySettings() }));
@@ -1694,30 +2083,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       }]);
       setActiveSectionId(sectionId);
       setSelectedCardId(buyCardId);
-      setAnnouncement(`PARTITION ${String(sectionNumber).padStart(2, '0')}을 만들었습니다. 매수 컨테이너가 기본으로 포함됩니다.`);
+      setSelectedCardIds([buyCardId]);
+      setAnnouncement(`PARTITION ${String(sectionNumber).padStart(2, '0')}을 만들었습니다. 매수 전략 카드가 기본으로 포함됩니다.`);
     }
     if (drawStart) setDrawMode(false);
-    if (cardMove) {
-      setSections((current) => current.map((section) => {
-        if (section.id !== cardMove.sectionId) return section;
-        const desired = section.cardPositions[cardMove.cardId]
-          ?? getDefaultCardPosition(section.cardOrder.indexOf(cardMove.cardId));
-        const movingSize = cardSizes[cardMove.cardId] ?? { width: 280, height: 286 };
-        const occupied = section.cardOrder
-          .filter((cardId) => cardId !== cardMove.cardId)
-          .map((cardId, index) => ({
-            position: section.cardPositions[cardId] ?? getDefaultCardPosition(index),
-            size: cardSizes[cardId] ?? { width: 280, height: 286 },
-          }));
-        return {
-          ...section,
-          cardPositions: {
-            ...section.cardPositions,
-            [cardMove.cardId]: resolveBasicCardCollision(desired, movingSize, occupied),
-          },
-        };
-      }));
-    }
     setDrawStart(null);
     setDraftRect(null);
     setPanGesture(null);
@@ -1737,15 +2106,21 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   const beginSectionAreaMove = (event: ReactPointerEvent<HTMLElement>, section: StrategySection) => {
     if (event.button !== 0) return;
     if ((event.target as Element).closest?.('button, input, select, label, .strategy-card')) return;
+    setSelectedCardId(null);
+    setSelectedCardIds([]);
     beginSectionMove(event, section);
   };
 
-  const beginCardMove = (event: ReactPointerEvent<HTMLElement>, section: StrategySection, cardId: string) => {
+  const beginCardMove = (event: ReactPointerEvent<HTMLElement>, section: StrategySection, cardId: string, wasSelected: boolean) => {
+    if (event.button !== 0) return;
+    if ((event.target as Element).closest?.('button, input, select, label, [role="combobox"]')) return;
     event.preventDefault();
     event.stopPropagation();
+    cardSelectionAtPointerDownRef.current = { cardId, wasSelected };
     const position = section.cardPositions?.[cardId] ?? getDefaultCardPosition(section.cardOrder.indexOf(cardId));
     setActiveSectionId(section.id);
     setSelectedCardId(cardId);
+    setSelectedCardIds([cardId]);
     setCardMove({
       sectionId: section.id,
       cardId,
@@ -1758,6 +2133,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   };
 
   const startCardTitleEdit = (cardId: string) => {
+    rememberEditorChange();
     setEditingCardTitleId(cardId);
     setCardTitleDraft(cardMeta[cardId]?.title ?? '');
   };
@@ -1769,7 +2145,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         ...current,
         [cardId]: { ...current[cardId], title: nextTitle },
       }));
-      setAnnouncement(`컨테이너 이름을 ${nextTitle}(으)로 변경했습니다.`);
+      setAnnouncement(`전략 카드 이름을 ${nextTitle}(으)로 변경했습니다.`);
     }
     setEditingCardTitleId(null);
     setCardTitleDraft('');
@@ -1779,77 +2155,77 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     const isPrimary = cardId === `primary-${side}`;
     const testId = isPrimary ? `basic-${side}-group` : `strategy-card-${cardId}`;
     const stackTestId = isPrimary ? `basic-${side}-stack` : `strategy-stack-${cardId}`;
-    const isSelected = selectedCardId === cardId;
+    const isSelected = selectedCardIds.includes(cardId) || selectedCardId === cardId;
     const sideLabel = side === 'buy' ? '매수' : side === 'sell' ? '매도' : '위기관리';
-    const terminalLabel = side === 'buy' ? '매수 요청' : side === 'sell' ? '전량 매도' : '전량 청산';
+    const terminalLabel = side === 'buy' ? '매수 요청' : side === 'sell' ? '매도 요청' : '전량 청산';
     const sectionNumber = String(sections.findIndex((item) => item.id === section.id) + 1).padStart(2, '0');
     const meta = cardMeta[cardId] ?? {
-      title: `${sideLabel} 컨테이너`,
+      title: `${sideLabel} 전략`,
       detail: '조건을 모두 만족하면 실행',
       explanation: '',
     };
     const settings = buySettings[cardId] ?? createDefaultBuySettings();
+    const sellExecution = sellSettings[cardId] ?? createDefaultSellSettings();
     const position = section.cardPositions?.[cardId] ?? getDefaultCardPosition(cardIndex);
+    const ruleSide: 'left' | 'right' = position.x > Math.max(520, (section.width ?? 752) * .56) ? 'left' : 'right';
+    const budgetRule = side === 'buy'
+      ? <>전략 예산의 <b>{Math.round(section.allocation / Math.max(1, section.cards.buy.length))}%</b>를 사용하고 한 번에 최대 <b>{settings.maxOrderPercent}%</b>까지 주문합니다.</>
+      : side === 'sell'
+        ? <>조건을 모두 만족하면 매도 비율 <b>{sellExecution.sellPercent || '미설정'}%</b>만큼 주문합니다.</>
+        : <>조건을 모두 만족하면 해당 포지션을 전량 정산합니다.</>;
     return <div
       key={cardId}
-      className={`strategy-container content-sized-strategy ${side}-container strategy-card ${isSelected ? 'is-selected' : ''} ${invalidCardIds.has(cardId) ? 'has-validation-error' : ''} ${draggedCard?.cardId === cardId ? 'is-card-dragging' : ''} ${cardMove?.cardId === cardId ? 'is-free-moving' : ''} ${libraryDrag?.type === 'block' ? 'is-library-drop-ready' : ''}`}
+      className={`strategy-container content-sized-strategy ${side}-container strategy-card ${isSelected ? 'is-selected is-explained' : ''} ${invalidCardIds.has(cardId) ? 'has-validation-error' : ''} ${cardMove?.cardId === cardId ? 'is-free-moving' : ''} ${libraryDrag?.type === 'block' ? 'is-library-drop-ready' : ''}`}
       data-testid={testId}
       data-strategy-card={cardId}
       data-selected={isSelected ? 'true' : undefined}
       role={side === 'risk' ? 'region' : undefined}
-      aria-label={side === 'risk' ? `PARTITION ${sectionNumber} 위기관리 컨테이너` : undefined}
+      aria-label={side === 'risk' ? `PARTITION ${sectionNumber} 위기관리 전략` : undefined}
       ref={(element) => {
         if (element) cardElementsRef.current.set(cardId, element);
         else cardElementsRef.current.delete(cardId);
       }}
       style={{ left: position.x, top: position.y }}
-      draggable
-      onDragStart={(event) => startCardDrag(event, section.id, side, cardId)}
-      onDragEnd={() => { setDraggedCard(null); setTrashReady(false); }}
       onDragOver={(event) => {
         if (libraryDrag?.type === 'block') {
           event.preventDefault();
           event.dataTransfer.dropEffect = 'copy';
           return;
         }
-        if (draggedCard) {
-          event.preventDefault();
-          event.dataTransfer.dropEffect = 'move';
-        }
       }}
       onDrop={(event) => {
-        if (!dropLibraryBlock(event, cardId, cardBlocks[cardId].length)) dropCardBefore(event, section.id, cardIndex);
+        dropLibraryBlock(event, cardId, cardBlocks[cardId].length);
       }}
     >
-      <button
-        className="strategy-card-move-handle"
-        type="button"
-        draggable="false"
-        aria-label={`${sideLabel} 컨테이너 자유 이동${isPrimary ? '' : ` ${cardIndex + 1}`}`}
-        onPointerDown={(event) => beginCardMove(event, section, cardId)}
-      ><GripVertical size={14} /><span>MOVE</span></button>
       <header
         className="strategy-container-header"
+        role="group"
+        aria-label={`${sideLabel} 전략 카드 이동 영역`}
+        tabIndex={0}
+        onPointerDown={(event) => beginCardMove(event, section, cardId, isSelected)}
         onClick={() => {
           setActiveSectionId(section.id);
-          setSelectedCardId(cardId);
+          const selectionBeforePointer = cardSelectionAtPointerDownRef.current?.cardId === cardId
+            ? cardSelectionAtPointerDownRef.current.wasSelected
+            : isSelected;
+          cardSelectionAtPointerDownRef.current = null;
+          setSelectedCardId(selectionBeforePointer ? null : cardId);
+          setSelectedCardIds(selectionBeforePointer ? [] : [cardId]);
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          setActiveSectionId(section.id);
+          setSelectedCardId(isSelected ? null : cardId);
+          setSelectedCardIds(isSelected ? [] : [cardId]);
         }}
       >
-        <button
-          className="strategy-container-select"
-          aria-label={`${sideLabel} 컨테이너 선택${isPrimary ? '' : ` ${cardIndex + 1}`}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            setActiveSectionId(section.id);
-            setSelectedCardId(cardId);
-          }}
-        ><span className="sr-only">{sideLabel} 컨테이너 선택</span></button>
         <div className="strategy-container-identity">
           <span className="container-title-row">
             {editingCardTitleId === cardId
               ? <input
                 autoFocus
-                aria-label={`${sideLabel} 컨테이너 이름`}
+                aria-label={`${sideLabel} 전략 이름`}
                 value={cardTitleDraft}
                 onClick={(event) => event.stopPropagation()}
                 onChange={(event) => setCardTitleDraft(event.target.value)}
@@ -1866,30 +2242,33 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           <button
             className="container-title-edit"
             type="button"
-            aria-label={`${sideLabel} 컨테이너 이름 편집${isPrimary ? '' : ` ${cardIndex + 1}`}`}
+            aria-label={`${sideLabel} 전략 이름 편집${isPrimary ? '' : ` ${cardIndex + 1}`}`}
             onClick={(event) => {
               event.stopPropagation();
               setSelectedCardId(cardId);
+              setSelectedCardIds([cardId]);
               startCardTitleEdit(cardId);
             }}
           ><Pencil size={12} /></button>
           </span>
-          {(side === 'buy' || invalidCardIds.has(cardId)) && <span className="container-title-tags">
+          {(side === 'buy' || side === 'sell' || invalidCardIds.has(cardId)) && <span className="container-title-tags">
             {side === 'buy' && <>
               <span>예산 {Math.round(section.allocation / Math.max(1, section.cards.buy.length))}%</span>
               <span>주문 최대 {settings.maxOrderPercent}%</span>
             </>}
-            {invalidCardIds.has(cardId) && <em className="strategy-validation-badge">조건 필요</em>}
+            {side === 'sell' && <span>{sellExecution.sellPercent ? `매도 ${sellExecution.sellPercent}%` : '비율 미설정'}</span>}
+            {invalidCardIds.has(cardId) && <em className="strategy-validation-badge">{cardBlocks[cardId]?.length ? '입력 필요' : '조건 필요'}</em>}
           </span>}
         </div>
-        {side === 'buy' && <button
+        {(side === 'buy' || side === 'sell') && <button
             className="container-settings-toggle"
             type="button"
-            aria-label={`${sideLabel} 컨테이너 실행 설정${isPrimary ? '' : ` ${cardIndex + 1}`}`}
+            aria-label={`${sideLabel} 전략 실행 설정${isPrimary ? '' : ` ${cardIndex + 1}`}`}
             aria-expanded={expandedSettingsCardId === cardId}
             onClick={(event) => {
               event.stopPropagation();
               setSelectedCardId(cardId);
+              setSelectedCardIds([cardId]);
               setExpandedSettingsCardId((current) => current === cardId ? null : cardId);
             }}
           ><Settings2 size={12} /></button>}
@@ -1903,24 +2282,36 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           <span><Layers3 size={12} aria-hidden="true" />사용 예산</span>
           <strong>{`균등 배분 · ${Math.round(section.allocation / Math.max(1, section.cards.buy.length))}%`}</strong>
         </div>
-        <label className="order-limit-setting"><span><strong>주문 한도</strong><small>1회 최대</small></span><span className="setting-with-unit"><input type="number" min="1" max="100" aria-label="1회 주문 최대" value={settings.maxOrderPercent} onChange={(event) => {
+        <label className="order-limit-setting"><span><strong>주문 한도</strong><small>1회 최대</small></span><span className="setting-with-unit"><input type="number" min="1" max="100" aria-label="1회 주문 최대" value={settings.maxOrderPercent} onFocus={rememberEditorChange} onChange={(event) => {
           setSelectedCardId(cardId);
           setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxOrderPercent: Number(event.target.value) } }));
         }} /><b>%</b></span></label>
-        <label className="setting-toggle"><input type="checkbox" aria-label="추가 매수 허용" checked={settings.allowAdditionalBuy} onChange={(event) => {
+        <label className="setting-toggle"><input type="checkbox" aria-label="반복 진입 허용" checked={settings.allowAdditionalBuy} onChange={(event) => {
+          rememberEditorChange();
           setSelectedCardId(cardId);
           setBuySettings((current) => ({ ...current, [cardId]: { ...settings, allowAdditionalBuy: event.target.checked } }));
-        }} /><span><strong>추가 매수</strong><small>같은 종목 재진입</small></span></label>
+        }} /><span><strong>반복 진입</strong><small>조건이 다시 맞으면 재진입</small></span></label>
         {settings.allowAdditionalBuy && <div className="additional-buy-settings">
           <label><span>방식</span><select aria-label="재실행 방식" value={settings.rerunMode} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, rerunMode: event.target.value as BuyContainerSettings['rerunMode'] } }))}><option>조건 재충족</option><option>N봉 이후</option><option>N거래일 이후</option></select></label>
           <label><span>간격</span><input type="number" min="1" max="365" aria-label="재실행 간격" value={settings.rerunInterval} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, rerunInterval: Number(event.target.value) } }))} /></label>
           <label><span>최대 진입</span><input type="number" min="1" max="1000" aria-label="한 포지션 최대 진입 횟수" value={settings.maxEntries} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxEntries: Number(event.target.value) } }))} /></label>
         </div>}
       </section>}
+      {side === 'sell' && expandedSettingsCardId === cardId && <section className="container-settings-card is-popover" role="group" aria-label="매도 실행 설정">
+        <header className="container-settings-head">
+          <span><Settings2 size={13} aria-hidden="true" /><strong>매도 설정</strong></span>
+          <button type="button" aria-label="매도 실행 설정 닫기" onClick={() => setExpandedSettingsCardId(null)}><X size={13} /></button>
+        </header>
+        <p className="settings-compact-note">보유 수량 중 이번 조건에서 매도할 비율입니다.</p>
+        <label className="order-limit-setting"><span><strong>매도 비율</strong><small>조건 충족 시</small></span><span className="setting-with-unit"><input type="number" min="1" max="100" aria-label="매도 비율" value={sellExecution.sellPercent} onFocus={rememberEditorChange} onChange={(event) => {
+          setSelectedCardId(cardId);
+          setSellSettings((current) => ({ ...current, [cardId]: { sellPercent: event.target.value === '' ? '' : Number(event.target.value) } }));
+        }} /><b>%</b></span></label>
+      </section>}
       <div
-        className={`block-stack ${cardBlocks[cardId].length > 0 ? `has-condition-blocks ${cardBlocks[cardId].length === 1 ? 'is-single-condition' : 'is-multi-condition is-segmented-condition'}` : ''}`}
+        className={`block-stack ${cardBlocks[cardId].length > 0 ? `has-condition-blocks has-center-marker ${cardBlocks[cardId].length === 1 ? 'is-single-condition' : 'is-multi-condition is-chain-linked-group'}` : ''}`}
         data-testid={stackTestId}
-        aria-label={`${sideLabel} 컨테이너 조건 목록`}
+        aria-label={`${sideLabel} 전략 조건 목록`}
         onDragOver={(event) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = libraryDrag?.type === 'block' ? 'copy' : 'move';
@@ -1928,10 +2319,21 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         if (!dropLibraryBlock(event, cardId, cardBlocks[cardId].length)) dropBlock(event, cardId, cardBlocks[cardId].length);
       }}>
         {cardBlocks[cardId].length > 0
-          ? <><span className="condition-stack-label" aria-label={cardBlocks[cardId].length === 1 ? '실행 조건' : '모든 조건을 충족'}><GitBranch size={10} aria-hidden="true" />{cardBlocks[cardId].length === 1 ? 'IF' : 'AND'}</span>{renderEditableBlocks(cardId, side)}</>
-          : <div className="empty-container-drop"><Plus size={14} /><strong>조건 놓기</strong><small>오른쪽에서 드래그</small></div>}
+          ? <>{renderEditableBlocks(cardId, side, ruleSide)}</>
+          : <div className="empty-container-drop"><Plus size={14} /><strong>조건 놓기</strong><small>블록 탭에서 드래그</small></div>}
       </div>
-      <footer className="strategy-container-footer" aria-label={`고정 ${sideLabel} 실행`}><StrategyBlock id={isPrimary ? `${side}-order-block` : `${cardId}-order-block`} fixed icon={Check} label={terminalLabel} tone={side} /></footer>
+      <footer className="strategy-container-footer" aria-label={`고정 ${sideLabel} 실행`} onPointerDown={(event) => beginCardMove(event, section, cardId, isSelected)}><StrategyBlock
+        id={isPrimary ? `${side}-order-block` : `${cardId}-order-block`}
+        fixed
+        icon={Check}
+        label={terminalLabel}
+        tone={side}
+        showRule={isSelected}
+        rule={budgetRule}
+        ruleSide={ruleSide}
+        ruleStep={cardBlocks[cardId].length + 1}
+        ruleTestId="basic-narrative-budget"
+      /></footer>
     </div>;
   };
 
@@ -1961,8 +2363,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
 
   const trashItemLabel = draggedBlock
     ? '블록'
-    : (draggedCard || cardMove)
-      ? '컨테이너'
+    : cardMove
+      ? '전략 카드'
       : sectionMove
         ? '파티션'
         : null;
@@ -1970,8 +2372,20 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   return <Localized><div className="page editor-page basic-editor-page editor-shell-page">
     <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
     <div className="basic-editor-commandbar floating-editor-controls" role="toolbar" aria-label="Basic 편집 작업">
-      <div className="basic-editor-context"><Button className="floating-editor-button" kind="ghost" icon={ArrowLeft} onClick={goBack}>목록</Button><div className="floating-editor-mode-controls" role="group" aria-label="편집기 전환"><Button className="floating-editor-button active" onClick={() => openEditor?.('basic')}>Basic 편집기</Button><Button className="floating-editor-button" onClick={() => openEditor?.('pro')}>Pro 편집기</Button></div></div>
+      <div className="basic-editor-context"><Button className="floating-editor-button" kind="ghost" icon={ArrowLeft} onClick={goBack}>목록</Button><div className="floating-editor-mode-controls" role="group" aria-label="편집기 전환"><Button className="floating-editor-button active" onClick={() => openEditor?.('basic')}>Basic 편집기</Button><Button className="floating-editor-button" onClick={() => openEditor?.('pro')}>Pro 편집기</Button></div><div className="basic-history-controls" role="group" aria-label="편집 기록">
+        <button type="button" className="floating-editor-button" aria-label="되돌리기" disabled={undoStack.length === 0} onClick={undoEditorChange}><Undo2 size={15} /></button>
+        <button type="button" className="floating-editor-button" aria-label="다시 실행" disabled={redoStack.length === 0} onClick={redoEditorChange}><Redo2 size={15} /></button>
+      </div></div>
       <div className="basic-editor-actions">
+        <Button
+          className={`floating-editor-button basic-validation-trigger ${highlightValidation ? 'is-active' : ''} ${isLaunchable ? 'is-launchable' : 'is-incomplete'}`}
+          icon={isLaunchable ? Check : TriangleAlert}
+          aria-label="미완성 오류 강조"
+          aria-pressed={highlightValidation}
+          onClick={() => setHighlightValidation((current) => !current)}
+        >
+          {isLaunchable ? '완성' : `미완성 · 오류 ${validationIssues.length}`}
+        </Button>
         <Button className="floating-editor-button" icon={Save} onClick={saveStrategy}>저장</Button>
         <div className="editor-launch-action">
           <Button
@@ -1989,48 +2403,64 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         </div>
       </div>
     </div>
-    <div className="editor-layout basic-layout full-editor-workspace" data-testid="basic-editor-workspace">
+    <div className={`editor-layout basic-layout full-editor-workspace ${templatesCollapsed ? 'is-library-collapsed' : ''} ${highlightValidation ? 'is-validation-highlighting' : ''}`} data-testid="basic-editor-workspace">
       <div className="basic-editor-left-rail" data-testid="basic-editor-left-rail">
-        <section
-          className={`basic-validation-summary ${isLaunchable ? 'is-launchable' : 'is-incomplete'}`}
-          role="region"
-          aria-label="전략 완성도"
-          aria-live="polite"
-        >
-          <span className="basic-validation-icon" aria-hidden="true">
-            {isLaunchable ? <Check size={15} /> : <TriangleAlert size={15} />}
-          </span>
-          <div>
-            <strong>{isLaunchable ? '출시 가능한 전략' : '미완성 전략'}</strong>
-            <small>{isLaunchable ? '현재 필수 조건을 모두 만족합니다.' : '아래 조건을 만족해야 출시가 가능합니다.'}</small>
-            {!isLaunchable && <ul>{validationIssues.map((issue) => <li key={issue.id}>{issue.message}</li>)}</ul>}
+        <aside className={`editor-palette basic-library-panel panel floating-editor-panel ${templatesCollapsed ? 'is-docked-hidden' : ''}`} data-collapse-direction="left" data-testid="basic-library-panel" aria-hidden={templatesCollapsed}>
+          <div className="palette-title"><span>LIBRARY</span><Boxes size={15} /><button type="button" className="sidebar-toggle" aria-label={`라이브러리 ${templatesCollapsed ? '펼치기' : '접기'}`} aria-expanded={!templatesCollapsed} onClick={() => setTemplatesCollapsed((current) => !current)}>{templatesCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}</button></div>
+          <p className="library-intro">{libraryView === 'packages'
+            ? '원하는 방식을 고르면 매수·매도·위기관리 전략 카드를 함께 구성합니다.'
+            : '전략 카드를 선택한 뒤 블록을 클릭하거나 원하는 위치로 드래그하세요.'}</p>
+          <div className="basic-library-tabs pro-library-primary-tabs" role="tablist" aria-label="전략 라이브러리">
+            <button type="button" role="tab" aria-selected={libraryView === 'blocks'} className={libraryView === 'blocks' ? 'active' : ''} onClick={() => setLibraryView('blocks')}>블록 <b>{BLOCK_LIBRARY.reduce((count, category) => count + category.items.length, 0)}</b></button>
+            <button type="button" role="tab" aria-selected={libraryView === 'packages'} className={libraryView === 'packages' ? 'active' : ''} onClick={() => setLibraryView('packages')}>패키지 <b>{TEMPLATE_LIBRARY.length}</b></button>
           </div>
-        </section>
-        <aside className={`editor-palette template-library-panel panel floating-editor-panel ${templatesCollapsed ? 'is-collapsed' : ''}`} data-collapse-direction="left" data-testid="basic-templates-panel">
-          <div className="palette-title"><span>PACKAGES</span><Sparkles size={15} /><button type="button" className="sidebar-toggle" aria-label={`패키지 사이드바 ${templatesCollapsed ? '펼치기' : '접기'}`} aria-expanded={!templatesCollapsed} onClick={() => setTemplatesCollapsed((current) => !current)}>{templatesCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}</button></div>
-          <p className="library-intro">잘 몰라도 괜찮아요. 원하는 방식을 고르면 매수와 매도 규칙을 함께 만들어 드려요.</p>
-          <label className="palette-search"><Search size={14} /><input aria-label="패키지 검색" placeholder="RSI, 추세, 돌파" value={templateQuery} onChange={(event) => setTemplateQuery(event.target.value)} /></label>
-          <div className="template-list">
-            {filteredTemplates.map((template) => <Fragment key={template.id}>
-              {template.id === 'donchian' && <div className="template-advanced-break" role="separator" aria-label="고급 패키지"><span>ADVANCED</span><small>지표 설정이 필요한 전략</small></div>}
-              <button
-              key={template.id}
-              className={`template-card ${libraryDrag?.type === 'template' && libraryDrag.template.id === template.id ? 'is-library-dragging' : ''}`}
-              aria-label={`${template.name} 패키지 적용`}
-              data-package-group={template.category}
-              draggable
-              onDragStart={(event) => startLibraryDrag(event, { type: 'template', template })}
-              onDragEnd={finishLibraryDrag}
-              onClick={() => applyTemplate(template)}
-            >
-              <span className={`template-icon tone-${template.category}`}><Sparkles size={14} /></span>
-              <span className="template-card-copy"><strong>{template.name}</strong><small>{template.description}</small><em>{getTemplateStructureLabel(template)}</em></span>
-              <Plus size={14} />
-            </button>
-            </Fragment>)}
-          </div>
+          {libraryView === 'packages' ? <div className="basic-library-view" data-testid="basic-templates-panel">
+            <label className="palette-search"><Search size={14} /><input aria-label="패키지 검색" placeholder="RSI, 추세, 돌파" value={templateQuery} onChange={(event) => setTemplateQuery(event.target.value)} /></label>
+            <div className="template-list pro-library-scroll">
+              <div className="basic-package-section-heading"><span>핵심 전략 패키지</span></div>
+              {filteredTemplates.map((template) => <Fragment key={template.id}>
+                {template.id === 'donchian' && <div className="template-advanced-break basic-package-section-heading" role="separator" aria-label="확장 패키지"><span>확장 전략 패키지</span></div>}
+                <div className="basic-package-card-stack">
+                  <span className="basic-package-layer" aria-hidden="true" />
+                  <span className="basic-package-layer" aria-hidden="true" />
+                  <button
+                  className={`template-card pro-package-card basic-package-card ${libraryDrag?.type === 'template' && libraryDrag.template.id === template.id ? 'is-library-dragging' : ''}`}
+                  aria-label={`${template.name} 패키지 적용`}
+                  data-package-group={template.category}
+                  draggable
+                  onDragStart={(event) => startLibraryDrag(event, { type: 'template', template })}
+                  onDragEnd={finishLibraryDrag}
+                  onClick={() => applyTemplate(template)}
+                >
+                  <span className={`template-icon basic-package-bundle-icon tone-${template.category}`}><Layers3 size={15} /></span>
+                  <span className="template-card-copy"><span className="basic-package-kind">PACKAGE</span><strong>{template.name}</strong><small>{template.description}</small><em>{getTemplateStructureLabel(template)}</em></span>
+                  <Plus size={14} />
+                  </button>
+                </div>
+              </Fragment>)}
+            </div>
+          </div> : <div className="basic-library-view" data-testid="basic-block-library">
+            <label className="palette-search"><Search size={14} /><input aria-label="블록 검색" placeholder="가격, RSI, 위기관리" value={blockQuery} onChange={(event) => setBlockQuery(event.target.value)} /></label>
+            <div className="block-category-list pro-library-scroll">
+              {favoriteBlockLabels.length > 0 && <section className="block-category pro-library-category basic-library-favorites tone-condition" role="region" aria-label="즐겨찾는 블록">
+                <header className="block-category-divider is-sticky"><span><Star size={11} fill="currentColor" /> 즐겨찾기</span><b>{favoriteBlockLabels.length}</b></header>
+                <div className="block-chip-list">
+                  {favoriteBlockLabels.map((item) => renderLibraryBlock(item, getLibraryBlockTone(item), true))}
+                </div>
+              </section>}
+              {filteredBlockLibrary.map((category) => <section className={`block-category pro-library-category is-input-group tone-${category.tone}`} key={category.name}>
+                <header className="block-category-divider is-sticky" aria-label={`${category.name} 블록`}><span>{category.name}</span><b>{category.items.length}</b></header>
+                <div className="block-chip-list">
+                  {category.items.map((item) => renderLibraryBlock(item, category.tone))}
+                </div>
+              </section>)}
+            </div>
+          </div>}
         </aside>
       </div>
+      {templatesCollapsed && <button type="button" className="pro-panel-edge-handle basic-panel-edge-handle is-left" aria-label="라이브러리 펼치기" onClick={() => setTemplatesCollapsed(false)}>
+        <Boxes size={15} aria-hidden="true" /><ChevronRight size={13} aria-hidden="true" />
+      </button>}
       <section
         className="editor-canvas basic-canvas"
         aria-label="Basic 전략 캔버스"
@@ -2043,6 +2473,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         <div className="cursor-dot-spotlight" data-testid="cursor-dot-spotlight" aria-hidden="true" />
         <div className="section-draw-controls" role="group" aria-label="파티션 도구">
           <button className={`floating-editor-button ${drawMode ? 'active' : ''}`} aria-label="파티션 그리기" aria-pressed={drawMode} onClick={() => setDrawMode((current) => !current)}><Plus size={14} /> 파티션 그리기</button>
+          <button className={`floating-editor-button ${gridSnap ? 'active' : ''}`} aria-label="그리드 스냅" aria-pressed={gridSnap} onClick={() => setGridSnap((current) => !current)}><Grid3X3 size={14} /> 그리드 스냅</button>
+          <button className="floating-editor-button" aria-label="전략 카드 정리" disabled={(sections.find((section) => section.id === activeSectionId)?.cardOrder.length ?? 0) < 2} onClick={organizeActiveSection}><LayoutGrid size={14} /> 전략 정리</button>
           <span className="canvas-gesture-guide" data-testid="canvas-gesture-guide">{drawMode
             ? <><MousePointer2 size={12} aria-hidden="true" /> 빈 공간을 드래그해 파티션 만들기</>
             : <><i><Mouse size={12} aria-hidden="true" /> 휠 확대/축소</i><i><MousePointer2 size={12} aria-hidden="true" /> 드래그로 이동</i></>}</span>
@@ -2070,7 +2502,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
             const sectionLayout = getSectionLayout(section);
             return <article
               key={section.id}
-              className={`strategy-section-frame ${activeSectionId === section.id ? 'is-selected' : ''} ${invalidSectionIds.has(section.id) ? 'has-validation-error' : ''} ${draggedCard ? 'is-card-drop-ready' : ''} ${sectionMove?.sectionId === section.id ? 'is-section-moving' : ''} ${libraryDrag?.type === 'template' ? 'is-template-drop-ready' : ''}`}
+              className={`strategy-section-frame ${activeSectionId === section.id ? 'is-selected' : ''} ${invalidSectionIds.has(section.id) ? 'has-validation-error' : ''} ${sectionMove?.sectionId === section.id ? 'is-section-moving' : ''} ${libraryDrag?.type === 'template' ? 'is-template-drop-ready' : ''}`}
               data-testid={`strategy-${section.id}`}
               aria-label={`PARTITION ${sectionNumber}`}
               style={{ left: section.x, top: section.y, width: sectionLayout.width, height: sectionLayout.height }}
@@ -2082,27 +2514,21 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
                   event.dataTransfer.dropEffect = 'copy';
                   return;
                 }
-                if (draggedCard) {
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = 'move';
-                }
               }}
               onDrop={(event) => dropOnSection(event, section.id)}
             >
-              <i className="section-corner corner-top-left" aria-hidden="true" />
-              <i className="section-corner corner-top-right" aria-hidden="true" />
               <header className="strategy-section-header">
                 <button className="section-move-handle" data-testid={`${section.id}-move-handle`} aria-label={`PARTITION ${sectionNumber} 이동`} onPointerDown={(event) => beginSectionMove(event, section)}><GripVertical size={16} /></button>
                 <div className="section-identity"><span>PARTITION {sectionNumber}</span><strong>{section.symbol}</strong><small>매수 {section.cards.buy.length} · 매도 {section.cards.sell.length} · 위기관리 {section.cards.risk.length}</small></div>
                 <div className="section-settings">
-                  <label><span>거래 종목</span><button type="button" className="section-symbol-manager" aria-label={`PARTITION ${sectionNumber} 종목 관리`} onClick={() => setSymbolManagerSectionId(section.id)}><strong>{splitPartitionSymbols(section.symbol).length || 0}개 종목</strong><small>한도 설정</small></button></label>
-                  <label><span>전체 전략 대비 예산</span><span className="section-allocation"><input type="number" min=".1" max="100" step=".1" aria-label={`PARTITION ${sectionNumber} 전체 전략 대비 예산`} value={section.allocation} onChange={(event) => updateSection(section.id, { allocation: Number(event.target.value) })} /><b>%</b></span></label>
-                  <label><span>기본 봉 주기</span><select aria-label={`PARTITION ${sectionNumber} 기본 봉 주기`} value={section.timeframe} onChange={(event) => updateSection(section.id, { timeframe: event.target.value })}>{['1분봉', '3분봉', '5분봉', '15분봉', '30분봉', '1시간봉', '4시간봉', '일봉', '주봉'].map((timeframe) => <option key={timeframe}>{timeframe}</option>)}</select></label>
+                  <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="거래 종목">종목</span><button type="button" className="section-symbol-manager" aria-label={`PARTITION ${sectionNumber} 종목 관리`} onClick={() => setSymbolManagerSectionId(section.id)}><strong>{splitPartitionSymbols(section.symbol).length || 0}개 종목</strong><small>한도 설정</small></button></label>
+                  <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="전체 전략 대비 예산">예산</span><span className="section-allocation"><input type="number" min=".1" max="100" step=".1" aria-label={`PARTITION ${sectionNumber} 전체 전략 대비 예산`} value={section.allocation} onWheel={(event) => event.stopPropagation()} onChange={(event) => updateSection(section.id, { allocation: Number(event.target.value) })} /><b>%</b></span></label>
+                  <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="기본 봉 주기">봉 주기</span><select aria-label={`PARTITION ${sectionNumber} 기본 봉 주기`} value={section.timeframe} onChange={(event) => updateSection(section.id, { timeframe: event.target.value })}>{['1분봉', '3분봉', '5분봉', '15분봉', '30분봉', '1시간봉', '4시간봉', '일봉', '주봉'].map((timeframe) => <option key={timeframe}>{timeframe}</option>)}</select></label>
                 </div>
                 <div className="section-card-actions">
-                  <button aria-label={`PARTITION ${sectionNumber} 매수 컨테이너 추가`} onClick={() => addStrategyCard(section.id, 'buy')}><Plus size={13} /> 매수</button>
-                  <button aria-label={`PARTITION ${sectionNumber} 매도 컨테이너 추가`} onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={13} /> 매도</button>
-                  <button aria-label={`PARTITION ${sectionNumber} 위기관리 컨테이너 추가`} onClick={() => addStrategyCard(section.id, 'risk')}><Plus size={13} /> 위기관리</button>
+                  <button className="tone-buy" aria-label={`PARTITION ${sectionNumber} 매수 전략 추가`} onClick={() => addStrategyCard(section.id, 'buy')}><Plus size={13} /> 매수</button>
+                  <button className="tone-sell" aria-label={`PARTITION ${sectionNumber} 매도 전략 추가`} onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={13} /> 매도</button>
+                  <button className="tone-risk" aria-label={`PARTITION ${sectionNumber} 위기관리 전략 추가`} onClick={() => addStrategyCard(section.id, 'risk')}><Plus size={13} /> 위기관리</button>
                   <button
                     className={`section-preview-button ${previewSectionId === section.id ? 'active' : ''}`}
                     aria-label={`PARTITION ${sectionNumber} 전략 미리보기`}
@@ -2124,36 +2550,39 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
                 ))}
                 {section.cards.buy.length === 0 && <button
                   className="required-buy-slot"
-                  aria-label={`PARTITION ${sectionNumber} 필수 매수 컨테이너 추가`}
+                  aria-label={`PARTITION ${sectionNumber} 필수 매수 전략 추가`}
                   onClick={() => addStrategyCard(section.id, 'buy')}
-                ><TriangleAlert size={18} /><strong>매수 컨테이너가 필요해요</strong><span>필수 항목 · 추가해야 출시할 수 있어요</span></button>}
-                {section.cards.sell.length === 0 && <button className="optional-sell-slot" onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={18} /><strong>매도 컨테이너 추가</strong><span>선택 사항 · 없어도 저장할 수 있어요</span></button>}
+                ><TriangleAlert size={18} /><strong>매수 전략이 필요해요</strong><span>필수 항목 · 추가해야 출시할 수 있어요</span></button>}
+                {section.cards.sell.length === 0 && <button className="optional-sell-slot" onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={18} /><strong>매도 전략 추가</strong><span>선택 사항 · 없어도 저장할 수 있어요</span></button>}
               </div>
             </article>;
           })}
           </div>
         </div>
       </section>
-      <aside className={`editor-inspector block-library-panel panel floating-editor-panel ${blocksCollapsed ? 'is-collapsed' : ''}`} data-collapse-direction="right" data-testid="basic-block-library">
-        <div className="inspector-title"><span>BLOCKS</span><Boxes size={15} /><button type="button" className="sidebar-toggle" aria-label={`블록 사이드바 ${blocksCollapsed ? '펼치기' : '접기'}`} aria-expanded={!blocksCollapsed} onClick={() => setBlocksCollapsed((current) => !current)}>{blocksCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}</button></div>
-        <label className="palette-search"><Search size={14} /><input aria-label="블록 검색" placeholder="가격, RSI, 위기관리" value={blockQuery} onChange={(event) => setBlockQuery(event.target.value)} /></label>
-        <div className="block-category-list">
-          {filteredBlockLibrary.map((category) => <section className={`block-category tone-${category.tone}`} key={category.name}>
-            <div className="block-category-divider" role="separator" aria-label={`${category.name} 블록`}><span>{category.name}</span><b>{category.items.length}</b></div>
-            <div className="block-chip-list">
-              {category.items.map((item) => <button
-                key={`${category.name}-${item}`}
-                className={`library-block-button has-tone-band ${libraryDrag?.type === 'block' && libraryDrag.label === item && libraryDrag.tone === category.tone ? 'is-library-dragging' : ''}`}
-                aria-label={`${item} 블록 추가`}
-                draggable
-                onDragStart={(event) => startLibraryDrag(event, { type: 'block', label: item, tone: category.tone })}
-                onDragEnd={finishLibraryDrag}
-                onClick={() => addLibraryBlock(item, category.tone)}
-              ><span className="block-chip-accent"><span className="block-chip-name">{item}</span></span><Plus size={11} /></button>)}
-            </div>
-          </section>)}
+      {highlightValidation && <aside className={`basic-validation-drawer panel floating-editor-panel ${isLaunchable ? 'is-launchable' : 'is-incomplete'}`} role="complementary" aria-label="전략 오류 안내" aria-live="polite">
+        <header className="basic-validation-drawer-title">
+          <span>{isLaunchable ? <Check size={16} /> : <TriangleAlert size={16} />}</span>
+          <div><small>VALIDATION</small><strong>{isLaunchable ? '출시 가능한 전략' : '수정할 항목'}</strong></div>
+          <button type="button" aria-label="전략 오류 안내 닫기" onClick={() => setHighlightValidation(false)}><X size={14} /></button>
+        </header>
+        <div className="basic-validation-drawer-summary">
+          <strong>{isLaunchable ? '모든 필수 설정을 완료했어요' : `${validationIssues.length}개 항목을 확인해 주세요`}</strong>
+          <small>{isLaunchable ? '현재 구성으로 개인 봇을 출시할 수 있습니다.' : '항목을 선택하면 수정할 전략 카드로 이동합니다.'}</small>
         </div>
-      </aside>
+        {!isLaunchable && <div className="basic-validation-groups">
+          {groupedValidationIssues.map((group) => <section key={group.key} className="basic-validation-group" role="region" aria-label={`${group.label} 오류`}>
+            <header><strong>{group.label}</strong><span>{group.issues.length}</span></header>
+            <ul>{group.issues.map((issue, index) => <li key={issue.id}><button type="button" onClick={() => {
+              if (issue.sectionId) setActiveSectionId(issue.sectionId);
+              if (issue.cardId) {
+                setSelectedCardId(issue.cardId);
+                setSelectedCardIds([issue.cardId]);
+              }
+            }}><span>{String(index + 1).padStart(2, '0')}</span><span>{renderBasicValidationMessage(issue.message.replace(`${group.label}의 `, ''))}</span><ChevronRight size={13} /></button></li>)}</ul>
+          </section>)}
+        </div>}
+      </aside>}
     </div>
     {/*
       미리보기는 PiP 창이다. 확대·이동하는 캔버스 안에 두면 좌표가 따라 움직이고

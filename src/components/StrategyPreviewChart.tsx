@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { GripVertical, X } from 'lucide-react';
 import { PREVIEW_WINDOW, evaluateStrategyPreview } from '../lib/strategyPreview';
@@ -18,7 +18,6 @@ interface CardPosition {
 }
 
 const CARD_WIDTH = 320;
-const SIDEBAR_GAP = 12;
 /* 첫 렌더에서 아직 실측할 수 없을 때 쓰는 근사 높이. 이후에는 실제 높이로 잡는다. */
 const CARD_HEIGHT = 264;
 
@@ -78,19 +77,9 @@ export function StrategyPreviewChart({
   const [symbol, setSymbol] = useState(symbols[0] ?? 'AAPL');
   const [focusedFlowId, setFocusedFlowId] = useState<string | null>(null);
   const [position, setPosition] = useState<CardPosition>(() => clampToViewport({
-    x: (typeof window === 'undefined' ? 1200 : window.innerWidth) - CARD_WIDTH - 310,
+    x: (typeof window === 'undefined' ? 1200 : window.innerWidth) - CARD_WIDTH - 28,
     y: (typeof window === 'undefined' ? 720 : window.innerHeight) - CARD_HEIGHT - 28,
   }));
-
-  useLayoutEffect(() => {
-    const blockLibrary = document.querySelector<HTMLElement>('[data-testid="basic-block-library"]');
-    const bounds = blockLibrary?.getBoundingClientRect();
-    if (!bounds || bounds.left <= CARD_WIDTH + SIDEBAR_GAP) return;
-    setPosition((current) => clampToViewport({
-      x: bounds.left - CARD_WIDTH - SIDEBAR_GAP,
-      y: current.y,
-    }, cardRef.current?.offsetHeight || CARD_HEIGHT));
-  }, []);
 
   /* 파티션 종목이 바뀌면 선택을 유효한 값으로 되돌린다. */
   useEffect(() => {

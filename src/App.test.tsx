@@ -66,6 +66,8 @@ describe('Signal product UI', () => {
     await user.type(within(sellRsi).getByLabelText('RSI 반등 값'), '70');
     await user.click(within(sellRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
     await user.click(screen.getByRole('option', { name: '하락' }));
+    await user.click(screen.getByRole('button', { name: '매도 전략 실행 설정' }));
+    await user.type(screen.getByRole('spinbutton', { name: '매도 비율' }), '100');
 
     await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
     const dialog = screen.getByRole('dialog', { name: '개인 운용 봇 출시' });
@@ -312,15 +314,17 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('button', { name: '균형형 보기' })).not.toBeInTheDocument();
   });
 
-  test('uses container selection without the retired natural-language block notes', async () => {
+  test('keeps natural-language rule notes attached to the selected Basic strategy card', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
     await user.click(screen.getByRole('button', { name: '전략' }));
     await user.click(screen.getByRole('button', { name: '새 전략' }));
     await user.click(screen.getByRole('button', { name: 'Basic으로 시작' }));
-    expect(screen.queryByRole('note')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '매수 컨테이너 선택' }));
-    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('note')).toHaveLength(2);
+    expect(screen.getByTestId('basic-narrative-budget')).toHaveTextContent('전략 예산');
+    fireEvent.keyDown(screen.getByLabelText('매도 전략 카드 이동 영역'), { key: 'Enter' });
+    expect(screen.getAllByRole('note')).toHaveLength(2);
+    expect(screen.getByTestId('basic-narrative-budget')).toHaveTextContent('매도 비율');
   });
 
   test('opens a typed compatible-node picker where a Pro connection is released', async () => {
