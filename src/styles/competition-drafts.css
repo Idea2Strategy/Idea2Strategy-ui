@@ -290,13 +290,13 @@
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
-/* 참가 중 표시는 이름 옆 점 하나. 정보가 아니라 표식이다. */
-.cdraft-row-mine-dot {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
+/* 내가 참가한 공식 핀: 엣지 바 + 진한 배경. 레이아웃이 밀리지 않게 inset으로 긋는다. */
+.cdraft-row.is-pinned.is-mine {
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.cdraft-row.is-pinned.is-mine:hover {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
 }
 /* 공식 표시는 인증마크 아이콘. 채워진 배지 대신 파란 체크 문법을 쓴다. */
 .cdraft-host-official {

@@ -35,10 +35,12 @@ import volatilityShieldArt from '../assets/competition-v2/volatility-shield.png'
 
 type DraftId = 'A' | 'B' | 'C';
 type Kind = 'official-live' | 'official-backtest' | 'general';
-/* 상태는 양자택일 — 목록은 언제나 모집 중이거나 진행 중 한쪽만 보인다.
-   그래서 행마다 상태 텍스트를 반복할 필요가 없다. */
-type StatusFilter = '모집 중' | '진행 중';
-type JoinFilter = 'all' | 'joined' | 'open';
+/*
+  보기 축은 셋 중 하나 — 모집 중 / 진행 중 / 참여 중. 목록은 언제나 한 관점만
+  보이므로 행마다 상태나 참가 표식을 반복하지 않는다. 참여 중은 별도의 참가
+  상태 필터 대신 이 축에 흡수됐다.
+*/
+type StatusFilter = '모집 중' | '진행 중' | '참여 중';
 type UrgencyFilter = 'all' | '7' | '30';
 type SortKey = 'dday' | 'bots' | 'name';
 
@@ -146,7 +148,6 @@ function PageHead({ officials }: { officials: Competition[] }) {
 interface Filters {
   query: string;
   status: StatusFilter;
-  join: JoinFilter;
   scorings: string[];
   urgency: UrgencyFilter;
 }
@@ -155,7 +156,7 @@ interface Filters {
   기본은 모집 중만. 이 페이지에 오는 목적은 "들어갈 방 찾기"이므로, 이미 닫힌
   진행 중 대회는 직접 골랐을 때만 보인다. 공식 핀은 예외로 항상 남는다.
 */
-const EMPTY_FILTERS: Filters = { query: '', status: '모집 중', join: 'all', scorings: [], urgency: 'all' };
+const EMPTY_FILTERS: Filters = { query: '', status: '모집 중', scorings: [], urgency: 'all' };
 
 const useFilters = () => {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -171,17 +172,17 @@ const useFilters = () => {
       const matchesQuery = !query
         || competition.name.toLowerCase().includes(query)
         || competition.host.toLowerCase().includes(query);
-      const matchesStatus = competition.status === filters.status;
-      const matchesJoin = filters.join === 'all'
-        || (filters.join === 'joined' ? Boolean(competition.myBot) : !competition.myBot);
+      /* 참여 중 보기는 상태와 무관하게 내 봇이 있는 방만 모은다. */
+      const matchesStatus = filters.status === '참여 중'
+        ? Boolean(competition.myBot)
+        : competition.status === filters.status;
       const matchesScoring = filters.scorings.length === 0 || filters.scorings.includes(competition.scoring);
       const matchesUrgency = filters.urgency === 'all' || competition.dday <= Number(filters.urgency);
-      return matchesQuery && matchesStatus && matchesJoin && matchesScoring && matchesUrgency;
+      return matchesQuery && matchesStatus && matchesScoring && matchesUrgency;
     }).sort((a, b) => a.dday - b.dday);
   }, [filters]);
   const activeCount = (filters.query ? 1 : 0)
     + (filters.status === EMPTY_FILTERS.status ? 0 : 1)
-    + (filters.join === 'all' ? 0 : 1)
     + filters.scorings.length
     + (filters.urgency === 'all' ? 0 : 1);
   return { filters, patch, toggleScoring, rows, activeCount, reset: () => setFilters(EMPTY_FILTERS) };
@@ -219,14 +220,9 @@ function FilterRail({ api }: { api: FilterApi }) {
       />
     </label>
     <fieldset>
-      <legend>진행 상태</legend>
-      {(['모집 중', '진행 중'] as const)
+      <legend>보기</legend>
+      {(['모집 중', '진행 중', '참여 중'] as const)
         .map((value) => radioRow('status', filters.status === value, value, () => patch({ status: value })))}
-    </fieldset>
-    <fieldset>
-      <legend>참가 상태</legend>
-      {([['all', '전체'], ['joined', '참가 중'], ['open', '미참가']] as const)
-        .map(([value, label]) => radioRow('join', filters.join === value, label, () => patch({ join: value })))}
     </fieldset>
     <fieldset>
       <legend>채점 방식</legend>
@@ -255,21 +251,23 @@ function FilterRail({ api }: { api: FilterApi }) {
   대회는 이름 옆 작은 점 하나로만 표시한다.
 */
 function BoardRow({ competition, pinned = false, index }: { competition: Competition; pinned?: boolean; index?: number }) {
-  return <button type="button" className={`cdraft-row${pinned ? ' is-pinned' : ''}`} role="listitem">
+  /* 일반 행의 참가 표시는 없다 — 참여 중 보기가 그 역할을 한다. 필터를 타지
+     않는 공식 핀만 예외로, 내가 참가한 방은 엣지 바 + 진한 배경으로 남는다. */
+  const mine = pinned && Boolean(competition.myBot);
+  return <button
+    type="button"
+    className={`cdraft-row${pinned ? ' is-pinned' : ''}${mine ? ' is-mine' : ''}`}
+    role="listitem"
+    aria-label={mine ? `${competition.name} · 내 봇 ${competition.myRank}위 참가 중` : undefined}
+  >
     <span className="cdraft-row-cell is-type">
       {pinned ? <KindChip kind={competition.kind} /> : <b className="cdraft-row-no">{index}</b>}
     </span>
     {/* 3안: 채점 배지는 이름 옆, 개설자는 보조줄. 열은 셋뿐이라 정렬이 단순하다. */}
     <span className="cdraft-row-name">
-      {/* 참가 표시 점은 채점 배지 뒤 — 이름 줄의 맨 끝에서 조용히 알린다. */}
       <strong>
         {competition.name}
         <Scoring scoring={competition.scoring} />
-        {competition.myBot && <i
-          className="cdraft-row-mine-dot"
-          title={`내 봇 ${competition.myRank}위 참가 중`}
-          aria-label="참가 중"
-        />}
       </strong>
       <small>
         {pinned
@@ -391,7 +389,7 @@ function DraftC({ officials }: { officials: Competition[] }) {
   const rows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return GENERAL.filter((competition) => {
-      const matchesTab = competition.status === tab;
+      const matchesTab = tab === '참여 중' ? Boolean(competition.myBot) : competition.status === tab;
       const matchesQuery = !normalized
         || competition.name.toLowerCase().includes(normalized)
         || competition.host.toLowerCase().includes(normalized);
@@ -402,7 +400,9 @@ function DraftC({ officials }: { officials: Competition[] }) {
       return a.dday - b.dday;
     });
   }, [tab, query, sort]);
-  const tabCount = (status: StatusFilter) => GENERAL.filter((competition) => competition.status === status).length;
+  const tabCount = (status: StatusFilter) => GENERAL.filter((competition) => (
+    status === '참여 중' ? Boolean(competition.myBot) : competition.status === status
+  )).length;
   return <div className="cdraft-page">
     <PageHead officials={officials} />
 
@@ -459,7 +459,7 @@ function DraftC({ officials }: { officials: Competition[] }) {
       </header>
       <div className="cdraftc-toolbar">
         <div className="cdraftc-tabs" role="tablist" aria-label="진행 상태">
-          {(['모집 중', '진행 중'] as const).map((value) => <button
+          {(['모집 중', '진행 중', '참여 중'] as const).map((value) => <button
             key={value}
             type="button"
             role="tab"
