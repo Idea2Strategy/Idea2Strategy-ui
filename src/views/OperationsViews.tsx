@@ -293,10 +293,24 @@ Object.assign(botInstruments, {
   'Mean Revert': botInstruments['Pair Lab'],
 });
 
-const chartTimeframes = ['1시간', '4시간', '1일', '주봉', '달봉', '년봉'] as const;
-type Timeframe = (typeof chartTimeframes)[number];
-const timeframeCandleCounts: Record<Timeframe, number> = { '1시간': 48, '4시간': 38, '1일': 200, '주봉': 24, '달봉': 18, '년봉': 12 };
-const timeframeVisibleCandleCounts: Record<Timeframe, number> = { '1시간': 60, '4시간': 60, '1일': 60, '주봉': 60, '달봉': 60, '년봉': 60 };
+/*
+  차트 기간은 식별자와 표시 이름을 분리한다.
+
+  Localized는 화면으로 넘어가는 문자열 prop을 전부 번역하므로, 한글 이름을 그대로
+  키로 쓰면 영어에서 조회가 빗나가 캔들이 0개가 되고 화면이 죽는다(#47). 키는
+  번역되지 않는 영문 식별자로 두고, 사람이 읽는 이름만 번역 대상으로 남긴다.
+*/
+const chartTimeframes = [
+  { id: 'hour', label: '1시간', candleCount: 48 },
+  { id: 'hour4', label: '4시간', candleCount: 38 },
+  { id: 'day', label: '1일', candleCount: 200 },
+  { id: 'week', label: '주봉', candleCount: 24 },
+  { id: 'month', label: '달봉', candleCount: 18 },
+  { id: 'year', label: '년봉', candleCount: 12 },
+] as const;
+type Timeframe = (typeof chartTimeframes)[number]['id'];
+const timeframeOf = (id: Timeframe) => chartTimeframes.find((option) => option.id === id) ?? chartTimeframes[2];
+const VISIBLE_CANDLE_COUNT = 60;
 
 function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -326,7 +340,7 @@ interface TimeframeCandleMeta {
 }
 
 function timeframeCandleMeta(timeframe: Timeframe, index: number): TimeframeCandleMeta {
-  if (timeframe === '1시간') {
+  if (timeframe === 'hour') {
     const date = addUtcDays(new Date(Date.UTC(2026, 6, 15)), Math.floor(index / 7));
     const isoDate = toIsoDate(date);
     return {
@@ -335,7 +349,7 @@ function timeframeCandleMeta(timeframe: Timeframe, index: number): TimeframeCand
       rangeEnd: isoDate,
     };
   }
-  if (timeframe === '4시간') {
+  if (timeframe === 'hour4') {
     const date = addUtcDays(new Date(Date.UTC(2026, 6, 2)), index);
     const isoDate = toIsoDate(date);
     return {
@@ -344,11 +358,11 @@ function timeframeCandleMeta(timeframe: Timeframe, index: number): TimeframeCand
       rangeEnd: isoDate,
     };
   }
-  if (timeframe === '1일') {
+  if (timeframe === 'day') {
     const isoDate = toIsoDate(tradingDayDate(index));
     return { label: isoDate.replaceAll('-', '.'), rangeStart: isoDate, rangeEnd: isoDate };
   }
-  if (timeframe === '주봉') {
+  if (timeframe === 'week') {
     const rangeStart = addUtcDays(new Date(Date.UTC(2026, 0, 1)), index * 7);
     return {
       label: `2026 ${String(index + 1).padStart(2, '0')}주`,
@@ -356,7 +370,7 @@ function timeframeCandleMeta(timeframe: Timeframe, index: number): TimeframeCand
       rangeEnd: toIsoDate(addUtcDays(rangeStart, 6)),
     };
   }
-  if (timeframe === '달봉') {
+  if (timeframe === 'month') {
     const year = 2025 + Math.floor(index / 12);
     const month = index % 12;
     return {
@@ -379,7 +393,7 @@ interface TimeframeCandle extends Candle {
 }
 
 function candlesForTimeframe(candles: Candle[], timeframe: Timeframe): TimeframeCandle[] {
-  const count = timeframeCandleCounts[timeframe];
+  const count = timeframeOf(timeframe).candleCount;
   const sourceLastIndex = candles.length - 1;
   const sourceRange = Math.max(...candles.map((candle) => candle.high)) - Math.min(...candles.map((candle) => candle.low));
   let previousClose = candles[0].open;
@@ -573,9 +587,9 @@ interface BacktestCandlestickChartProps {
 
 function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange }: BacktestCandlestickChartProps) {
   const displayCandles = useMemo(() => candlesForTimeframe(instrument.candles, timeframe), [instrument.candles, timeframe]);
-  const defaultVisibleCount = Math.min(timeframeVisibleCandleCounts[timeframe], displayCandles.length);
+  const defaultVisibleCount = Math.min(VISIBLE_CANDLE_COUNT, displayCandles.length);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const [viewStart, setViewStart] = useState(() => Math.max(0, timeframeCandleCounts[timeframe] - timeframeVisibleCandleCounts[timeframe]));
+  const [viewStart, setViewStart] = useState(() => Math.max(0, timeframeOf(timeframe).candleCount - VISIBLE_CANDLE_COUNT));
   const [visibleCount, setVisibleCount] = useState(defaultVisibleCount);
   const [priceScale, setPriceScale] = useState(1);
   const [priceOffset, setPriceOffset] = useState(0);
@@ -910,7 +924,7 @@ export function BacktestView() {
   const [botQuery, setBotQuery] = useState('');
   const [symbolQuery, setSymbolQuery] = useState('');
   const [symbolModalOpen, setSymbolModalOpen] = useState(false);
-  const [timeframe, setTimeframe] = useState<Timeframe>('1일');
+  const [timeframe, setTimeframe] = useState<Timeframe>('day');
   const [activeBenchmarkIds, setActiveBenchmarkIds] = useState<string[]>([backtestBenchmark.id]);
   const [executionStartDate, setExecutionStartDate] = useState('');
   const [executionEndDate, setExecutionEndDate] = useState('');
@@ -1148,15 +1162,15 @@ export function BacktestView() {
         ><Search size={14} />종목 변경</button>
       </div>
       <div className="backtest-chart-controls">
-        <div className="backtest-timeframe" role="group" aria-label="차트 기간">
+        <div className="backtest-timeframe" role="group" aria-label="차트 기간" data-testid="backtest-timeframe">
           {chartTimeframes.map((option) => <button
-            key={option}
+            key={option.id}
             type="button"
-            aria-label={`${option} 차트 보기`}
-            aria-pressed={timeframe === option}
-            className={timeframe === option ? 'active' : ''}
-            onClick={() => setTimeframe(option)}
-          >{option}</button>)}
+            aria-label={`${option.label} 차트 보기`}
+            aria-pressed={timeframe === option.id}
+            className={timeframe === option.id ? 'active' : ''}
+            onClick={() => setTimeframe(option.id)}
+          >{option.label}</button>)}
         </div>
         <span>조정주가 · USD</span>
       </div>
