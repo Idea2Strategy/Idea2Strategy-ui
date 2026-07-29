@@ -47,6 +47,17 @@ describe('Competition lobby', () => {
     expect(within(dialog).getByLabelText('종료일')).toBeInTheDocument();
     expect(within(dialog).getByRole('combobox', { name: '채점 방식' })).toBeInTheDocument();
     expect(within(dialog).getByLabelText('시작 자본')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: '채점 방식 도움말' })).not.toBeInTheDocument();
+
+    const detailSettings = within(dialog).getByRole('button', { name: '대회 세부 설정' });
+    expect(detailSettings).toHaveAttribute('aria-expanded', 'false');
+    expect(within(dialog).queryByLabelText('종목 범위')).not.toBeInTheDocument();
+    await user.click(detailSettings);
+    expect(detailSettings).toHaveAttribute('aria-expanded', 'true');
+    expect(within(dialog).getByLabelText('종목 범위')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('참가 봇 한도')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('수수료')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('슬리피지')).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole('button', { name: '취소' }));
     expect(screen.queryByRole('dialog', { name: '대회 만들기' })).not.toBeInTheDocument();
@@ -191,10 +202,13 @@ describe('Competition lobby', () => {
     expect(within(roomButtons[0]).queryByText('07.21–08.01')).not.toBeInTheDocument();
     expect(within(roomButtons[0]).getByRole('tooltip', { name: '수익률 점수제 설명' })).toHaveTextContent('누적 수익률');
     expect(within(roomButtons[1]).getByRole('tooltip', { name: '백테스팅 설명' })).toHaveTextContent('과거 데이터');
+    expect(within(roomButtons[0]).queryByText('?')).not.toBeInTheDocument();
+    expect(within(roomButtons[1]).queryByText('?')).not.toBeInTheDocument();
     expect(roomButtons[2]).toHaveAccessibleName('Golden Cross Club 열기');
     expect(within(roomButtons[2]).getByText('D-25')).toBeInTheDocument();
     expect(within(roomButtons[2]).getByText('모집 마감까지')).toBeInTheDocument();
     expect(within(roomButtons[2]).getByRole('tooltip', { name: '표준점수제 설명' })).toHaveTextContent('표준화');
+    expect(within(roomButtons[2]).getByText('운영자 · 김골든')).toBeInTheDocument();
   });
 
   test('uses participation-size blocks instead of a range slider', async () => {

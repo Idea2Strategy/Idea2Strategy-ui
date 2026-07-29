@@ -14,7 +14,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  CircleHelp,
   Coins,
   Info,
   LoaderCircle,
@@ -1612,18 +1611,15 @@ function CompetitionBoardRanking({
   tone: CompetitionTone;
   tooltipId: string;
 }) {
-  return <span className="competition-board-ranking">
+  return <span className="competition-board-ranking dashboard-return-info">
     <strong className="competition-ranking-badge" data-ranking-tone={tone}>{ranking}</strong>
-    <span className="dashboard-return-info competition-board-ranking-help">
-      <span className="dashboard-return-info-button competition-board-ranking-help-mark" aria-hidden="true">?</span>
-      <span
-        id={tooltipId}
-        className="dashboard-return-info-tooltip"
-        role="tooltip"
-        aria-label={`${ranking} 설명`}
-      >
-        {rankingDescriptionByLabel[ranking] ?? '동일한 조건에서 대회 참가 봇의 성과를 비교합니다.'}
-      </span>
+    <span
+      id={tooltipId}
+      className="dashboard-return-info-tooltip"
+      role="tooltip"
+      aria-label={`${ranking} 설명`}
+    >
+      {rankingDescriptionByLabel[ranking] ?? '동일한 조건에서 대회 참가 봇의 성과를 비교합니다.'}
     </span>
   </span>;
 }
@@ -1849,6 +1845,7 @@ const competitionDetailDescriptions: Record<string, string> = {
 function CompetitionCreateDialog({ onClose }: { onClose: () => void }) {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [description, setDescription] = useState('');
+  const [detailSettingsOpen, setDetailSettingsOpen] = useState(false);
 
   useEffect(() => {
     nameInputRef.current?.focus();
@@ -1910,7 +1907,7 @@ function CompetitionCreateDialog({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <label className="competition-create-score">
-          <span>채점 방식 <button type="button" aria-label="채점 방식 도움말"><CircleHelp size={14} /></button></span>
+          <span>채점 방식</span>
           <select aria-label="채점 방식" defaultValue="표준점수제">
             <option>표준점수제</option>
             <option>위험조정 점수제</option>
@@ -1923,6 +1920,48 @@ function CompetitionCreateDialog({ onClose }: { onClose: () => void }) {
           <span className="competition-create-money"><b aria-hidden="true">$</b><input aria-label="시작 자본" inputMode="numeric" defaultValue="10,000" /></span>
         </label>
       </fieldset>
+
+      <button
+        type="button"
+        className="competition-create-details-toggle"
+        aria-expanded={detailSettingsOpen}
+        aria-controls="competition-create-detail-settings"
+        onClick={() => setDetailSettingsOpen((open) => !open)}
+      >
+        <span>대회 세부 설정</span>
+        <ChevronDown size={16} aria-hidden="true" />
+      </button>
+
+      {detailSettingsOpen && <fieldset
+        id="competition-create-detail-settings"
+        className="competition-create-detail-settings"
+      >
+        <legend>세부 설정</legend>
+        <label>
+          <span>종목 범위</span>
+          <select aria-label="종목 범위" defaultValue="미국 상장 주식 · ETF">
+            <option>미국 상장 주식 · ETF</option>
+            <option>미국 상장 주식</option>
+            <option>미국 상장 ETF</option>
+          </select>
+        </label>
+        <label>
+          <span>참가 봇 한도</span>
+          <select aria-label="참가 봇 한도" defaultValue="25 BOT">
+            <option>10 BOT</option>
+            <option>25 BOT</option>
+            <option>50 BOT</option>
+          </select>
+        </label>
+        <label>
+          <span>수수료</span>
+          <input aria-label="수수료" inputMode="decimal" defaultValue="0.20%" />
+        </label>
+        <label>
+          <span>슬리피지</span>
+          <input aria-label="슬리피지" inputMode="decimal" defaultValue="0.05%" />
+        </label>
+      </fieldset>}
 
       <footer>
         <p><Info size={14} aria-hidden="true" />대회를 만든 뒤에도 시작 전까지 설정을 수정할 수 있습니다.</p>
@@ -2692,7 +2731,10 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                   tone={rankingToneByLabel[room.ranking] ?? 'standard'}
                   tooltipId={tooltipId}
                 />
-                <span className="competition-board-name"><strong>{room.name}</strong></span>
+                <span className="competition-board-name">
+                  <strong>{room.name}</strong>
+                  <small>{`운영자 · ${room.host || 'I2S 운영팀'}`}</small>
+                </span>
                 <span className="competition-board-period">
                   <b className={room.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${room.remainingDays}`}</b>
                   <small>{room.status === 'running' ? '대회 마감까지' : '모집 마감까지'}</small>
