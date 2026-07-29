@@ -245,16 +245,31 @@ function FilterRail({ api }: { api: FilterApi }) {
 }
 
 /*
-  게시판 행 — A·B가 공유한다. 개설자가 자기 컬럼을 갖고, 공식 대회는 그 자리에
-  "공식" 배지가 앉아 목록을 훑을 때 바로 티가 난다.
+  게시판 행 — A·B가 공유한다.
+
+  첫 컬럼은 공식이면 라이브/백테스트 칩, 일반이면 행 번호다. 같은 자리를
+  쓰므로 일반 행이 밋밋하게 비지 않고, 칩이 있는 행은 그 자체로 공식이다.
+
+  오른쪽은 숫자 두 개(마감·참여 봇)로 끝난다. 참가 CTA·화살표·순위 배지는
+  전부 뺐다 — 행 전체가 버튼이고, 나머지는 상세가 말한다. 내가 참가 중인
+  대회는 이름 옆 작은 점 하나로만 표시한다.
 */
-function BoardRow({ competition, pinned = false }: { competition: Competition; pinned?: boolean }) {
+function BoardRow({ competition, pinned = false, index }: { competition: Competition; pinned?: boolean; index?: number }) {
   return <button type="button" className={`cdraft-row${pinned ? ' is-pinned' : ''}`} role="listitem">
+    <span className="cdraft-row-cell is-type">
+      {pinned ? <KindChip kind={competition.kind} /> : <b className="cdraft-row-no">{index}</b>}
+    </span>
     <span className="cdraft-row-name">
-      <strong>{pinned && <KindChip kind={competition.kind} />}{competition.name}</strong>
+      <strong>
+        {competition.name}
+        {competition.myBot && <i
+          className="cdraft-row-mine-dot"
+          title={`내 봇 ${competition.myRank}위 참가 중`}
+          aria-label="참가 중"
+        />}
+      </strong>
     </span>
     <span className="cdraft-row-cell is-host">
-      {/* 공식은 글자 대신 인증마크. 색과 모양이 이름보다 먼저 읽힌다. */}
       {pinned
         ? <b className="cdraft-host-official" title="공식 대회" aria-label="공식 대회">
           <BadgeCheck size={16} aria-hidden="true" />Official
@@ -264,8 +279,6 @@ function BoardRow({ competition, pinned = false }: { competition: Competition; p
     <span className="cdraft-row-cell"><Scoring scoring={competition.scoring} /></span>
     <span className="cdraft-row-cell is-num"><Dday competition={competition} /><small>마감</small></span>
     <span className="cdraft-row-cell is-num"><b>{competition.bots}</b><small>참여 봇</small></span>
-    <span className="cdraft-row-cell is-action"><RowAction competition={competition} /></span>
-    <ArrowRight className="cdraft-row-arrow" size={15} aria-hidden="true" />
   </button>;
 }
 
@@ -287,7 +300,7 @@ function GeneralSection({ api }: { api: FilterApi }) {
     {rows.length === 0
       ? <FilterEmpty reset={reset} />
       : <div role="list">
-        {rows.map((competition) => <BoardRow competition={competition} key={competition.name} />)}
+        {rows.map((competition, index) => <BoardRow competition={competition} index={index + 1} key={competition.name} />)}
       </div>}
   </section>;
 }
@@ -313,7 +326,7 @@ function DraftA({ officials }: { officials: Competition[] }) {
           <div role="list">
             {officials.length === 0 && <div className="cdraft-pinned-empty">지금 진행 중인 공식 대회가 없어요. 운영팀이 다음 시즌을 준비하고 있어요.</div>}
             {officials.map((competition) => <BoardRow competition={competition} pinned key={competition.name} />)}
-            {api.rows.map((competition) => <BoardRow competition={competition} key={competition.name} />)}
+            {api.rows.map((competition, index) => <BoardRow competition={competition} index={index + 1} key={competition.name} />)}
           </div>
           {api.rows.length === 0 && <FilterEmpty reset={api.reset} />}
         </section>

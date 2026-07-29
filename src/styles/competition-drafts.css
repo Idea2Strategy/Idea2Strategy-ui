@@ -245,9 +245,10 @@
 .cdraft-board-head span { color: var(--text-faint); font-size: var(--fs-caption); }
 
 /* 행 — A(핀 게시판)·B(일반 섹션)가 같은 열 그리드를 공유한다.
-   이름 1fr | 개설자 92 | 채점 128 | 마감 76 | 참여 봇 76 | 액션 104 | 화살표 20 */
+   종류/번호 76 | 이름 1fr | 개설자 92 | 채점 128 | 마감 76 | 참여 봇 76
+   오른쪽 끝은 숫자로 끝난다 — CTA·화살표·배지 없음. */
 .cdraft-row {
-  --cols: minmax(0, 1fr) 92px 128px 76px 76px 104px 20px;
+  --cols: 76px minmax(0, 1fr) 92px 128px 76px 76px;
   width: 100%;
   min-height: 64px;
   display: grid;
@@ -279,6 +280,21 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--fs-control);
+}
+/* 첫 컬럼: 일반은 행 번호, 공식은 종류 칩이 같은 자리를 쓴다. */
+.cdraft-row-cell.is-type { justify-items: start; }
+.cdraft-row-no {
+  color: var(--text-faint);
+  font: 650 var(--fs-caption) var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+/* 참가 중 표시는 이름 옆 점 하나. 정보가 아니라 표식이다. */
+.cdraft-row-mine-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 /* 공식 표시는 인증마크 아이콘. 채워진 배지 대신 파란 체크 문법을 쓴다. */
 .cdraft-host-official {
@@ -476,11 +492,11 @@
   .cdraft-rail > header,
   .cdraft-rail > .cdraft-search { grid-column: 1 / -1; }
   .cdraft-cards { grid-template-columns: minmax(0, 1fr); }
-  /* 좁은 폭: 이름 · 마감 · 액션만 남긴다(개설자·채점·참여 봇 숨김). */
-  .cdraft-row { --cols: minmax(0, 1fr) 76px 104px 20px; }
-  .cdraft-row > .cdraft-row-cell:nth-child(2),
+  /* 좁은 폭: 종류/번호 · 이름 · 마감만 남긴다(개설자·채점·참여 봇 숨김). */
+  .cdraft-row { --cols: 64px minmax(0, 1fr) 76px; }
   .cdraft-row > .cdraft-row-cell:nth-child(3),
-  .cdraft-row > .cdraft-row-cell:nth-child(5) { display: none; }
+  .cdraft-row > .cdraft-row-cell:nth-child(4),
+  .cdraft-row > .cdraft-row-cell:nth-child(6) { display: none; }
 }
 
 /* 스위처 확장 — 배치안 + 공식 대회 수 컨트롤 --------------------------------- */
