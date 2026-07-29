@@ -281,12 +281,14 @@
   white-space: nowrap;
   font-size: var(--fs-control);
 }
-/* 첫 컬럼: 일반은 행 번호, 공식은 종류 칩이 같은 자리를 쓴다. */
-.cdraft-row-cell.is-type { justify-items: start; }
+/* 첫 컬럼: 일반은 행 번호, 공식은 종류 칩이 같은 자리를 쓴다.
+   번호와 칩 모두 가운데 정렬 — 한 자리/두 자리 번호가 축에서 흔들리지 않는다. */
+.cdraft-row-cell.is-type { justify-items: center; }
 .cdraft-row-no {
   color: var(--text-faint);
   font: 650 var(--fs-caption) var(--font-mono);
   font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 /* 참가 중 표시는 이름 옆 점 하나. 정보가 아니라 표식이다. */
 .cdraft-row-mine-dot {
