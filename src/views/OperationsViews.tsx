@@ -2745,7 +2745,7 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                 />
                 <span className="competition-board-name">
                   <strong>{room.name}</strong>
-                  <small>{`운영자 · ${room.host || 'I2S 운영팀'}`}</small>
+                  <small>{room.host || 'I2S 운영팀'}</small>
                 </span>
                 <span className="competition-board-period">
                   <b className={room.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${room.remainingDays}`}</b>
