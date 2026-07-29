@@ -26,7 +26,7 @@ import { ReadOnlyStrategyBlock } from './StrategyViews';
 /* ---------- Types ----------------------------------------------------------- */
 
 type FilterId = 'personal' | 'competition';
-type TabId = 'overview' | 'positions' | 'decisions';
+type TabId = 'live' | 'positions' | 'decisions';
 type StepTone = 'universe' | 'data' | 'indicator' | 'condition' | 'risk' | 'order' | 'portfolio' | 'time';
 type LogScope = 'fills' | 'all';
 type LogPeriod = 'all' | 'today' | 'week' | 'month';
@@ -768,13 +768,16 @@ function StrategyLayoutModal({ botName, detail, layout, onClose, onSave }: Strat
 /* ---------- Page ------------------------------------------------------------ */
 
 /*
-  Bot operations: a master list on the left, the selected bot's detail on the
-  right, everything else behind tabs.
+  Bot operations. The left column answers "which bot, and how is it doing":
+  a compact picker on top, then that bot's identity and standing figures. The
+  right column answers "what is it doing right now", and opens on the live
+  execution chart — reaching it used to cost a trip into the decision log.
 
-  Positions is current state only (composition and holdings); everything with a
-  time axis — fills included — lives in the decision log, so the same event is
-  never told in two places. Budget-cap deferrals are normal operation (the bot
-  retries next evaluation) and are recorded there, never escalated.
+  Positions is current state only (composition and holdings). The decision log
+  keeps the written record of every evaluation; the live chart is the same
+  fills drawn on a price axis, so the log no longer repeats it inline.
+  Budget-cap deferrals are normal operation (the bot retries next evaluation)
+  and are recorded in the log, never escalated.
 */
 interface BotsViewProps {
   botIcons?: BotIconMap;
@@ -784,7 +787,7 @@ interface BotsViewProps {
 export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: BotsViewProps = {}): ReactNode {
   const [filter, setFilter] = useState<FilterId>('personal');
   const [selectedName, setSelectedName] = useState<string>(botList[0].name);
-  const [tab, setTab] = useState<TabId>('overview');
+  const [tab, setTab] = useState<TabId>('live');
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [savedLayouts, setSavedLayouts] = useState<Record<string, SnapshotLayout>>(
     () => Object.fromEntries(Object.entries(botDetails).map(([name, item]) => [name, cloneLayout(item.snapshot.layout)])),
@@ -852,7 +855,7 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
 
   const selectBot = (bot: BotRecord) => {
     setSelectedName(bot.name);
-    setTab('overview');
+    setTab('live');
     setLayoutOpen(false);
     setIconPickerOpen(false);
     setColorVariantsOpen(false);
@@ -934,11 +937,10 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
             <span className="bots-list-icon" aria-hidden="true">
               <BotGlyph selection={botIcons[bot.name] ?? FALLBACK_BOT_ICON} testId={`bot-icon-${bot.name}-list`} />
             </span>
-            {/* One template string, not interpolated fragments: Localized
-                translates whole text nodes, and a number in the middle would
-                split this into untranslatable pieces. */}
-            <span className="bots-list-copy"><strong>{bot.name}</strong><small>{`${bot.room} · 전략 ${bot.strategies}개`}</small></span>
-            <span className="bots-list-figures"><b>{bot.capital}</b><em className={bot.change.startsWith('+') ? 'positive' : 'negative'}>{bot.change}</em></span>
+            {/* The picker only answers "which bot". Capital, change, room and
+                strategy count all sit in the summary panel directly below it,
+                so carrying them on every row would just crowd the column. */}
+            <span className="bots-list-copy"><strong>{bot.name}</strong></span>
             <Status tone={botTone(bot.state)}>{bot.state}</Status>
           </button></div>)}
         </div> : <EmptyState
@@ -951,10 +953,10 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
         />}
       </section>
 
-      {selected && detail ? <section className="bots-detail-panel panel" aria-label={`${selected.name} 운영 상세`}>
-        {/* The identity row is the bot icon tile and the name — where the bot
-            runs is on the list row, and the strategy belongs to the snapshot
-            tab, so neither is repeated here. */}
+      {selected && detail ? <section className="bots-summary-panel panel" aria-label={`${selected.name} 운영 상세`}>
+        {/* Identity sits with the standing figures: together they answer "which
+            bot is this, and how is it doing". Where it runs is in the timing
+            row below, and the strategy belongs to the layout modal. */}
         <header className="bots-detail-head">
           <div className="bots-detail-identity">
             <span className="bots-icon-anchor">
@@ -1033,26 +1035,17 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
             </span>
             <h2>{selected.name}</h2>
           </div>
-          <Status tone={botTone(selected.state)}>{selected.state}</Status>
+          {/* State and the configuration entry point stay in the header so
+              neither depends on scrolling past the equity chart. */}
+          <div className="bots-summary-head-tools">
+            <Status tone={botTone(selected.state)}>{selected.state}</Status>
+            <button type="button" className="bots-layout-open" onClick={() => setLayoutOpen(true)}>
+              <Boxes size={14} aria-hidden="true" />전략 구성 보기
+            </button>
+          </div>
         </header>
 
-        <div className="bots-detail-tabbar" role="group" aria-label={`${selected.name} 상세 탐색`}>
-          <Tabs
-            label={`${selected.name} 상세 보기 방식`}
-            value={tab}
-            onChange={(next: TabId) => setTab(next)}
-            items={[
-              { id: 'overview', label: '개요' },
-              { id: 'positions', label: '포지션', count: detail.positions.length },
-              { id: 'decisions', label: '판단 기록', count: detail.events.length },
-            ]}
-          />
-          <button type="button" className="bots-layout-open" onClick={() => setLayoutOpen(true)}>
-            <Boxes size={14} aria-hidden="true" />전략 구성 보기
-          </button>
-        </div>
-
-        {tab === 'overview' && <TabPanel id="overview">
+        <div className="bots-summary-body">
           <div className="bots-overview-figures">
             <div><span>총자산</span><strong>{selected.capital}</strong><small>{`${signedMoney(botProfit[botProfit.length - 1])} · ${percent(detail.monthReturn)}`}</small></div>
             <div><span>투자 중</span><strong>{detail.invested}</strong></div>
@@ -1078,6 +1071,34 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
               ariaLabel={`${selected.name} 손익과 수익률 차트`}
             />
           </div>
+        </div>
+      </section> : null}
+
+      {selected && detail ? <section className="bots-live-panel panel" aria-label={`${selected.name} 실시간 운영`}>
+        <div className="bots-detail-tabbar" role="group" aria-label={`${selected.name} 상세 탐색`}>
+          <Tabs
+            label={`${selected.name} 상세 보기 방식`}
+            value={tab}
+            onChange={(next: TabId) => setTab(next)}
+            items={[
+              { id: 'live', label: '실시간' },
+              { id: 'positions', label: '포지션', count: detail.positions.length },
+              { id: 'decisions', label: '판단 기록', count: detail.events.length },
+            ]}
+          />
+        </div>
+
+        {/* The opening tab is the fills the bot is making right now, drawn on a
+            price axis. That is the reason to open this page, so it costs no
+            clicks; the written record of the same fills stays in the log. */}
+        {tab === 'live' && <TabPanel id="live">
+          {decisionSymbol && <LiveExecutionChart
+            botName={selected.name}
+            executions={fillEvents}
+            symbols={decisionSymbols}
+            symbol={decisionSymbol}
+            onSymbolChange={setDecisionSymbol}
+          />}
         </TabPanel>}
 
         {tab === 'positions' && <TabPanel id="positions">
@@ -1120,14 +1141,8 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
           {/* One timeline, one row grammar: kind chip · what happened · where
               and when. Fills show by default; engine records (unmet
               conditions, deferrals, passed checks) join when the person opts
-              into the full record. */}
-          {decisionSymbol && <LiveExecutionChart
-            botName={selected.name}
-            executions={fillEvents}
-            symbols={decisionSymbols}
-            symbol={decisionSymbol}
-            onSymbolChange={setDecisionSymbol}
-          />}
+              into the full record. The chart of these same fills is the 실시간
+              tab, so it is not drawn above the list a second time. */}
           <div className="bots-log-tools">
             <label className="bots-log-search">
               <Search size={14} aria-hidden="true" />

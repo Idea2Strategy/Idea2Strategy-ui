@@ -119,11 +119,13 @@ describe('Bot operations', () => {
     expect(within(log()).getByText('예산 상한 검사 통과')).toBeInTheDocument();
   });
 
-  test('the decision log pairs live candles with symbol-specific execution markers', async () => {
+  test('the live chart opens with the page and pairs candles with symbol-specific execution markers', async () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
-    await user.click(screen.getByRole('tab', { name: /판단 기록/ }));
+    // The whole point of the 실시간 tab: reaching the chart costs no clicks. It
+    // used to live inside the decision log, two steps into the page.
+    expect(screen.getByRole('tab', { name: /실시간/ })).toHaveAttribute('aria-selected', 'true');
 
     const chart = screen.getByRole('region', { name: 'Atlas 07 실시간 체결 차트' });
     expect(within(chart).getByText('SPY')).toBeInTheDocument();
@@ -133,6 +135,11 @@ describe('Bot operations', () => {
     await user.click(within(chart).getByRole('button', { name: 'AAPL 차트 보기' }));
     expect(within(chart).getByRole('heading', { name: 'AAPL 실시간 차트' })).toBeInTheDocument();
     expect(within(chart).getByTestId('live-trade-marker')).toHaveAttribute('data-side', '매도');
+
+    // The log keeps the written record of the same fills; it must not draw the
+    // chart a second time.
+    await user.click(screen.getByRole('tab', { name: /판단 기록/ }));
+    expect(screen.queryByRole('region', { name: 'Atlas 07 실시간 체결 차트' })).not.toBeInTheDocument();
   });
 
   test('the decision log filters by search text and period', async () => {
@@ -246,13 +253,15 @@ describe('Bot operations', () => {
     expect(screen.getByText(/최초 실패 조건과 함께 남깁니다/)).toBeInTheDocument();
   });
 
-  test('replaces the strategy snapshot tab with a layout button beside the tabs', () => {
+  test('replaces the strategy snapshot tab with a layout button in the summary panel', () => {
     render(<BotsView />);
 
     expect(screen.queryByRole('tab', { name: '전략 스냅샷' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '자연어 설명' })).not.toBeInTheDocument();
-    const tabBar = screen.getByRole('group', { name: 'Atlas 07 상세 탐색' });
-    expect(within(tabBar).getByRole('button', { name: '전략 구성 보기' })).toBeInTheDocument();
+    // Configuration belongs with the bot's identity and figures, not with the
+    // tabs that switch what the live column is showing.
+    const summary = screen.getByRole('region', { name: 'Atlas 07 운영 상세' });
+    expect(within(summary).getByRole('button', { name: '전략 구성 보기' })).toBeInTheDocument();
   });
 
   test('opens the launch snapshot layout in a read-only modal without editor tools', async () => {

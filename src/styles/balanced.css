@@ -5372,14 +5372,24 @@
 /* Bot operations — selectable list on the left drives the detail on the right */
 .bots-page { display: grid; gap: var(--space-5); }
 .bots-page .page-heading { margin-bottom: 0; }
+/* The narrow column stacks the compact picker over the selected bot's summary,
+   so the standing figures sit where the list used to be and the live chart
+   gets the wide column to itself. Named areas keep that placement without a
+   wrapper element, so each panel stays a direct grid child. */
 .bots-workspace {
   display: grid;
-  grid-template-columns: minmax(320px, .8fr) minmax(520px, 1.6fr);
+  grid-template-columns: minmax(380px, 1fr) minmax(560px, 1.45fr);
+  grid-template-areas:
+    "picker  live"
+    "summary live";
   gap: var(--space-4);
   align-items: start;
 }
 .bots-workspace > * { min-width: 0; }
-.bots-list-panel, .bots-detail-panel { overflow: hidden; }
+.bots-list-panel { grid-area: picker; }
+.bots-summary-panel { grid-area: summary; }
+.bots-live-panel { grid-area: live; }
+.bots-list-panel, .bots-summary-panel, .bots-live-panel { overflow: hidden; }
 .bots-list-head, .bots-detail-head {
   min-height: 72px;
   display: flex;
@@ -5417,14 +5427,16 @@
 .bots-filter button.active { color: var(--accent-ink); background: var(--accent); }
 
 .bots-list { display: grid; }
+/* One line per bot: glyph, name, state. The picker is a chooser, not a
+   comparison table — the numbers are in the summary panel right below it. */
 .bots-list > div > button {
   width: 100%;
-  min-height: 78px;
+  min-height: 52px;
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-1) var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-4);
   border: 0;
   border-top: 1px solid var(--line);
   border-left: 2px solid transparent;
@@ -5437,9 +5449,8 @@
 .bots-list > div > button:hover { background: var(--surface-2); }
 .bots-list > div > button.active { border-left-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface)); }
 .bots-list-icon {
-  width: 36px;
-  height: 36px;
-  grid-row: 1 / span 2;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   border: 1px solid var(--line);
@@ -5448,8 +5459,8 @@
   background: transparent;
 }
 .bots-list-icon .bot-icon-glyph {
-  width: 27px;
-  height: 27px;
+  width: 20px;
+  height: 20px;
 }
 
 /* SVG masks let every repository-owned bot drawing use the selected color. */
@@ -5587,10 +5598,22 @@
 .bots-list-copy { display: grid; gap: 3px; }
 .bots-list-copy strong { font-size: var(--fs-control); }
 .bots-list-copy small { color: var(--text-faint); font-size: var(--fs-micro); }
-.bots-list-figures { display: grid; gap: 3px; justify-items: end; }
-.bots-list-figures b { font: 700 var(--fs-control) var(--font-mono); }
-.bots-list-figures em { font: 700 var(--fs-micro) var(--font-mono); font-style: normal; }
-.bots-list > div > button > .status { grid-column: 2 / span 2; justify-self: start; }
+/* One line, three cells: the state badge is the third, not a wrapped second row. */
+.bots-list > div > button > .status { justify-self: end; }
+
+/* The summary stacks figures, timing, the equity chart and the configuration
+   entry point. Each child owns its own padding, so this only has to sequence
+   them and place the trailing button. */
+.bots-summary-body { display: grid; }
+/* Narrow column: let the state badge and the layout button stack rather than
+   squeeze the bot name. */
+.bots-summary-head-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
 
 .bots-overview-figures {
   display: grid;
@@ -5600,12 +5623,13 @@
 .bots-overview-figures > div {
   display: grid;
   gap: var(--space-1);
-  padding: var(--space-4);
+  /* Denser than a full-width panel: these three now share the narrow column. */
+  padding: var(--space-3);
   border-left: 1px solid var(--line);
 }
 .bots-overview-figures > div:first-child { border-left: 0; }
 .bots-overview-figures span { color: var(--text-faint); font-size: var(--fs-caption); font-weight: 600; }
-.bots-overview-figures strong { font: 700 20px/1.15 var(--font-mono); }
+.bots-overview-figures strong { font: 700 17px/1.15 var(--font-mono); }
 .bots-overview-figures small { color: var(--text-faint); font: 600 var(--fs-micro) var(--font-mono); }
 
 .bots-overview-timing {
@@ -5926,11 +5950,6 @@
   flex: 1;
   border-bottom: 0;
 }
-.bots-detail-tabbar > .bots-layout-open {
-  align-self: center;
-  margin-left: auto;
-}
-
 /* Snapshot mode labels are reused in the strategy-layout modal. */
 .bots-snapshot-mode {
   width: 40px;
@@ -6129,7 +6148,6 @@
     flex-basis: 100%;
     padding-inline: 0;
   }
-  .bots-detail-tabbar > .bots-layout-open { margin-top: var(--space-2); }
   .snapshot-layout-backdrop { padding: 0; }
   .snapshot-layout-dialog { width: 100vw; height: 100vh; min-height: 0; border: 0; border-radius: 0; }
   .snapshot-layout-header,
@@ -6139,7 +6157,10 @@
 }
 
 @media (max-width: 1120px) {
-  .bots-workspace { grid-template-columns: 1fr; }
+  .bots-workspace {
+    grid-template-columns: 1fr;
+    grid-template-areas: "picker" "summary" "live";
+  }
 }
 @media (max-width: 800px) {
   .bots-list-head { align-items: flex-start; flex-direction: column; }
