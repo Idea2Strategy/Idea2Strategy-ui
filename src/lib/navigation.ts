@@ -2,6 +2,7 @@ import { Bot, FlaskConical, House, LayoutGrid, Trophy } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export type PageId =
+  | 'landing'
   | 'home'
   | 'strategy'
   | 'bots'
@@ -33,6 +34,7 @@ export const navItems: NavItem[] = [
 ];
 
 export const pagePaths: Record<PageId, string> = {
+  landing: '/landing',
   home: '/',
   strategy: '/strategies',
   bots: '/bots',
@@ -44,6 +46,7 @@ export const pagePaths: Record<PageId, string> = {
 };
 
 export function pageFromPathname(pathname = '/'): PageId {
+  if (pathname.startsWith('/landing')) return 'landing';
   if (pathname.startsWith('/strategies')) return 'strategy';
   if (pathname.startsWith('/bots')) return 'bots';
   if (pathname.startsWith('/backtests')) return 'backtest';

@@ -1,9 +1,38 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { ArrowLeft, ArrowUpRight, Bot, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Coins, Maximize2, Minimize2, PencilLine, Plus, Search, Trash2, Trophy, X } from 'lucide-react';
+import type {
+  CSSProperties,
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from 'react';
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Bot,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Coins,
+  Info,
+  LoaderCircle,
+  Maximize2,
+  Minimize2,
+  PencilLine,
+  Plus,
+  RotateCcw,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Button, DataTable, EmptyState, MetricRow, PageHeading, Panel, Status, type DataTableColumn } from '../components/common';
-import { leaderboard, type LeaderboardEntry } from '../data/mockData';
+import { leaderboard, strategies, type LeaderboardEntry } from '../data/mockData';
 import { Localized, useLanguage } from '../lib/i18n';
+import etfSprintArtwork from '../assets/competition-v2/etf-sprint.png';
+import i2sSummerLeagueArtwork from '../assets/competition-v2/i2s-summer-league.png';
+import riskControlCupArtwork from '../assets/competition-v2/risk-control-cup.png';
 
 interface Benchmark {
   id: string;
@@ -264,10 +293,24 @@ Object.assign(botInstruments, {
   'Mean Revert': botInstruments['Pair Lab'],
 });
 
-const chartTimeframes = ['1시간', '4시간', '1일', '주봉', '달봉', '년봉'] as const;
-type Timeframe = (typeof chartTimeframes)[number];
-const timeframeCandleCounts: Record<Timeframe, number> = { '1시간': 48, '4시간': 38, '1일': 200, '주봉': 24, '달봉': 18, '년봉': 12 };
-const timeframeVisibleCandleCounts: Record<Timeframe, number> = { '1시간': 60, '4시간': 60, '1일': 60, '주봉': 60, '달봉': 60, '년봉': 60 };
+/*
+  차트 기간은 식별자와 표시 이름을 분리한다.
+
+  Localized는 화면으로 넘어가는 문자열 prop을 전부 번역하므로, 한글 이름을 그대로
+  키로 쓰면 영어에서 조회가 빗나가 캔들이 0개가 되고 화면이 죽는다(#47). 키는
+  번역되지 않는 영문 식별자로 두고, 사람이 읽는 이름만 번역 대상으로 남긴다.
+*/
+const chartTimeframes = [
+  { id: 'hour', label: '1시간', candleCount: 48 },
+  { id: 'hour4', label: '4시간', candleCount: 38 },
+  { id: 'day', label: '1일', candleCount: 200 },
+  { id: 'week', label: '주봉', candleCount: 24 },
+  { id: 'month', label: '달봉', candleCount: 18 },
+  { id: 'year', label: '년봉', candleCount: 12 },
+] as const;
+type Timeframe = (typeof chartTimeframes)[number]['id'];
+const timeframeOf = (id: Timeframe) => chartTimeframes.find((option) => option.id === id) ?? chartTimeframes[2];
+const VISIBLE_CANDLE_COUNT = 60;
 
 function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -297,7 +340,7 @@ interface TimeframeCandleMeta {
 }
 
 function timeframeCandleMeta(timeframe: Timeframe, index: number): TimeframeCandleMeta {
-  if (timeframe === '1시간') {
+  if (timeframe === 'hour') {
     const date = addUtcDays(new Date(Date.UTC(2026, 6, 15)), Math.floor(index / 7));
     const isoDate = toIsoDate(date);
     return {
@@ -306,7 +349,7 @@ function timeframeCandleMeta(timeframe: Timeframe, index: number): TimeframeCand
       rangeEnd: isoDate,
     };
   }
-  if (timeframe === '4시간') {
+  if (timeframe === 'hour4') {
     const date = addUtcDays(new Date(Date.UTC(2026, 6, 2)), index);
     const isoDate = toIsoDate(date);
     return {
@@ -315,11 +358,11 @@ function timeframeCandleMeta(timeframe: Timeframe, index: number): TimeframeCand
       rangeEnd: isoDate,
     };
   }
-  if (timeframe === '1일') {
+  if (timeframe === 'day') {
     const isoDate = toIsoDate(tradingDayDate(index));
     return { label: isoDate.replaceAll('-', '.'), rangeStart: isoDate, rangeEnd: isoDate };
   }
-  if (timeframe === '주봉') {
+  if (timeframe === 'week') {
     const rangeStart = addUtcDays(new Date(Date.UTC(2026, 0, 1)), index * 7);
     return {
       label: `2026 ${String(index + 1).padStart(2, '0')}주`,
@@ -327,7 +370,7 @@ function timeframeCandleMeta(timeframe: Timeframe, index: number): TimeframeCand
       rangeEnd: toIsoDate(addUtcDays(rangeStart, 6)),
     };
   }
-  if (timeframe === '달봉') {
+  if (timeframe === 'month') {
     const year = 2025 + Math.floor(index / 12);
     const month = index % 12;
     return {
@@ -350,7 +393,7 @@ interface TimeframeCandle extends Candle {
 }
 
 function candlesForTimeframe(candles: Candle[], timeframe: Timeframe): TimeframeCandle[] {
-  const count = timeframeCandleCounts[timeframe];
+  const count = timeframeOf(timeframe).candleCount;
   const sourceLastIndex = candles.length - 1;
   const sourceRange = Math.max(...candles.map((candle) => candle.high)) - Math.min(...candles.map((candle) => candle.low));
   let previousClose = candles[0].open;
@@ -544,9 +587,9 @@ interface BacktestCandlestickChartProps {
 
 function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange }: BacktestCandlestickChartProps) {
   const displayCandles = useMemo(() => candlesForTimeframe(instrument.candles, timeframe), [instrument.candles, timeframe]);
-  const defaultVisibleCount = Math.min(timeframeVisibleCandleCounts[timeframe], displayCandles.length);
+  const defaultVisibleCount = Math.min(VISIBLE_CANDLE_COUNT, displayCandles.length);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const [viewStart, setViewStart] = useState(() => Math.max(0, timeframeCandleCounts[timeframe] - timeframeVisibleCandleCounts[timeframe]));
+  const [viewStart, setViewStart] = useState(() => Math.max(0, timeframeOf(timeframe).candleCount - VISIBLE_CANDLE_COUNT));
   const [visibleCount, setVisibleCount] = useState(defaultVisibleCount);
   const [priceScale, setPriceScale] = useState(1);
   const [priceOffset, setPriceOffset] = useState(0);
@@ -881,7 +924,7 @@ export function BacktestView() {
   const [botQuery, setBotQuery] = useState('');
   const [symbolQuery, setSymbolQuery] = useState('');
   const [symbolModalOpen, setSymbolModalOpen] = useState(false);
-  const [timeframe, setTimeframe] = useState<Timeframe>('1일');
+  const [timeframe, setTimeframe] = useState<Timeframe>('day');
   const [activeBenchmarkIds, setActiveBenchmarkIds] = useState<string[]>([backtestBenchmark.id]);
   const [executionStartDate, setExecutionStartDate] = useState('');
   const [executionEndDate, setExecutionEndDate] = useState('');
@@ -893,6 +936,10 @@ export function BacktestView() {
   const [executionLogOpen, setExecutionLogOpen] = useState(false);
   const [chartVisibleRange, setChartVisibleRange] = useState<ChartVisibleRange | null>(null);
   const [chartExecutionFilterIds, setChartExecutionFilterIds] = useState<string[] | null>(null);
+  /* On: the log keeps following the chart. Off: the log shows every execution.
+     Applying the range used to be a one-shot press, so every pan or zoom meant
+     pressing it again to see the markers actually on screen. */
+  const [followChartRange, setFollowChartRange] = useState(false);
   const selectedBot = backtestBots.find((bot) => bot.name === selectedBotName) ?? backtestBots[0];
   const filteredBacktestBots = useMemo(() => {
     const query = botQuery.trim().toLowerCase();
@@ -960,6 +1007,16 @@ export function BacktestView() {
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [executionCalendarOpen]);
+  /* The chart reports a new range on every pan and zoom, so while the toggle is
+     on this is what keeps the log in step without another press. */
+  useEffect(() => {
+    if (!followChartRange || !chartVisibleRange) return;
+    setExecutionStartDate(chartVisibleRange.startDate);
+    setExecutionEndDate(chartVisibleRange.endDate);
+    setChartExecutionFilterIds(chartVisibleRange.executionIds);
+    setExecutionPage(1);
+  }, [chartVisibleRange, followChartRange]);
+
   const openExecutionCalendar = (preferredDate: string) => {
     setExecutionCalendarMonth((preferredDate || executionEndDate || executionStartDate || lastExecutionDate || '2026-07-01').slice(0, 7));
     setExecutionCalendarPhase('start');
@@ -968,6 +1025,9 @@ export function BacktestView() {
   const selectExecutionCalendarDate = (date: string) => {
     setExecutionPage(1);
     setChartExecutionFilterIds(null);
+    /* A hand-picked date is the person overriding the chart, so stop following
+       it — otherwise the next pan would silently discard what they chose. */
+    setFollowChartRange(false);
     if (executionCalendarPhase !== 'end' || !executionStartDate) {
       setExecutionStartDate(date);
       setExecutionEndDate('');
@@ -995,6 +1055,7 @@ export function BacktestView() {
     setExecutionCalendarMonth((latestExecutionDate || '2026-07-01').slice(0, 7));
     setChartVisibleRange(null);
     setChartExecutionFilterIds(null);
+    setFollowChartRange(false);
   };
   const selectBot = (bot: BacktestBot) => {
     const firstInstrument = botInstruments[bot.name][0];
@@ -1119,15 +1180,15 @@ export function BacktestView() {
         ><Search size={14} />종목 변경</button>
       </div>
       <div className="backtest-chart-controls">
-        <div className="backtest-timeframe" role="group" aria-label="차트 기간">
+        <div className="backtest-timeframe" role="group" aria-label="차트 기간" data-testid="backtest-timeframe">
           {chartTimeframes.map((option) => <button
-            key={option}
+            key={option.id}
             type="button"
-            aria-label={`${option} 차트 보기`}
-            aria-pressed={timeframe === option}
-            className={timeframe === option ? 'active' : ''}
-            onClick={() => setTimeframe(option)}
-          >{option}</button>)}
+            aria-label={`${option.label} 차트 보기`}
+            aria-pressed={timeframe === option.id}
+            className={timeframe === option.id ? 'active' : ''}
+            onClick={() => setTimeframe(option.id)}
+          >{option.label}</button>)}
         </div>
         <span>조정주가 · USD</span>
       </div>
@@ -1167,21 +1228,25 @@ export function BacktestView() {
           <div className="backtest-log-date-filter" role="group" aria-label="체결 로그 기간 검색">
             <button
               type="button"
-              className={`backtest-log-chart-range${chartVisibleRange
-                && chartExecutionFilterIds !== null
-                && chartExecutionFilterIds.join('|') === chartVisibleRange.executionIds.join('|')
-                && executionStartDate === chartVisibleRange.startDate
-                && executionEndDate === chartVisibleRange.endDate ? ' active' : ''}`}
+              className={`backtest-log-chart-range${followChartRange ? ' active' : ''}`}
               aria-label="현재 차트 구간 로그 보기"
-              disabled={!chartVisibleRange}
+              aria-pressed={followChartRange}
+              disabled={!chartVisibleRange && !followChartRange}
               onClick={() => {
-                if (!chartVisibleRange) return;
-                setExecutionStartDate(chartVisibleRange.startDate);
-                setExecutionEndDate(chartVisibleRange.endDate);
-                setChartExecutionFilterIds(chartVisibleRange.executionIds);
+                const next = !followChartRange;
+                setFollowChartRange(next);
                 setExecutionPage(1);
                 setExecutionCalendarOpen(false);
-                setExecutionCalendarPhase('complete');
+                if (next) {
+                  /* The syncing effect fills the dates in; mark the range as
+                     chosen so the calendar opens on it rather than at 'start'. */
+                  setExecutionCalendarPhase('complete');
+                  return;
+                }
+                setExecutionStartDate('');
+                setExecutionEndDate('');
+                setChartExecutionFilterIds(null);
+                setExecutionCalendarPhase('start');
               }}
             ><Search size={14} aria-hidden="true" /><span>현재 차트 구간</span></button>
             <CalendarDays size={15} aria-hidden="true" />
@@ -1354,37 +1419,87 @@ export function BacktestView() {
 }
 
 /*
-  Official competitions run on their own calendars — a couple of weeks up to a
-  full year, and up to eight can be live at once — so there is no shared
-  "season" frame: every card carries its own period and D-day.
+  Official competitions stay ordered by their closing date so the most urgent
+  choice is always first. Each card owns its calendar and participation state.
 */
-type CompetitionTone = 'standard' | 'risk' | 'return' | 'sharpe';
+type CompetitionTone = 'standard' | 'risk' | 'return' | 'sharpe' | 'backtesting';
+type StandingTone = 'gold' | 'silver' | 'bronze' | 'neutral' | 'inactive';
+type OfficialCompetitionStatus = 'recruiting' | 'running';
 
 interface OfficialCompetition {
   name: string;
+  description: string;
   bots: number;
   ranking: string;
   score: string;
-  duration: string;
-  dday: string;
+  remainingDays: number;
+  standing: string;
+  standingTone: StandingTone;
   tone: CompetitionTone;
-  official: boolean;
+  official: true;
   host: string;
   start: string;
   end: string;
+  status: OfficialCompetitionStatus;
+  progress: number;
   joined?: number;
+  entryLimit: number;
 }
 
 const officialCompetitions: OfficialCompetition[] = [
-  { name: 'I2S Summer League', bots: 184, ranking: '표준점수제', score: '복합 점수', duration: '3개월', dday: 'D-65', tone: 'standard', official: true, host: 'I2S 운영팀', start: '07.01', end: '09.30' },
-  { name: 'Risk Control Cup', bots: 96, ranking: '위험조정 점수제', score: '최대 낙폭', duration: '4주', dday: 'D-15', tone: 'risk', official: true, host: 'I2S 운영팀', start: '07.14', end: '08.11' },
-  { name: 'ETF Sprint', bots: 128, ranking: '수익률 점수제', score: '수익률', duration: '2주', dday: 'D-5', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.21', end: '08.01' },
-  { name: 'Volatility Shield', bots: 72, ranking: '샤프 점수제', score: '샤프 지수', duration: '1년', dday: 'D-156', tone: 'sharpe', official: true, host: 'I2S 운영팀', start: '01.02', end: '12.30' },
-  { name: 'Dividend Marathon', bots: 58, ranking: '위험조정 점수제', score: '최대 낙폭', duration: '6개월', dday: 'D-152', tone: 'risk', official: true, host: 'I2S 운영팀', start: '07.01', end: '12.26' },
-  { name: 'Alpha Dash', bots: 41, ranking: '수익률 점수제', score: '수익률', duration: '2주', dday: 'D-12', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.27', end: '08.08' },
+  { name: 'Backtesting Challenge', description: '동일한 과거 시장 데이터에서 전략의 재현성과 안정성을 검증합니다.', bots: 42, ranking: '백테스팅', score: '백테스트 성과', remainingDays: 12, standing: '미참가', standingTone: 'inactive', tone: 'backtesting', official: true, host: 'I2S 운영팀', start: '08.01', end: '08.31', status: 'recruiting', progress: 0, entryLimit: 3 },
+  { name: 'ETF Sprint', description: 'ETF 전략의 단기 수익률을 같은 조건에서 비교합니다.', bots: 128, ranking: '수익률 점수제', score: '수익률', remainingDays: 5, standing: '2위', standingTone: 'silver', tone: 'return', official: true, host: 'I2S 운영팀', start: '07.21', end: '08.01', status: 'recruiting', progress: 18, entryLimit: 3 },
+  { name: 'I2S Summer League', description: '수익성과 안정성을 함께 평가하는 공식 시즌 대회입니다.', bots: 184, ranking: '표준점수제', score: '복합 점수', remainingDays: 65, standing: '1위', standingTone: 'gold', tone: 'standard', official: true, host: 'I2S 운영팀', start: '07.01', end: '09.30', status: 'running', progress: 5, entryLimit: 5 },
 ];
 
-const officialBotsTotal = officialCompetitions.reduce((total, competition) => total + competition.bots, 0);
+const officialBotCodes = [
+  '3F9A', '8C21', '11D0', '5E77', '902B', '44AC', '19EE', 'C204', '6B31',
+  '77D8', 'A145', 'F208', '31BC', '9D42', 'E776', '0A61', 'B528', '62CF',
+];
+
+const makeOfficialLeaderboard = (
+  seed: number,
+  count: number,
+  myBotsByRank: Record<number, string>,
+): LeaderboardEntry[] => Array.from({ length: count }, (_, index) => {
+  const rank = index + 1;
+  return {
+    rank,
+    bot: myBotsByRank[rank] ?? `Bot ${officialBotCodes[(seed + index) % officialBotCodes.length]}`,
+    score: Number((96.8 - seed * 0.35 - index * 1.42).toFixed(2)),
+    return: Number((13.6 - seed * 0.22 - index * 0.43).toFixed(2)),
+    drawdown: Number((-0.58 - seed * 0.04 - index * 0.12).toFixed(2)),
+    sharpe: Number((2.72 - seed * 0.03 - index * 0.07).toFixed(2)),
+    volatility: Number((6.2 + seed * 0.12 + index * 0.31).toFixed(1)),
+    winRate: Number((68.4 - seed * 0.4 - index * 0.72).toFixed(1)),
+    trades: Math.max(12, 82 - seed * 2 - index * 3),
+    mine: Boolean(myBotsByRank[rank]),
+  };
+});
+
+const officialCompetitionLeaderboards: Record<string, LeaderboardEntry[]> = {
+  'Backtesting Challenge': makeOfficialLeaderboard(4, 10, {}),
+  'ETF Sprint': makeOfficialLeaderboard(1, 14, { 4: 'ETF Runner' }),
+  'I2S Summer League': makeOfficialLeaderboard(3, 18, {
+    1: 'Room Beta',
+    5: 'Atlas 07',
+    9: 'Pair Lab',
+  }),
+};
+
+const orderedOfficialCompetitions = [...officialCompetitions]
+  .sort((a, b) => a.remainingDays - b.remainingDays);
+
+const officialStatusLabels: Record<OfficialCompetitionStatus, string> = {
+  recruiting: '모집 중',
+  running: '대회 진행 중',
+};
+
+const officialCompetitionArtwork: Record<string, { id: string; src: string }> = {
+  'ETF Sprint': { id: 'etf-sprint', src: etfSprintArtwork },
+  'Risk Control Cup': { id: 'risk-control-cup', src: riskControlCupArtwork },
+  'I2S Summer League': { id: 'i2s-summer-league', src: i2sSummerLeagueArtwork },
+};
 interface OfficialLeaderboardEntry {
   rank: number;
   bot: string;
@@ -1450,34 +1565,37 @@ interface CompetitionRoom {
   host: string;
   start: string;
   end: string;
+  remainingDays: number;
+  status: RoomStatus;
   myBot: string | null;
   standings: Standing[];
   official?: boolean;
   bots?: number;
+  entryLimit?: number;
 }
+
+type RoomStatus = 'recruiting' | 'registering' | 'running';
 
 const competitionRooms: CompetitionRoom[] = [
   /* Momentum Lab's standings come from the same leaderboard the detail page
      ranks, so the two screens agree on Room Beta's #2. */
-  { name: 'Momentum Lab', score: '복합 점수', ranking: '표준점수제', joined: 8, host: '이서준', start: '07.07', end: '08.04', myBot: 'Room Beta', standings: leaderboard.map((entry) => ({ rank: entry.rank, bot: entry.bot, value: entry.score.toFixed(2), mine: entry.mine })) },
-  { name: 'ETF Discipline', score: '최대 낙폭', ranking: '위험조정 점수제', joined: 18, host: 'ETF연구회', start: '07.14', end: '08.25', myBot: null, standings: makeStandings(1, '최대 낙폭') },
-  { name: 'Quant Study 04', score: '수익률', ranking: '수익률 점수제', joined: 3, host: '박하나', start: '07.21', end: '08.18', myBot: null, standings: makeStandings(2, '수익률') },
-  { name: 'Low Volatility Club', score: '샤프 지수', ranking: '샤프 점수제', joined: 24, host: '차분한투자', start: '07.01', end: '09.26', myBot: null, standings: makeStandings(3, '샤프 지수') },
-  { name: 'Gap Hunters', score: '수익률', ranking: '수익률 점수제', joined: 15, host: '한지민', start: '07.10', end: '08.07', myBot: null, standings: makeStandings(4, '수익률') },
-  { name: 'Macro Pulse', score: '복합 점수', ranking: '표준점수제', joined: 12, host: '거시경제방', start: '07.03', end: '09.11', myBot: null, standings: makeStandings(5, '복합 점수') },
-  { name: 'Dividend Guard', score: '샤프 지수', ranking: '샤프 점수제', joined: 7, host: '배당사냥꾼', start: '07.17', end: '08.28', myBot: null, standings: makeStandings(6, '샤프 지수') },
-  { name: 'Swing Lab 12', score: '복합 점수', ranking: '표준점수제', joined: 6, host: '윤도현', start: '07.20', end: '08.17', myBot: null, standings: makeStandings(7, '복합 점수') },
-  { name: 'Earnings Play', score: '수익률', ranking: '수익률 점수제', joined: 9, host: '실적시즌', start: '07.22', end: '08.12', myBot: null, standings: makeStandings(8, '수익률') },
-  { name: 'Slow Turtle', score: '최대 낙폭', ranking: '위험조정 점수제', joined: 5, host: '거북이클럽', start: '07.05', end: '09.20', myBot: null, standings: makeStandings(9, '최대 낙폭') },
-  { name: 'Golden Cross Club', score: '복합 점수', ranking: '표준점수제', joined: 4, host: '김골든', start: '07.24', end: '08.21', myBot: null, standings: makeStandings(10, '복합 점수') },
+  { name: 'Momentum Lab', score: '복합 점수', ranking: '표준점수제', joined: 8, host: '이서준', start: '07.07', end: '08.04', remainingDays: 8, status: 'running', myBot: 'Room Beta', standings: leaderboard.map((entry) => ({ rank: entry.rank, bot: entry.bot, value: entry.score.toFixed(2), mine: entry.mine })) },
+  { name: 'ETF Discipline', score: '최대 낙폭', ranking: '위험조정 점수제', joined: 18, host: 'ETF연구회', start: '07.14', end: '08.25', remainingDays: 29, status: 'recruiting', myBot: null, standings: makeStandings(1, '최대 낙폭') },
+  { name: 'Quant Study 04', score: '수익률', ranking: '수익률 점수제', joined: 3, host: '박하나', start: '07.21', end: '08.18', remainingDays: 22, status: 'registering', myBot: null, standings: makeStandings(2, '수익률') },
+  { name: 'Low Volatility Club', score: '샤프 지수', ranking: '샤프 점수제', joined: 24, host: '차분한투자', start: '07.01', end: '09.26', remainingDays: 61, status: 'running', myBot: null, standings: makeStandings(3, '샤프 지수') },
+  { name: 'Gap Hunters', score: '수익률', ranking: '수익률 점수제', joined: 15, host: '한지민', start: '07.10', end: '08.07', remainingDays: 11, status: 'registering', myBot: null, standings: makeStandings(4, '수익률') },
+  { name: 'Macro Pulse', score: '복합 점수', ranking: '표준점수제', joined: 12, host: '거시경제방', start: '07.03', end: '09.11', remainingDays: 46, status: 'recruiting', myBot: null, standings: makeStandings(5, '복합 점수') },
+  { name: 'Dividend Guard', score: '샤프 지수', ranking: '샤프 점수제', joined: 7, host: '배당사냥꾼', start: '07.17', end: '08.28', remainingDays: 32, status: 'recruiting', myBot: null, standings: makeStandings(6, '샤프 지수') },
+  { name: 'Swing Lab 12', score: '복합 점수', ranking: '표준점수제', joined: 6, host: '윤도현', start: '07.20', end: '08.17', remainingDays: 21, status: 'running', myBot: null, standings: makeStandings(7, '복합 점수') },
+  { name: 'Earnings Play', score: '수익률', ranking: '수익률 점수제', joined: 9, host: '실적시즌', start: '07.22', end: '08.12', remainingDays: 7, status: 'running', myBot: null, standings: makeStandings(8, '수익률') },
+  { name: 'Slow Turtle', score: '최대 낙폭', ranking: '위험조정 점수제', joined: 5, host: '거북이클럽', start: '07.05', end: '09.20', remainingDays: 55, status: 'recruiting', myBot: null, standings: makeStandings(9, '최대 낙폭') },
+  { name: 'Golden Cross Club', score: '복합 점수', ranking: '표준점수제', joined: 4, host: '김골든', start: '07.24', end: '08.21', remainingDays: 25, status: 'recruiting', myBot: null, standings: makeStandings(10, '복합 점수') },
 ];
 
-const ROOMS_PER_PAGE = 5;
-
-/* 'MM.DD' → comparable number. */
-const monthDay = (value: string): number => {
-  const [month, day] = value.split('.').map(Number);
-  return month * 100 + day;
+const roomStatusLabels: Record<RoomStatus, string> = {
+  recruiting: '모집 중',
+  registering: '봇 등록',
+  running: '대회 진행 중',
 };
 
 /*
@@ -1485,19 +1603,23 @@ const monthDay = (value: string): number => {
   has a natural first direction: names A→Z, periods closing-soonest first,
   participants biggest room first.
 */
-type RoomSortKey = 'name' | 'end' | 'joined';
+type RoomSortKey = 'ranking' | 'name' | 'end' | 'joined';
 type RoomSortDir = 'asc' | 'desc';
 
 const sortableColumns: Record<RoomSortKey, { label: string; firstDir: RoomSortDir }> = {
-  name: { label: '대회', firstDir: 'asc' },
+  ranking: { label: '채점 방식', firstDir: 'asc' },
+  name: { label: '대회 제목', firstDir: 'asc' },
   end: { label: '기간', firstDir: 'asc' },
-  joined: { label: '참여', firstDir: 'desc' },
+  joined: { label: '참여 봇 수', firstDir: 'desc' },
 };
 
 const sortRooms = (list: CompetitionRoom[], key: RoomSortKey, dir: RoomSortDir): CompetitionRoom[] => {
-  const sorted = [...list].sort((a, b) => key === 'name'
-    ? a.name.localeCompare(b.name)
-    : key === 'end' ? monthDay(a.end) - monthDay(b.end) : a.joined - b.joined);
+  const sorted = [...list].sort((a, b) => {
+    if (key === 'name') return a.name.localeCompare(b.name);
+    if (key === 'ranking') return a.ranking.localeCompare(b.ranking);
+    if (key === 'end') return a.remainingDays - b.remainingDays;
+    return a.joined - b.joined;
+  });
   return dir === 'desc' ? sorted.reverse() : sorted;
 };
 
@@ -1507,6 +1629,43 @@ const rankingToneByLabel: Record<string, CompetitionTone> = {
   '수익률 점수제': 'return',
   '샤프 점수제': 'sharpe',
 };
+
+const rankingDescriptionByLabel: Record<string, string> = {
+  표준점수제: '수익률과 위험 지표를 표준화한 뒤 합산해 순위를 계산합니다.',
+  '위험조정 점수제': '수익률을 변동성과 최대 낙폭 등 위험 대비 성과로 조정해 평가합니다.',
+  '수익률 점수제': '대회 기간 동안의 누적 수익률이 높은 순서로 평가합니다.',
+  '샤프 점수제': '초과 수익을 변동성으로 나눈 샤프 비율이 높은 순서로 평가합니다.',
+  백테스팅: '동일한 과거 데이터에서 전략을 실행해 수익률과 위험 지표를 검증합니다.',
+};
+
+function CompetitionBoardRanking({
+  ranking,
+  tone,
+  tooltipId,
+}: {
+  ranking: string;
+  tone: CompetitionTone;
+  tooltipId: string;
+}) {
+  return <span className="competition-board-ranking dashboard-return-info">
+    <strong
+      className="competition-ranking-badge"
+      data-ranking-tone={tone}
+      tabIndex={0}
+      aria-describedby={tooltipId}
+    >
+      {ranking}
+    </strong>
+    <span
+      id={tooltipId}
+      className="dashboard-return-info-tooltip"
+      role="tooltip"
+      aria-label={`${ranking} 설명`}
+    >
+      {rankingDescriptionByLabel[ranking] ?? '동일한 조건에서 대회 참가 봇의 성과를 비교합니다.'}
+    </span>
+  </span>;
+}
 
 function CompetitionRankingMethod({ ranking }: { ranking: string }) {
   // Nested components render after the Localized walk, so translate directly.
@@ -1561,25 +1720,112 @@ function OfficialLeaderboard() {
   leads as the tone-coloured badge and the same tone edges the card. Stats
   live on the detail page — a stat block on every card read as clutter.
 */
-function OfficialCompetitionGrid({ onSelect, carousel = false }: { onSelect: (competition: OfficialCompetition) => void; carousel?: boolean }) {
+interface OfficialCompetitionCardProps {
+  competition: OfficialCompetition;
+  onActivate: () => void;
+  ariaLabel?: string;
+  isCurrent?: boolean;
+  showStanding?: boolean;
+  showArtwork?: boolean;
+  seasonFeature?: {
+    index: number;
+    total: number;
+  };
+}
+
+function OfficialCompetitionCard({
+  competition,
+  onActivate,
+  ariaLabel = `${competition.name} 열기`,
+  isCurrent = false,
+  showStanding = true,
+  showArtwork = false,
+  seasonFeature,
+}: OfficialCompetitionCardProps) {
   const { t } = useLanguage();
-  return <Localized><div className={`official-competition-list competition-card-grid${carousel ? ' is-carousel' : ''}`} role="list">{officialCompetitions.map((competition) =>
+  const artwork = showArtwork ? officialCompetitionArtwork[competition.name] : null;
+  return <article
+    className={`competition-discovery-card official-competition-card-tile${artwork ? ' has-generated-art' : ''}${seasonFeature ? ' official-season-feature-card' : ''}`}
+    data-card-tone={competition.tone}
+    data-card-art={artwork?.id}
+    style={artwork ? ({ '--official-card-image': `url("${artwork.src}")` } as CSSProperties) : undefined}
+    role="button"
+    tabIndex={0}
+    aria-label={ariaLabel}
+    aria-current={isCurrent ? 'true' : undefined}
+    onClick={onActivate}
+    onKeyDown={(event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onActivate();
+      }
+    }}
+  >
+    {seasonFeature ? <>
+      <header className="official-season-feature-head">
+        <span><i aria-hidden="true" />OFFICIAL SEASON</span>
+        <strong data-room-status={competition.status}><i aria-hidden="true" />{officialStatusLabels[competition.status]}</strong>
+        <b>{`${String(seasonFeature.index + 1).padStart(2, '0')} / ${String(seasonFeature.total).padStart(2, '0')}`}</b>
+      </header>
+      <div className="official-season-feature-main">
+        <span className="official-season-feature-copy">
+          <strong className="competition-ranking-badge" data-ranking-tone={competition.tone}>{t(competition.ranking)}</strong>
+          <h3>{competition.name}</h3>
+        </span>
+        <span className="official-season-feature-deadline">
+          <small>{competition.status === 'running' ? '대회 남은 기간' : '모집 마감까지'}</small>
+          <b className={competition.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${competition.remainingDays}`}</b>
+        </span>
+      </div>
+      <footer className="official-season-feature-progress">
+        <div className="official-season-progress-meta">
+          <small>시즌 진행률</small>
+          <strong>{`${competition.progress}%`}</strong>
+        </div>
+        <div className="official-season-progress-stages">
+          <span className="is-active">모집</span>
+          <span className={competition.status === 'running' ? 'is-active' : ''}>진행</span>
+          <span className={competition.progress >= 100 ? 'is-active' : ''}>완료</span>
+        </div>
+        <span
+          className="official-season-progress-track"
+          role="progressbar"
+          aria-label={`${competition.name} 시즌 진행률`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={competition.progress}
+        ><i style={{ width: `${competition.progress}%` }} /></span>
+      </footer>
+    </> : <>
+    <header className="official-card-header">
+      <strong className="competition-ranking-badge" data-ranking-tone={competition.tone}>{t(competition.ranking)}</strong>
+      {showStanding && <span className="official-card-standing" data-standing-tone={competition.standingTone}>{t(competition.standing)}</span>}
+    </header>
+    <h3>{competition.name}</h3>
+    <p className="official-card-description">{t(competition.description)}</p>
+    <div className="official-card-schedule">
+      <span>{`${competition.start}–${competition.end}`}</span>
+      <span className="official-card-schedule-separator" aria-hidden="true">·</span>
+      <b className={competition.remainingDays <= 7 ? 'is-urgent' : ''}>{`${competition.remainingDays}일 남음`}</b>
+    </div>
+    <footer className="official-card-footer">
+      <p className="official-card-bots">{`참여 봇 ${competition.bots}개`}</p>
+      <ArrowUpRight className="official-card-arrow" size={15} strokeWidth={1.8} aria-hidden="true" />
+    </footer>
+    </>}
+  </article>;
+}
+
+function OfficialCompetitionGrid({
+  competitions = orderedOfficialCompetitions,
+  onSelect,
+}: {
+  competitions?: OfficialCompetition[];
+  onSelect: (competition: OfficialCompetition) => void;
+}) {
+  return <Localized><div className="official-competition-list competition-card-grid" role="list" aria-label="공식 대회 목록">{competitions.map((competition) =>
     <div role="listitem" key={competition.name}>
-      <article className="competition-discovery-card official-competition-card-tile" data-card-tone={competition.tone} role="button" tabIndex={0} aria-label={`${competition.name} 열기`} onClick={() => onSelect(competition)} onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onSelect(competition);
-        }
-      }}>
-        <strong className="competition-ranking-badge" data-ranking-tone={competition.tone}>{t(competition.ranking)}</strong>
-        <h3>{competition.name}</h3>
-        <small className="official-card-basis">{`${competition.score} · ${competition.duration}`}</small>
-        <footer className="official-card-meta">
-          <span>{`${competition.start}–${competition.end}`}</span>
-          <b>{competition.dday}</b>
-          <em>{`${t('참여')} ${competition.bots}`}</em>
-        </footer>
-      </article>
+      <OfficialCompetitionCard competition={competition} onActivate={() => onSelect(competition)} />
     </div>
   )}</div></Localized>;
 }
@@ -1626,92 +1872,683 @@ interface CompetitionCondition {
 const competitionConditions: CompetitionCondition[] = [
   { label: '시작 자본', value: '$10,000', detail: '모든 참가 봇 동일' },
   { label: '종목 범위', value: '미국 상장 주식 · ETF', detail: '레버리지 상품 제외' },
-  { label: '비교 기준', value: 'S&P 500', detail: '같은 기간 지수' },
-  { label: '체결·비용', value: '수수료 0.2% · 슬리피지 0.05%', detail: '전 참가자 동일 적용' },
+  { label: '수수료', value: '0.20%', detail: '매수·매도 체결 시 적용' },
+  { label: '슬리피지', value: '0.05%', detail: '시장가 체결 오차 반영' },
 ];
 
-export function RoomsView() {
+const competitionDetailDescriptions: Record<string, string> = {
+  'ETF Sprint': 'ETF 전략의 단기 수익성과 매매 일관성을 동일한 조건에서 비교하는 공식 대회입니다.',
+  'Alpha Dash': '짧은 기간 안에 초과 수익을 만드는 전략의 속도와 위험 관리 능력을 함께 평가합니다.',
+  'Risk Control Cup': '손실 위험을 낮추면서 안정적인 성과를 만드는 전략을 위험조정 점수로 평가합니다.',
+  'I2S Summer League': '수익성과 안정성을 함께 평가하며, 다양한 시장 국면에서 전략이 얼마나 일관되게 작동하는지 비교합니다.',
+  'Dividend Marathon': '배당주 중심의 장기 운용 성과를 겨루며, 배당 재투자와 안정적인 자산 성장, 하락 구간의 위험 관리 능력을 함께 평가합니다.',
+  'Volatility Shield': '낮은 변동성과 꾸준한 위험 대비 성과를 유지하는 전략을 장기간에 걸쳐 평가합니다.',
+};
+
+function CompetitionCreateDialog({ onClose }: { onClose: () => void }) {
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const [description, setDescription] = useState('');
+  const [detailSettingsOpen, setDetailSettingsOpen] = useState(false);
+
+  useEffect(() => {
+    nameInputRef.current?.focus();
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
+  return <div
+    className="competition-create-backdrop"
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}
+  >
+    <form
+      className="competition-create-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="competition-create-title"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+    >
+      <header>
+        <h2 id="competition-create-title">대회 만들기</h2>
+        <button type="button" aria-label="대회 만들기 닫기" onClick={onClose}><X size={20} /></button>
+      </header>
+
+      <fieldset>
+        <legend>기본 정보</legend>
+        <label>
+          <span>대회 이름</span>
+          <input ref={nameInputRef} aria-label="대회 이름" placeholder="대회 이름을 입력하세요" required />
+        </label>
+        <label>
+          <span>대회 설명</span>
+          <textarea
+            aria-label="대회 설명"
+            placeholder="참가자가 대회의 목적을 이해할 수 있도록 설명하세요"
+            maxLength={120}
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+          <small aria-hidden="true">{`${description.length} / 120`}</small>
+        </label>
+      </fieldset>
+
+      <fieldset className="competition-create-settings">
+        <legend>운영 설정</legend>
+        <div className="competition-create-period">
+          <span>대회 기간</span>
+          <div>
+            <label><span>시작일</span><input type="date" aria-label="시작일" required /></label>
+            <i aria-hidden="true">–</i>
+            <label><span>종료일</span><input type="date" aria-label="종료일" required /></label>
+          </div>
+        </div>
+        <label className="competition-create-score">
+          <span>채점 방식</span>
+          <select aria-label="채점 방식" defaultValue="표준점수제">
+            <option>표준점수제</option>
+            <option>위험조정 점수제</option>
+            <option>수익률 점수제</option>
+            <option>샤프 점수제</option>
+          </select>
+        </label>
+        <label className="competition-create-capital">
+          <span>시작 자본</span>
+          <span className="competition-create-money"><b aria-hidden="true">$</b><input aria-label="시작 자본" inputMode="numeric" defaultValue="10,000" /></span>
+        </label>
+      </fieldset>
+
+      <button
+        type="button"
+        className="competition-create-details-toggle"
+        aria-expanded={detailSettingsOpen}
+        aria-controls="competition-create-detail-settings"
+        onClick={() => setDetailSettingsOpen((open) => !open)}
+      >
+        <span>대회 세부 설정</span>
+        <ChevronDown size={16} aria-hidden="true" />
+      </button>
+
+      {detailSettingsOpen && <fieldset
+        id="competition-create-detail-settings"
+        className="competition-create-detail-settings"
+      >
+        <legend>세부 설정</legend>
+        <label>
+          <span>종목 범위</span>
+          <select aria-label="종목 범위" defaultValue="미국 상장 주식 · ETF">
+            <option>미국 상장 주식 · ETF</option>
+            <option>미국 상장 주식</option>
+            <option>미국 상장 ETF</option>
+          </select>
+        </label>
+        <label>
+          <span>참가 봇 한도</span>
+          <select aria-label="참가 봇 한도" defaultValue="25 BOT">
+            <option>10 BOT</option>
+            <option>25 BOT</option>
+            <option>50 BOT</option>
+          </select>
+        </label>
+        <label>
+          <span>수수료</span>
+          <input aria-label="수수료" inputMode="decimal" defaultValue="0.20%" />
+        </label>
+        <label>
+          <span>슬리피지</span>
+          <input aria-label="슬리피지" inputMode="decimal" defaultValue="0.05%" />
+        </label>
+      </fieldset>}
+
+      <footer>
+        <p><Info size={14} aria-hidden="true" />대회를 만든 뒤에도 시작 전까지 설정을 수정할 수 있습니다.</p>
+        <div>
+          <button type="button" className="button button-secondary" onClick={onClose}>취소</button>
+          <button type="submit" className="button button-primary">대회 만들기</button>
+        </div>
+      </footer>
+    </form>
+  </div>;
+}
+
+export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'default' | 'image' }) {
   const [query, setQuery] = useState('');
-  const [scoreFilter, setScoreFilter] = useState('all');
-  const [sizeFilter, setSizeFilter] = useState('all');
-  const [roomSort, setRoomSort] = useState<{ key: RoomSortKey; dir: RoomSortDir }>({ key: 'joined', dir: 'desc' });
+  const [scoreFilters, setScoreFilters] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<Extract<RoomStatus, 'recruiting' | 'running'>>('recruiting');
+  const [remainingFilter, setRemainingFilter] = useState<'all' | '7' | '30'>('all');
+  const [maxBots, setMaxBots] = useState<'all' | '10' | '11-50' | '51'>('all');
+  const [participationFilter, setParticipationFilter] = useState<'all' | 'joined' | 'unjoined'>('all');
+  const [roomSort, setRoomSort] = useState<{ key: RoomSortKey; dir: RoomSortDir }>({ key: 'end', dir: 'asc' });
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [selectedRoom, setSelectedRoom] = useState<OfficialCompetition | CompetitionRoom | null>(null);
   const [officialSeasonOpen, setOfficialSeasonOpen] = useState(false);
-  const [focusedRoom, setFocusedRoom] = useState<CompetitionRoom | null>(competitionRooms[0]);
   const [sortMetric, setSortMetric] = useState<RankingMetricId>('score');
+  const [rankingPage, setRankingPage] = useState(1);
+  const [detailInfoOpen, setDetailInfoOpen] = useState(false);
+  const [entryDialogStep, setEntryDialogStep] = useState<'closed' | 'select' | 'confirm'>('closed');
+  const [selectedEntryStrategies, setSelectedEntryStrategies] = useState<string[]>([]);
+  const [entryStrategyQuery, setEntryStrategyQuery] = useState('');
+  const [resolvedEntryStrategyQuery, setResolvedEntryStrategyQuery] = useState('');
+  const [entryStrategySearching, setEntryStrategySearching] = useState(false);
+  const [entryStrategyPage, setEntryStrategyPage] = useState(1);
+  const [generatedEntriesByCompetition, setGeneratedEntriesByCompetition] = useState<Record<string, LeaderboardEntry[]>>({});
+  const [entrySuccessMessage, setEntrySuccessMessage] = useState('');
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const visibleRooms = useMemo(() => sortRooms(competitionRooms.filter((room) => {
-    const matchesQuery = room.name.toLowerCase().includes(query.trim().toLowerCase());
-    const matchesScore = scoreFilter === 'all' || room.score === scoreFilter;
-    const matchesSize = sizeFilter === 'all' || (sizeFilter === 'small' ? room.joined <= 10 : room.joined > 10);
-    return matchesQuery && matchesScore && matchesSize;
-  }), roomSort.key, roomSort.dir), [query, scoreFilter, sizeFilter, roomSort]);
+    const normalizedQuery = query.trim().toLowerCase();
+    const matchesQuery = room.name.toLowerCase().includes(normalizedQuery)
+      || room.host.toLowerCase().includes(normalizedQuery);
+    const matchesScore = scoreFilters.length === 0 || scoreFilters.includes(room.ranking);
+    const matchesStatus = room.status === statusFilter;
+    const matchesRemaining = remainingFilter === 'all' || room.remainingDays <= Number(remainingFilter);
+    const matchesSize = maxBots === 'all'
+      || (maxBots === '10' && room.joined <= 10)
+      || (maxBots === '11-50' && room.joined >= 11 && room.joined <= 50)
+      || (maxBots === '51' && room.joined >= 51);
+    const matchesParticipation = participationFilter === 'all'
+      || (participationFilter === 'joined' ? Boolean(room.myBot) : !room.myBot);
+    return matchesQuery && matchesScore && matchesStatus && matchesRemaining && matchesSize && matchesParticipation;
+  }), roomSort.key, roomSort.dir), [
+    query,
+    scoreFilters,
+    statusFilter,
+    remainingFilter,
+    maxBots,
+    participationFilter,
+    roomSort,
+  ]);
+  const visibleOfficialCompetitions = useMemo(
+    () => orderedOfficialCompetitions.filter((competition) => competition.status === statusFilter),
+    [statusFilter],
+  );
+  useEffect(() => setPage(1), [
+    query,
+    scoreFilters,
+    statusFilter,
+    remainingFilter,
+    maxBots,
+    participationFilter,
+    pageSize,
+  ]);
+  useEffect(() => setRankingPage(1), [sortMetric, selectedRoom]);
+  useEffect(() => {
+    if (entryDialogStep !== 'select') return undefined;
+    const normalizedQuery = entryStrategyQuery.trim();
+    if (!normalizedQuery) {
+      setResolvedEntryStrategyQuery('');
+      setEntryStrategySearching(false);
+      setEntryStrategyPage(1);
+      return undefined;
+    }
+    setEntryStrategySearching(true);
+    const searchTimer = window.setTimeout(() => {
+      setResolvedEntryStrategyQuery(normalizedQuery);
+      setEntryStrategySearching(false);
+      setEntryStrategyPage(1);
+    }, 300);
+    return () => window.clearTimeout(searchTimer);
+  }, [entryDialogStep, entryStrategyQuery]);
+  useEffect(() => {
+    if (!detailInfoOpen) return undefined;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDetailInfoOpen(false);
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [detailInfoOpen]);
+  useEffect(() => {
+    if (entryDialogStep === 'closed') return undefined;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setEntryDialogStep('closed');
+        setSelectedEntryStrategies([]);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [entryDialogStep]);
   const toggleRoomSort = (key: RoomSortKey) => setRoomSort((current) => ({
     key,
     dir: current.key === key ? (current.dir === 'asc' ? 'desc' : 'asc') : sortableColumns[key].firstDir,
   }));
-  /* Pagination clamps instead of resetting so a filter change never jumps the
-     scroll; an out-of-range page simply lands on the last one. */
-  const pageCount = Math.max(1, Math.ceil(visibleRooms.length / ROOMS_PER_PAGE));
+  const toggleScoreFilter = (ranking: string) => setScoreFilters((current) => (
+    current.includes(ranking) ? current.filter((item) => item !== ranking) : [...current, ranking]
+  ));
+  const resetFilters = () => {
+    setQuery('');
+    setScoreFilters([]);
+    setStatusFilter('recruiting');
+    setRemainingFilter('all');
+    setMaxBots('all');
+    setParticipationFilter('all');
+  };
+  const pageCount = Math.max(1, Math.ceil(visibleRooms.length / pageSize));
   const safePage = Math.min(page, pageCount);
-  const pageRooms = visibleRooms.slice((safePage - 1) * ROOMS_PER_PAGE, safePage * ROOMS_PER_PAGE);
-  const displayedRoom = visibleRooms.find((room) => room.name === focusedRoom?.name) ?? visibleRooms[0] ?? null;
-  const myStanding = displayedRoom?.standings?.find((entry) => entry.mine) ?? null;
+  const pageRooms = visibleRooms.slice((safePage - 1) * pageSize, safePage * pageSize);
   const activeMetric = rankingMetrics.find((metric) => metric.id === sortMetric) ?? rankingMetrics[0];
-  const rankedEntries = useMemo(() => [...leaderboard].sort((a, b) => activeMetric.better === 'low'
+  const rankingSource = useMemo(() => {
+    const baseEntries = selectedRoom?.official
+      ? officialCompetitionLeaderboards[selectedRoom.name] ?? leaderboard
+      : leaderboard;
+    const generatedEntries = selectedRoom ? generatedEntriesByCompetition[selectedRoom.name] ?? [] : [];
+    return [...baseEntries, ...generatedEntries];
+  }, [generatedEntriesByCompetition, selectedRoom]);
+  const rankingPageSize = 10;
+  const rankedEntries = useMemo(() => [...rankingSource].sort((a, b) => activeMetric.better === 'low'
     ? a[activeMetric.id] - b[activeMetric.id]
-    : b[activeMetric.id] - a[activeMetric.id]), [activeMetric]);
-  const myEntry = rankedEntries.find((entry) => entry.mine);
-  const myPosition = myEntry ? rankedEntries.indexOf(myEntry) + 1 : null;
+    : b[activeMetric.id] - a[activeMetric.id]), [activeMetric, rankingSource]);
+  const rankingPageCount = Math.max(1, Math.ceil(rankedEntries.length / rankingPageSize));
+  const safeRankingPage = Math.min(rankingPage, rankingPageCount);
+  const visibleRankingEntries = rankedEntries.slice(
+    (safeRankingPage - 1) * rankingPageSize,
+    safeRankingPage * rankingPageSize,
+  );
+  const myRankedEntries = rankedEntries.flatMap((entry, index) => (
+    entry.mine ? [{ entry, position: index + 1 }] : []
+  ));
+  const myBotEntryLimit = selectedRoom?.entryLimit ?? 3;
+  const remainingEntrySlots = Math.max(0, myBotEntryLimit - myRankedEntries.length);
+  const launchableStrategies = strategies.filter((strategy) => (
+    strategy.state === '출시 가능'
+    && !rankingSource.some((entry) => entry.bot === `${strategy.name} Bot`)
+  ));
+  const normalizedEntryStrategyQuery = resolvedEntryStrategyQuery.toLowerCase();
+  const filteredLaunchableStrategies = launchableStrategies.filter((strategy) => (
+    strategy.name.toLowerCase().includes(normalizedEntryStrategyQuery)
+    || strategy.mode.toLowerCase().includes(normalizedEntryStrategyQuery)
+  ));
+  const entryStrategyPageSize = 5;
+  const entryStrategyPageCount = Math.max(
+    1,
+    Math.ceil(filteredLaunchableStrategies.length / entryStrategyPageSize),
+  );
+  const safeEntryStrategyPage = Math.min(entryStrategyPage, entryStrategyPageCount);
+  const visibleLaunchableStrategies = filteredLaunchableStrategies.slice(
+    (safeEntryStrategyPage - 1) * entryStrategyPageSize,
+    safeEntryStrategyPage * entryStrategyPageSize,
+  );
+  const canEnterSelectedRoom = Boolean(
+    selectedRoom
+    && remainingEntrySlots > 0
+    && selectedRoom.status === 'recruiting',
+  );
+  const detailDeadlineLabel = selectedRoom?.status === 'recruiting' ? '모집 중' : '대회 진행 중';
+  const detailDeadlineText = selectedRoom
+    ? `${detailDeadlineLabel} D-${selectedRoom.remainingDays}`
+    : '';
+  const detailProgress = selectedRoom?.status === 'running'
+    ? 'progress' in selectedRoom
+      ? selectedRoom.progress
+      : Math.max(5, Math.min(95, 100 - selectedRoom.remainingDays))
+    : 0;
+  const detailDescription = selectedRoom
+    ? competitionDetailDescriptions[selectedRoom.name]
+      ?? `${selectedRoom.name} 참가 봇을 동일한 시장 데이터와 체결 조건에서 비교하는 모의투자 대회입니다.`
+    : '';
+  const detailFacts = selectedRoom ? [
+    { label: '운영자', value: selectedRoom.host },
+    { label: '기간', value: `${selectedRoom.start} – ${selectedRoom.end}` },
+    { label: '참여 봇', value: `${selectedRoom.official ? selectedRoom.bots : selectedRoom.joined}개` },
+    ...competitionConditions.map(({ label, value }) => ({ label, value })),
+  ] : [];
+  const closeEntryDialog = () => {
+    setEntryDialogStep('closed');
+    setSelectedEntryStrategies([]);
+    setEntryStrategyQuery('');
+    setResolvedEntryStrategyQuery('');
+    setEntryStrategySearching(false);
+    setEntryStrategyPage(1);
+  };
+  const openEntryDialog = () => {
+    setEntrySuccessMessage('');
+    setSelectedEntryStrategies([]);
+    setEntryStrategyQuery('');
+    setResolvedEntryStrategyQuery('');
+    setEntryStrategySearching(false);
+    setEntryStrategyPage(1);
+    setEntryDialogStep('select');
+  };
+  const toggleEntryStrategy = (strategyName: string) => {
+    setSelectedEntryStrategies((current) => {
+      if (current.includes(strategyName)) return current.filter((name) => name !== strategyName);
+      if (current.length >= remainingEntrySlots) return current;
+      return [...current, strategyName];
+    });
+  };
+  const confirmCompetitionEntry = () => {
+    if (!selectedRoom || selectedEntryStrategies.length === 0) return;
+    const existingCount = rankingSource.length;
+    const newEntries = selectedEntryStrategies.map((strategyName, index): LeaderboardEntry => ({
+      rank: existingCount + index + 1,
+      bot: `${strategyName} Bot`,
+      score: Number((88.75 - index * 1.2).toFixed(2)),
+      return: Number((7.15 - index * 0.35).toFixed(2)),
+      drawdown: Number((-2.1 - index * 0.15).toFixed(2)),
+      sharpe: Number((1.72 - index * 0.08).toFixed(2)),
+      volatility: Number((9.8 + index * 0.4).toFixed(1)),
+      winRate: Number((59.2 - index * 0.8).toFixed(1)),
+      trades: 24 - index * 2,
+      mine: true,
+    }));
+    setGeneratedEntriesByCompetition((current) => ({
+      ...current,
+      [selectedRoom.name]: [...(current[selectedRoom.name] ?? []), ...newEntries],
+    }));
+    setEntrySuccessMessage(
+      `${newEntries.map((entry) => entry.bot).join(', ')}이 생성되어 대회에 참가했습니다.`,
+    );
+    setRankingPage(1);
+    closeEntryDialog();
+  };
 
   if (selectedRoom) return <Localized><div className="page competition-page competition-detail-page">
     <section aria-label={`${selectedRoom.name} 상세 페이지`}>
-      <button className="competition-back-button" onClick={() => setSelectedRoom(null)}><ArrowLeft size={15} /> 대회 목록으로</button>
+      <button className="competition-back-button" onClick={() => {
+        setDetailInfoOpen(false);
+        closeEntryDialog();
+        setEntrySuccessMessage('');
+        setSelectedRoom(null);
+      }}><ArrowLeft size={15} /> 대회 목록으로</button>
       <header className="competition-detail-heading">
-        <div><p>COMPETITION DETAIL</p><h1>{selectedRoom.name}</h1></div>
+        <div>
+          <p>COMPETITION DETAIL</p>
+          <div className="competition-detail-title">
+            <h1>{selectedRoom.name}</h1>
+            {selectedRoom.official && <span className="competition-detail-official">공식 대회</span>}
+            <span className="competition-detail-status">
+              <span
+                className={`competition-detail-deadline${selectedRoom.remainingDays <= 7 ? ' is-urgent' : ''}`}
+              >
+                {detailDeadlineText}
+              </span>
+              <span className="competition-detail-progress-copy">{`${detailProgress}%`}</span>
+              <span
+                className="competition-detail-progress"
+                role="progressbar"
+                aria-label={`${selectedRoom.name} 진행률`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={detailProgress}
+              >
+                <i style={{ width: `${detailProgress}%` }} />
+              </span>
+            </span>
+          </div>
+          <span className="competition-detail-description">{detailDescription}</span>
+        </div>
+        <div className="competition-detail-actions">
+          <button
+            type="button"
+            className="competition-detail-info-button"
+            onClick={() => setDetailInfoOpen(true)}
+          >
+            <Info size={14} aria-hidden="true" />
+            대회 상세보기
+          </button>
+          <button
+            type="button"
+            className="competition-entry-button"
+            disabled={!canEnterSelectedRoom}
+            onClick={openEntryDialog}
+          >
+            {canEnterSelectedRoom
+              ? '대회 참가'
+              : remainingEntrySlots === 0
+                ? '참가 가능한 봇을 모두 등록했습니다.'
+                : selectedRoom.status === 'running' ? '진행중인 대회입니다.' : '마감된 대회입니다.'}
+          </button>
+        </div>
       </header>
-      <div className="competition-detail-summary">
-        <span><small>운영자</small><strong>{selectedRoom.host}</strong></span>
-        <span><small>기간</small><strong>{`${selectedRoom.start} – ${selectedRoom.end}`}</strong></span>
-        <span><small>참여 봇</small><strong>{selectedRoom.official ? selectedRoom.bots : selectedRoom.joined}개</strong></span>
-        <span><small>채점 방식</small><strong>{selectedRoom.ranking}</strong></span>
-      </div>
-      <div className="competition-detail-guide">
-        <div><Bot size={17} /><span><strong>봇끼리 공정하게 비교합니다.</strong><small>사용자 대신 익명 봇만 순위에 표시됩니다.</small></span></div>
+      {entrySuccessMessage && <div className="competition-entry-success" role="status">
+        <Check size={16} aria-hidden="true" />
+        <span>{entrySuccessMessage}</span>
+      </div>}
+
+      <div className="competition-detail-rankings">
+        <section className="competition-my-ranks" aria-label="내 참가 봇 순위">
+          <header>
+            <div><p>MY RANK</p><h3>내 참가 봇</h3></div>
+            <span
+              className="competition-my-ranks-capacity"
+              aria-label={`등록 봇 ${myRankedEntries.length}/${myBotEntryLimit}`}
+            >
+              <small>등록 봇</small>
+              <strong>{`${myRankedEntries.length} / ${myBotEntryLimit}`}</strong>
+            </span>
+          </header>
+          {myRankedEntries.length > 0 ? <ul>
+            {myRankedEntries.map(({ entry, position }) => <li key={entry.bot}>
+              <strong className="competition-ranking-position" aria-label={`${position}위`}>{`#${position}`}</strong>
+              <span><small>내 봇</small><b>{entry.bot}</b></span>
+              <span><small>{activeMetric.label}</small><b>{formatMetric(entry, activeMetric)}</b></span>
+              <span>
+                <small>수익률</small>
+                <b className={entry.return >= 0 ? 'positive' : 'negative'}>
+                  {entry.return > 0 ? '+' : ''}{entry.return.toFixed(2)}%
+                </b>
+              </span>
+            </li>)}
+          </ul> : <div className="competition-my-ranks-empty">
+            <Bot size={20} aria-hidden="true" />
+            <span>
+              <strong>참가 중인 봇이 없습니다.</strong>
+              <small>대회에 참가하면 내 봇 순위를 여기서 확인할 수 있습니다.</small>
+            </span>
+          </div>}
+        </section>
+
+        <section className="competition-leaderboard" aria-labelledby="competition-leaderboard-title">
+          <header>
+            <div className="competition-leaderboard-title">
+              <p>LEADERBOARD</p>
+              <div>
+                <h2 id="competition-leaderboard-title">대회 리더보드</h2>
+                <CompetitionBoardRanking
+                  ranking={selectedRoom.ranking}
+                  tone={rankingToneByLabel[selectedRoom.ranking] ?? 'standard'}
+                  tooltipId="competition-scoring-tooltip"
+                />
+              </div>
+            </div>
+            <div className="competition-ranking-tools">
+            <label>
+              <span>정렬 지표</span>
+              <select aria-label="정렬 지표 선택" value={sortMetric} onChange={(event) => setSortMetric(event.target.value as RankingMetricId)}>
+                {rankingMetrics.map((metric) => <option key={metric.id} value={metric.id}>{metric.label}</option>)}
+              </select>
+            </label>
+            </div>
+          </header>
+          <div className="competition-ranking-list">
+            <div className="competition-ranking is-metric-ranking" aria-label={`${selectedRoom.name} 봇 순위`}>
+              <header><span>순위</span><span>봇</span><span>{activeMetric.label}</span><span>수익률</span></header>
+              {visibleRankingEntries.map((entry, index) => <div className={entry.mine ? 'is-mine' : ''} key={entry.bot}>
+                <strong className="competition-ranking-position">#{(safeRankingPage - 1) * rankingPageSize + index + 1}</strong>
+                <span>{entry.bot}</span>
+                <b>{formatMetric(entry, activeMetric)}</b>
+                <span className={entry.return >= 0 ? 'positive' : 'negative'}>{entry.return > 0 ? '+' : ''}{entry.return.toFixed(2)}%</span>
+              </div>)}
+            </div>
+          </div>
+          <footer className="competition-ranking-pagination">
+            <button type="button" disabled={safeRankingPage === 1} onClick={() => setRankingPage((current) => Math.max(1, current - 1))}>이전</button>
+            <span>{safeRankingPage} / {rankingPageCount}</span>
+            <button type="button" disabled={safeRankingPage === rankingPageCount} onClick={() => setRankingPage((current) => Math.min(rankingPageCount, current + 1))}>다음</button>
+          </footer>
+        </section>
       </div>
 
-      {/* The conditions every entry shares. Without these the ranking is a bare
-          list of numbers and there is no way to tell what was held equal. */}
-      <div className="competition-conditions" aria-label={`${selectedRoom.name} 공통 조건`}>
-        {competitionConditions.map((condition) => <div key={condition.label}>
-          <small>{condition.label}</small>
-          <strong>{condition.value}</strong>
-          <em>{condition.detail}</em>
-        </div>)}
-      </div>
+      {detailInfoOpen && <div
+        className="competition-detail-info-backdrop"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setDetailInfoOpen(false);
+        }}
+      >
+        <section
+          className="competition-detail-info-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="competition-detail-info-title"
+        >
+          <header>
+            <div>
+              <p>COMPETITION INFO</p>
+              <h2 id="competition-detail-info-title">{selectedRoom.name} 대회 상세 정보</h2>
+            </div>
+            <button type="button" aria-label="대회 상세 정보 닫기" onClick={() => setDetailInfoOpen(false)}>
+              <X size={18} aria-hidden="true" />
+            </button>
+          </header>
+          <dl className="competition-detail-info-grid">
+            {detailFacts.map((fact) => <div key={fact.label}>
+              <dt>{fact.label}</dt>
+              <dd>{fact.value}</dd>
+            </div>)}
+          </dl>
+        </section>
+      </div>}
+      {entryDialogStep !== 'closed' && <div
+        className="competition-detail-info-backdrop competition-entry-flow-backdrop"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) closeEntryDialog();
+        }}
+      >
+        <section
+          className={`competition-entry-flow-dialog${entryDialogStep === 'confirm' ? ' is-confirming' : ''}`}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="competition-entry-flow-title"
+        >
+          <header>
+            <div>
+              <p>{entryDialogStep === 'select' ? 'SELECT STRATEGY' : 'CONFIRM ENTRY'}</p>
+              <h2 id="competition-entry-flow-title">
+                {selectedRoom.name} {entryDialogStep === 'select' ? '참가 전략 선택' : '참가 확인'}
+              </h2>
+            </div>
+            <button type="button" aria-label="대회 참가 창 닫기" onClick={closeEntryDialog}>
+              <X size={18} aria-hidden="true" />
+            </button>
+          </header>
 
-      <div className="competition-ranking-tools">
-        <label>
-          <span>정렬 지표</span>
-          <select aria-label="정렬 지표 선택" value={sortMetric} onChange={(event) => setSortMetric(event.target.value as RankingMetricId)}>
-            {rankingMetrics.map((metric) => <option key={metric.id} value={metric.id}>{metric.label}</option>)}
-          </select>
-        </label>
-        {myEntry && <p className="competition-my-position">
-          내 봇은 {activeMetric.label} 기준 <strong>{myPosition}위</strong>입니다. 아래 목록에서 강조 표시됩니다.
-        </p>}
-      </div>
-
-      <div className="competition-ranking is-metric-ranking" aria-label={`${selectedRoom.name} 봇 순위`}>
-        <header><span>순위</span><span>봇</span><span>{activeMetric.label}</span><span>수익률</span></header>
-        {rankedEntries.map((entry, index) => <div className={entry.mine ? 'is-mine' : ''} key={entry.bot}>
-          <strong>#{index + 1}</strong>
-          <span>{entry.bot}{entry.mine && <small>내 봇</small>}</span>
-          <b>{formatMetric(entry, activeMetric)}</b>
-          <span className={entry.return >= 0 ? 'positive' : 'negative'}>{entry.return > 0 ? '+' : ''}{entry.return.toFixed(2)}%</span>
-        </div>)}
-      </div>
-      <p className="competition-ranking-note">순위는 선택한 지표만으로 다시 계산합니다. 어떤 지표가 더 좋은 전략을 뜻하는지는 제품이 판단하지 않습니다.</p>
+          {entryDialogStep === 'select' ? <>
+            <div className="competition-entry-flow-summary">
+              <small>
+                <span className="competition-entry-strategy-state">
+                  <i aria-hidden="true" />출시 가능
+                </span>
+                전략만 표시됩니다.
+              </small>
+              <b>선택 {selectedEntryStrategies.length} / {remainingEntrySlots}</b>
+            </div>
+            <label className="competition-entry-strategy-search">
+              <Search size={15} aria-hidden="true" />
+              <input
+                type="search"
+                aria-label="참가 전략 검색"
+                placeholder="전략 이름으로 검색"
+                value={entryStrategyQuery}
+                onChange={(event) => setEntryStrategyQuery(event.target.value)}
+              />
+              {entryStrategyQuery && <button
+                type="button"
+                aria-label="참가 전략 검색 초기화"
+                onClick={() => setEntryStrategyQuery('')}
+              ><X size={13} aria-hidden="true" /></button>}
+            </label>
+            <div className="competition-entry-strategy-list" role="group" aria-label="참가 전략 목록">
+              {entryStrategySearching ? <div className="competition-entry-strategy-empty is-searching" role="status">
+                <LoaderCircle size={20} aria-hidden="true" />
+                <strong>전략을 검색하는 중입니다.</strong>
+              </div> : visibleLaunchableStrategies.map((strategy) => {
+                const checked = selectedEntryStrategies.includes(strategy.name);
+                const disabled = !checked && selectedEntryStrategies.length >= remainingEntrySlots;
+                return <label
+                  key={strategy.name}
+                  className={`competition-entry-strategy${checked ? ' is-selected' : ''}${disabled ? ' is-disabled' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    aria-label={`${strategy.name} 선택`}
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={() => toggleEntryStrategy(strategy.name)}
+                  />
+                  <span className="competition-entry-strategy-check" aria-hidden="true">
+                    {checked && <Check size={14} />}
+                  </span>
+                  <span className={`competition-entry-strategy-mode is-${strategy.mode.toLowerCase()}`}>
+                    {strategy.mode === 'Basic' ? 'B' : 'P'}
+                  </span>
+                  <span className="competition-entry-strategy-copy">
+                    <strong>{strategy.name}</strong>
+                    <small>{strategy.mode} · 최근 수정 {strategy.updated}</small>
+                  </span>
+                </label>;
+              })}
+              {!entryStrategySearching && filteredLaunchableStrategies.length === 0 && <div className="competition-entry-strategy-empty">
+                {resolvedEntryStrategyQuery ? <Search size={20} aria-hidden="true" /> : <Bot size={20} aria-hidden="true" />}
+                <strong>{resolvedEntryStrategyQuery ? '검색 결과가 없습니다.' : '참가할 수 있는 전략이 없습니다.'}</strong>
+                <span>
+                  {resolvedEntryStrategyQuery
+                    ? '다른 전략 이름으로 검색해 주세요.'
+                    : '출시 가능한 전략을 준비한 뒤 다시 시도해 주세요.'}
+                </span>
+              </div>}
+            </div>
+            {!entryStrategySearching && filteredLaunchableStrategies.length > entryStrategyPageSize && <nav
+              className="competition-entry-strategy-pagination"
+              aria-label="참가 전략 목록 페이지"
+            >
+              <button
+                type="button"
+                disabled={safeEntryStrategyPage === 1}
+                onClick={() => setEntryStrategyPage((current) => Math.max(1, current - 1))}
+              >이전</button>
+              <span>{safeEntryStrategyPage} / {entryStrategyPageCount}</span>
+              <button
+                type="button"
+                disabled={safeEntryStrategyPage === entryStrategyPageCount}
+                onClick={() => setEntryStrategyPage((current) => Math.min(entryStrategyPageCount, current + 1))}
+              >다음</button>
+            </nav>}
+            <footer className="competition-entry-selection-footer">
+              <div>
+                <button type="button" className="button button-secondary" onClick={closeEntryDialog}>취소</button>
+                <button
+                  type="button"
+                  className="button button-primary"
+                  disabled={selectedEntryStrategies.length === 0}
+                  onClick={() => setEntryDialogStep('confirm')}
+                >확인</button>
+              </div>
+            </footer>
+          </> : <>
+            <ul className="competition-entry-confirmation-list">
+              {selectedEntryStrategies.map((strategyName) => <li key={strategyName}>
+                <Check size={15} aria-hidden="true" />
+                <span><strong>{strategyName}</strong><small>{strategyName} Bot으로 생성</small></span>
+              </li>)}
+            </ul>
+            <footer>
+              <button type="button" className="competition-entry-back" onClick={() => setEntryDialogStep('select')}>
+                <ArrowLeft size={14} aria-hidden="true" />전략 다시 선택
+              </button>
+              <div>
+                <button type="button" className="button button-secondary" onClick={closeEntryDialog}>취소</button>
+                <button type="button" className="button button-primary" onClick={confirmCompetitionEntry}>참가 확정</button>
+              </div>
+            </footer>
+          </>}
+        </section>
+      </div>}
     </section>
   </div></Localized>;
 
@@ -1735,94 +2572,240 @@ export function RoomsView() {
     </section>
   </div></Localized>;
 
-  return <Localized><div className="page competition-page competition-lobby-page">
-    <PageHeading eyebrow="BOT COMPETITION" title="모의투자" description="같은 규칙에서 봇을 비교하고, 참여할 대회를 빠르게 선택하세요." actions={<Button kind="primary" icon={Plus}>대회 만들기</Button>} />
+  return <Localized><div className={`page competition-page competition-lobby-page${visualVariant === 'image' ? ' competition-concept-v2' : ''}`}>
+    <PageHeading eyebrow="BOT COMPETITION" title="모의투자" description="같은 규칙에서 봇을 비교하고, 참여할 대회를 빠르게 선택하세요." actions={<Button kind="primary" icon={Plus} onClick={() => setCreateDialogOpen(true)}>대회 만들기</Button>} />
+    {createDialogOpen && <CompetitionCreateDialog onClose={() => setCreateDialogOpen(false)} />}
 
-    {/* Official competitions are the product's real events, so they get a
-        branded showcase with compact cards inline — up to eight can run at
-        once, each on its own calendar (weeks to a year), so there is no
-        shared season frame or season progress. The dedicated page stays
-        behind the link for the chart and the full leaderboard. */}
-    <section className="official-showcase" aria-labelledby="official-showcase-title">
-      <header>
-        <div>
-          <small><Trophy size={12} aria-hidden="true" /> OFFICIAL · LIVE</small>
-          <h2 id="official-showcase-title">공식 대회</h2>
-          <p>{`I2S 운영팀이 직접 운영합니다 · 진행 중 ${officialCompetitions.length}개 · 참여 봇 ${officialBotsTotal}개`}</p>
-        </div>
-        <button type="button" className="official-showcase-link" onClick={() => setOfficialSeasonOpen(true)}>공식 대회 전체 보기 <ArrowUpRight size={14} /></button>
-      </header>
-      <OfficialCompetitionGrid onSelect={setSelectedRoom} carousel />
-    </section>
+    <div className="competition-lobby-grid competition-directory-layout">
+      <aside className="competition-filter-panel" aria-label="대회 필터">
+        <header>
+          <h2>대회 필터</h2>
+          <button type="button" onClick={resetFilters}><RotateCcw size={13} aria-hidden="true" />초기화</button>
+        </header>
 
-    <div className="competition-lobby-grid">
-      <section className="competition-screener" aria-labelledby="competition-screener-title">
-        <header><div><small>DISCOVER</small><h2 id="competition-screener-title">대회 찾기</h2></div><span>{`${visibleRooms.length}개 결과`}</span></header>
-        <div className="competition-screener-tools">
-          <label><Search size={15} /><input type="search" aria-label="대회 검색" placeholder="대회 이름 검색" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
-          <select aria-label="점수 방식 필터" value={scoreFilter} onChange={(event) => setScoreFilter(event.target.value)}>
-            <option value="all">모든 점수 방식</option><option value="복합 점수">복합 점수</option><option value="최대 낙폭">최대 낙폭</option><option value="수익률">수익률</option><option value="샤프 지수">샤프 지수</option>
-          </select>
-          <select aria-label="참여 규모 필터" value={sizeFilter} onChange={(event) => setSizeFilter(event.target.value)}>
-            <option value="all">모든 참여 규모</option><option value="small">10봇 이하</option><option value="large">11봇 이상</option>
-          </select>
+        <label className="competition-filter-search">
+          <Search size={15} aria-hidden="true" />
+          <input
+            type="search"
+            aria-label="대회 검색"
+            placeholder="대회명 또는 방장 검색"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+
+        <fieldset className="competition-filter-group">
+          <legend>참가 상태</legend>
+          <div className="competition-filter-segment">
+            {([
+              ['all', '전체'],
+              ['joined', '참가 중'],
+              ['unjoined', '미참가'],
+            ] as const).map(([value, label]) => <label key={value}>
+              <input
+                type="radio"
+                name="participation"
+                value={value}
+                checked={participationFilter === value}
+                onChange={() => setParticipationFilter(value)}
+              />
+              <span>{label}</span>
+            </label>)}
+          </div>
+        </fieldset>
+
+        <fieldset className="competition-filter-group">
+          <legend>진행 상태</legend>
+          <div className="competition-filter-statuses">
+            {([
+              ['recruiting', roomStatusLabels.recruiting],
+              ['running', roomStatusLabels.running],
+            ] as const).map(([value, label]) => <label key={value}>
+              <input
+                type="radio"
+                name="competition-progress"
+                value={value}
+                checked={statusFilter === value}
+                onChange={() => setStatusFilter(value)}
+              />
+              <span>{label}</span>
+            </label>)}
+          </div>
+        </fieldset>
+
+        <fieldset className="competition-filter-group">
+          <legend>채점 방식</legend>
+          <div className="competition-filter-scores">
+            {Object.entries(rankingToneByLabel).map(([ranking, tone]) => <label data-ranking-tone={tone} key={ranking}>
+              <input
+                type="checkbox"
+                checked={scoreFilters.includes(ranking)}
+                onChange={() => toggleScoreFilter(ranking)}
+              />
+              <span>{ranking}</span>
+            </label>)}
+          </div>
+        </fieldset>
+
+        <fieldset className="competition-filter-group">
+          <legend>남은 기간</legend>
+          <div className="competition-filter-segment">
+            {([
+              ['all', '전체'],
+              ['7', '7일 이내'],
+              ['30', '30일 이내'],
+            ] as const).map(([value, label]) => <label key={value}>
+              <input
+                type="radio"
+                name="remaining"
+                value={value}
+                checked={remainingFilter === value}
+                onChange={() => setRemainingFilter(value)}
+              />
+              <span>{label}</span>
+            </label>)}
+          </div>
+        </fieldset>
+
+        <fieldset className="competition-filter-group competition-filter-size">
+          <legend>참여 봇 수</legend>
+          <div>
+            {([
+              ['all', '전체'],
+              ['10', '0–10'],
+              ['11-50', '11–50'],
+              ['51', '51+'],
+            ] as const).map(([value, label]) => <label key={value}>
+              <input
+                type="radio"
+                name="competition-size"
+                value={value}
+                checked={maxBots === value}
+                onChange={() => setMaxBots(value)}
+              />
+              <span>{label}</span>
+            </label>)}
+          </div>
+        </fieldset>
+      </aside>
+
+      <section className="competition-board" aria-label="대회 게시판">
+        <div className="competition-board-list" role="list" aria-label="대회 탐색 결과">
+          <section
+            className="competition-board-section is-official-section"
+            role="group"
+            aria-label="공식 대회 목록"
+          >
+            <header className="competition-board-section-title">
+              <h3 id="official-competition-list-title">공식 대회</h3>
+            </header>
+            <div className="competition-board-head is-official-head" aria-hidden="true">
+              <span>채점 방식</span>
+              <span>대회 제목</span>
+              <span>기간</span>
+              <span>참여 봇 수</span>
+              <span />
+            </div>
+            {visibleOfficialCompetitions.map((competition, index) => {
+              const tooltipId = `official-scoring-help-${index}`;
+              return <div className="competition-board-row is-official" role="listitem" key={competition.name}>
+                <button
+                  type="button"
+                  aria-label={`공식 대회 ${competition.name} 열기`}
+                  aria-describedby={tooltipId}
+                  onClick={() => setSelectedRoom(competition)}
+                >
+                  <CompetitionBoardRanking ranking={competition.ranking} tone={competition.tone} tooltipId={tooltipId} />
+                  <span className="competition-board-name">
+                    <span>
+                      <strong>{competition.name}</strong>
+                    </span>
+                  </span>
+                  <span className="competition-board-period">
+                    <b className={competition.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${competition.remainingDays}`}</b>
+                    <small>{competition.status === 'running' ? '대회 마감까지' : '모집 마감까지'}</small>
+                  </span>
+                  <span className="competition-board-bots">
+                    <strong>{`${competition.bots} BOT`}</strong>
+                  </span>
+                  <ArrowUpRight size={15} aria-hidden="true" />
+                </button>
+              </div>
+            })}
+          </section>
+
+          <section
+            className="competition-board-section is-general-section"
+            role="group"
+            aria-label="일반 대회 목록"
+          >
+            <header className="competition-board-section-title">
+              <h3 id="general-competition-list-title">일반 대회</h3>
+              <select
+                aria-label="페이지당 표시 개수"
+                value={pageSize}
+                onChange={(event) => setPageSize(Number(event.target.value))}
+              >
+                <option value="10">10개씩 보기</option>
+                <option value="20">20개씩 보기</option>
+                <option value="30">30개씩 보기</option>
+              </select>
+            </header>
+            <div className="competition-board-head">
+              {(Object.keys(sortableColumns) as RoomSortKey[]).map((key) => <button
+                type="button"
+                key={key}
+                className={roomSort.key === key ? 'is-sorted' : ''}
+                aria-label={`${sortableColumns[key].label} 정렬`}
+                onClick={() => toggleRoomSort(key)}
+              >
+                {sortableColumns[key].label}
+                <i aria-hidden="true">{roomSort.key === key ? (roomSort.dir === 'asc' ? '▲' : '▼') : '↕'}</i>
+              </button>)}
+              <span aria-hidden="true" />
+            </div>
+
+            {pageRooms.map((room, index) => {
+              const tooltipId = `general-scoring-help-${index}`;
+              return <div className="competition-board-row" role="listitem" key={room.name}>
+              <button
+                type="button"
+                aria-label={`${room.name} 열기`}
+                aria-describedby={tooltipId}
+                onClick={() => setSelectedRoom(room)}
+              >
+                <CompetitionBoardRanking
+                  ranking={room.ranking}
+                  tone={rankingToneByLabel[room.ranking] ?? 'standard'}
+                  tooltipId={tooltipId}
+                />
+                <span className="competition-board-name">
+                  <strong>{room.name}</strong>
+                  <small>{room.host || 'I2S 운영팀'}</small>
+                </span>
+                <span className="competition-board-period">
+                  <b className={room.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${room.remainingDays}`}</b>
+                  <small>{room.status === 'running' ? '대회 마감까지' : '모집 마감까지'}</small>
+                </span>
+                <span className="competition-board-bots"><strong>{`${room.joined} BOT`}</strong></span>
+                <ArrowUpRight size={15} aria-hidden="true" />
+              </button>
+            </div>})}
+
+            {visibleRooms.length === 0 && <div className="competition-empty">
+              <Search size={20} aria-hidden="true" />
+              <strong>조건에 맞는 대회가 없습니다.</strong>
+              <button type="button" onClick={resetFilters}>필터 초기화</button>
+            </div>}
+          </section>
         </div>
-        {/* Sorting lives where list views put it: on the column headers.
-            Clicking a sortable header sorts by it; clicking again flips. */}
-        <div className="competition-screener-head">
-          <button type="button" className={roomSort.key === 'name' ? 'is-sorted' : ''} aria-label="대회 이름 정렬" onClick={() => toggleRoomSort('name')}>대회{roomSort.key === 'name' && <i aria-hidden="true">{roomSort.dir === 'asc' ? '▲' : '▼'}</i>}</button>
-          <span>채점 방식</span>
-          <span>운영자</span>
-          <button type="button" className={roomSort.key === 'end' ? 'is-sorted' : ''} aria-label="기간 정렬" onClick={() => toggleRoomSort('end')}>기간{roomSort.key === 'end' && <i aria-hidden="true">{roomSort.dir === 'asc' ? '▲' : '▼'}</i>}</button>
-          <button type="button" className={roomSort.key === 'joined' ? 'is-sorted' : ''} aria-label="참여 정렬" onClick={() => toggleRoomSort('joined')}>참여{roomSort.key === 'joined' && <i aria-hidden="true">{roomSort.dir === 'asc' ? '▲' : '▼'}</i>}</button>
-        </div>
-        <div className="competition-screener-list" role="list" aria-label="대회 탐색 결과">
-          {/* Rows carry values only — the header already names the columns. */}
-          {pageRooms.map((room) => <button role="listitem" className={displayedRoom?.name === room.name ? 'active' : ''} aria-label={`${room.name} 선택`} key={room.name} onClick={() => setFocusedRoom(room)}>
-            <span className="screener-room-name"><i /><strong>{room.name}</strong><small>{room.score}</small></span>
-            {/* The scoring method is THE discovery signal, so it wears its
-                tone-coloured badge here, not plain text. */}
-            <span className="screener-method"><strong className="competition-ranking-badge" data-ranking-tone={rankingToneByLabel[room.ranking] ?? 'standard'}>{room.ranking}</strong></span>
-            <span><strong>{room.host}</strong></span>
-            <span><strong>{`${room.start}–${room.end}`}</strong></span>
-            <span><strong>{room.joined}</strong></span>
-            <ArrowUpRight size={14} />
-          </button>)}
-          {visibleRooms.length === 0 && <div className="competition-empty"><Search size={20} /><strong>조건에 맞는 대회가 없습니다.</strong><button onClick={() => { setQuery(''); setScoreFilter('all'); setSizeFilter('all'); }}>필터 초기화</button></div>}
-        </div>
-        {pageCount > 1 && <nav className="competition-pagination" aria-label="대회 목록 페이지">
+
+        <nav className="competition-pagination" aria-label="대회 목록 페이지">
           <button type="button" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>이전 페이지</button>
           <span aria-hidden="true">{`${safePage} / ${pageCount}`}</span>
           <button type="button" disabled={safePage >= pageCount} onClick={() => setPage(safePage + 1)}>다음 페이지</button>
-        </nav>}
+        </nav>
       </section>
-
-      {/* The right panel carries what the list cannot: the room's ranking.
-          Repeating the row's own facts there was dead weight. What it shows
-          depends on whether the person's bot competes in that room. */}
-      <aside className="competition-room-inspector" aria-label={displayedRoom ? `${displayedRoom.name} 순위` : '선택된 대회 없음'}>
-        {displayedRoom ? <>
-          <header>
-            <small>RANKING</small>
-            <h2>{displayedRoom.name}</h2>
-            <p>{`${displayedRoom.score} 기준 상위 봇입니다. 전체 순위는 상세 페이지에서 확인하세요.`}</p>
-          </header>
-          {displayedRoom.myBot && myStanding
-            ? <div className="competition-my-standing">
-              <span><small>내 봇</small><strong>{displayedRoom.myBot}</strong></span>
-              <b>{`#${myStanding.rank}`}</b>
-            </div>
-            : <p className="competition-standing-hint">아직 참가하지 않은 대회입니다. 참가하면 내 봇의 순위가 여기에 표시됩니다.</p>}
-          <div className="competition-standing-list" role="list" aria-label={`${displayedRoom.name} 상위 순위`}>
-            {displayedRoom.standings.map((entry) => <div role="listitem" key={entry.rank} className={entry.mine ? 'is-mine' : ''}>
-              <strong>{`#${entry.rank}`}</strong>
-              <span>{entry.bot}{entry.mine && <small>내 봇</small>}</span>
-              <b>{entry.value}</b>
-            </div>)}
-          </div>
-          <button className="competition-inspector-action" aria-label={`${displayedRoom.name} 열기`} onClick={() => setSelectedRoom(displayedRoom)}>상세 정보 보기 <ArrowUpRight size={15} /></button>
-        </> : <div className="competition-inspector-empty"><Search size={20} /><strong>표시할 대회가 없습니다.</strong></div>}
-      </aside>
     </div>
   </div></Localized>;
 }

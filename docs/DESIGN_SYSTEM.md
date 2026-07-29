@@ -10,7 +10,7 @@ The design goal is a calm, information-dense trading workspace. Every screen sho
 
 - Desktop content width: `1280px` maximum on every page — the Tailwind `max-w-7xl` convention. One container value app-wide; it keeps margins on a 1366px laptop and calm gutters at 1920px. Never fork it per page.
 - Product navigation: `72px` tall, horizontal, sticky. Each primary navigation target is `86px` wide.
-- The logo and wordmark are the persistent home action. The product opens on Home.
+- The logo and wordmark open the landing introduction (`/landing`); the HOME menu item remains the operational dashboard, and the product still opens on Home.
 - Primary navigation order is Home, Strategies, Bots, Backtest, Competition.
 - Account and security live together under the `KIM` My account control. Admin and watchlist entry points are not part of the product navigation.
 - Notifications and help are navigation tools, not primary destinations: the bell opens a popover that links into `/notifications`, and the question mark opens `/help`. They are reachable from every screen without competing with the five product areas.

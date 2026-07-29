@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, Bell, CircleHelp, Moon, Palette, Sun, X } from 'lucide-react';
+import { ArrowRight, Bell, CircleHelp, Moon, Palette, Settings, Sun, X } from 'lucide-react';
 import i2sLogo from './assets/i2s-logo.svg';
 import { notifications } from './data/mockData';
 import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation';
 import type { PageId } from './lib/navigation';
 import { LanguageProvider, Localized, useLanguage } from './lib/i18n';
 import { BasicEditor, ProEditor, StrategyHome } from './views/StrategyViews';
+import { LandingView } from './views/LandingView';
 import { BacktestView, RoomsView } from './views/OperationsViews';
 import { BotsView } from './views/BotsView';
 import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
@@ -86,8 +87,31 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarPro
   const togglePanel = (panel: string) => setOpenPanel((current) => current === panel ? null : panel);
   const unreadCount = notifications.filter((item) => item.unread).length;
 
+  /*
+    A press outside the open panel closes it. `.topbar-popover-anchor` wraps
+    both the trigger and its panel, so pressing inside either keeps the panel
+    open, and pressing the other tool's trigger still switches panels through
+    togglePanel rather than being swallowed here.
+
+    pointerdown, not click: the panel should be gone before the press it was
+    dismissed by finishes, and mouse, touch and pen all report it.
+  */
+  useEffect(() => {
+    if (!openPanel) return undefined;
+
+    const dismiss = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest('.topbar-popover-anchor')) setOpenPanel(null);
+    };
+
+    document.addEventListener('pointerdown', dismiss);
+    return () => document.removeEventListener('pointerdown', dismiss);
+  }, [openPanel]);
+
   return <Localized><header className="app-topbar signal-product-nav">
-    <button className="signal-product-brand" aria-label="Idea2Strategy 홈" onClick={() => setPage('home')}>
+    {/* The logo is the front door: it opens the landing introduction, while
+        the HOME menu item remains the operational dashboard. */}
+    <button className="signal-product-brand" aria-label="Idea2Strategy 소개" onClick={() => setPage('landing')}>
       <img src={i2sLogo} alt="Idea2Strategy" />
       <strong>IDEA<span>2</span>STRATEGY</strong>
     </button>
@@ -114,29 +138,61 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarPro
         </section>}
       </div>
       <button className={`icon-button ${page === 'help' ? 'active' : ''}`} aria-label="도움말" onClick={() => setPage('help')}><CircleHelp size={17} /></button>
-      <button className="icon-button" aria-label={theme === 'light' ? '다크 모드' : '라이트 모드'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}</button>
-      <div className="nav-market-control">
-        <span className="nav-market-control-icon" title="상승·하락 색상"><Palette size={14} aria-hidden="true" /></span>
-        <div className="nav-segmented-toggle nav-market-toggle" role="group" aria-label="상승·하락 색상 선택" data-value={updown}>
-          <button
-            type="button"
-            aria-label="미국식 · 상승 초록, 하락 빨강"
-            aria-pressed={updown === 'us'}
-            title="미국식 · 상승 초록, 하락 빨강"
-            onClick={() => setUpdown('us')}
-          ><MarketFlag country="us" /></button>
-          <button
-            type="button"
-            aria-label="한국식 · 상승 빨강, 하락 파랑"
-            aria-pressed={updown === 'kr'}
-            title="한국식 · 상승 빨강, 하락 파랑"
-            onClick={() => setUpdown('kr')}
-          ><MarketFlag country="kr" /></button>
-        </div>
-      </div>
-      <div className="nav-segmented-toggle nav-language-toggle" role="group" aria-label="언어 선택" data-value={language}>
-        <button type="button" aria-label="한국어" aria-pressed={language === 'ko'} onClick={() => setLanguage('ko')}>KO</button>
-        <button type="button" aria-label="English" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>EN</button>
+      {/* Theme, market colour convention and language are all display
+          preferences set once and rarely revisited, so they sit behind one gear
+          instead of three toggles competing with the five product areas. */}
+      <div className="topbar-popover-anchor">
+        <button
+          className={`icon-button ${openPanel === 'settings' ? 'active' : ''}`}
+          aria-label="화면 설정 열기"
+          aria-expanded={openPanel === 'settings'}
+          onClick={() => togglePanel('settings')}
+        ><Settings size={17} /></button>
+        {openPanel === 'settings' && <section className="topbar-popover settings-popover" role="dialog" aria-label="화면 설정">
+          <header><div><strong>화면 설정</strong><span>테마 · 상승·하락 색상 · 언어</span></div><button aria-label="화면 설정 닫기" onClick={() => setOpenPanel(null)}><X size={15} /></button></header>
+          <div className="display-settings-rows">
+            {/* Two explicit choices rather than one flip: in a panel the current
+                theme has to be readable, not inferred from the icon. */}
+            <div className="display-settings-row">
+              <span className="display-settings-label">테마</span>
+              <div className="nav-segmented-toggle nav-theme-toggle" role="group" aria-label="테마 선택" data-value={theme}>
+                <button type="button" aria-label="라이트 모드" aria-pressed={theme === 'light'} onClick={() => setTheme('light')}><Sun size={14} aria-hidden="true" /></button>
+                <button type="button" aria-label="다크 모드" aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}><Moon size={14} aria-hidden="true" /></button>
+              </div>
+            </div>
+
+            <div className="display-settings-row">
+              {/* The row label names the setting, so the palette icon and its
+                  wrapper pill are gone: this is the same segmented control as
+                  theme and language, only with flags inside. */}
+              <span className="display-settings-label">상승·하락 색상</span>
+              <div className="nav-segmented-toggle nav-market-toggle" role="group" aria-label="상승·하락 색상 선택" data-value={updown}>
+                <button
+                  type="button"
+                  aria-label="미국식 · 상승 초록, 하락 빨강"
+                  aria-pressed={updown === 'us'}
+                  title="미국식 · 상승 초록, 하락 빨강"
+                  onClick={() => setUpdown('us')}
+                ><MarketFlag country="us" /></button>
+                <button
+                  type="button"
+                  aria-label="한국식 · 상승 빨강, 하락 파랑"
+                  aria-pressed={updown === 'kr'}
+                  title="한국식 · 상승 빨강, 하락 파랑"
+                  onClick={() => setUpdown('kr')}
+                ><MarketFlag country="kr" /></button>
+              </div>
+            </div>
+
+            <div className="display-settings-row">
+              <span className="display-settings-label">언어</span>
+              <div className="nav-segmented-toggle nav-language-toggle" role="group" aria-label="언어 선택" data-value={language}>
+                <button type="button" aria-label="한국어" aria-pressed={language === 'ko'} onClick={() => setLanguage('ko')}>KO</button>
+                <button type="button" aria-label="English" aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>EN</button>
+              </div>
+            </div>
+          </div>
+        </section>}
       </div>
       <button className={`signal-user ${page === 'account' ? 'active' : ''}`} aria-label="내 계정" onClick={() => setPage('account')}>KIM <i /></button>
     </div>
@@ -206,12 +262,14 @@ function ProductApp() {
 
   const content = <Routes>
     <Route path="/" element={<DashboardView setPage={setPage} botIcons={botIcons} />} />
+    <Route path="/landing" element={<LandingView setPage={setPage} />} />
     <Route path="/strategies" element={<StrategyHome openEditor={openEditor} />} />
     <Route path="/strategies/new/basic" element={<BasicEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
     <Route path="/strategies/new/pro" element={<ProEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
     <Route path="/bots" element={<BotsView botIcons={botIcons} onBotIconChange={changeBotIcon} />} />
     <Route path="/backtests" element={<BacktestView />} />
     <Route path="/competition" element={<RoomsView />} />
+    <Route path="/competition-v2" element={<RoomsView visualVariant="image" />} />
     <Route path="/notifications" element={<NotificationsView setPage={setPage} />} />
     <Route path="/help" element={<HelpView />} />
     <Route path="/account" element={<AccountView
@@ -243,7 +301,10 @@ function ProductApp() {
         ? <div className="strategy-editor-surface" data-testid="strategy-editor-surface">
           <div className="page-scroll strategy-editor-scroll">{content}</div>
         </div>
-        : <div className="page-scroll">{content}</div>}
+        /* The landing hero pins with position:sticky against the window, and
+           the default overflow:hidden would make it a scroll container that
+           never scrolls — the sticky stage would simply not stick. */
+        : <div className={`page-scroll${page === 'landing' ? ' landing-scroll' : ''}`}>{content}</div>}
     </div>
     <Localized><div className="palette-dock" role="group" aria-label="색상 템플릿 선택">
       <Palette size={13} aria-hidden="true" />

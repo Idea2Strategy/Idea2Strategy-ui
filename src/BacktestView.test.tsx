@@ -181,7 +181,9 @@ describe('BacktestView', () => {
     await user.click(screen.getByRole('button', { name: '1시간 차트 보기' }));
 
     expect(screen.getByRole('button', { name: '1시간 차트 보기' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('img', { name: 'SPY 캔들 차트와 매수 매도 기록' })).toHaveAttribute('data-timeframe', '1시간');
+    /* 기간은 번역되지 않는 식별자로 넘긴다. 표시 이름을 키로 쓰면 영어 로케일에서
+       조회가 빗나가 차트가 죽는다(#47). */
+    expect(screen.getByRole('img', { name: 'SPY 캔들 차트와 매수 매도 기록' })).toHaveAttribute('data-timeframe', 'hour');
     expect(screen.getAllByTestId('market-candle')).toHaveLength(48);
 
     await user.click(screen.getByRole('button', { name: '거래 종목 선택 열기' }));
@@ -254,7 +256,7 @@ describe('BacktestView', () => {
     expect(within(executionLog).queryByRole('table')).not.toBeInTheDocument();
   });
 
-  test('filters execution logs to the date range currently visible on the chart', async () => {
+  test('follows the chart range while the toggle is on and releases the log when it is off', async () => {
     const user = userEvent.setup();
     render(<BacktestView />);
 
@@ -264,30 +266,66 @@ describe('BacktestView', () => {
     await user.click(within(executionLog).getByRole('button', { name: 'SPY 매수·매도 로그 펼치기' }));
     const chartRangeButton = within(executionLog).getByRole('button', { name: '현재 차트 구간 로그 보기' });
 
+    expect(chartRangeButton).toHaveAttribute('aria-pressed', 'false');
     expect(canvas).toHaveAttribute('data-visible-range-start', '2026-05-08');
     expect(canvas).toHaveAttribute('data-visible-range-end', '2026-07-30');
     expect(screen.getAllByTestId('trade-marker')).toHaveLength(1);
 
     await user.click(chartRangeButton);
 
+    expect(chartRangeButton).toHaveAttribute('aria-pressed', 'true');
     expect(within(executionLog).getByRole('button', { name: '체결 로그 시작일' })).toHaveTextContent('2026. 05. 08.');
     expect(within(executionLog).getByRole('button', { name: '체결 로그 종료일' })).toHaveTextContent('2026. 07. 30.');
     expect(within(executionLog).getByText('1건 검색됨')).toBeInTheDocument();
     expect(within(executionLog).getByText('07.19 10:00')).toBeInTheDocument();
     expect(within(executionLog).queryByText('07.18 14:30')).not.toBeInTheDocument();
 
+    // Dragging the chart used to leave the log stale until the button was
+    // pressed again. While the toggle is on it now keeps up on its own.
     fireEvent.pointerDown(canvas, { clientX: 480, clientY: 210, pointerId: 12 });
     fireEvent.pointerMove(canvas, { clientX: 900, clientY: 210, pointerId: 12 });
     fireEvent.pointerUp(canvas, { clientX: 900, clientY: 210, pointerId: 12 });
 
     expect(canvas.dataset.visibleRangeEnd! < '2026-07-18').toBe(true);
     expect(screen.getAllByTestId('trade-marker')).toHaveLength(1);
-
-    await user.click(chartRangeButton);
-
+    expect(chartRangeButton).toHaveAttribute('aria-pressed', 'true');
     expect(within(executionLog).getByText('1건 검색됨')).toBeInTheDocument();
     expect(within(executionLog).getByText('07.18 14:30')).toBeInTheDocument();
     expect(within(executionLog).queryByText('07.19 10:00')).not.toBeInTheDocument();
+
+    // Pressing it again releases the log back to the whole history.
+    await user.click(chartRangeButton);
+
+    expect(chartRangeButton).toHaveAttribute('aria-pressed', 'false');
+    expect(within(executionLog).getByRole('button', { name: '체결 로그 시작일' })).toHaveTextContent('시작 날짜');
+    expect(within(executionLog).getByRole('button', { name: '체결 로그 종료일' })).toHaveTextContent('종료 날짜');
+    expect(within(executionLog).getByText('07.19 10:00')).toBeInTheDocument();
+    expect(within(executionLog).getByText('07.18 14:30')).toBeInTheDocument();
+  });
+
+  test('a hand-picked date takes the log off the chart range', async () => {
+    const user = userEvent.setup();
+    render(<BacktestView />);
+
+    const canvas = screen.getByTestId('backtest-candle-canvas');
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1040, height: 420 } as DOMRect);
+    const executionLog = screen.getByRole('region', { name: 'SPY 체결 로그' });
+    await user.click(within(executionLog).getByRole('button', { name: 'SPY 매수·매도 로그 펼치기' }));
+    const chartRangeButton = within(executionLog).getByRole('button', { name: '현재 차트 구간 로그 보기' });
+
+    await user.click(chartRangeButton);
+    expect(chartRangeButton).toHaveAttribute('aria-pressed', 'true');
+
+    /* Choosing a date by hand has to win: if the toggle stayed on, the next pan
+       would overwrite the range the person just picked. The calendar opens on
+       the followed start date, so pick a day from that month. */
+    await user.click(within(executionLog).getByRole('button', { name: '체결 로그 시작일' }));
+    const calendar = screen.getByRole('dialog', { name: '체결 로그 날짜 선택' });
+    expect(within(calendar).getByText('2026년 5월')).toBeInTheDocument();
+    await user.click(within(calendar).getByRole('button', { name: '2026년 5월 20일' }));
+
+    expect(chartRangeButton).toHaveAttribute('aria-pressed', 'false');
+    expect(within(executionLog).getByRole('button', { name: '체결 로그 시작일' })).toHaveTextContent('2026. 05. 20.');
   });
 
   test('filters execution logs by date and exposes pagination controls for large histories', async () => {

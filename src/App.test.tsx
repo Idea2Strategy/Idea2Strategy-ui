@@ -7,6 +7,11 @@ import { App } from './App';
 
 const balancedStyles = readFileSync(resolve(process.cwd(), 'src/styles/balanced.css'), 'utf8');
 
+/* Theme, market colours and language live behind the nav gear, so open it
+   first. The trigger keeps its accessible name in both languages. */
+const openDisplaySettings = (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole('button', { name: /화면 설정 열기|Open display settings/ }));
+
 describe('Signal product UI', () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -92,8 +97,10 @@ describe('Signal product UI', () => {
 
     await user.click(screen.getByRole('button', { name: '전략' }));
     expect(screen.getByRole('heading', { name: '전략' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 홈' }));
-    expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
+    // The logo is the front door to the landing introduction, not the dashboard.
+    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
+    expect(window.location.pathname).toBe('/landing');
+    expect(screen.getByRole('heading', { name: '아이디어를, 전략으로' })).toBeInTheDocument();
   });
 
   test('shows each bot custom icon on the home dashboard after it is changed', async () => {
@@ -200,6 +207,7 @@ describe('Signal product UI', () => {
     const user = userEvent.setup();
     const { unmount } = render(<App />);
 
+    await openDisplaySettings(user);
     const languageToggle = screen.getByRole('group', { name: '언어 선택' });
     expect(within(languageToggle).getByRole('button', { name: '한국어' })).toHaveAttribute('aria-pressed', 'true');
     await user.click(within(languageToggle).getByRole('button', { name: 'English' }));
@@ -212,8 +220,46 @@ describe('Signal product UI', () => {
 
     unmount();
     render(<App />);
+    await openDisplaySettings(user);
     expect(within(screen.getByRole('group', { name: 'Language' })).getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('heading', { name: 'Bot operations' })).toBeInTheDocument();
+  });
+
+  test('closes an open top-bar panel on the next press outside it', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await openDisplaySettings(user);
+    expect(screen.getByRole('dialog', { name: '화면 설정' })).toBeInTheDocument();
+
+    // Pressing a control inside must not dismiss the panel that holds it.
+    await user.click(screen.getByRole('button', { name: '라이트 모드' }));
+    expect(screen.getByRole('dialog', { name: '화면 설정' })).toBeInTheDocument();
+    expect(screen.getByTestId('app-shell')).toHaveAttribute('data-theme', 'light');
+
+    // Anywhere outside closes it, without needing the ✕.
+    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
+    expect(screen.queryByRole('dialog', { name: '화면 설정' })).not.toBeInTheDocument();
+  });
+
+  test('switches directly between top-bar panels and dismisses the notifications panel outside', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '알림' }));
+    expect(screen.getByRole('dialog', { name: '최근 알림' })).toBeInTheDocument();
+
+    /* The other trigger lives in its own anchor, so the press is not treated as
+       "outside": the panels swap instead of the first one just closing. */
+    await openDisplaySettings(user);
+    expect(screen.queryByRole('dialog', { name: '최근 알림' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: '화면 설정' })).toBeInTheDocument();
+
+    // One handler serves both panels, so notifications dismiss the same way.
+    await user.click(screen.getByRole('button', { name: '알림' }));
+    expect(screen.getByRole('dialog', { name: '최근 알림' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
+    expect(screen.queryByRole('dialog', { name: '최근 알림' })).not.toBeInTheDocument();
   });
 
   test('does not show a global search box in the top navigation', () => {
@@ -227,13 +273,17 @@ describe('Signal product UI', () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await openDisplaySettings(user);
     const colourToggle = screen.getByRole('group', { name: '상승·하락 색상 선택' });
     const koreanColours = within(colourToggle).getByRole('button', { name: '한국식 · 상승 빨강, 하락 파랑' });
     const usColours = within(colourToggle).getByRole('button', { name: '미국식 · 상승 초록, 하락 빨강' });
 
     expect(koreanColours).toHaveAttribute('aria-pressed', 'true');
     expect(usColours).toHaveAttribute('aria-pressed', 'false');
-    expect(colourToggle.parentElement?.querySelector('.nav-market-control-icon')).toBeInTheDocument();
+    // Same pill as theme and language: no wrapper control, no icon divider.
+    expect(document.querySelector('.nav-market-control')).not.toBeInTheDocument();
+    expect(document.querySelector('.nav-market-control-icon')).not.toBeInTheDocument();
+    expect(colourToggle).toHaveClass('nav-segmented-toggle');
     const koreanFlag = koreanColours.querySelector('.nav-market-flag.flag-kr');
     expect(koreanFlag).toBeInTheDocument();
     expect(koreanFlag).toHaveAttribute('viewBox', '0 0 640 480');
@@ -307,6 +357,7 @@ describe('Signal product UI', () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
     await user.click(screen.getByRole('button', { name: '봇' }));
+    await openDisplaySettings(user);
     await user.click(screen.getByRole('button', { name: '라이트 모드' }));
     expect(screen.getByRole('heading', { name: '봇 운영 센터' })).toBeInTheDocument();
     expect(screen.getByTestId('app-shell')).toHaveAttribute('data-theme', 'light');
@@ -439,17 +490,19 @@ describe('Signal product UI', () => {
     await user.click(screen.getByRole('button', { name: '모의투자' }));
 
     expect(screen.getByRole('heading', { name: '모의투자' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '공식 대회 전체 보기' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '공식 대회 전체 보기' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'OFFICAL' })).not.toBeInTheDocument();
     const search = screen.getByRole('searchbox', { name: '대회 검색' });
     await user.type(search, 'ETF Disc');
-    expect(
-      screen.getByRole('complementary', { name: 'ETF Discipline 순위' }),
-    ).toBeInTheDocument();
+    const results = screen.getByRole('list', { name: '대회 탐색 결과' });
+    expect(within(results).getByRole('button', { name: 'ETF Discipline 열기' })).toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'ETF Discipline 순위' })).not.toBeInTheDocument();
     expect(screen.queryByText('Momentum Lab')).not.toBeInTheDocument();
 
     await user.clear(search);
+    const progress = screen.getByRole('group', { name: '진행 상태' });
+    await user.click(within(progress).getByRole('radio', { name: '대회 진행 중' }));
     await user.click(screen.getByRole('button', { name: 'Momentum Lab 열기' }));
-    expect(screen.getByText('Room Beta')).toBeInTheDocument();
+    expect(screen.getAllByText('Room Beta')).toHaveLength(2);
   });
 });
