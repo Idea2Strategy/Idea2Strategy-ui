@@ -200,14 +200,5 @@ export function LandingView({ setPage }: LandingViewProps): ReactNode {
     <section className="landing-disclaimer" aria-label="서비스 안내">
       <Reveal><p>Idea2Strategy는 실제 계좌와 연결되지 않는 가상 모의투자 서비스입니다. 실제 주문을 내지 않으며, 특정 종목이나 전략을 추천하지 않습니다. 화면의 가격과 성과는 샘플 데이터입니다.</p></Reveal>
     </section>
-
-    <section className="landing-final" aria-label="시작하기">
-      <Reveal>
-        <h2>첫 전략을 조립해 보세요</h2>
-        <div className="landing-cta">
-          <Button kind="primary" icon={ArrowRight} onClick={() => setPage('strategy')}>전략 만들기</Button>
-        </div>
-      </Reveal>
-    </section>
   </div></Localized>;
 }
