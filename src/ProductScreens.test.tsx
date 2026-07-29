@@ -11,10 +11,13 @@ const openOverview = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('tab', { name: /개요/ }));
 
 describe('Bot operations', () => {
-  test('keeps the bot launch action without a manual refresh button', () => {
+  test('carries no page-level launch or refresh action', () => {
     render(<BotsView />);
 
-    expect(screen.getByRole('button', { name: '봇 출시' })).toBeInTheDocument();
+    /* Launching belongs to the strategy release flow, which owns the locked
+       version and the launch configuration; a shortcut here would start a flow
+       this page cannot finish. A manual refresh never belonged here either. */
+    expect(screen.queryByRole('button', { name: '봇 출시' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '새로고침' })).not.toBeInTheDocument();
   });
 

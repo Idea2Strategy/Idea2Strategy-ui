@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Plus, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
+import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
 import { Button, DataTable, EmptyState, PageHeading, Status, TabPanel, Tabs } from '../components/common';
 import { EquityChart } from '../components/EquityChart';
 import { LiveExecutionChart } from '../components/LiveExecutionChart';
@@ -903,7 +903,6 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange }: Bots
       description={attention.length > 0
         ? `봇 ${botList.length}개 중 ${healthyCount}개가 정상 실행 중이에요. ${attention.map((bot) => bot.name).join(', ')} 하나만 확인하면 됩니다.`
         : `봇 ${botList.length}개가 모두 정상 실행 중이에요. 확인할 문제가 없습니다.`}
-      actions={<Button kind="primary" icon={Plus}>봇 출시</Button>}
     />
 
     <div className="bots-workspace">
