@@ -2317,13 +2317,16 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                 <strong>{`${myRankedEntries.length} / ${myBotEntryLimit}`}</strong>
               </span>
             </header>
-            {myRankedEntries.length > 0 ? <ul>
-              {myRankedEntries.map(({ entry }) => <li key={entry.bot} className="is-waiting">
-                <span className="competition-my-ranks-wait" aria-hidden="true"><Bot size={15} /></span>
-                <span><small>내 봇</small><b>{entry.bot}</b></span>
-                <span><small>상태</small><b>등록 완료 · 시작 대기</b></span>
-              </li>)}
-            </ul> : <div className="competition-my-ranks-empty">
+            {/* 상태 문구는 한 번만 — 줄마다 "시작 대기"를 반복하지 않는다. */}
+            {myRankedEntries.length > 0 ? <>
+              <p className="competition-my-ranks-note">등록한 봇은 대회 시작과 함께 실행돼요.</p>
+              <ul className="is-waiting">
+                {myRankedEntries.map(({ entry }) => <li key={entry.bot}>
+                  <span className="competition-my-ranks-wait" aria-hidden="true"><Bot size={15} /></span>
+                  <b>{entry.bot}</b>
+                </li>)}
+              </ul>
+            </> : <div className="competition-my-ranks-empty">
               <Bot size={20} aria-hidden="true" />
               <span>
                 <strong>참가 중인 봇이 없습니다.</strong>
@@ -2339,9 +2342,9 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                 ? '모집이 마감되면 모든 참가 봇이 같은 과거 구간을 일괄 실행해 한 번에 채점해요. 순위는 결과 계산이 끝난 뒤 공개돼요.'
                 : '참가 봇은 대회 시작에 맞춰 일제히 실행돼요. 순위표는 시작 후에 열려요.'}
             </p>
+            {/* D-day는 헤더 눈썹이 이미 말한다 — 여기는 참여 규모만. */}
             <div className="competition-recruiting-facts">
               <span><b>{'joined' in selectedRoom ? selectedRoom.joined : selectedRoom.bots}</b><small>참여 봇</small></span>
-              <span><b className={selectedRoom.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${selectedRoom.remainingDays}`}</b><small>모집 마감</small></span>
             </div>
             <button
               type="button"
@@ -2355,40 +2358,12 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
             </button>
           </section>
         </div>
-        : <div className="competition-detail-rankings">
-          <section className="competition-my-ranks" aria-label="내 참가 봇 순위">
-            <header>
-              <div><p>MY RANK</p><h3>내 참가 봇</h3></div>
-              <span
-                className="competition-my-ranks-capacity"
-                aria-label={`등록 봇 ${myRankedEntries.length}/${myBotEntryLimit}`}
-              >
-                <small>등록 봇</small>
-                <strong>{`${myRankedEntries.length} / ${myBotEntryLimit}`}</strong>
-              </span>
-            </header>
-            {myRankedEntries.length > 0 ? <ul>
-              {myRankedEntries.map(({ entry, position }) => <li key={entry.bot}>
-                <strong className="competition-ranking-position" aria-label={`${position}위`}>{`#${position}`}</strong>
-                <span><small>내 봇</small><b>{entry.bot}</b></span>
-                <span><small>{activeMetric.label}</small><b>{formatMetric(entry, activeMetric)}</b></span>
-                <span>
-                  <small>수익률</small>
-                  <b className={entry.return >= 0 ? 'positive' : 'negative'}>
-                    {entry.return > 0 ? '+' : ''}{entry.return.toFixed(2)}%
-                  </b>
-                </span>
-              </li>)}
-            </ul> : <div className="competition-my-ranks-empty">
-              <Bot size={20} aria-hidden="true" />
-              <span>
-                <strong>참가 중인 봇이 없습니다.</strong>
-                <small>대회에 참가하면 내 봇 순위를 여기서 확인할 수 있습니다.</small>
-              </span>
-            </div>}
-          </section>
-
-          <section className="competition-leaderboard" aria-labelledby="competition-leaderboard-title">
+        /*
+          진행 중: 리더보드 하나가 전폭을 쓴다. 압축 규칙이 내 봇 ±2를 항상
+          보여주므로 별도의 "내 참가 봇" 패널은 같은 숫자의 반복이었다 —
+          내 행 강조와 등록 봇 카운트만 남긴다.
+        */
+        : <section className="competition-leaderboard is-single" aria-labelledby="competition-leaderboard-title">
             <header>
               <div className="competition-leaderboard-title">
                 <p>LEADERBOARD</p>
@@ -2408,6 +2383,13 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                 </div>
               </div>
               <div className="competition-ranking-tools">
+                {myRankedEntries.length > 0 && <span
+                  className="competition-leaderboard-capacity"
+                  aria-label={`등록 봇 ${myRankedEntries.length}/${myBotEntryLimit}`}
+                >
+                  <small>등록 봇</small>
+                  <strong>{`${myRankedEntries.length} / ${myBotEntryLimit}`}</strong>
+                </span>}
                 {/* 지표는 하나씩 갈아끼우는 게 아니라 열로 고른다(최대 4개).
                     정렬은 열 머리를 눌러 바꾼다. */}
                 <button
@@ -2501,8 +2483,7 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
                   <button type="button" disabled={safeRankingPage === rankingPageCount} onClick={() => setRankingPage((current) => Math.min(rankingPageCount, current + 1))}>다음</button>
                 </>}
             </footer>
-          </section>
-        </div>}
+          </section>}
 
       {/* 채점 방식 안내: 이 대회의 수식을 강조하고 나머지 방식도 함께 설명한다. */}
       {scoringHelpOpen && <div

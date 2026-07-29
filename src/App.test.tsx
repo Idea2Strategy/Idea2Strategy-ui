@@ -457,6 +457,7 @@ describe('Signal product UI', () => {
     const rail = screen.getByRole('complementary', { name: '일반 대회 필터' });
     await user.click(within(rail).getByRole('radio', { name: '진행 중' }));
     await user.click(screen.getByRole('listitem', { name: 'Momentum Lab 열기' }));
-    expect(screen.getAllByText('Room Beta')).toHaveLength(2);
+    // 상세에서 Room Beta는 순위표 강조 행 한 곳에만 나온다(내 봇 패널 중복 제거).
+    expect(screen.getAllByText('Room Beta')).toHaveLength(1);
   });
 });

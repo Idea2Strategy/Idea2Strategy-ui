@@ -3053,7 +3053,7 @@
   border-radius:99px;
   color:var(--ranking-color);
   background:color-mix(in srgb,var(--ranking-color) 8%,var(--surface));
-  font-size:10px;
+  font-size:var(--fs-micro);
   line-height:1;
 }
 .variant-balanced[data-design="signal-studio"] .competition-ranking-badge[data-ranking-tone="standard"] {
@@ -3083,109 +3083,7 @@
 .variant-balanced[data-design="signal-studio"] [data-chart-tone="risk"] { --chart-color:var(--tone-risk); }
 .variant-balanced[data-design="signal-studio"] [data-chart-tone="return"] { --chart-color:var(--tone-return); }
 .variant-balanced[data-design="signal-studio"] [data-chart-tone="sharpe"] { --chart-color:var(--tone-sharpe); }
-/* Compact official card: method and personal standing remain distinct signals. */
-.variant-balanced[data-design="signal-studio"] .competition-detail-page {
-  max-width:1280px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-page > section {
-  display:grid;
-  gap:18px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-back-button {
-  width:max-content;
-  min-height:34px;
-  display:flex;
-  align-items:center;
-  gap:7px;
-  padding:0 10px;
-  border:1px solid var(--line);
-  border-radius:6px;
-  color:var(--text-soft);
-  background:var(--surface);
-  cursor:pointer;
-  font-size:9px;
-  font-weight:700;
-}
-.variant-balanced[data-design="signal-studio"] .competition-back-button:hover {
-  border-color:var(--accent);
-  color:var(--accent);
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-heading {
-  min-height:156px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:28px;
-  padding:28px 26px;
-  border:1px solid var(--line-strong);
-  border-radius:12px;
-  background:var(--surface);
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-heading > div:first-child {
-  min-width:0;
-  flex:1 1 auto;
-  display:grid;
-  gap:10px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-heading p {
-  width:max-content;
-  padding-bottom:7px;
-  border-bottom:2px solid var(--accent);
-  margin:0;
-  color:var(--accent);
-  font:800 10px/1 var(--font-mono);
-  letter-spacing:.12em;
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-heading h1 {
-  margin:0;
-  font-size:28px;
-  line-height:1.2;
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-title {
-  display:flex;
-  align-items:center;
-  flex-wrap:wrap;
-  gap:10px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-description {
-  max-width:760px;
-  color:var(--text-soft);
-  font-size:12px;
-  line-height:1.65;
-}
-.variant-balanced[data-design="signal-studio"] .competition-entry-button {
-  min-width:138px;
-  min-height:42px;
-  padding:0 18px;
-  border:1px solid var(--accent);
-  border-radius:7px;
-  color:var(--accent-ink);
-  background:var(--accent);
-  cursor:pointer;
-  font-size:11px;
-  font-weight:800;
-}
-.variant-balanced[data-design="signal-studio"] .competition-entry-button:hover:not(:disabled) {
-  filter:brightness(.97);
-  transform:translateY(-1px);
-}
-.variant-balanced[data-design="signal-studio"] .competition-entry-button:disabled {
-  border-color:var(--line);
-  color:var(--text-faint);
-  background:var(--surface-2);
-  cursor:not-allowed;
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-actions {
-  width:180px;
-  flex:0 0 180px;
-  display:flex;
-  align-items:stretch;
-  flex-direction:column;
-  gap:8px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-actions > button {
-  width:100%;
-}
+
 .variant-balanced[data-design="signal-studio"] .competition-detail-info-backdrop {
   position:fixed;
   z-index:130;
@@ -3615,232 +3513,7 @@
 .variant-balanced[data-design="signal-studio"] .competition-entry-back:hover {
   color:var(--accent);
 }
-.variant-balanced[data-design="signal-studio"] .competition-detail-rankings {
-  display:grid;
-  grid-template-columns:minmax(300px,340px) minmax(0,1fr);
-  align-items:start;
-  gap:18px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-leaderboard {
-  grid-column:2;
-  grid-row:1;
-  overflow:visible;
-  border:1px solid var(--line);
-  border-radius:12px;
-  background:var(--surface);
-}
-.variant-balanced[data-design="signal-studio"] .competition-leaderboard > header {
-  position:relative;
-  z-index:3;
-  min-height:88px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:20px;
-  padding:18px 20px;
-  border-bottom:1px solid var(--line);
-}
-.variant-balanced[data-design="signal-studio"] .competition-leaderboard > header > div:first-child {
-  display:grid;
-  gap:7px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-leaderboard-title > div {
-  display:flex;
-  align-items:center;
-  flex-wrap:wrap;
-  gap:8px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-leaderboard > header p,
-.variant-balanced[data-design="signal-studio"] .competition-leaderboard > header h2 {
-  margin:0;
-}
-.variant-balanced[data-design="signal-studio"] .competition-leaderboard > header p {
-  color:var(--accent);
-  font:800 9px/1 var(--font-mono);
-  letter-spacing:.14em;
-}
-.variant-balanced[data-design="signal-studio"] .competition-leaderboard > header h2 {
-  font-size:19px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-leaderboard-title .competition-ranking-badge {
-  min-height:26px;
-  padding:4px 10px;
-  font-size:10px;
-  cursor:help;
-}
-.variant-balanced[data-design="signal-studio"] .competition-leaderboard-title .competition-ranking-badge:focus-visible {
-  outline:2px solid color-mix(in srgb,var(--accent) 55%,transparent);
-  outline-offset:2px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-leaderboard .competition-ranking-tools {
-  padding:0;
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks {
-  grid-column:1;
-  grid-row:1;
-  margin:0;
-  overflow:hidden;
-  border:1px solid var(--line);
-  border-radius:12px;
-  background:var(--surface);
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks > header {
-  min-height:88px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:16px;
-  padding:18px 16px;
-  border-bottom:1px solid var(--line);
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks > header > div {
-  display:grid;
-  gap:4px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks > header p,
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks > header h3 {
-  margin:0;
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks > header p {
-  color:var(--accent);
-  font:800 9px/1 var(--font-mono);
-  letter-spacing:.14em;
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks > header h3 {
-  font-size:19px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks > header > span {
-  min-width:76px;
-  display:grid;
-  grid-template-columns:auto auto;
-  align-items:baseline;
-  justify-content:center;
-  gap:7px;
-  padding:6px 10px;
-  border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));
-  border-radius:999px;
-  background:var(--surface);
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks-capacity small {
-  color:var(--text-faint);
-  font-size:8px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks-capacity strong {
-  color:var(--text);
-  font:800 10px/1 var(--font-mono);
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks > ul {
-  margin:0;
-  padding:0;
-  list-style:none;
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks li {
-  min-height:58px;
-  display:grid;
-  grid-template-columns:36px minmax(0,1fr) 64px 64px;
-  align-items:center;
-  gap:8px;
-  padding:9px 12px;
-  border-top:1px solid var(--line);
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks li:first-child {
-  border-top:0;
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks li > span {
-  min-width:0;
-  display:grid;
-  gap:4px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks li small {
-  color:var(--text-faint);
-  font-size:8px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks li b {
-  overflow:hidden;
-  color:var(--text);
-  font-size:11px;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks-empty {
-  min-height:72px;
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:14px;
-  color:var(--text-faint);
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks-empty > span {
-  display:grid;
-  gap:4px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks-empty strong {
-  color:var(--text-soft);
-  font-size:11px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks-empty small {
-  color:var(--text-faint);
-  font-size:9px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-ranking-pagination {
-  min-height:54px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:12px;
-  border-top:1px solid var(--line);
-}
-.variant-balanced[data-design="signal-studio"] .competition-ranking-pagination button {
-  min-width:58px;
-  min-height:30px;
-  border:1px solid var(--line);
-  border-radius:6px;
-  color:var(--text-soft);
-  background:var(--surface);
-  cursor:pointer;
-  font-size:10px;
-  font-weight:700;
-}
-.variant-balanced[data-design="signal-studio"] .competition-ranking-pagination button:disabled {
-  color:var(--text-faint);
-  background:var(--surface-2);
-  cursor:not-allowed;
-  opacity:.65;
-}
-.variant-balanced[data-design="signal-studio"] .competition-ranking-pagination span {
-  min-width:42px;
-  color:var(--text-faint);
-  text-align:center;
-  font:700 9px/1 var(--font-mono);
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-page .competition-ranking {
-  margin:0;
-  border-radius:9px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-page .competition-ranking > header {
-  min-height:40px;
-  background:color-mix(in srgb,var(--surface-2) 85%,var(--accent-soft));
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-page .competition-ranking > div {
-  min-height:50px;
-  font-size:10px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-page .competition-ranking-position {
-  width:28px;
-  height:28px;
-  display:grid;
-  place-items:center;
-  border:1px solid var(--line);
-  border-radius:50%;
-  color:var(--text-soft);
-  background:var(--surface-2);
-  font:700 10px/1 var(--font-mono);
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-page .competition-ranking > div.is-mine > .competition-ranking-position {
-  border-color:color-mix(in srgb,var(--accent) 52%,var(--line));
-  color:var(--accent-ink);
-  background:var(--accent);
-}
+
 
 @media (max-width: 1120px) {
 }
@@ -4009,121 +3682,7 @@
   }
 }
 
-/* Competition detail — shared conditions and a ranking the person sorts */
 
-.competition-ranking-tools {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin-bottom: var(--space-3);
-}
-.competition-ranking-tools label { display: flex; align-items: center; gap: var(--space-2); }
-.competition-ranking-tools label > span { color: var(--text-faint); font-size: var(--fs-caption); font-weight: 650; }
-.competition-ranking-tools select {
-  height: var(--control-h);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  background: var(--surface-2);
-  font-size: var(--fs-control);
-}
-/* 열 구성은 지표 편집기가 정한다 — 인라인 --ranking-cols 변수로 내려온다. */
-.competition-ranking.is-metric-ranking > header,
-.competition-ranking.is-metric-ranking > div:not(.competition-ranking-gap) {
-  grid-template-columns: var(--ranking-cols, 60px minmax(140px, 1fr) 110px 100px);
-}
-
-@media (max-width: 900px) {
-  .variant-balanced[data-design="signal-studio"] .competition-detail-rankings {
-    grid-template-columns:1fr;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-leaderboard {
-    grid-column:1;
-    grid-row:2;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-my-ranks {
-    grid-column:1;
-    grid-row:1;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-detail-heading,
-  .variant-balanced[data-design="signal-studio"] .competition-leaderboard > header {
-    align-items:stretch;
-    flex-direction:column;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-entry-button {
-    width:100%;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-detail-actions {
-    width:100%;
-    flex:1 1 auto;
-    align-items:stretch;
-  }
-  .competition-ranking-tools { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
-  .variant-balanced[data-design="signal-studio"] .competition-my-ranks li {
-    grid-template-columns:60px minmax(150px,1fr) minmax(90px,.5fr) minmax(90px,.5fr);
-    gap:10px;
-  }
-}
-@media (max-width: 600px) {
-  .variant-balanced[data-design="signal-studio"] .competition-detail-heading {
-    min-height:0;
-    padding:20px;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-detail-heading h1 {
-    font-size:23px;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-detail-actions {
-    grid-template-columns:1fr;
-    display:grid;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-detail-info-backdrop {
-    padding:12px;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > header,
-  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-summary,
-  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer {
-    padding-inline:16px;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-entry-strategy-list,
-  .variant-balanced[data-design="signal-studio"] .competition-entry-confirmation-list {
-    padding-inline:16px;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-entry-strategy-search {
-    margin-inline:16px;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-entry-strategy {
-    grid-template-columns:22px 34px minmax(0,1fr);
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer {
-    align-items:stretch;
-    flex-direction:column;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer > div {
-    display:grid;
-    grid-template-columns:1fr 1fr;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer .button {
-    width:100%;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-leaderboard .competition-ranking-tools {
-    display:grid;
-    grid-template-columns:1fr;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-leaderboard .competition-ranking-tools label {
-    justify-content:space-between;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-my-ranks {
-    margin:0;
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-my-ranks li {
-    grid-template-columns:52px minmax(0,1fr);
-  }
-  .variant-balanced[data-design="signal-studio"] .competition-my-ranks li > span:nth-of-type(n+2) {
-    display:none;
-  }
-}
 
 .notifications-popover > footer { border-top: 1px solid var(--line); padding: var(--space-1); }
 .notifications-popover > footer button {
@@ -7159,21 +6718,65 @@ small.dashboard-bot-scope {
   /* 좁은 폭: 종류/번호 · 대회 · 마감만 남긴다. */
   .variant-balanced[data-design="signal-studio"] .competition-row { --competition-row-cols: 64px minmax(0, 1fr) 76px; }
   .variant-balanced[data-design="signal-studio"] .competition-row > .competition-row-cell:nth-child(4) { display: none; }
-}
-/*
-  대회 상세 (#54 확정).
 
-  헤더는 눈썹(종류 칩·Official·상태 D-day) · 제목 · 설명 · 참가 버튼. 진행률
-  바·%는 제거 — D-day가 남은 시간을 말하고, 진행률은 대회 조건의 기간 칸 미니
-  바로만 남는다. 조건 표는 접었다 펴는 인라인(모집 중 기본 펼침), 순위표는
-  상위 3 + 내 봇 ±2로 압축, 채점 배지는 수식 안내 모달을 연다.
+}
+
+/*
+  ── 대회 상세 (#54 확정, 단일 블록) ──────────────────────────────────────────
+  이전에는 원본 위에 패치가 세 겹 쌓여 규칙이 서로 싸웠다. 상세 화면의 모든
+  스타일은 이 블록 하나가 소유한다(예외: 채점 배지 톤, 참가/생성 다이얼로그).
+
+  구성 요약
+  - 헤더 카드: 눈썹(칩·Official·상태 D-day) · 제목 · 설명 · 참가 버튼,
+    하단에 "대회 조건 ⌄" 접이(기본 접힘). 진행률은 기간 칸 미니 바 한 곳.
+  - 모집 중: 내 등록 봇(시작 대기) + 안내 패널. 순위표 없음.
+  - 진행 중: 내 참가 봇 + 리더보드(지표 열 편집·열 머리 정렬·1-a 압축).
+  글자는 13px(본문)/12px(라벨)/11px(마이크로) 아래로 내려가지 않는다.
 */
+.variant-balanced[data-design="signal-studio"] .competition-detail-page { max-width: 1280px; }
+.variant-balanced[data-design="signal-studio"] .competition-detail-page > section {
+  display: grid;
+  gap: var(--space-4);
+}
+.variant-balanced[data-design="signal-studio"] .competition-back-button {
+  width: max-content;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .competition-back-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 헤더 카드 — 본문 행 + 조건 접이 두 층. */
 .variant-balanced[data-design="signal-studio"] .competition-detail-heading {
-  min-height: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-heading-main {
+  display: flex;
   align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
   padding: var(--space-5) var(--space-5) var(--space-4);
 }
-.variant-balanced[data-design="signal-studio"] .competition-detail-heading > div:first-child { gap: var(--space-2); }
+.variant-balanced[data-design="signal-studio"] .competition-detail-heading-main > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: var(--space-2);
+}
 .variant-balanced[data-design="signal-studio"] .competition-detail-eyebrow {
   display: flex;
   align-items: center;
@@ -7190,25 +6793,50 @@ small.dashboard-bot-scope {
   font-weight: 700;
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-state.is-urgent { color: var(--warning); }
-.variant-balanced[data-design="signal-studio"] .competition-detail-actions {
-  width: auto;
-  flex: none;
+.variant-balanced[data-design="signal-studio"] .competition-detail-title h1 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: -.02em;
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-description {
+  max-width: 72ch;
+  color: var(--text-soft);
+  font-size: var(--fs-control);
+  line-height: 1.6;
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-actions { flex: none; }
+.variant-balanced[data-design="signal-studio"] .competition-entry-button {
+  min-width: 148px;
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--accent-ink);
+  background: var(--accent);
+  cursor: pointer;
+  font-size: var(--fs-control);
+  font-weight: 750;
+}
+.variant-balanced[data-design="signal-studio"] .competition-entry-button:hover:not(:disabled) { filter: brightness(.97); }
+.variant-balanced[data-design="signal-studio"] .competition-entry-button:disabled {
+  border-color: var(--line);
+  color: var(--text-faint);
+  background: var(--surface-2);
+  cursor: not-allowed;
 }
 
-/* 대회 조건 — 접었다 펴는 인라인 표. */
+/* 대회 조건 접이 — 헤더 하단에 붙는다. 기본 접힘. */
 .variant-balanced[data-design="signal-studio"] .competition-detail-facts-block {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  overflow: hidden;
+  border-top: 1px solid var(--line);
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-facts-toggle {
   width: 100%;
-  min-height: 44px;
+  min-height: 40px;
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-5);
   border: 0;
   color: var(--text);
   background: transparent;
@@ -7234,8 +6862,7 @@ small.dashboard-bot-scope {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: var(--space-4);
   margin: 0;
-  padding: var(--space-4);
-  border-top: 1px solid var(--line);
+  padding: var(--space-2) var(--space-5) var(--space-4);
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-facts > div {
   min-width: 0;
@@ -7257,7 +6884,7 @@ small.dashboard-bot-scope {
   font-size: var(--fs-control);
   font-weight: 650;
 }
-/* 진행률은 여기 한 곳: 기간 칸의 미니 바. */
+.variant-balanced[data-design="signal-studio"] .competition-detail-facts dd.is-universe { white-space: normal; }
 .variant-balanced[data-design="signal-studio"] .competition-detail-facts-progress {
   display: block;
   height: 4px;
@@ -7271,15 +6898,123 @@ small.dashboard-bot-scope {
   border-radius: inherit;
   background: var(--accent);
 }
-
-/* 모집 중 화면 — 순위는 아직 없다. */
-.variant-balanced[data-design="signal-studio"] .competition-detail-rankings.is-recruiting {
-  align-items: stretch;
+.variant-balanced[data-design="signal-studio"] .competition-detail-universe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
 }
-.variant-balanced[data-design="signal-studio"] .competition-my-ranks li.is-waiting {
-  grid-template-columns: 32px minmax(0, 1fr) auto;
+.variant-balanced[data-design="signal-studio"] .competition-detail-universe em {
+  color: var(--text-faint);
+  font-style: normal;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-universe code {
+  padding: 1px var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  color: var(--text-soft);
+  background: var(--surface-2);
+  font: 650 var(--fs-micro) var(--font-mono);
+}
+
+.variant-balanced[data-design="signal-studio"] .competition-entry-success {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 42px;
+  padding: 0 var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--positive) 40%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--positive);
+  background: color-mix(in srgb, var(--positive) 8%, var(--surface));
+  font-size: var(--fs-control);
+  font-weight: 650;
+}
+
+/* 본문 2단: 내 참가 봇 | 리더보드(또는 모집 안내). */
+.variant-balanced[data-design="signal-studio"] .competition-detail-rankings {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
+}
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks,
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard,
+.variant-balanced[data-design="signal-studio"] .competition-recruiting-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks > header p {
+  margin: 0 0 2px;
+  color: var(--accent);
+  font: 700 var(--fs-micro) var(--font-mono);
+  letter-spacing: .12em;
+}
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks > header h3 {
+  margin: 0;
+  font-size: var(--fs-card);
+}
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks-capacity {
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks-capacity small {
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+}
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks-capacity strong {
+  font: 700 var(--fs-control) var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* 진행 중에는 이 패널이 없다 — 압축 순위표가 내 봇을 항상 보여준다.
+   여기 남는 건 모집 중의 시작 대기 목록뿐이다. */
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks li b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 650 var(--fs-control) var(--font-mono);
+}
+/* 모집 중: 이름만 나열, 상태 문구는 위 캡션 한 줄. */
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks-note {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  line-height: 1.5;
+}
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks ul.is-waiting li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
 }
 .variant-balanced[data-design="signal-studio"] .competition-my-ranks-wait {
+  flex: none;
   display: grid;
   place-items: center;
   width: 28px;
@@ -7288,14 +7023,39 @@ small.dashboard-bot-scope {
   color: var(--accent);
   background: var(--accent-soft);
 }
+.variant-balanced[data-design="signal-studio"] .competition-ranking-position {
+  width: max-content;
+  min-width: 40px;
+  padding: 3px var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  color: var(--text-soft);
+  background: var(--surface);
+  font: 700 var(--fs-caption) var(--font-mono);
+  text-align: center;
+}
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+}
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks-empty strong {
+  display: block;
+  color: var(--text);
+  font-size: var(--fs-control);
+}
+.variant-balanced[data-design="signal-studio"] .competition-my-ranks-empty small { font-size: var(--fs-caption); }
+
+/* 모집 안내 패널. */
 .variant-balanced[data-design="signal-studio"] .competition-recruiting-panel {
   display: grid;
   align-content: start;
   gap: var(--space-3);
   padding: var(--space-5);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface);
 }
 .variant-balanced[data-design="signal-studio"] .competition-recruiting-panel > header p {
   margin: 0 0 var(--space-1);
@@ -7321,26 +7081,49 @@ small.dashboard-bot-scope {
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
-.variant-balanced[data-design="signal-studio"] .competition-recruiting-facts span {
-  display: grid;
-  gap: 2px;
-}
+.variant-balanced[data-design="signal-studio"] .competition-recruiting-facts span { display: grid; gap: 2px; }
 .variant-balanced[data-design="signal-studio"] .competition-recruiting-facts b {
   font: 700 20px var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
-.variant-balanced[data-design="signal-studio"] .competition-recruiting-facts b.is-urgent { color: var(--warning); }
 .variant-balanced[data-design="signal-studio"] .competition-recruiting-facts small {
   color: var(--text-faint);
   font-size: var(--fs-caption);
 }
 
-/* 채점 배지 버튼 — 누르면 수식 안내 모달. */
+/* 리더보드. */
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard-title p {
+  margin: 0 0 2px;
+  color: var(--accent);
+  font: 700 var(--fs-micro) var(--font-mono);
+  letter-spacing: .12em;
+}
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard-title > div {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard-title h2 {
+  margin: 0;
+  font-size: var(--fs-card);
+}
 .variant-balanced[data-design="signal-studio"] .competition-scoring-help {
   width: max-content;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   padding: 2px;
   border: 0;
   color: var(--text-faint);
@@ -7355,12 +7138,249 @@ small.dashboard-bot-scope {
   outline-offset: 2px;
   border-radius: var(--radius-xs);
 }
-.variant-balanced[data-design="signal-studio"] .competition-scoring-dialog { max-width: 520px; }
+
+/* 진행 중 단일 컬럼: 등록 봇 카운트는 리더보드 머리로 옮겨 앉는다. */
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard-capacity {
+  display: grid;
+  justify-items: end;
+  gap: 1px;
+  margin-right: var(--space-2);
+}
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard-capacity small {
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+}
+.variant-balanced[data-design="signal-studio"] .competition-leaderboard-capacity strong {
+  font: 700 var(--fs-control) var(--font-mono);
+}
+
+/* 지표 편집기. */
+.variant-balanced[data-design="signal-studio"] .competition-ranking-tools {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-edit {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  background: var(--surface-2);
+  cursor: pointer;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-edit:hover,
+.variant-balanced[data-design="signal-studio"] .competition-metric-edit[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 2px;
+  min-width: 190px;
+  padding: var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: 0 12px 28px rgba(var(--shadow-rgb), .22);
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-xs);
+  color: var(--text-soft);
+  cursor: pointer;
+  font-size: var(--fs-control);
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor label:hover { background: var(--surface-2); }
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor label.is-disabled { opacity: .45; cursor: default; }
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-check {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  color: transparent;
+  background: var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor input:checked + .competition-metric-check {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor input:focus-visible + .competition-metric-check {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-metric-editor small {
+  padding: var(--space-1) var(--space-2) 2px;
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+}
+
+/* 순위표 — 머리와 행이 같은 열 변수(--ranking-cols)를 쓴다. */
+.variant-balanced[data-design="signal-studio"] .competition-ranking-list {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking > header,
+.variant-balanced[data-design="signal-studio"] .competition-ranking > div:not(.competition-ranking-gap) {
+  display: grid;
+  grid-template-columns: var(--ranking-cols, 56px minmax(0, 1fr) 104px 104px);
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking > header {
+  min-height: 36px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-faint);
+  background: var(--surface-2);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking > header span:nth-child(n+3),
+.variant-balanced[data-design="signal-studio"] .competition-ranking > header button { justify-self: end; }
+.variant-balanced[data-design="signal-studio"] .competition-ranking > header button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking > header button i {
+  font-style: normal;
+  font-size: 9px;
+  opacity: .55;
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking > header button:hover { color: var(--text); }
+.variant-balanced[data-design="signal-studio"] .competition-ranking > header button.is-sorted { color: var(--accent); }
+.variant-balanced[data-design="signal-studio"] .competition-ranking > header button.is-sorted i { opacity: 1; }
+.variant-balanced[data-design="signal-studio"] .competition-ranking > div:not(.competition-ranking-gap) {
+  min-height: 44px;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-control);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking > div:first-of-type { border-top: 0; }
+.variant-balanced[data-design="signal-studio"] .competition-ranking > div:not(.competition-ranking-gap):hover { background: var(--surface-2); }
+.variant-balanced[data-design="signal-studio"] .competition-ranking > div.is-mine {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking > div > span:first-of-type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking > div > b,
+.variant-balanced[data-design="signal-studio"] .competition-ranking > div > span:nth-child(n+3) {
+  justify-self: end;
+  font: 650 var(--fs-caption) var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+/* 생략 줄: 가운데 알약 칩 + 양쪽 실선. */
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 34px;
+  padding: 0 var(--space-3);
+  border-top: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap::before,
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 24px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  cursor: pointer;
+  font: 650 var(--fs-micro) var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-gap button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-pagination span {
+  color: var(--text-faint);
+  font: 650 var(--fs-caption) var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-pagination button {
+  min-height: 30px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  background: var(--surface-2);
+  cursor: pointer;
+  font-size: var(--fs-caption);
+  font-weight: 650;
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-pagination button:disabled {
+  opacity: .45;
+  cursor: default;
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-pagination button:not(:disabled):hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .competition-ranking-expand { color: var(--accent) !important; }
+
+/* 채점 방식 안내 모달 목록(껍데기는 info-dialog 공용). */
+.variant-balanced[data-design="signal-studio"] .competition-detail-info-dialog > header p {
+  font: 700 var(--fs-micro) var(--font-mono);
+  letter-spacing: .12em;
+}
+.variant-balanced[data-design="signal-studio"] .competition-scoring-dialog { width: min(560px, 100%); }
 .variant-balanced[data-design="signal-studio"] .competition-scoring-list {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
   margin: 0;
-  padding: 0;
+  padding: var(--space-4);
   list-style: none;
 }
 .variant-balanced[data-design="signal-studio"] .competition-scoring-list li {
@@ -7397,234 +7417,35 @@ small.dashboard-bot-scope {
   line-height: 1.5;
 }
 
-/* 순위표 압축 — 생략 줄과 전체/간단 전환. */
-.variant-balanced[data-design="signal-studio"] .competition-ranking-gap {
-  display: grid;
+/* 반응형. */
+@media (max-width: 900px) {
+  .variant-balanced[data-design="signal-studio"] .competition-detail-rankings { grid-template-columns: 1fr; }
+  .variant-balanced[data-design="signal-studio"] .competition-detail-heading-main {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-button { width: 100%; }
 }
-.variant-balanced[data-design="signal-studio"] .competition-ranking-gap button {
-  min-height: 34px;
-  border: 0;
-  border-top: 1px dashed var(--line-strong);
-  border-bottom: 1px dashed var(--line-strong);
-  color: var(--text-faint);
-  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
-  cursor: pointer;
-  font-size: var(--fs-caption);
-}
-.variant-balanced[data-design="signal-studio"] .competition-ranking-gap button:hover { color: var(--accent); }
-.variant-balanced[data-design="signal-studio"] .competition-ranking-expand {
-  min-height: 32px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  color: var(--accent);
-  background: transparent;
-  cursor: pointer;
-  font-size: var(--fs-caption);
-  font-weight: 700;
-}
-
-/* #54 후속: 조건 토글을 헤더에 내장, 종목 범위 목록, 지표 편집기, 생략 줄. */
-
-/* 헤더가 (본문 행 + 조건 접이) 두 층을 갖는다. */
-.variant-balanced[data-design="signal-studio"] .competition-detail-heading {
-  display: grid;
-  gap: 0;
-  padding: 0;
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-heading-main {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-5);
-  padding: var(--space-5) var(--space-5) var(--space-4);
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-heading-main > div:first-child {
-  min-width: 0;
-  flex: 1 1 auto;
-  display: grid;
-  gap: var(--space-2);
-}
-/* 조건 접이 줄은 헤더 카드 하단에 붙는다 — 별도 카드가 아니다. */
-.variant-balanced[data-design="signal-studio"] .competition-detail-facts-block {
-  border: 0;
-  border-top: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-facts-toggle {
-  min-height: 40px;
-  padding: 0 var(--space-5);
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-facts {
-  padding: 0 var(--space-5) var(--space-4);
-  border-top: 0;
-}
-
-/* 종목 범위: 제외/지정 목록은 요약 밑 티커 칩으로. */
-.variant-balanced[data-design="signal-studio"] .competition-detail-facts dd.is-universe {
-  white-space: normal;
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-universe {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1);
-  margin-top: var(--space-1);
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-universe em {
-  color: var(--text-faint);
-  font-style: normal;
-  font-size: var(--fs-micro);
-  font-weight: 700;
-}
-.variant-balanced[data-design="signal-studio"] .competition-detail-universe code {
-  padding: 1px var(--space-1);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
-  color: var(--text-soft);
-  background: var(--surface-2);
-  font: 650 var(--fs-micro) var(--font-mono);
-}
-
-/* 지표 편집기 — 열을 고르는 작은 팝오버. 정렬은 열 머리가 담당한다. */
-.variant-balanced[data-design="signal-studio"] .competition-ranking-tools { position: relative; }
-.variant-balanced[data-design="signal-studio"] .competition-metric-edit {
-  min-height: 32px;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  color: var(--text-soft);
-  background: var(--surface-2);
-  cursor: pointer;
-  font-size: var(--fs-caption);
-  font-weight: 700;
-}
-.variant-balanced[data-design="signal-studio"] .competition-metric-edit:hover,
-.variant-balanced[data-design="signal-studio"] .competition-metric-edit[aria-expanded="true"] {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-.variant-balanced[data-design="signal-studio"] .competition-metric-editor {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 30;
-  display: grid;
-  gap: 2px;
-  min-width: 180px;
-  padding: var(--space-2);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  box-shadow: 0 12px 28px rgba(var(--shadow-rgb), .22);
-}
-.variant-balanced[data-design="signal-studio"] .competition-metric-editor label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 30px;
-  padding: 0 var(--space-2);
-  border-radius: var(--radius-xs);
-  color: var(--text-soft);
-  cursor: pointer;
-  font-size: var(--fs-control);
-}
-.variant-balanced[data-design="signal-studio"] .competition-metric-editor label:hover { background: var(--surface-2); }
-.variant-balanced[data-design="signal-studio"] .competition-metric-editor label.is-disabled {
-  opacity: .45;
-  cursor: default;
-}
-.variant-balanced[data-design="signal-studio"] .competition-metric-editor input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  opacity: 0;
-}
-.variant-balanced[data-design="signal-studio"] .competition-metric-check {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  display: grid;
-  place-items: center;
-  border: 1.5px solid var(--line-strong);
-  border-radius: var(--radius-xs);
-  color: transparent;
-  background: var(--surface-2);
-}
-.variant-balanced[data-design="signal-studio"] .competition-metric-editor input:checked + .competition-metric-check {
-  border-color: var(--accent);
-  color: var(--accent-ink);
-  background: var(--accent);
-}
-.variant-balanced[data-design="signal-studio"] .competition-metric-editor input:focus-visible + .competition-metric-check {
-  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  outline-offset: 2px;
-}
-.variant-balanced[data-design="signal-studio"] .competition-metric-editor small {
-  padding: var(--space-1) var(--space-2) 2px;
-  color: var(--text-faint);
-  font-size: var(--fs-micro);
-  line-height: 1.4;
-}
-
-/* 열 머리 정렬 버튼. */
-.variant-balanced[data-design="signal-studio"] .competition-ranking.is-metric-ranking > header button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 3px;
-  padding: 0;
-  border: 0;
-  color: inherit;
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: right;
-}
-.variant-balanced[data-design="signal-studio"] .competition-ranking.is-metric-ranking > header button i {
-  font-style: normal;
-  font-size: 9px;
-  opacity: .55;
-}
-.variant-balanced[data-design="signal-studio"] .competition-ranking.is-metric-ranking > header button:hover { color: var(--text); }
-.variant-balanced[data-design="signal-studio"] .competition-ranking.is-metric-ranking > header button.is-sorted { color: var(--accent); }
-.variant-balanced[data-design="signal-studio"] .competition-ranking.is-metric-ranking > header button.is-sorted i { opacity: 1; }
-
-/* 생략 줄: 전폭 점선 대신 가운데 칩 하나 + 양쪽 실선. */
-.variant-balanced[data-design="signal-studio"] .competition-ranking-gap {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 34px;
-  padding: 0 var(--space-4);
-}
-.variant-balanced[data-design="signal-studio"] .competition-ranking-gap::before,
-.variant-balanced[data-design="signal-studio"] .competition-ranking-gap::after {
-  content: '';
-  flex: 1 1 auto;
-  height: 1px;
-  background: var(--line);
-}
-.variant-balanced[data-design="signal-studio"] .competition-ranking-gap button {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-height: 24px;
-  padding: 0 var(--space-2);
-  border: 1px solid var(--line);
-  border-radius: 99px;
-  color: var(--text-faint);
-  background: var(--surface-2);
-  cursor: pointer;
-  font: 650 var(--fs-micro) var(--font-mono);
-}
-.variant-balanced[data-design="signal-studio"] .competition-ranking-gap button:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (max-width: 600px) {
+  .variant-balanced[data-design="signal-studio"] .competition-detail-heading-main { padding: var(--space-4); }
+  .variant-balanced[data-design="signal-studio"] .competition-detail-title h1 { font-size: 23px; }
+  .variant-balanced[data-design="signal-studio"] .competition-detail-facts-toggle,
+  .variant-balanced[data-design="signal-studio"] .competition-detail-facts { padding-inline: var(--space-4); }
+  .variant-balanced[data-design="signal-studio"] .competition-detail-info-backdrop { padding: 12px; }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > header,
+  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-summary,
+  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer { padding-inline: 16px; }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-strategy-list,
+  .variant-balanced[data-design="signal-studio"] .competition-entry-confirmation-list { padding-inline: 16px; }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-strategy-search { margin-inline: 16px; }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-strategy { grid-template-columns: 22px 34px minmax(0, 1fr); }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .variant-balanced[data-design="signal-studio"] .competition-entry-flow-dialog > footer .button { width: 100%; }
 }

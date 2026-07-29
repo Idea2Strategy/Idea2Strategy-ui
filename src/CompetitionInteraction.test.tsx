@@ -184,12 +184,13 @@ describe('Competition lobby', () => {
     const detail = screen.getByRole('region', { name: 'I2S Summer League 상세 페이지' });
     expect(within(detail).getByText('Official')).toBeInTheDocument();
 
-    const myRanks = within(detail).getByLabelText('내 참가 봇 순위');
+    /* 진행 중엔 리더보드 단일 컬럼 — 내 참가 봇 패널은 압축 순위표와 중복이라
+       없앴다. */
+    expect(within(detail).queryByLabelText('내 참가 봇 순위')).not.toBeInTheDocument();
     const leaderboardHeading = within(detail).getByRole('heading', { name: '대회 리더보드' });
     const leaderboard = leaderboardHeading.closest('section');
     expect(leaderboard).not.toBeNull();
-    expect(leaderboard!.parentElement).toHaveClass('competition-detail-rankings');
-    expect(myRanks.parentElement).toBe(leaderboard!.parentElement);
+    expect(leaderboard).toHaveClass('is-single');
 
     /* #54 확정: 조건은 모달이 아니라 접이식 인라인 표. 진행 중엔 기본 접힘,
        펼치면 조건 7개가 그 자리에 보이고 진행률은 기간 칸 미니 바뿐이다. */

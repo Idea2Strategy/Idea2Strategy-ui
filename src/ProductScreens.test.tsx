@@ -634,7 +634,9 @@ describe('Competition ranking', () => {
 
     // Room Beta has the best Sharpe ratio even though it is second on score.
     expect(names()[0]).toBe('Room Beta');
-    expect(screen.getByLabelText('1위')).toHaveTextContent('#1');
+    const firstRow = ranking.querySelector('div:not(.competition-ranking-gap)');
+    expect(firstRow).toHaveClass('is-mine');
+    expect(firstRow!.querySelector('.competition-ranking-position')).toHaveTextContent('#1');
   });
 
   test('lower-is-better metrics sort ascending', async () => {
@@ -666,13 +668,17 @@ describe('Competition ranking', () => {
     // 진행 중에는 순위표가 주인공 — 모집 안내 패널은 없다.
     expect(screen.queryByRole('region', { name: 'Momentum Lab 대회 안내' })).not.toBeInTheDocument();
 
-    const myRanks = screen.getByLabelText('내 참가 봇 순위');
+    /* 진행 중엔 내 참가 봇 패널도 없다 — 압축 순위표가 내 행(강조)을 항상
+       보여주므로 같은 숫자를 옆에 한 번 더 쓰는 패널이었다. 등록 봇 카운트만
+       리더보드 머리에 남는다. */
+    expect(screen.queryByLabelText('내 참가 봇 순위')).not.toBeInTheDocument();
     const leaderboardHeading = screen.getByRole('heading', { name: '대회 리더보드' });
     const leaderboard = leaderboardHeading.closest('section');
     expect(leaderboard).not.toBeNull();
-    expect(leaderboard!.parentElement).toHaveClass('competition-detail-rankings');
-    expect(myRanks.parentElement).toBe(leaderboard!.parentElement);
-    expect(within(screen.getByLabelText('Momentum Lab 봇 순위')).queryByText('내 봇')).not.toBeInTheDocument();
+    expect(leaderboard).toHaveClass('is-single');
+    expect(within(leaderboard!).getByText('등록 봇')).toBeInTheDocument();
+    expect(within(leaderboard!).getByText('1 / 3')).toBeInTheDocument();
+    expect(screen.getByLabelText('Momentum Lab 봇 순위').querySelectorAll('.is-mine')).toHaveLength(1);
 
     /* #54 확정: 조건은 모달이 아니라 접었다 펴는 인라인 표. 진행 중엔 기본
        접힘이고, 열면 공통 조건이 그 자리에서 보인다. */
@@ -724,7 +730,8 @@ describe('Competition ranking', () => {
     expect(within(myRanks).getByText('ETF Runner')).toBeInTheDocument();
     expect(within(myRanks).getByText('등록 봇')).toBeInTheDocument();
     expect(within(myRanks).getByText('1 / 3')).toBeInTheDocument();
-    expect(within(myRanks).getByText('등록 완료 · 시작 대기')).toBeInTheDocument();
+    // 상태 문구는 캡션 한 줄 — 봇마다 반복하지 않는다.
+    expect(within(myRanks).getByText('등록한 봇은 대회 시작과 함께 실행돼요.')).toBeInTheDocument();
     expect(within(myRanks).queryByText(/^#\d/)).not.toBeInTheDocument();
 
     expect(screen.queryByLabelText('ETF Sprint 봇 순위')).not.toBeInTheDocument();
@@ -784,8 +791,9 @@ describe('Competition ranking', () => {
     const myRanks = screen.getByLabelText('내 참가 봇 순위');
     expect(within(myRanks).getByText('2 / 3')).toBeInTheDocument();
     expect(within(myRanks).getByText('Opening Range Flow Bot')).toBeInTheDocument();
-    // 모집 중이므로 새 봇도 순위가 아니라 시작 대기 상태로 줄에 앉는다.
-    expect(within(myRanks).getAllByText('등록 완료 · 시작 대기')).toHaveLength(2);
+    // 모집 중이므로 새 봇도 순위 없이 시작 대기 목록에 앉는다(캡션은 한 줄).
+    expect(within(myRanks).getByText('등록한 봇은 대회 시작과 함께 실행돼요.')).toBeInTheDocument();
+    expect(within(myRanks).getByText('ETF Runner')).toBeInTheDocument();
     expect(screen.queryByLabelText('ETF Sprint 봇 순위')).not.toBeInTheDocument();
   });
 
@@ -813,10 +821,10 @@ describe('Competition ranking', () => {
     /* 공식 핀은 보기와 무관하게 항상 게시판 최상단에 있다. */
     await user.click(screen.getByRole('listitem', { name: '공식 대회 I2S Summer League 열기' }));
 
-    const myRanks = screen.getByLabelText('내 참가 봇 순위');
     expect(screen.getByText('· 대회 진행 중 D-65')).not.toHaveClass('is-urgent');
-    expect(within(myRanks).getAllByRole('listitem')).toHaveLength(3);
-    expect(within(myRanks).getByText('3 / 5')).toBeInTheDocument();
+    // 내 봇 3개는 순위표 강조 행으로 보이고, 카운트는 리더보드 머리에 있다.
+    expect(screen.queryByLabelText('내 참가 봇 순위')).not.toBeInTheDocument();
+    expect(screen.getByText('3 / 5')).toBeInTheDocument();
     const leaderboard = screen.getByLabelText('I2S Summer League 봇 순위');
     expect(screen.getByRole('button', { name: '진행중인 대회입니다.' })).toBeDisabled();
     expect(leaderboard.querySelectorAll('.is-mine')).toHaveLength(3);
