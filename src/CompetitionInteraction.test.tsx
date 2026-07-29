@@ -183,7 +183,8 @@ describe('Competition lobby', () => {
     await user.click(screen.getByRole('listitem', { name: '공식 대회 I2S Summer League 열기' }));
     const detail = screen.getByRole('region', { name: 'I2S Summer League 상세 페이지' });
     expect(within(detail).getAllByRole('tooltip')[0]).toHaveTextContent('수익률과 위험 지표를 표준화');
-    expect(within(detail).getByText('공식 대회')).toBeInTheDocument();
+    // #54 헤더 초안: 공식 표시는 로비와 같은 인증마크+Official 문법.
+    expect(within(detail).getByText('Official')).toBeInTheDocument();
 
     const myRanks = within(detail).getByLabelText('내 참가 봇 순위');
     const leaderboardHeading = within(detail).getByRole('heading', { name: '대회 리더보드' });

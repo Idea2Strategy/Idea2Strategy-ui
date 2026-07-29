@@ -695,11 +695,11 @@ describe('Competition ranking', () => {
 
     await user.click(screen.getByRole('listitem', { name: '공식 대회 ETF Sprint 열기' }));
 
-    expect(screen.getByText('공식 대회')).toBeInTheDocument();
+    /* #54 헤더 초안 기본(A안): 공식 표시는 로비와 같은 인증마크+Official,
+       모집 중에는 진행률을 그리지 않는다 — D-day가 이미 답한다. */
+    expect(screen.getByText('Official')).toBeInTheDocument();
     expect(screen.getByText('모집 중 D-5')).toHaveClass('is-urgent');
-    expect(screen.getByRole('progressbar', { name: 'ETF Sprint 진행률' })).toHaveAttribute('aria-valuenow', '0');
-    expect(screen.getByText('0%')).toHaveClass('competition-detail-progress-copy');
-    expect(screen.queryByText('진행률 0%')).not.toBeInTheDocument();
+    expect(screen.queryByRole('progressbar', { name: 'ETF Sprint 진행률' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '대회 참가' })).toBeEnabled();
     const myRanks = screen.getByLabelText('내 참가 봇 순위');
     expect(within(myRanks).getAllByRole('listitem')).toHaveLength(1);
@@ -781,7 +781,6 @@ describe('Competition ranking', () => {
     expect(within(myRanks).getByText('3 / 5')).toBeInTheDocument();
     const leaderboard = screen.getByLabelText('I2S Summer League 봇 순위');
     expect(screen.getByRole('button', { name: '진행중인 대회입니다.' })).toBeDisabled();
-    expect(screen.getByRole('progressbar', { name: 'I2S Summer League 진행률' })).toHaveAttribute('aria-valuenow', '5');
     expect(leaderboard.querySelectorAll('.is-mine')).toHaveLength(3);
     expect(leaderboard.querySelectorAll(':scope > div')).toHaveLength(10);
     expect(leaderboard.closest('.competition-ranking-list')).not.toBeNull();

@@ -1885,6 +1885,8 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
   const [view, setView] = useState<CompetitionView>('recruiting');
   const [remainingFilter, setRemainingFilter] = useState<'all' | '7' | '30'>('all');
   const [selectedRoom, setSelectedRoom] = useState<OfficialCompetition | CompetitionRoom | null>(null);
+  /* #54 상세 헤더 후보 비교용 임시 상태. 확정 후 삭제한다. */
+  const [detailHeaderDraft, setDetailHeaderDraft] = useState<'A' | 'B' | 'C'>('A');
   const [sortMetric, setSortMetric] = useState<RankingMetricId>('score');
   const [rankingPage, setRankingPage] = useState(1);
   const [detailInfoOpen, setDetailInfoOpen] = useState(false);
@@ -2097,42 +2099,54 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
         setEntrySuccessMessage('');
         setSelectedRoom(null);
       }}><ArrowLeft size={15} /> 대회 목록으로</button>
-      <header className="competition-detail-heading">
+      {/* #54 상세 헤더 후보 비교용 임시 스위처. 안이 정해지면 이 바와 나머지
+          두 변형, cdetail- 임시 스타일을 삭제한다. */}
+      <nav className="cdetail-switch" aria-label="상세 헤더 후보">
+        <span>상세 헤더 후보 #54</span>
+        {(['A', 'B', 'C'] as const).map((variant) => <button
+          key={variant}
+          type="button"
+          aria-pressed={detailHeaderDraft === variant}
+          className={detailHeaderDraft === variant ? 'is-active' : ''}
+          onClick={() => setDetailHeaderDraft(variant)}
+        >{variant === 'A' ? 'A · 진행률 삭제' : variant === 'B' ? 'B · 기간 타임라인' : 'C · 조건 인라인'}</button>)}
+      </nav>
+
+      <header className="competition-detail-heading is-draft">
         <div>
-          <p>COMPETITION DETAIL</p>
+          {/* 눈썹 줄: 로비와 같은 문법 — 공식은 종류 칩+인증마크, 일반은 개설자. */}
+          <div className="cdetail-eyebrow">
+            {selectedRoom.official
+              ? <>
+                <CompetitionKindChip backtest={selectedRoom.ranking === '백테스팅'} />
+                <b className="competition-row-official"><BadgeCheck size={14} aria-hidden="true" />Official</b>
+              </>
+              : <span className="cdetail-host">{`개설자 ${selectedRoom.host}`}</span>}
+            {detailHeaderDraft === 'C' && <span className={`cdetail-state-text${selectedRoom.remainingDays <= 7 ? ' is-urgent' : ''}`}>
+              {`· ${detailDeadlineText}`}
+            </span>}
+          </div>
           <div className="competition-detail-title">
             <h1>{selectedRoom.name}</h1>
-            {selectedRoom.official && <span className="competition-detail-official">공식 대회</span>}
-            <span className="competition-detail-status">
-              <span
-                className={`competition-detail-deadline${selectedRoom.remainingDays <= 7 ? ' is-urgent' : ''}`}
-              >
-                {detailDeadlineText}
-              </span>
-              <span className="competition-detail-progress-copy">{`${detailProgress}%`}</span>
-              <span
-                className="competition-detail-progress"
-                role="progressbar"
-                aria-label={`${selectedRoom.name} 진행률`}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={detailProgress}
-              >
-                <i style={{ width: `${detailProgress}%` }} />
-              </span>
-            </span>
+            {detailHeaderDraft !== 'C' && <span
+              className={`cdetail-state-chip${selectedRoom.remainingDays <= 7 ? ' is-urgent' : ''}`}
+              data-room-status={selectedRoom.status}
+            >
+              <i aria-hidden="true" />
+              <span className={selectedRoom.remainingDays <= 7 ? 'is-urgent' : ''}>{detailDeadlineText}</span>
+            </span>}
           </div>
           <span className="competition-detail-description">{detailDescription}</span>
         </div>
         <div className="competition-detail-actions">
-          <button
+          {detailHeaderDraft !== 'C' && <button
             type="button"
             className="competition-detail-info-button"
             onClick={() => setDetailInfoOpen(true)}
           >
             <Info size={14} aria-hidden="true" />
             대회 상세보기
-          </button>
+          </button>}
           <button
             type="button"
             className="competition-entry-button"
@@ -2147,6 +2161,51 @@ export function RoomsView({ visualVariant = 'default' }: { visualVariant?: 'defa
           </button>
         </div>
       </header>
+
+      {/* B안: 진행률을 제목에서 내려 실제 날짜가 붙은 기간 타임라인으로.
+          모집 중에는 바를 그리지 않는다 — 아직 시작하지 않았다. */}
+      {detailHeaderDraft === 'B' && <div className="cdetail-timeline">
+        {selectedRoom.status === 'running'
+          ? <>
+            <small>{selectedRoom.start}</small>
+            <span
+              className="cdetail-timeline-track"
+              role="progressbar"
+              aria-label={`${selectedRoom.name} 진행률`}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={detailProgress}
+            >
+              <i style={{ width: `${detailProgress}%` }} />
+              <em style={{ left: `${detailProgress}%` }} aria-hidden="true" />
+            </span>
+            <small>{selectedRoom.end}</small>
+            <b className={selectedRoom.remainingDays <= 7 ? 'is-urgent' : ''}>{`D-${selectedRoom.remainingDays}`}</b>
+          </>
+          : <>
+            <small>{`대회 기간 ${selectedRoom.start} – ${selectedRoom.end}`}</small>
+            <b className={selectedRoom.remainingDays <= 7 ? 'is-urgent' : ''}>{`모집 마감 D-${selectedRoom.remainingDays}`}</b>
+          </>}
+      </div>}
+
+      {/* C안: 모달에 숨어 있던 공통 조건을 인라인 표로. 진행률은 기간 칸의
+          미니 바로만 남는다. */}
+      {detailHeaderDraft === 'C' && <dl className="cdetail-facts" aria-label={`${selectedRoom.name} 대회 조건`}>
+        {detailFacts.map((fact) => <div key={fact.label}>
+          <dt>{fact.label}</dt>
+          <dd>
+            {fact.value}
+            {fact.label === '기간' && selectedRoom.status === 'running' && <span
+              className="cdetail-facts-progress"
+              role="progressbar"
+              aria-label={`${selectedRoom.name} 진행률`}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={detailProgress}
+            ><i style={{ width: `${detailProgress}%` }} /></span>}
+          </dd>
+        </div>)}
+      </dl>}
       {entrySuccessMessage && <div className="competition-entry-success" role="status">
         <Check size={16} aria-hidden="true" />
         <span>{entrySuccessMessage}</span>

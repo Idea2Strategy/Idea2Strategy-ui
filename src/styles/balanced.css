@@ -7270,3 +7270,161 @@ small.dashboard-bot-scope {
   .variant-balanced[data-design="signal-studio"] .competition-row { --competition-row-cols: 64px minmax(0, 1fr) 76px; }
   .variant-balanced[data-design="signal-studio"] .competition-row > .competition-row-cell:nth-child(4) { display: none; }
 }
+
+/*
+  #54 상세 헤더 후보 비교용 임시 스타일(cdetail-). 안이 정해지면 삭제한다.
+  A: 진행률 삭제, 상태 칩 하나. B: A + 기간 타임라인. C: 텍스트 눈썹 + 조건 인라인.
+*/
+.cdetail-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: max-content;
+  padding: var(--space-1) var(--space-2);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.cdetail-switch > span {
+  margin-right: var(--space-2);
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.cdetail-switch button {
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  color: var(--text-soft);
+  background: var(--surface-2);
+  cursor: pointer;
+  font-size: var(--fs-caption);
+  font-weight: 700;
+}
+.cdetail-switch button.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 헤더 공통(임시 변형): 제목 줄에서 진행률·% 제거. */
+.variant-balanced[data-design="signal-studio"] .competition-detail-heading.is-draft {
+  min-height: 0;
+  align-items: flex-start;
+  padding: var(--space-5) var(--space-5) var(--space-4);
+}
+.competition-detail-heading.is-draft > div:first-child { gap: var(--space-2); }
+.cdetail-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cdetail-host { color: var(--text-faint); font-size: var(--fs-control); font-weight: 650; }
+.cdetail-state-text { color: var(--text-soft); font-size: var(--fs-control); font-weight: 700; }
+.cdetail-state-text.is-urgent { color: var(--warning); }
+.competition-detail-heading.is-draft .competition-detail-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.cdetail-state-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 28px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  color: var(--text-soft);
+  background: var(--surface-2);
+  font: 700 var(--fs-caption) var(--font-mono);
+  white-space: nowrap;
+}
+.cdetail-state-chip i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+.cdetail-state-chip[data-room-status="running"] {
+  border-color: color-mix(in srgb, var(--positive) 40%, transparent);
+  color: var(--positive);
+}
+.cdetail-state-chip[data-room-status="running"] i { background: var(--positive); }
+.cdetail-state-chip .is-urgent { color: var(--warning); }
+
+/* B안: 기간 타임라인 — 시작·종료 날짜와 현재 위치 점. */
+.cdetail-timeline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.cdetail-timeline small { flex: none; color: var(--text-faint); font: 650 var(--fs-caption) var(--font-mono); }
+.cdetail-timeline b { flex: none; color: var(--text-soft); font: 700 var(--fs-control) var(--font-mono); }
+.cdetail-timeline b.is-urgent { color: var(--warning); }
+.cdetail-timeline-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: 99px;
+  background: var(--surface-3);
+}
+.cdetail-timeline-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.cdetail-timeline-track em {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(-50%, -50%);
+}
+
+/* C안: 공통 조건 인라인 표. 진행률은 기간 칸의 미니 바로만. */
+.cdetail-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.cdetail-facts > div { min-width: 0; display: grid; gap: var(--space-1); align-content: start; }
+.cdetail-facts dt { color: var(--text-faint); font-size: var(--fs-caption); }
+.cdetail-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-control);
+  font-weight: 650;
+}
+.cdetail-facts-progress {
+  display: block;
+  height: 4px;
+  margin-top: var(--space-1);
+  border-radius: 99px;
+  background: var(--surface-3);
+}
+.cdetail-facts-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
