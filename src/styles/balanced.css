@@ -9788,3 +9788,170 @@ small.dashboard-bot-scope {
 @media (max-width: 800px) {
   .variant-balanced[data-design="signal-studio"] .strategy-preview-card { display: none; }
 }
+
+/* ---------- Landing page ----------------------------------------------------
+   The introduction reached from the brand logo. One sticky 3D stage scrubbed
+   by native scroll, then plain reveal sections. Sticky needs the window to be
+   the scroller, so the landing route lifts the page-scroll overflow guard. */
+.landing-scroll { overflow: visible; }
+.landing-page { width: 100%; }
+
+.landing-hero { position: relative; height: 280vh; }
+.landing-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  display: grid;
+}
+.landing-stage-canvas,
+.landing-stage-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.landing-stage-canvas { display: block; }
+/* Visible before the 3D chunk arrives, and forever when WebGL is missing. */
+.landing-stage-poster {
+  background:
+    radial-gradient(60% 50% at 72% 40%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%),
+    radial-gradient(40% 40% at 20% 80%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%);
+}
+.landing-hero-copy {
+  position: relative;
+  z-index: 2;
+  align-self: center;
+  justify-self: start;
+  max-width: 620px;
+  padding: 0 clamp(24px, 6vw, 96px);
+}
+.landing-hero-copy h1 {
+  margin: 0 0 14px;
+  font-size: clamp(34px, 5vw, 60px);
+  line-height: 1.05;
+  letter-spacing: -1.8px;
+}
+.landing-sub {
+  margin: 0;
+  max-width: 460px;
+  color: var(--text-soft);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.landing-cta { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: 26px; }
+
+.landing-captions {
+  position: absolute;
+  right: clamp(24px, 6vw, 96px);
+  bottom: 96px;
+  z-index: 2;
+  display: grid;
+  max-width: 300px;
+  text-align: right;
+}
+.landing-caption {
+  grid-area: 1 / 1;
+  margin: 0;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 260ms ease-out, transform 260ms ease-out;
+  pointer-events: none;
+}
+.landing-caption.active { opacity: 1; transform: none; }
+.landing-caption strong { display: block; font-size: 15px; letter-spacing: -0.3px; }
+.landing-caption span { display: block; margin-top: 5px; color: var(--text-faint); font-size: var(--fs-caption); }
+.landing-scroll-hint {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  z-index: 2;
+  margin: 0;
+  transform: translateX(-50%);
+  color: var(--text-faint);
+  font: 650 var(--fs-micro) var(--font-mono);
+  letter-spacing: 0.14em;
+}
+
+.landing-features { max-width: 1120px; margin: 0 auto; padding: 96px 32px 64px; }
+.landing-features h2 {
+  margin: 0 0 36px;
+  max-width: 640px;
+  font-size: clamp(22px, 2.6vw, 34px);
+  line-height: 1.25;
+  letter-spacing: -0.8px;
+}
+.landing-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+.landing-reveal { height: 100%; }
+.landing-feature {
+  height: 100%;
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.landing-feature-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.landing-feature h3 { margin: 0; font-size: var(--fs-control); }
+.landing-feature p { margin: 0; color: var(--text-soft); font-size: var(--fs-body); line-height: 1.65; }
+
+.landing-disclaimer {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  padding: 40px 32px;
+}
+.landing-disclaimer p {
+  max-width: 760px;
+  margin: 0 auto;
+  color: var(--text-faint);
+  font-size: var(--fs-body);
+  line-height: 1.75;
+  text-align: center;
+}
+
+.landing-final {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: center;
+  padding: 96px 32px 128px;
+  text-align: center;
+}
+.landing-final h2 { margin: 0; font-size: clamp(22px, 2.4vw, 32px); letter-spacing: -0.7px; }
+.landing-final .landing-cta { margin-top: 0; justify-content: center; }
+
+/* Fade-and-rise entrance; instant under either reduced-motion switch. */
+.landing-reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 550ms ease-out, transform 550ms ease-out;
+}
+.landing-reveal.is-visible { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .landing-reveal { opacity: 1; transform: none; transition: none; }
+  .landing-caption { transition: none; }
+}
+.reduce-motion .landing-reveal { opacity: 1; transform: none; transition: none; }
+.reduce-motion .landing-caption { transition: none; }
+
+@media (max-width: 800px) {
+  .landing-hero { height: 240vh; }
+  .landing-captions { right: 16px; left: 16px; bottom: 72px; max-width: none; text-align: left; }
+  .landing-features { padding: 64px 16px 40px; }
+  .landing-disclaimer { padding: 32px 16px; }
+  .landing-final { padding: 64px 16px 96px; }
+}

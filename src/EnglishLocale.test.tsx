@@ -15,6 +15,7 @@ import { App } from './App';
 */
 const ROUTES: Array<{ path: string; marker: () => HTMLElement }> = [
   { path: '/', marker: () => screen.getByRole('heading', { name: /Welcome back/i }) },
+  { path: '/landing', marker: () => screen.getByRole('heading', { name: /Ideas, into strategies/i }) },
   { path: '/strategies', marker: () => screen.getByRole('heading', { name: /^Strategies$/i }) },
   { path: '/strategies/new/basic', marker: () => screen.getByTestId('basic-editor-workspace') },
   { path: '/strategies/new/pro', marker: () => screen.getByTestId('pro-editor-workspace') },

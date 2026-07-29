@@ -86,8 +86,10 @@ describe('Signal product UI', () => {
 
     await user.click(screen.getByRole('button', { name: '전략' }));
     expect(screen.getByRole('heading', { name: '전략' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 홈' }));
-    expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
+    // The logo is the front door to the landing introduction, not the dashboard.
+    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
+    expect(window.location.pathname).toBe('/landing');
+    expect(screen.getByRole('heading', { name: '아이디어를, 전략으로' })).toBeInTheDocument();
   });
 
   test('shows each bot custom icon on the home dashboard after it is changed', async () => {
@@ -225,7 +227,7 @@ describe('Signal product UI', () => {
     expect(screen.getByTestId('app-shell')).toHaveAttribute('data-theme', 'light');
 
     // Anywhere outside closes it, without needing the ✕.
-    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 홈' }));
+    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
     expect(screen.queryByRole('dialog', { name: '화면 설정' })).not.toBeInTheDocument();
   });
 
@@ -245,7 +247,7 @@ describe('Signal product UI', () => {
     // One handler serves both panels, so notifications dismiss the same way.
     await user.click(screen.getByRole('button', { name: '알림' }));
     expect(screen.getByRole('dialog', { name: '최근 알림' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 홈' }));
+    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
     expect(screen.queryByRole('dialog', { name: '최근 알림' })).not.toBeInTheDocument();
   });
 
