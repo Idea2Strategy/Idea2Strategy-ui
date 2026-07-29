@@ -18,6 +18,7 @@ import type { BotIconMap, BotIconSelection } from './components/BotGlyph';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
+import './styles/pro-editor.css';
 import './styles/concepts.css';
 
 type SetPage = (page: PageId) => void;
@@ -207,7 +208,7 @@ function ProductApp() {
     <Route path="/" element={<DashboardView setPage={setPage} botIcons={botIcons} />} />
     <Route path="/strategies" element={<StrategyHome openEditor={openEditor} />} />
     <Route path="/strategies/new/basic" element={<BasicEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
-    <Route path="/strategies/new/pro" element={<ProEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} />} />
+    <Route path="/strategies/new/pro" element={<ProEditor goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
     <Route path="/bots" element={<BotsView botIcons={botIcons} onBotIconChange={changeBotIcon} />} />
     <Route path="/backtests" element={<BacktestView />} />
     <Route path="/competition" element={<RoomsView />} />

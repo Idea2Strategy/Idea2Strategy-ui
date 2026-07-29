@@ -323,17 +323,18 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('note')).not.toBeInTheDocument();
   });
 
-  test('opens a categorized compatible-node picker where a Pro connection is released', async () => {
+  test('opens a typed compatible-node picker where a Pro connection is released', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="terminal" />);
     await user.click(screen.getByRole('button', { name: '전략' }));
     await user.click(screen.getByRole('button', { name: '새 전략' }));
     await user.click(screen.getByRole('button', { name: 'Pro로 시작' }));
-    fireEvent.pointerUp(screen.getByTestId('true-output'), { clientX: 438, clientY: 276 });
+    fireEvent.pointerDown(screen.getByTestId('true-output'), { clientX: 438, clientY: 276, pointerId: 4, button: 0 });
+    fireEvent.pointerUp(screen.getByTestId('true-output'), { clientX: 438, clientY: 276, pointerId: 4 });
     const picker = screen.getByRole('dialog', { name: '호환 노드 선택' });
     expect(picker).toHaveStyle({ left: '438px', top: '276px' });
-    expect(screen.getByText('조건 · 비교')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '포지션 확인' })).toBeEnabled();
+    expect(screen.getByText('실행 흐름 출력')).toBeInTheDocument();
+    expect(within(picker).getByRole('button', { name: /주문 요청/ })).toBeEnabled();
   });
 
   test.each(['balanced', 'terminal'])('uses one Signal horizontal menu for the legacy %s entry', (variant) => {

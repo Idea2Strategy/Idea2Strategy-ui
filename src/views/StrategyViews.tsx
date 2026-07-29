@@ -2554,7 +2554,7 @@ interface ProEditorProps {
   openEditor?: (mode: EditorMode) => void;
 }
 
-export function ProEditor({ goBack, openEditor }: ProEditorProps) {
+function LegacyProEditor({ goBack, openEditor }: ProEditorProps) {
   const [nodes, setNodes] = useState<ProNode[]>(INITIAL_PRO_NODES);
   const [links, setLinks] = useState<ProLink[]>(INITIAL_PRO_LINKS);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>('node-compare-a');
@@ -3246,3 +3246,7 @@ export function ProEditor({ goBack, openEditor }: ProEditorProps) {
     </div>}
   </div></Localized>;
 }
+
+// The previous implementation remains in this file temporarily as a rollback
+// reference while the specification-complete editor is exercised.
+export { ProEditor } from './ProEditorView';
