@@ -230,7 +230,10 @@ describe('Signal product UI', () => {
 
     expect(koreanColours).toHaveAttribute('aria-pressed', 'true');
     expect(usColours).toHaveAttribute('aria-pressed', 'false');
-    expect(colourToggle.parentElement?.querySelector('.nav-market-control-icon')).toBeInTheDocument();
+    // Same pill as theme and language: no wrapper control, no icon divider.
+    expect(document.querySelector('.nav-market-control')).not.toBeInTheDocument();
+    expect(document.querySelector('.nav-market-control-icon')).not.toBeInTheDocument();
+    expect(colourToggle).toHaveClass('nav-segmented-toggle');
     const koreanFlag = koreanColours.querySelector('.nav-market-flag.flag-kr');
     expect(koreanFlag).toBeInTheDocument();
     expect(koreanFlag).toHaveAttribute('viewBox', '0 0 640 480');

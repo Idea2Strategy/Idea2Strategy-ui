@@ -137,26 +137,25 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarPro
             </div>
 
             <div className="display-settings-row">
-              {/* The control keeps its own palette icon, so the label stays text. */}
+              {/* The row label names the setting, so the palette icon and its
+                  wrapper pill are gone: this is the same segmented control as
+                  theme and language, only with flags inside. */}
               <span className="display-settings-label">상승·하락 색상</span>
-              <div className="nav-market-control">
-                <span className="nav-market-control-icon" title="상승·하락 색상"><Palette size={14} aria-hidden="true" /></span>
-                <div className="nav-segmented-toggle nav-market-toggle" role="group" aria-label="상승·하락 색상 선택" data-value={updown}>
-                  <button
-                    type="button"
-                    aria-label="미국식 · 상승 초록, 하락 빨강"
-                    aria-pressed={updown === 'us'}
-                    title="미국식 · 상승 초록, 하락 빨강"
-                    onClick={() => setUpdown('us')}
-                  ><MarketFlag country="us" /></button>
-                  <button
-                    type="button"
-                    aria-label="한국식 · 상승 빨강, 하락 파랑"
-                    aria-pressed={updown === 'kr'}
-                    title="한국식 · 상승 빨강, 하락 파랑"
-                    onClick={() => setUpdown('kr')}
-                  ><MarketFlag country="kr" /></button>
-                </div>
+              <div className="nav-segmented-toggle nav-market-toggle" role="group" aria-label="상승·하락 색상 선택" data-value={updown}>
+                <button
+                  type="button"
+                  aria-label="미국식 · 상승 초록, 하락 빨강"
+                  aria-pressed={updown === 'us'}
+                  title="미국식 · 상승 초록, 하락 빨강"
+                  onClick={() => setUpdown('us')}
+                ><MarketFlag country="us" /></button>
+                <button
+                  type="button"
+                  aria-label="한국식 · 상승 빨강, 하락 파랑"
+                  aria-pressed={updown === 'kr'}
+                  title="한국식 · 상승 빨강, 하락 파랑"
+                  onClick={() => setUpdown('kr')}
+                ><MarketFlag country="kr" /></button>
               </div>
             </div>
 
