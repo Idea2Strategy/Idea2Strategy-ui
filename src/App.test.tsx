@@ -7,6 +7,11 @@ import { App } from './App';
 
 const balancedStyles = readFileSync(resolve(process.cwd(), 'src/styles/balanced.css'), 'utf8');
 
+/* Theme, market colours and language live behind the nav gear, so open it
+   first. The trigger keeps its accessible name in both languages. */
+const openDisplaySettings = (user: ReturnType<typeof userEvent.setup>) =>
+  user.click(screen.getByRole('button', { name: /화면 설정 열기|Open display settings/ }));
+
 describe('Signal product UI', () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -189,6 +194,7 @@ describe('Signal product UI', () => {
     const user = userEvent.setup();
     const { unmount } = render(<App />);
 
+    await openDisplaySettings(user);
     const languageToggle = screen.getByRole('group', { name: '언어 선택' });
     expect(within(languageToggle).getByRole('button', { name: '한국어' })).toHaveAttribute('aria-pressed', 'true');
     await user.click(within(languageToggle).getByRole('button', { name: 'English' }));
@@ -201,6 +207,7 @@ describe('Signal product UI', () => {
 
     unmount();
     render(<App />);
+    await openDisplaySettings(user);
     expect(within(screen.getByRole('group', { name: 'Language' })).getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('heading', { name: 'Bot operations' })).toBeInTheDocument();
   });
@@ -216,13 +223,17 @@ describe('Signal product UI', () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await openDisplaySettings(user);
     const colourToggle = screen.getByRole('group', { name: '상승·하락 색상 선택' });
     const koreanColours = within(colourToggle).getByRole('button', { name: '한국식 · 상승 빨강, 하락 파랑' });
     const usColours = within(colourToggle).getByRole('button', { name: '미국식 · 상승 초록, 하락 빨강' });
 
     expect(koreanColours).toHaveAttribute('aria-pressed', 'true');
     expect(usColours).toHaveAttribute('aria-pressed', 'false');
-    expect(colourToggle.parentElement?.querySelector('.nav-market-control-icon')).toBeInTheDocument();
+    // Same pill as theme and language: no wrapper control, no icon divider.
+    expect(document.querySelector('.nav-market-control')).not.toBeInTheDocument();
+    expect(document.querySelector('.nav-market-control-icon')).not.toBeInTheDocument();
+    expect(colourToggle).toHaveClass('nav-segmented-toggle');
     const koreanFlag = koreanColours.querySelector('.nav-market-flag.flag-kr');
     expect(koreanFlag).toBeInTheDocument();
     expect(koreanFlag).toHaveAttribute('viewBox', '0 0 640 480');
@@ -296,6 +307,7 @@ describe('Signal product UI', () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
     await user.click(screen.getByRole('button', { name: '봇' }));
+    await openDisplaySettings(user);
     await user.click(screen.getByRole('button', { name: '라이트 모드' }));
     expect(screen.getByRole('heading', { name: '봇 운영 센터' })).toBeInTheDocument();
     expect(screen.getByTestId('app-shell')).toHaveAttribute('data-theme', 'light');

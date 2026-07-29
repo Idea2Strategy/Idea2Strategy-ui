@@ -332,8 +332,27 @@
   box-shadow:0 0 4px color-mix(in srgb,var(--accent) 38%,transparent);
 }
 .signal-product-nav .topbar-popover { top:42px; }
+/* Display preferences, one row each: name on the left, the existing segmented
+   control on the right, so the three read as one settings sheet.
+
+   Own class names, not the account screen's `.settings-row*`: those are
+   unprefixed, so they would style this panel too and a change made for that
+   screen would silently move this one. */
+.display-settings-rows { display:grid; padding:6px; }
+.display-settings-row {
+  min-height:48px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:var(--space-3);
+  padding:4px 10px;
+}
+.display-settings-row + .display-settings-row { border-top:1px solid var(--line); }
+.display-settings-label { color:var(--text-soft); font-size:var(--fs-caption); font-weight:650; }
 .signal-product-nav .nav-segmented-toggle {
-  --segment-width:32px;
+  /* One width for all three settings segments, sized by the widest content
+     (the KO/EN labels), so the controls line up down the settings panel. */
+  --segment-width:34px;
   position:relative;
   isolation:isolate;
   height:34px;
@@ -375,35 +394,12 @@
 .signal-product-nav .nav-segmented-toggle > button:focus-visible {
   outline-offset:0;
 }
-.signal-product-nav .nav-market-control {
-  height:34px;
-  display:flex;
-  align-items:center;
-  padding:3px;
-  border:1px solid var(--line);
-  border-radius:6px;
-  background:var(--surface-2);
-}
-.signal-product-nav .nav-market-control-icon {
-  width:25px;
-  height:22px;
-  display:grid;
-  place-items:center;
-  flex:0 0 auto;
-  border-right:1px solid var(--line);
-  color:var(--text-faint);
-}
-.signal-product-nav .nav-market-toggle {
-  --segment-width:31px;
-  height:28px;
-  padding:0;
-  border:0;
-  background:transparent;
-}
+/* Flags sit in the same pill as the theme and language segments: no wrapper,
+   no icon divider, so the three settings rows share one control shape. Only
+   the line-height reset is needed, because the segment holds an SVG. */
 .signal-product-nav .nav-market-toggle > button {
   line-height:0;
 }
-.signal-product-nav .nav-language-toggle { --segment-width:34px; }
 .signal-product-nav .nav-market-flag {
   width:18px;
   height:13.5px;
@@ -5923,9 +5919,10 @@
 }
 .signal-product-nav > nav button:focus-visible::after { transform:scaleX(1); }
 .signal-nav-tools { justify-self:end; }
+/* Every segmented toggle, not just the language one: the theme and gain/loss
+   segments are the same control and have to stand the same height. */
 .variant-balanced[data-design="signal-studio"] .signal-product-nav .icon-button,
-.variant-balanced[data-design="signal-studio"] .signal-product-nav .nav-market-control,
-.variant-balanced[data-design="signal-studio"] .signal-product-nav .nav-language-toggle,
+.variant-balanced[data-design="signal-studio"] .signal-product-nav .nav-segmented-toggle,
 .variant-balanced[data-design="signal-studio"] .signal-product-nav .signal-user {
   height:36px;
 }
