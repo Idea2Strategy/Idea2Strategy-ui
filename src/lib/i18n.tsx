@@ -1045,7 +1045,15 @@ const isIdentifierProp = (propName: string): boolean =>
   UNTRANSLATED_PROPS.has(propName) || propName.startsWith('data-');
 
 function localizeValue(value: unknown, language: Language, propName = ''): unknown {
-  if (propName === 'ref' || propName === 'key') return value;
+  /*
+    Any *Ref prop gets the same treatment as `ref` itself: a useRef box is a
+    plain object, so the clone rule below would hand the child a frozen copy —
+    the owner keeps writing to the original while the child reads a snapshot,
+    and effect dependencies see a "new" object every render, remounting
+    whatever the effect built. The landing 3D scene was torn down and rebuilt
+    on every caption change for exactly this reason.
+  */
+  if (propName === 'ref' || propName === 'key' || propName.endsWith('Ref')) return value;
   if (typeof value === 'string') {
     if (isIdentifierProp(propName)) return value;
     return translateString(value, language);

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { ArrowRight, Bot, Boxes, FlaskConical, GitBranch, Trophy } from 'lucide-react';
 import { Button } from '../components/common';
@@ -68,10 +68,14 @@ function Reveal({ children, delay = 0 }: { children: ReactNode; delay?: number }
 
 export function LandingView({ setPage }: LandingViewProps): ReactNode {
   const heroRef = useRef<HTMLElement>(null);
-  /* A ref, not state: the 3D loop reads it every frame, and re-rendering React
-     at scroll speed would help nobody. State only tracks which caption shows. */
+  const captionsRef = useRef<HTMLDivElement>(null);
+  /* Refs and a data attribute, never state: scrolling must cause zero React
+     renders. A re-render here walks the whole tree back through Localized's
+     prop cloning, and the caption used to be state — three state flips per
+     hero, three full re-renders, and (before the *Ref guard in i18n) three
+     teardowns of the 3D scene. The 3D loop reads progressRef every frame and
+     CSS reads data-active-caption; React is not in the scroll path at all. */
   const progressRef = useRef(0);
-  const [captionStop, setCaptionStop] = useState(0);
 
   useEffect(() => {
     const hero = heroRef.current;
@@ -84,8 +88,9 @@ export function LandingView({ setPage }: LandingViewProps): ReactNode {
       const denominator = Math.max(1, rect.height - window.innerHeight);
       const progress = Math.min(1, Math.max(0, -rect.top / denominator));
       progressRef.current = progress;
-      const stop = progress < 1 / 3 ? 0 : progress < 2 / 3 ? 1 : 2;
-      setCaptionStop((current) => (current === stop ? current : stop));
+      const stop = progress < 1 / 3 ? '0' : progress < 2 / 3 ? '1' : '2';
+      const captions = captionsRef.current;
+      if (captions && captions.dataset.activeCaption !== stop) captions.dataset.activeCaption = stop;
     };
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(measure);
@@ -117,8 +122,8 @@ export function LandingView({ setPage }: LandingViewProps): ReactNode {
             <Button onClick={() => setPage('home')}>대시보드 둘러보기</Button>
           </div>
         </div>
-        <div className="landing-captions">
-          {CAPTIONS.map((caption, index) => <p key={caption.title} className={`landing-caption${captionStop === index ? ' active' : ''}`}>
+        <div ref={captionsRef} className="landing-captions" data-active-caption="0">
+          {CAPTIONS.map((caption) => <p key={caption.title} className="landing-caption">
             <strong>{caption.title}</strong>
             <span>{caption.detail}</span>
           </p>)}

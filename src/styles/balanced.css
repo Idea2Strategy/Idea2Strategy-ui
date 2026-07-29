@@ -9858,7 +9858,11 @@ small.dashboard-bot-scope {
   transition: opacity 260ms ease-out, transform 260ms ease-out;
   pointer-events: none;
 }
-.landing-caption.active { opacity: 1; transform: none; }
+/* Driven by a data attribute the scroll handler writes directly, so switching
+   captions never re-renders React (and never re-walks Localized). */
+.landing-captions[data-active-caption="0"] .landing-caption:nth-of-type(1),
+.landing-captions[data-active-caption="1"] .landing-caption:nth-of-type(2),
+.landing-captions[data-active-caption="2"] .landing-caption:nth-of-type(3) { opacity: 1; transform: none; }
 .landing-caption strong { display: block; font-size: 15px; letter-spacing: -0.3px; }
 .landing-caption span { display: block; margin-top: 5px; color: var(--text-faint); font-size: var(--fs-caption); }
 .landing-scroll-hint {

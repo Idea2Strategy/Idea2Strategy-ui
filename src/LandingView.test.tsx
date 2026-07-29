@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test } from 'vitest';
 import { App } from './App';
+import { Localized } from './lib/i18n';
 
 /*
   The landing introduction. jsdom has no WebGL and no IntersectionObserver, so
@@ -63,5 +64,23 @@ describe('Landing page', () => {
        cannot crash anything after the assertions. */
     await screen.findByTestId('landing-page');
     expect(screen.getByRole('heading', { name: '아이디어를, 전략으로' })).toBeInTheDocument();
+  });
+
+  test('Localized hands *Ref props to children by identity, not as clones', () => {
+    /* The regression that made the hero snap between three frozen states:
+       Localized deep-clones plain-object props, and a useRef box IS a plain
+       object. The scene received a copy — never seeing scroll progress — and
+       its effect saw a "new" ref every render, rebuilding the WebGL scene on
+       each caption change. */
+    const seen: Array<{ current: number }> = [];
+    function Probe({ progressRef }: { progressRef: { current: number } }) {
+      seen.push(progressRef);
+      return null;
+    }
+    const box = { current: 0.5 };
+    render(<Localized><Probe progressRef={box} /></Localized>);
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toBe(box);
   });
 });
