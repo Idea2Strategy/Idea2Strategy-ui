@@ -261,13 +261,14 @@ function BoardRow({ competition, pinned = false, index }: { competition: Competi
     </span>
     {/* 3안: 채점 배지는 이름 옆, 개설자는 보조줄. 열은 셋뿐이라 정렬이 단순하다. */}
     <span className="cdraft-row-name">
+      {/* 참가 표시는 제목 앞 — 줄 머리에 있어야 훑을 때 걸린다. */}
       <strong>
-        {competition.name}
         {competition.myBot && <i
           className="cdraft-row-mine-dot"
           title={`내 봇 ${competition.myRank}위 참가 중`}
           aria-label="참가 중"
         />}
+        {competition.name}
         <Scoring scoring={competition.scoring} />
       </strong>
       <small>
