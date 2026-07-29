@@ -3,6 +3,7 @@ import type { CSSProperties, ReactElement } from 'react';
 import {
   ArrowRight,
   BadgeCheck,
+  Bot,
   Check,
   History,
   Radio,
@@ -251,9 +252,9 @@ function FilterRail({ api }: { api: FilterApi }) {
   대회는 이름 옆 작은 점 하나로만 표시한다.
 */
 function BoardRow({ competition, pinned = false, index }: { competition: Competition; pinned?: boolean; index?: number }) {
-  /* 일반 행의 참가 표시는 없다 — 참여 중 보기가 그 역할을 한다. 필터를 타지
-     않는 공식 핀만 예외로, 내가 참가한 방은 엣지 바 + 진한 배경으로 남는다. */
-  const mine = pinned && Boolean(competition.myBot);
+  /* 내 봇이 있는 방은 공식·일반 가리지 않고 이름 줄 끝에 봇 아이콘이 붙는다.
+     진행 중·참여 중 보기에서도 내 방이 바로 보인다. */
+  const mine = Boolean(competition.myBot);
   return <button
     type="button"
     className={`cdraft-row${pinned ? ' is-pinned' : ''}${mine ? ' is-mine' : ''}`}
@@ -268,6 +269,11 @@ function BoardRow({ competition, pinned = false, index }: { competition: Competi
       <strong>
         {competition.name}
         <Scoring scoring={competition.scoring} />
+        {mine && <span
+          className="cdraft-row-mine-bot"
+          title={`내 봇 ${competition.myRank}위 참가 중`}
+          aria-label="참가 중"
+        ><Bot size={15} aria-hidden="true" /></span>}
       </strong>
       <small>
         {pinned

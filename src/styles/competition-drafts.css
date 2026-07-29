@@ -270,7 +270,11 @@
   공지 핀 — 커뮤니티 게시판의 고정 공지처럼, 공식 대회는 최상단에 몰려 있고
   배경 틴트로 구분된다. 핀 묶음이 끝나는 지점에 두꺼운 구분선 하나.
 */
-.cdraft-row.is-pinned { background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+/* 공식 핀 전체: 틴트 + 3px 엣지 바(inset이라 레이아웃이 밀리지 않는다). */
+.cdraft-row.is-pinned {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
 .cdraft-row.is-pinned:hover { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
 .cdraft-row.is-pinned + .cdraft-row:not(.is-pinned) { border-top: 2px solid var(--line-strong); }
 /* 개설자 컬럼 — 일반은 사람 이름, 공식은 "공식" 배지가 그 자리에 앉는다. */
@@ -290,13 +294,11 @@
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
-/* 내가 참가한 공식 핀: 엣지 바 + 진한 배경. 레이아웃이 밀리지 않게 inset으로 긋는다. */
-.cdraft-row.is-pinned.is-mine {
-  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
-  box-shadow: inset 3px 0 0 var(--accent);
-}
-.cdraft-row.is-pinned.is-mine:hover {
-  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+/* 내가 참가한 공식 핀은 이름 줄 끝의 봇 아이콘이 말한다. */
+.cdraft-row-mine-bot {
+  flex: none;
+  display: inline-flex;
+  color: var(--accent);
 }
 /* 공식 표시는 인증마크 아이콘. 채워진 배지 대신 파란 체크 문법을 쓴다. */
 .cdraft-host-official {
