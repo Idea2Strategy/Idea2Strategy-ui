@@ -71,7 +71,6 @@ describe('Signal product UI', () => {
     await user.type(within(sellRsi).getByLabelText('RSI 반등 값'), '70');
     await user.click(within(sellRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
     await user.click(screen.getByRole('option', { name: '하락' }));
-    await user.click(screen.getByRole('button', { name: '매도 전략 실행 설정' }));
     await user.type(screen.getByRole('spinbutton', { name: '매도 비율' }), '100');
 
     await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));

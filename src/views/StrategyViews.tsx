@@ -128,10 +128,18 @@ const createDefaultBuySettings = (): BuyContainerSettings => ({
 
 interface SellContainerSettings {
   sellPercent: number | '';
+  allowRepeatSell: boolean;
+  rerunMode: '조건 재충족' | 'N봉 이후' | 'N거래일 이후';
+  rerunInterval: number;
+  maxEntries: number;
 }
 
 const createDefaultSellSettings = (): SellContainerSettings => ({
   sellPercent: '',
+  allowRepeatSell: false,
+  rerunMode: '조건 재충족',
+  rerunInterval: 1,
+  maxEntries: 1,
 });
 
 interface BasicEditorSnapshot {
@@ -338,10 +346,10 @@ const UNSET_NUMBER_PLACEHOLDER = '입력';
 
 const INITIAL_BASIC_BLOCKS: Record<Side, BasicBlock[]> = {
   buy: [
-    { id: 'buy-rsi-block', icon: Timer, label: 'RSI 반등', op: NULL_BLOCK_VALUE, value: NULL_BLOCK_VALUE, tone: 'condition' },
+    { id: 'buy-rsi-block', icon: Activity, label: 'RSI 반등', op: NULL_BLOCK_VALUE, value: NULL_BLOCK_VALUE, tone: 'condition' },
   ],
   sell: [
-    { id: 'sell-rsi-block', icon: Timer, label: 'RSI 반등', op: NULL_BLOCK_VALUE, value: NULL_BLOCK_VALUE, tone: 'condition' },
+    { id: 'sell-rsi-block', icon: Activity, label: 'RSI 반등', op: NULL_BLOCK_VALUE, value: NULL_BLOCK_VALUE, tone: 'condition' },
   ],
   risk: [],
 };
@@ -922,10 +930,11 @@ interface StrategyBlockProps extends BlockProps {
   ruleSide?: 'left' | 'right';
   ruleStep?: number;
   ruleTestId?: string;
+  invalid?: boolean;
 }
 
-const StrategyBlock = ({ id, fixed = false, dragging = false, dragProps = {}, showRule = false, rule, ruleSide = 'right', ruleStep = 1, ruleTestId, ...blockProps }: StrategyBlockProps) => <div
-  className={`block-with-copy ${fixed ? 'fixed-terminal-block' : 'draggable-strategy-block'} ${dragging ? 'is-dragging' : ''}`}
+const StrategyBlock = ({ id, fixed = false, dragging = false, invalid = false, dragProps = {}, showRule = false, rule, ruleSide = 'right', ruleStep = 1, ruleTestId, ...blockProps }: StrategyBlockProps) => <div
+  className={`block-with-copy ${fixed ? 'fixed-terminal-block' : 'draggable-strategy-block'} ${dragging ? 'is-dragging' : ''} ${invalid ? 'is-field-invalid' : ''}`}
   data-testid={id}
   aria-disabled={fixed ? 'true' : undefined}
   aria-label={fixed ? undefined : `${blockProps.label} 블록. 드래그하거나 Alt와 방향키로 이동`}
@@ -1016,6 +1025,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   const [cardSizes, setCardSizes] = useState<Record<string, CanvasSize>>({});
   const [announcement, setAnnouncement] = useState('');
   const [saveFeedback, setSaveFeedback] = useState<SaveFeedback | null>(null);
+  // Two-phase dismissal so the toast can slide back down (mirroring its entry)
+  // instead of vanishing instantly.
+  const [saveFeedbackClosing, setSaveFeedbackClosing] = useState(false);
+  const dismissSaveFeedback = () => setSaveFeedbackClosing(true);
   const [launchDialogOpen, setLaunchDialogOpen] = useState(false);
   const [botName, setBotName] = useState('');
   const [botDescription, setBotDescription] = useState('');
@@ -1031,8 +1044,33 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     }
   });
   const [templatesCollapsed, setTemplatesCollapsed] = useState(false);
+  /*
+    The reopen handle tracks the collapse button's position, so a collapsed
+    library reads as a docked edge tab at the panel's own height (matching Pro)
+    instead of a stray floating button, and it never lands on top of the canvas
+    toolbar when the layout reflows on narrow screens.
+  */
+  const [libraryReopenTop, setLibraryReopenTop] = useState(77);
+  const basicLayoutRef = useRef<HTMLDivElement | null>(null);
+  const libraryCollapseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const collapseLibrary = () => {
+    const layoutBounds = basicLayoutRef.current?.getBoundingClientRect();
+    const buttonBounds = libraryCollapseButtonRef.current?.getBoundingClientRect();
+    if (layoutBounds && buttonBounds && buttonBounds.height > 0) {
+      setLibraryReopenTop(buttonBounds.top - layoutBounds.top);
+    }
+    setTemplatesCollapsed(true);
+  };
   const [gridSnap, setGridSnap] = useState(false);
   const [highlightValidation, setHighlightValidation] = useState(false);
+  /*
+    Which validation issue the person is currently inspecting. Picking an issue
+    in the drawer pins its card and — for unfilled-field issues — the exact
+    blocks that still need input, so the highlight lands on the field rather
+    than just the card (mirroring the Pro editor). `field` distinguishes an
+    empty card, a missing sell ratio, and unfilled block controls.
+  */
+  const [validationFocus, setValidationFocus] = useState<{ cardId: string | null; field: 'blocks' | 'sellPercent' | 'empty' | 'section' } | null>(null);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>(['primary-buy']);
   const [undoStack, setUndoStack] = useState<BasicEditorSnapshot[]>([]);
   const [redoStack, setRedoStack] = useState<BasicEditorSnapshot[]>([]);
@@ -1119,6 +1157,35 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   }, [sections, validationIssues]);
   const invalidSectionIds = new Set(validationIssues.map((issue) => issue.sectionId).filter(Boolean));
   const invalidCardIds = new Set(validationIssues.map((issue) => issue.cardId).filter(Boolean));
+
+  // Blocks in the focused card that still have an unset operator or value. Kept
+  // live off cardBlocks so the highlight clears the moment a field is filled.
+  const focusedInvalidBlockIds = useMemo(() => {
+    if (!validationFocus?.cardId || validationFocus.field !== 'blocks') return new Set<string>();
+    return new Set((cardBlocks[validationFocus.cardId] ?? []).filter((block) => {
+      const operatorRequired = getBlockOperatorOptions(block).length > 1;
+      return !String(block.value ?? '').trim() || (operatorRequired && !String(block.op ?? '').trim());
+    }).map((block) => block.id));
+  }, [validationFocus, cardBlocks]);
+
+  const focusValidationIssue = (issue: ValidationIssue) => {
+    if (issue.sectionId) setActiveSectionId(issue.sectionId);
+    if (issue.cardId) {
+      setSelectedCardId(issue.cardId);
+      setSelectedCardIds([issue.cardId]);
+    }
+    const field: 'blocks' | 'sellPercent' | 'empty' | 'section' = issue.cardId === null
+      ? 'section'
+      : issue.id.endsWith('-empty')
+        ? 'empty'
+        : issue.id.endsWith('-sell-percent')
+          ? 'sellPercent'
+          : 'blocks';
+    // Surface the exact control that needs input: open the sell-ratio popover
+    // so a missing ratio is shown inline rather than hidden behind a toggle.
+    setExpandedSettingsCardId(field === 'sellPercent' ? issue.cardId : null);
+    setValidationFocus({ cardId: issue.cardId, field });
+  };
 
   useEffect(() => {
     window.localStorage.setItem(BASIC_FAVORITE_BLOCKS_STORAGE_KEY, JSON.stringify(favoriteBlockLabels));
@@ -1245,13 +1312,24 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
 
   useEffect(() => {
     if (!saveFeedback) return undefined;
+    setSaveFeedbackClosing(false);
 
     const dismissTimer = window.setTimeout(() => {
-      setSaveFeedback(null);
+      setSaveFeedbackClosing(true);
     }, 2_000);
 
     return () => window.clearTimeout(dismissTimer);
   }, [saveFeedback]);
+
+  // Once the exit animation has had time to play, actually unmount the toast.
+  useEffect(() => {
+    if (!saveFeedbackClosing) return undefined;
+    const removeTimer = window.setTimeout(() => {
+      setSaveFeedback(null);
+      setSaveFeedbackClosing(false);
+    }, 260);
+    return () => window.clearTimeout(removeTimer);
+  }, [saveFeedbackClosing]);
 
   const saveStrategy = () => {
     const nextFeedback: SaveFeedback = isLaunchable
@@ -1742,6 +1820,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     </span>}
     <StrategyBlock
       {...block}
+      invalid={focusedInvalidBlockIds.has(block.id)}
       showRule={selectedCardId === cardId}
       rule={getBlockNarrative(block, index === cardBlocks[cardId].length - 1)}
       ruleSide={ruleSide}
@@ -1941,6 +2020,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     if (!(event.target as Element).closest?.('.strategy-card')) {
       setSelectedCardId(null);
       setSelectedCardIds([]);
+      setValidationFocus(null);
     }
     if (event.target !== event.currentTarget) return;
     if (drawMode) {
@@ -2171,11 +2251,11 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     const budgetRule = side === 'buy'
       ? <>전략 예산의 <b>{Math.round(section.allocation / Math.max(1, section.cards.buy.length))}%</b>를 사용하고 한 번에 최대 <b>{settings.maxOrderPercent}%</b>까지 주문합니다.</>
       : side === 'sell'
-        ? <>조건을 모두 만족하면 매도 비율 <b>{sellExecution.sellPercent || '미설정'}%</b>만큼 주문합니다.</>
-        : <>조건을 모두 만족하면 해당 포지션을 전량 정산합니다.</>;
+        ? <>매도 비율 <b>{sellExecution.sellPercent || '미설정'}%</b>만큼 주문합니다.</>
+        : <>해당 포지션을 전량 정산합니다.</>;
     return <div
       key={cardId}
-      className={`strategy-container content-sized-strategy ${side}-container strategy-card ${isSelected ? 'is-selected is-explained' : ''} ${invalidCardIds.has(cardId) ? 'has-validation-error' : ''} ${cardMove?.cardId === cardId ? 'is-free-moving' : ''} ${libraryDrag?.type === 'block' ? 'is-library-drop-ready' : ''}`}
+      className={`strategy-container content-sized-strategy ${side}-container strategy-card ${isSelected ? 'is-selected is-explained' : ''} ${invalidCardIds.has(cardId) ? 'has-validation-error' : ''} ${validationFocus?.cardId === cardId ? `is-issue-focused is-issue-${validationFocus.field}` : ''} ${cardMove?.cardId === cardId ? 'is-free-moving' : ''} ${libraryDrag?.type === 'block' ? 'is-library-drop-ready' : ''}`}
       data-testid={testId}
       data-strategy-card={cardId}
       data-selected={isSelected ? 'true' : undefined}
@@ -2278,14 +2358,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           <span><Settings2 size={13} aria-hidden="true" /><strong>매수 설정</strong></span>
           <button type="button" aria-label="매수 실행 설정 닫기" onClick={() => setExpandedSettingsCardId(null)}><X size={13} /></button>
         </header>
-        <div className="readonly-budget" aria-label="사용 가능 예산">
-          <span><Layers3 size={12} aria-hidden="true" />사용 예산</span>
-          <strong>{`균등 배분 · ${Math.round(section.allocation / Math.max(1, section.cards.buy.length))}%`}</strong>
-        </div>
-        <label className="order-limit-setting"><span><strong>주문 한도</strong><small>1회 최대</small></span><span className="setting-with-unit"><input type="number" min="1" max="100" aria-label="1회 주문 최대" value={settings.maxOrderPercent} onFocus={rememberEditorChange} onChange={(event) => {
-          setSelectedCardId(cardId);
-          setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxOrderPercent: Number(event.target.value) } }));
-        }} /><b>%</b></span></label>
+        {/* 사용 예산(균등 배분)은 헤더 태그로 이미 보이고, 주문 비율은 카드 하단 요청
+            블록에서 직접 편집하므로, 설정창에는 반복 진입만 남겨 중복을 없앴습니다. */}
         <label className="setting-toggle"><input type="checkbox" aria-label="반복 진입 허용" checked={settings.allowAdditionalBuy} onChange={(event) => {
           rememberEditorChange();
           setSelectedCardId(cardId);
@@ -2302,11 +2376,17 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           <span><Settings2 size={13} aria-hidden="true" /><strong>매도 설정</strong></span>
           <button type="button" aria-label="매도 실행 설정 닫기" onClick={() => setExpandedSettingsCardId(null)}><X size={13} /></button>
         </header>
-        <p className="settings-compact-note">보유 수량 중 이번 조건에서 매도할 비율입니다.</p>
-        <label className="order-limit-setting"><span><strong>매도 비율</strong><small>조건 충족 시</small></span><span className="setting-with-unit"><input type="number" min="1" max="100" aria-label="매도 비율" value={sellExecution.sellPercent} onFocus={rememberEditorChange} onChange={(event) => {
+        {/* 매도 비율은 카드 하단 요청 블록에서 편집하므로, 설정창에는 반복 매도만 둡니다. */}
+        <label className="setting-toggle"><input type="checkbox" aria-label="반복 매도 허용" checked={sellExecution.allowRepeatSell} onChange={(event) => {
+          rememberEditorChange();
           setSelectedCardId(cardId);
-          setSellSettings((current) => ({ ...current, [cardId]: { sellPercent: event.target.value === '' ? '' : Number(event.target.value) } }));
-        }} /><b>%</b></span></label>
+          setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), allowRepeatSell: event.target.checked } }));
+        }} /><span><strong>반복 매도</strong><small>조건이 다시 맞으면 추가 매도</small></span></label>
+        {sellExecution.allowRepeatSell && <div className="additional-buy-settings">
+          <label><span>방식</span><select aria-label="재매도 방식" value={sellExecution.rerunMode} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), rerunMode: event.target.value as SellContainerSettings['rerunMode'] } }))}><option>조건 재충족</option><option>N봉 이후</option><option>N거래일 이후</option></select></label>
+          <label><span>간격</span><input type="number" min="1" max="365" aria-label="재매도 간격" value={sellExecution.rerunInterval} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), rerunInterval: Number(event.target.value) } }))} /></label>
+          <label><span>최대 실행</span><input type="number" min="1" max="1000" aria-label="한 포지션 최대 매도 횟수" value={sellExecution.maxEntries} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), maxEntries: Number(event.target.value) } }))} /></label>
+        </div>}
       </section>}
       <div
         className={`block-stack ${cardBlocks[cardId].length > 0 ? `has-condition-blocks has-center-marker ${cardBlocks[cardId].length === 1 ? 'is-single-condition' : 'is-multi-condition is-chain-linked-group'}` : ''}`}
@@ -2322,18 +2402,48 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           ? <>{renderEditableBlocks(cardId, side, ruleSide)}</>
           : <div className="empty-container-drop"><Plus size={14} /><strong>조건 놓기</strong><small>블록 탭에서 드래그</small></div>}
       </div>
-      <footer className="strategy-container-footer" aria-label={`고정 ${sideLabel} 실행`} onPointerDown={(event) => beginCardMove(event, section, cardId, isSelected)}><StrategyBlock
-        id={isPrimary ? `${side}-order-block` : `${cardId}-order-block`}
-        fixed
-        icon={Check}
-        label={terminalLabel}
-        tone={side}
-        showRule={isSelected}
-        rule={budgetRule}
-        ruleSide={ruleSide}
-        ruleStep={cardBlocks[cardId].length + 1}
-        ruleTestId="basic-narrative-budget"
-      /></footer>
+      {/*
+        The order terminal is a fixed, full-width action block — deliberately
+        set apart from the draggable condition blocks (solid card colour, no
+        drag handle) — carrying the request line and its effectively-required
+        ratio inline. It lives in the footer, outside the condition stack, so
+        the stack's left centre-marker never counts it.
+      */}
+      <footer className="strategy-container-footer" aria-label={`고정 ${sideLabel} 실행`} onPointerDown={(event) => beginCardMove(event, section, cardId, isSelected)}>
+        <div className="block-with-copy fixed-terminal-block">
+          <div
+            className={`terminal-request-block ${side === 'sell' && !sellExecution.sellPercent ? 'is-unset' : ''}`}
+            data-testid={isPrimary ? `${side}-order-block` : `${cardId}-order-block`}
+          >
+            <span className="terminal-request-icon" aria-hidden="true">{side === 'buy' ? <TrendingUp size={16} strokeWidth={2.4} /> : side === 'sell' ? <TrendingDown size={16} strokeWidth={2.4} /> : <ShieldCheck size={16} strokeWidth={2.4} />}</span>
+            <span className="terminal-request-label">{side === 'risk' ? terminalLabel : `이 비율로 ${terminalLabel}`}</span>
+            {(side === 'buy' || side === 'sell') && <span
+              className="terminal-request-ratio setting-with-unit"
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <input
+                type="number"
+                min="1"
+                max="100"
+                placeholder="—"
+                aria-label={side === 'buy' ? '매수 비율' : '매도 비율'}
+                value={side === 'buy' ? settings.maxOrderPercent : sellExecution.sellPercent}
+                onFocus={rememberEditorChange}
+                onChange={(event) => {
+                  setSelectedCardId(cardId);
+                  if (side === 'buy') {
+                    setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxOrderPercent: Number(event.target.value) } }));
+                  } else {
+                    setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), sellPercent: event.target.value === '' ? '' : Number(event.target.value) } }));
+                  }
+                }}
+              />
+              <b>%</b>
+            </span>}
+          </div>
+          {isSelected && <BlockRuleNote side={ruleSide} step={cardBlocks[cardId].length + 1} tone={side} testId="basic-narrative-budget">{budgetRule}</BlockRuleNote>}
+        </div>
+      </footer>
     </div>;
   };
 
@@ -2403,10 +2513,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         </div>
       </div>
     </div>
-    <div className={`editor-layout basic-layout full-editor-workspace ${templatesCollapsed ? 'is-library-collapsed' : ''} ${highlightValidation ? 'is-validation-highlighting' : ''}`} data-testid="basic-editor-workspace">
+    <div ref={basicLayoutRef} className={`editor-layout basic-layout full-editor-workspace ${templatesCollapsed ? 'is-library-collapsed' : ''} ${highlightValidation ? 'is-validation-highlighting' : ''}`} data-testid="basic-editor-workspace">
       <div className="basic-editor-left-rail" data-testid="basic-editor-left-rail">
         <aside className={`editor-palette basic-library-panel panel floating-editor-panel ${templatesCollapsed ? 'is-docked-hidden' : ''}`} data-collapse-direction="left" data-testid="basic-library-panel" aria-hidden={templatesCollapsed}>
-          <div className="palette-title"><span>LIBRARY</span><Boxes size={15} /><button type="button" className="sidebar-toggle" aria-label={`라이브러리 ${templatesCollapsed ? '펼치기' : '접기'}`} aria-expanded={!templatesCollapsed} onClick={() => setTemplatesCollapsed((current) => !current)}>{templatesCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}</button></div>
+          <div className="palette-title"><span>LIBRARY</span><Boxes size={15} /><button ref={libraryCollapseButtonRef} type="button" className="sidebar-toggle" aria-label={`라이브러리 ${templatesCollapsed ? '펼치기' : '접기'}`} aria-expanded={!templatesCollapsed} onClick={() => templatesCollapsed ? setTemplatesCollapsed(false) : collapseLibrary()}>{templatesCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}</button></div>
           <p className="library-intro">{libraryView === 'packages'
             ? '원하는 방식을 고르면 매수·매도·위기관리 전략 카드를 함께 구성합니다.'
             : '전략 카드를 선택한 뒤 블록을 클릭하거나 원하는 위치로 드래그하세요.'}</p>
@@ -2458,7 +2568,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           </div>}
         </aside>
       </div>
-      {templatesCollapsed && <button type="button" className="pro-panel-edge-handle basic-panel-edge-handle is-left" aria-label="라이브러리 펼치기" onClick={() => setTemplatesCollapsed(false)}>
+      {templatesCollapsed && <button type="button" className="pro-panel-edge-handle basic-panel-edge-handle is-panel-title-height is-left" style={{ top: libraryReopenTop }} aria-label="라이브러리 펼치기" onClick={() => setTemplatesCollapsed(false)}>
         <Boxes size={15} aria-hidden="true" /><ChevronRight size={13} aria-hidden="true" />
       </button>}
       <section
@@ -2573,13 +2683,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         {!isLaunchable && <div className="basic-validation-groups">
           {groupedValidationIssues.map((group) => <section key={group.key} className="basic-validation-group" role="region" aria-label={`${group.label} 오류`}>
             <header><strong>{group.label}</strong><span>{group.issues.length}</span></header>
-            <ul>{group.issues.map((issue, index) => <li key={issue.id}><button type="button" onClick={() => {
-              if (issue.sectionId) setActiveSectionId(issue.sectionId);
-              if (issue.cardId) {
-                setSelectedCardId(issue.cardId);
-                setSelectedCardIds([issue.cardId]);
-              }
-            }}><span>{String(index + 1).padStart(2, '0')}</span><span>{renderBasicValidationMessage(issue.message.replace(`${group.label}의 `, ''))}</span><ChevronRight size={13} /></button></li>)}</ul>
+            <ul>{group.issues.map((issue, index) => <li key={issue.id}><button type="button" onClick={() => focusValidationIssue(issue)}><span>{String(index + 1).padStart(2, '0')}</span><span>{renderBasicValidationMessage(issue.message.replace(`${group.label}의 `, ''))}</span><ChevronRight size={13} /></button></li>)}</ul>
           </section>)}
         </div>}
       </aside>}
@@ -2617,10 +2721,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       <span className="editor-trash-icon"><Trash2 size={18} aria-hidden="true" /></span>
       <span className="editor-trash-copy"><strong>{trashItemLabel} 버리기</strong><small>여기에 놓으면 삭제됩니다</small></span>
     </div>}
-    {saveFeedback && <div className={`editor-save-toast is-bottom-center tone-${saveFeedback.tone}`} role="alert" aria-atomic="true">
+    {saveFeedback && <div className={`editor-save-toast is-bottom-center tone-${saveFeedback.tone} ${saveFeedbackClosing ? 'is-closing' : ''}`} role="alert" aria-atomic="true">
       <span aria-hidden="true">{saveFeedback.tone === 'positive' ? <Check size={16} /> : <TriangleAlert size={16} />}</span>
       <div><strong>{saveFeedback.title}</strong><small>{saveFeedback.detail}</small></div>
-      <button type="button" aria-label="저장 알림 닫기" onClick={() => setSaveFeedback(null)}><X size={14} /></button>
+      <button type="button" aria-label="저장 알림 닫기" onClick={dismissSaveFeedback}><X size={14} /></button>
     </div>}
     {symbolManagerSection && createPortal(<div className="symbol-manager-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSymbolManagerSectionId(null); }}>
       <section className="symbol-manager-dialog" role="dialog" aria-modal="true" aria-label={`${symbolManagerSection.id.replace('section-', 'PARTITION ')} 종목 관리`}>
