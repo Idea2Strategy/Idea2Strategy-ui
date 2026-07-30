@@ -207,8 +207,9 @@ interface TemplateDefinition {
 
 interface ProEditorProps {
   goBack: () => void;
-  openEditor?: (mode: EditorMode) => void;
+  openEditor?: (mode: EditorMode, blank?: boolean) => void;
   onLaunchBot?: () => void;
+  blank?: boolean;
 }
 
 const STORAGE_KEY = 'i2s-pro-editor-draft-v2';
@@ -953,11 +954,13 @@ const describeStrategy = (graph: GraphState): Array<{ label: string; value: stri
   ];
 };
 
-export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
-  const [graph, setGraph] = useState<GraphState>(loadGraph);
+export function ProEditor({ goBack, openEditor, onLaunchBot, blank = false }: ProEditorProps) {
+  // A brand-new strategy opens on a blank canvas (no seed nodes); existing
+  // strategies restore the persisted / seeded graph as before.
+  const [graph, setGraph] = useState<GraphState>(() => blank ? { nodes: [], links: [], groups: [] } : loadGraph());
   const [history, setHistory] = useState<GraphState[]>([]);
   const [future, setFuture] = useState<GraphState[]>([]);
-  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>(['pro-compare']);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>(blank ? [] : ['pro-compare']);
   const [pan, setPan] = useState<CanvasPoint>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [workspaceSize, setWorkspaceSize] = useState({ width: 0, height: 0 });
@@ -1141,6 +1144,9 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
 
   useEffect(() => {
     setValidationIssues(validateGraph(graph));
+    // A blank (new) strategy is a throwaway scratch — don't auto-persist it, so
+    // it neither gains persistence nor clobbers an existing saved draft.
+    if (blank) return;
     const timer = window.setTimeout(() => {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(graph));
@@ -1150,7 +1156,7 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
       }
     }, 1200);
     return () => window.clearTimeout(timer);
-  }, [graph]);
+  }, [graph, blank]);
 
   useEffect(() => {
     try {
@@ -1666,7 +1672,8 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
       : (selectedNodeIds.includes(node.id) && selectedNodeIds.length > 1 ? selectedNodeIds : [node.id]);
     setSelectedNodeIds(nextSelection);
     setSelectedLinkId(null);
-    setRightCollapsed(false);
+    // Selecting a node updates the inspector contents but must not force a
+    // collapsed panel back open — only the validation/error jump does that.
     if (!force && (event.target as Element).closest('button, input, select, .pro-port')) return;
     event.preventDefault();
     event.stopPropagation();
@@ -2675,7 +2682,8 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
     </div>
 
     <div ref={layoutRef} className={`editor-layout pro-layout full-editor-workspace${leftCollapsed ? ' is-library-collapsed' : ''}${rightCollapsed ? ' is-inspector-collapsed' : ''}`} data-testid="pro-editor-workspace">
-      <aside className="editor-palette node-library-panel panel floating-editor-panel pro-side-panel is-left" data-testid="pro-node-library">
+      <aside className="editor-palette node-library-panel panel floating-editor-panel pro-side-panel is-left" data-testid="pro-node-library" onClick={leftCollapsed ? () => setLeftCollapsed(false) : undefined}>
+        <span className="pro-collapsed-label" aria-hidden="true">NODE LIBRARY</span>
         <div className="palette-title">
           <span>NODES</span>
           <Boxes size={15} />
@@ -2951,7 +2959,6 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
 
         <aside
           className="pro-graph-navigator"
-          style={{ left: leftCollapsed ? 18 : 292 }}
           onPointerDown={(event) => event.stopPropagation()}
         >
           <header><MousePointer2 size={12} /><strong>전략 탐색</strong><span>{graph.nodes.length}</span></header>
@@ -3014,7 +3021,8 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
         </section>}
       </section>
 
-      <aside className="editor-inspector node-inspector panel floating-editor-panel pro-side-panel is-right" data-testid="pro-node-inspector">
+      <aside className="editor-inspector node-inspector panel floating-editor-panel pro-side-panel is-right" data-testid="pro-node-inspector" onClick={rightCollapsed ? () => setRightCollapsed(false) : undefined}>
+        <span className="pro-collapsed-label" aria-hidden="true">INSPECTOR</span>
         <div className="inspector-title">
           <span>INSPECTOR</span>
           <Settings2 size={15} />
@@ -3109,11 +3117,11 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
           </div>
         </div>
       </aside>
-      {leftCollapsed && <button type="button" className="pro-panel-edge-handle is-panel-title-height is-left" style={{ top: panelReopenTop.left }} aria-label="노드 라이브러리 펼치기" onClick={() => setLeftCollapsed(false)}>
-        <Boxes size={15} /><ChevronRight size={14} />
+      {leftCollapsed && <button type="button" className="pro-panel-edge-handle is-panel-title-height is-left" aria-label="노드 라이브러리 펼치기" onClick={() => setLeftCollapsed(false)}>
+        <ChevronRight size={15} />
       </button>}
-      {rightCollapsed && <button type="button" className="pro-panel-edge-handle is-panel-title-height is-right" style={{ top: panelReopenTop.right }} aria-label="설정 패널 펼치기" onClick={() => setRightCollapsed(false)}>
-        <ChevronLeft size={14} /><Settings2 size={15} />
+      {rightCollapsed && <button type="button" className="pro-panel-edge-handle is-panel-title-height is-right" aria-label="설정 패널 펼치기" onClick={() => setRightCollapsed(false)}>
+        <ChevronLeft size={15} />
       </button>}
     </div>
 

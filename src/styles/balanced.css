@@ -1147,23 +1147,13 @@
   border-color: color-mix(in srgb, var(--accent) 76%, var(--line-strong));
   box-shadow: 0 20px 46px rgba(var(--shadow-rgb), .22), 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
 }
-.variant-balanced[data-design="signal-studio"] .section-strategy-grid .strategy-card.is-library-drop-ready::after {
-  content: "BLOCK DROP";
-  position: absolute;
-  z-index: 18;
-  right: 9px;
-  bottom: 9px;
-  min-height: 22px;
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  border: 1px solid color-mix(in srgb, var(--accent) 44%, transparent);
-  border-radius: 999px;
+/* No text badge — the accent card glow (above), the in-card insertion line, and
+   the highlighted empty drop zone below already communicate the pending drop. */
+.variant-balanced[data-design="signal-studio"] .section-strategy-grid .strategy-card.is-library-drop-ready .empty-container-drop {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--line-strong));
+  background: color-mix(in srgb, var(--accent-soft) 42%, transparent);
   color: var(--accent);
-  background: var(--surface);
-  pointer-events: none;
-  font: 800 7px var(--font-mono);
-  letter-spacing: .1em;
 }
 .variant-balanced[data-design="signal-studio"] .strategy-card-move-handle {
   position: absolute;
@@ -1278,8 +1268,10 @@
 .variant-balanced[data-design="signal-studio"] .required-buy-slot {
   position: absolute;
   z-index: 1;
-  top: 112px;
-  width: 260px;
+  /* Align with the real card grid (BASIC_CARD_MIN_Y / card width) so the prompt
+     sits in its column below the header instead of overlapping the divider. */
+  top: 136px;
+  width: 344px;
   min-height: 170px;
   display: grid;
   place-items: center;
@@ -1293,7 +1285,13 @@
   pointer-events: auto;
   cursor: pointer;
 }
-.variant-balanced[data-design="signal-studio"] .optional-sell-slot { left: 310px; }
+/* Sell is optional: keep this prompt lower and more muted than the required buy
+   slot so the hierarchy reads required-vs-optional at a glance. */
+.variant-balanced[data-design="signal-studio"] .optional-sell-slot {
+  left: 394px;
+  min-height: 128px;
+  opacity: .9;
+}
 .variant-balanced[data-design="signal-studio"] .required-buy-slot {
   left: 24px;
   border-color: color-mix(in srgb, var(--warning) 72%, var(--line-strong));
@@ -8233,11 +8231,15 @@ small.dashboard-bot-scope {
   outline: 2px solid color-mix(in srgb, var(--negative) 74%, transparent);
   outline-offset: 1px;
 }
-/* And the empty control within it — the exact operator/value still to choose. */
-.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .draggable-strategy-block.is-field-invalid .is-null {
+/* And the empty control within it — the exact operator/value still to choose.
+   The red ring is applied to the control itself (not the wrapper) so it follows
+   the control's own radius: circular for the operator pill, rounded for the
+   value/stepper. No dark fill, so a round input never reads as a square box or
+   a blacked-out field. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .draggable-strategy-block.is-field-invalid .block-custom-select.is-null .block-custom-select-trigger,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .draggable-strategy-block.is-field-invalid .block-number-stepper.is-null {
   border-color: color-mix(in srgb, var(--negative) 78%, var(--line)) !important;
-  background: color-mix(in srgb, var(--negative) 15%, var(--surface)) !important;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--negative) 28%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--negative) 45%, transparent) !important;
 }
 /* Empty card / missing sell ratio: outline the slot that needs completing. */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card.is-issue-empty .block-stack,
@@ -9387,15 +9389,18 @@ small.dashboard-bot-scope {
   left — cyan, orange, violet, pink — plus a neutral slate for one category to
   keep the cool hues from crowding, gives five readily separable tones.
 */
+/* Category palette (risk retired, so gold is free again):
+   가격=gold (price = money/value), 추세=cyan (direction), 반전=violet (inflection),
+   일정=slate (schedule). Deep gold keeps white block text legible. */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-data,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-data {
-  --block-tone-color: #0891b2;
-  --block-tone-surface: #0891b2;
+  --block-tone-color: #9a7010;
+  --block-tone-surface: #9a7010;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-indicator,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-indicator {
-  --block-tone-color: #ea580c;
-  --block-tone-surface: #ea580c;
+  --block-tone-color: #0891b2;
+  --block-tone-surface: #0891b2;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-condition,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-condition {
@@ -9541,10 +9546,15 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper label > b:empty {
   display: none;
 }
-/* Operator/value icons get a white halo so their tone colour stays visible on
-   the saturated block fill. */
+/* Operator/value icons get a white outline so their tone colour stays legible
+   on the saturated block fill. Directional (x/y-offset) drop-shadows chain
+   unevenly — one side builds up thicker (a 3D look) and the diagonals stay
+   empty (angular corners). Zero-offset shadows are radially symmetric, so
+   stacking a few tight ones traces an even, rounded outline with no embossing. */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-relation-icon {
-  filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);
+  filter:
+    drop-shadow(0 0 0.5px #fff) drop-shadow(0 0 0.5px #fff)
+    drop-shadow(0 0 0.5px #fff) drop-shadow(0 0 0.5px #fff);
 }
 /* Value dropdowns center their label like the operator pills; the chevron
    floats at the right, out of the centering flow. */
@@ -9564,6 +9574,33 @@ small.dashboard-bot-scope {
 .block-custom-select-menu.is-compact > button {
   min-height: 28px;
   padding-inline: 7px;
+  /* Narrow operator menu: center every option (선택/상승/하락) so the iconless
+     '선택' lines up with the icon-bearing options instead of hugging the left. */
+  position: relative;
+  justify-content: center;
+}
+/* The selected-option check floats at the right so it doesn't push the label
+   off-center in the centered layout. */
+.block-custom-select-menu.is-compact > button > svg {
+  position: absolute;
+  right: 5px;
+}
+
+/* Small screens: editing is desktop-only, so show ONLY the notice. base.css
+   hides the workspace, but these higher-specificity balanced rules keep the top
+   command bar and the library / inspector wings on screen — hide them here too.
+   The global app top-nav stays, so the user can still navigate away. */
+@media (max-width: 800px) {
+  .variant-balanced[data-design="signal-studio"] .editor-shell-page .basic-editor-commandbar,
+  .variant-balanced[data-design="signal-studio"] .editor-shell-page .pro-editor-commandbar,
+  .variant-balanced[data-design="signal-studio"] .editor-shell-page .basic-editor-left-rail,
+  .variant-balanced[data-design="signal-studio"] .editor-shell-page .basic-library-panel,
+  .variant-balanced[data-design="signal-studio"] .editor-shell-page .pro-side-panel,
+  .variant-balanced[data-design="signal-studio"] .editor-shell-page .section-draw-controls,
+  .variant-balanced[data-design="signal-studio"] .editor-shell-page .floating-zoom-controls,
+  .variant-balanced[data-design="signal-studio"] .editor-shell-page .pro-graph-controls {
+    display: none !important;
+  }
 }
 
 /* Basic library uses the same interaction model as the Pro node drawer.
@@ -9621,14 +9658,46 @@ small.dashboard-bot-scope {
   overflow: visible;
   pointer-events: none;
 }
+/* Collapsed like Pro: the wing becomes a bookmark tab from the top down to ~1/3
+   of the screen, showing a rotated, centred "BLOCK LIBRARY" label; content and
+   title are hidden. The arrow handle (shared .pro-panel-edge-handle styles) sits
+   at its vertical centre. Hovering slides it out ~6px; click expands. */
 .variant-balanced[data-design="signal-studio"] .basic-layout.is-library-collapsed .basic-library-panel.is-docked-hidden {
-  visibility: hidden;
+  visibility: visible;
+  opacity: 1;
+  width: 280px;
+  flex: none;
+  height: 150px;
+  transform: translateX(calc(-100% + 22px));
+  pointer-events: auto;
+  cursor: pointer;
+  overflow: hidden;
+  border-radius: 0 14px 14px 0;
+  transition: transform .2s ease;
+}
+.variant-balanced[data-design="signal-studio"] .basic-layout.is-library-collapsed:has(.basic-library-panel.is-docked-hidden:hover, .basic-panel-edge-handle.is-left:hover) .basic-library-panel.is-docked-hidden {
+  transform: translateX(calc(-100% + 28px));
+}
+.variant-balanced[data-design="signal-studio"] .basic-layout.is-library-collapsed:has(.basic-library-panel.is-docked-hidden:hover, .basic-panel-edge-handle.is-left:hover) .basic-panel-edge-handle.is-left {
+  transform: translateX(6px);
+}
+/* Hide everything except the rotated bookmark label. */
+.variant-balanced[data-design="signal-studio"] .basic-layout.is-library-collapsed .basic-library-panel.is-docked-hidden > *:not(.pro-collapsed-label) {
   opacity: 0;
-  transform: translateX(calc(-100% - 12px));
+  visibility: hidden;
   pointer-events: none;
 }
-.variant-balanced[data-design="signal-studio"] .basic-panel-edge-handle {
-  top: 9px;
+.variant-balanced[data-design="signal-studio"] .basic-layout.is-library-collapsed .basic-library-panel.is-docked-hidden > .pro-collapsed-label {
+  display: block;
+  position: absolute;
+  top: 50%;
+  left: calc(100% - 20px);
+  transform: translate(-50%, -50%) rotate(-90deg);
+  white-space: nowrap;
+  font: 800 10px var(--font-mono);
+  letter-spacing: .22em;
+  color: var(--text-soft);
+  pointer-events: none;
 }
 
 /* Package colour is carried by the icon and outline, not a split card fill. */

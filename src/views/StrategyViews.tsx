@@ -20,6 +20,8 @@ import { splitPartitionSymbols } from '../lib/strategyPreview';
 import type { PreviewFlow } from '../lib/strategyPreview';
 import { Localized } from '../lib/i18n';
 import {
+  BASIC_SECTION_PADDING,
+  BASIC_STRATEGY_CARD_WIDTH,
   getBasicSectionLayout,
   getDefaultBasicCardPosition,
   getMovedBasicCardPosition,
@@ -230,7 +232,7 @@ interface BlockRuleInput {
 const statusTone = (state: string) => state === '출시 가능' ? 'positive' : 'warning';
 
 interface StrategyHomeProps {
-  openEditor: (mode: EditorMode) => void;
+  openEditor: (mode: EditorMode, blank?: boolean) => void;
 }
 
 export function StrategyHome({ openEditor }: StrategyHomeProps) {
@@ -331,8 +333,8 @@ export function StrategyHome({ openEditor }: StrategyHomeProps) {
       <section role="dialog" aria-modal="true" aria-label="새 전략 선택" className="strategy-create-dialog" onMouseDown={(event) => event.stopPropagation()}>
         <header><div><h2>{showImport ? '기존 전략 가져오기' : '새 전략'}</h2><p>{showImport ? '가져올 전략을 선택하세요.' : '새로 만들거나 기존 전략에서 시작하세요.'}</p></div><button aria-label="새 전략 선택 닫기" onClick={() => { setShowCreate(false); setShowImport(false); }}><X size={18} /></button></header>
         {!showImport ? <div className="strategy-create-options">
-          <button aria-label="Basic으로 시작" onClick={() => { setShowCreate(false); openEditor('basic'); }}><span className="create-icon is-basic"><Boxes size={20} /></span><span><strong>Basic</strong><small>편집기에서 블록으로 구성</small></span><ChevronRight size={18} /></button>
-          <button aria-label="Pro로 시작" onClick={() => { setShowCreate(false); openEditor('pro'); }}><span className="create-icon is-pro"><GitBranch size={20} /></span><span><strong>Pro</strong><small>편집기에서 노드로 구성</small></span><ChevronRight size={18} /></button>
+          <button aria-label="Basic으로 시작" onClick={() => { setShowCreate(false); openEditor('basic', true); }}><span className="create-icon is-basic"><Boxes size={20} /></span><span><strong>Basic</strong><small>편집기에서 블록으로 구성</small></span><ChevronRight size={18} /></button>
+          <button aria-label="Pro로 시작" onClick={() => { setShowCreate(false); openEditor('pro', true); }}><span className="create-icon is-pro"><GitBranch size={20} /></span><span><strong>Pro</strong><small>편집기에서 노드로 구성</small></span><ChevronRight size={18} /></button>
           <button className="create-import-option" aria-label="기존 전략 가져오기" onClick={() => setShowImport(true)}><span className="create-icon is-import"><Import size={20} /></span><span><strong>기존 전략 가져오기</strong><small>원본은 그대로 두고 새 초안 생성</small></span><ChevronRight size={18} /></button>
         </div> : <div className="strategy-import-list">{items.map((strategy) => <button key={strategy.id} aria-label={`${strategy.name} 가져오기`} onClick={() => { setShowCreate(false); setShowImport(false); openEditor(strategy.mode.toLowerCase() as EditorMode); }}><span className={`strategy-mode-icon mode-${strategy.mode.toLowerCase()}`}>{strategy.mode[0]}</span><span><strong>{strategy.name}</strong><small>{strategy.mode} · {strategy.symbols.join(', ')}</small></span><Import size={16} /></button>)}</div>}
       </section>
@@ -376,26 +378,39 @@ const INITIAL_CARD_BLOCKS: Record<string, BasicBlock[]> = {
   'primary-sell': INITIAL_BASIC_BLOCKS.sell,
 };
 
+// A brand-new strategy opens on a blank canvas: one empty partition with no
+// cards, so the required-buy / optional-sell prompts guide the first step.
+const createBlankStrategySections = (): StrategySection[] => [{
+  id: 'section-1',
+  symbol: '',
+  allocation: 100,
+  timeframe: '1분봉',
+  x: 290,
+  y: 108,
+  cards: { buy: [], sell: [], risk: [] },
+  cardOrder: [],
+  cardPositions: {},
+}];
+
 const createDefaultCardBlocks = (_cardId: string, _side: Side): BasicBlock[] => [];
 
 const TEMPLATE_LIBRARY: StrategyTemplate[] = [
   { id: 'streak', name: '연속 상승·하락', category: '가격', indicator: '연속 상승·하락', buyTitle: '연속 상승 매수', sellTitle: '연속 하락 매도', buyOp: '↑', buyValue: '3봉', sellOp: '↓', sellValue: '3봉', buyTone: 'data', sellTone: 'data', description: '연속 상승에서 진입하고 연속 하락에서 정리해요' },
   { id: 'average-breakout', name: '최근 평균 가격 돌파', category: '가격', indicator: '가격 비교', buyTitle: '평균 가격 상향 돌파', sellTitle: '평균 가격 하향 이탈', buyOp: '>', buyValue: '최근 20봉 평균 가격', sellOp: '<', sellValue: '최근 20봉 평균 가격', buyTone: 'data', sellTone: 'data', description: '최근 평균 가격을 기준으로 진입과 청산을 구성해요' },
   { id: 'high-breakout', name: '최근 최고 가격 돌파', category: '가격', indicator: '가격 비교', buyTitle: '최근 최고 가격 돌파', sellTitle: '최근 평균 가격 이탈', buyOp: '>', buyValue: '이전 20봉 최고 가격', sellOp: '<', sellValue: '최근 20봉 평균 가격', buyTone: 'data', sellTone: 'data', description: '새로운 고점을 돌파하면 진입하고 평균 가격 이탈에 정리해요' },
-  { id: 'open-rise', name: '장 시작가 대비 상승', category: '가격', indicator: '가격 변화율', buyTitle: '장 시작가 대비 상승', buyOp: '↑', buyValue: '3%', sellOp: '=', sellValue: '', buyTone: 'data', includeSell: false, riskContainers: [{ title: '당일 장 마감 청산', blocks: [{ label: '보유 기간', tone: 'risk' }] }], description: '장 시작가 대비 상승하면 진입하고 당일 마감에 위기관리로 정리해요' },
-  { id: 'daily-drop', name: '하루 급락 매수', category: '가격', indicator: '가격 변화율', buyTitle: '하루 급락 매수', buyOp: '↓', buyValue: '5%', sellOp: '=', sellValue: '', buyTone: 'data', includeSell: false, riskContainers: [{ title: '다음 거래일 청산', blocks: [{ label: '보유 기간', tone: 'risk' }] }], description: '전일 대비 급락하면 진입하고 다음 거래일에 위기관리로 정리해요' },
+  { id: 'open-rise', name: '장 시작가 대비 상승', category: '가격', indicator: '가격 변화율', buyTitle: '장 시작가 대비 상승', buyOp: '↑', buyValue: '3%', sellOp: '=', sellValue: '', buyTone: 'data', includeSell: false, riskContainers: [{ title: '당일 장 마감 청산', blocks: [{ label: '보유 기간', tone: 'risk' }] }], description: '장 시작가 대비 상승하면 진입해요' },
+  { id: 'daily-drop', name: '하루 급락 매수', category: '가격', indicator: '가격 변화율', buyTitle: '하루 급락 매수', buyOp: '↓', buyValue: '5%', sellOp: '=', sellValue: '', buyTone: 'data', includeSell: false, riskContainers: [{ title: '다음 거래일 청산', blocks: [{ label: '보유 기간', tone: 'risk' }] }], description: '전일 대비 급락하면 진입해요' },
   { id: 'scheduled-buy', name: '정기 매수', category: '일정', indicator: '정기 실행', buyTitle: '정기 매수', buyOp: '=', buyValue: '매 거래일', sellOp: '=', sellValue: '', buyTone: 'time', includeSell: false, description: '선택한 거래 일정마다 매수 요청을 만들어요' },
-  { id: 'donchian', name: 'Donchian 돌파', category: '추세', indicator: '가격 비교', buyTitle: 'Donchian 상향 돌파', sellTitle: 'Donchian 하향 이탈', buyOp: '>', buyValue: '이전 20봉 최고 가격', sellOp: '<', sellValue: '이전 10봉 최저 가격', buyTone: 'indicator', sellTone: 'indicator', buyBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], sellBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], riskContainers: [{ title: '수익 보호 청산', blocks: [{ label: '최고 수익률', tone: 'risk' }, { label: '고점 대비 하락', tone: 'risk' }] }], description: '가격 범위 돌파를 추세로 확인하고 수익 되돌림까지 관리해요' },
+  { id: 'donchian', name: 'Donchian 돌파', category: '추세', indicator: '가격 비교', buyTitle: 'Donchian 상향 돌파', sellTitle: 'Donchian 하향 이탈', buyOp: '>', buyValue: '이전 20봉 최고 가격', sellOp: '<', sellValue: '이전 10봉 최저 가격', buyTone: 'indicator', sellTone: 'indicator', buyBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], sellBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], riskContainers: [{ title: '수익 보호 청산', blocks: [{ label: '최고 수익률', tone: 'risk' }, { label: '고점 대비 하락', tone: 'risk' }] }], description: '가격 범위 돌파를 추세로 확인하고 하향 이탈에 정리해요' },
   { id: 'rsi', name: 'RSI 반등', category: '반전', indicator: 'RSI 반등', buyTitle: 'RSI 반등 매수', sellTitle: 'RSI 하락 매도', buyOp: '↑', buyValue: '30', sellOp: '↓', sellValue: '70', description: 'RSI가 낮은 구간에서 반등하면 사고 높은 구간에서 하락하면 정리해요' },
   { id: 'sma', name: 'SMA 교차', category: '추세', indicator: '평균선 교차', buyOp: '↑', buyValue: '20봉 · 60봉', sellOp: '↓', sellValue: '20봉 · 60봉', description: '짧은 평균선과 긴 평균선의 교차를 따라가요' },
   { id: 'macd', name: 'MACD 전환', category: '반전', indicator: 'MACD 전환', buyOp: '↑', buyValue: '12 · 26 · 9', sellOp: '↓', sellValue: '12 · 26 · 9', description: 'MACD가 상승 또는 하락 신호로 전환되는 순간을 찾아요' },
-  { id: 'bollinger', name: 'Bollinger 반전', category: '반전', indicator: '가격 띠 반전', buyOp: '↑', buyValue: '20봉 · 2σ', sellOp: '↓', sellValue: '20봉 · 2σ', buyBlocks: [{ label: '가격 띠 반전', tone: 'condition' }, { label: 'RSI 반등', tone: 'condition' }], sellBlocks: [{ label: '가격 띠 반전', tone: 'condition' }, { label: 'RSI 반등', tone: 'condition' }], riskContainers: [{ title: '손실 제한 청산', blocks: [{ label: '현재 수익률', tone: 'risk' }] }], description: '가격 띠 복귀를 RSI로 확인하고 손실 제한까지 함께 구성해요' },
+  { id: 'bollinger', name: 'Bollinger 반전', category: '반전', indicator: '가격 띠 반전', buyOp: '↑', buyValue: '20봉 · 2σ', sellOp: '↓', sellValue: '20봉 · 2σ', buyBlocks: [{ label: '가격 띠 반전', tone: 'condition' }, { label: 'RSI 반등', tone: 'condition' }], sellBlocks: [{ label: '가격 띠 반전', tone: 'condition' }, { label: 'RSI 반등', tone: 'condition' }], riskContainers: [{ title: '손실 제한 청산', blocks: [{ label: '현재 수익률', tone: 'risk' }] }], description: '가격 띠 복귀를 RSI로 확인하고 띠 상단 이탈에 정리해요' },
 ];
 
 const getTemplateStructureLabel = (template: StrategyTemplate) => [
   `매수 ${template.buyBlocks?.length ?? 1}`,
   ...(template.includeSell === false ? [] : [`매도 ${template.sellBlocks?.length ?? 1}`]),
-  ...((template.riskContainers?.length ?? 0) > 0 ? [`위기 ${template.riskContainers!.length}`] : []),
 ].join(' · ');
 
 const BLOCK_LIBRARY: BlockLibraryCategory[] = [
@@ -403,7 +418,6 @@ const BLOCK_LIBRARY: BlockLibraryCategory[] = [
   { name: '추세', tone: 'indicator', items: ['평균선 교차'] },
   { name: '반전', tone: 'condition', items: ['RSI 반등', 'MACD 전환', '가격 띠 반전'] },
   { name: '일정', tone: 'time', items: ['정기 실행'] },
-  { name: '위기관리', tone: 'risk', items: ['현재 수익률', '보유 기간', '최고 수익률', '고점 대비 하락'] },
 ];
 
 const BASIC_FAVORITE_BLOCKS_STORAGE_KEY = 'i2s-basic-editor-favorite-blocks-v1';
@@ -525,7 +539,6 @@ const getBlockLibraryDescription = (label: string): string => ({
 const BASIC_VALIDATION_EMPHASIS = [
   '매수 전략 카드',
   '매도 전략 카드',
-  '위기관리 전략 카드',
   '매도 비율',
   '입력하지 않은',
   '블록 설정',
@@ -979,28 +992,29 @@ export const ReadOnlyStrategyBlock = ({
 
 interface BasicEditorProps {
   goBack: () => void;
-  openEditor?: (mode: EditorMode) => void;
+  openEditor?: (mode: EditorMode, blank?: boolean) => void;
   onLaunchBot?: (bot: { name: string; description: string }) => void;
+  blank?: boolean;
 }
 
-export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProps) {
+export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: BasicEditorProps) {
   const [activeSectionId, setActiveSectionId] = useState('section-1');
-  const [selectedCardId, setSelectedCardId] = useState<string | null>('primary-buy');
-  const [sections, setSections] = useState<StrategySection[]>(INITIAL_STRATEGY_SECTIONS);
-  const [cardBlocks, setCardBlocks] = useState<Record<string, BasicBlock[]>>(INITIAL_CARD_BLOCKS);
-  const [cardMeta, setCardMeta] = useState<Record<string, CardMeta>>(INITIAL_CARD_META);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(blank ? null : 'primary-buy');
+  const [sections, setSections] = useState<StrategySection[]>(blank ? createBlankStrategySections : INITIAL_STRATEGY_SECTIONS);
+  const [cardBlocks, setCardBlocks] = useState<Record<string, BasicBlock[]>>(blank ? {} : INITIAL_CARD_BLOCKS);
+  const [cardMeta, setCardMeta] = useState<Record<string, CardMeta>>(blank ? {} : INITIAL_CARD_META);
   const [editingCardTitleId, setEditingCardTitleId] = useState<string | null>(null);
   const [cardTitleDraft, setCardTitleDraft] = useState('');
   const [expandedSettingsCardId, setExpandedSettingsCardId] = useState<string | null>(null);
-  const [buySettings, setBuySettings] = useState<Record<string, BuyContainerSettings>>({
-    'primary-buy': createDefaultBuySettings(),
-  });
-  const [sellSettings, setSellSettings] = useState<Record<string, SellContainerSettings>>({
-    'primary-sell': createDefaultSellSettings(),
-  });
-  const [symbolLimits, setSymbolLimits] = useState<Record<string, Record<string, number>>>({
-    'section-1': { AAPL: 40, MSFT: 40, SPY: 40 },
-  });
+  const [buySettings, setBuySettings] = useState<Record<string, BuyContainerSettings>>(
+    blank ? {} : { 'primary-buy': createDefaultBuySettings() },
+  );
+  const [sellSettings, setSellSettings] = useState<Record<string, SellContainerSettings>>(
+    blank ? {} : { 'primary-sell': createDefaultSellSettings() },
+  );
+  const [symbolLimits, setSymbolLimits] = useState<Record<string, Record<string, number>>>(
+    blank ? { 'section-1': {} } : { 'section-1': { AAPL: 40, MSFT: 40, SPY: 40 } },
+  );
   const [symbolManagerSectionId, setSymbolManagerSectionId] = useState<string | null>(null);
   const [draggedBlock, setDraggedBlock] = useState<{ cardId: string; blockId: string } | null>(null);
   const [libraryDrag, setLibraryDrag] = useState<LibraryDragPayload | null>(null);
@@ -1170,10 +1184,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
 
   const focusValidationIssue = (issue: ValidationIssue) => {
     if (issue.sectionId) setActiveSectionId(issue.sectionId);
-    if (issue.cardId) {
-      setSelectedCardId(issue.cardId);
-      setSelectedCardIds([issue.cardId]);
-    }
+    // Jumping to a warning highlights the exact field (validationFocus) but must
+    // not select the card — the natural-language overlay would obscure the fix.
+    setSelectedCardId(null);
+    setSelectedCardIds([]);
     const field: 'blocks' | 'sellPercent' | 'empty' | 'section' = issue.cardId === null
       ? 'section'
       : issue.id.endsWith('-empty')
@@ -1190,6 +1204,18 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
   useEffect(() => {
     window.localStorage.setItem(BASIC_FAVORITE_BLOCKS_STORAGE_KEY, JSON.stringify(favoriteBlockLabels));
   }, [favoriteBlockLabels]);
+  // The settings popover is a lightweight overlay — dismiss it when the user
+  // clicks anywhere outside it (excluding the toggle/close controls themselves).
+  useEffect(() => {
+    if (!expandedSettingsCardId) return;
+    const closeOnOutside = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest('.container-settings-card') || target?.closest('[aria-label*="실행 설정"]')) return;
+      setExpandedSettingsCardId(null);
+    };
+    document.addEventListener('pointerdown', closeOnOutside);
+    return () => document.removeEventListener('pointerdown', closeOnOutside);
+  }, [expandedSettingsCardId]);
   const captureEditorSnapshot = (): BasicEditorSnapshot => cloneBasicEditorSnapshot({
     sections,
     cardBlocks,
@@ -1500,6 +1526,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', blockId);
     setDraggedBlock({ cardId, blockId });
+    // Picking up a block clears card selection so the natural-language overlay
+    // turns off, making it easy to drop the block onto a different card.
+    setSelectedCardId(null);
+    setSelectedCardIds([]);
   };
 
   const dropBlock = (event: DragEvent<HTMLElement>, targetCardId: string, targetIndex: number) => {
@@ -1532,7 +1562,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     if (!targetSection) return;
     rememberEditorChange();
     const includeSell = template.includeSell !== false;
-    const riskContainers = template.riskContainers ?? [];
+    // Risk-management cards are retired — packages never spawn them.
+    const riskContainers: StrategyTemplateRiskContainer[] = [];
     const firstCardNumber = cardCount + 1;
     const buyCardId = `${targetSection.id}-${template.id}-buy-${firstCardNumber}`;
     const sellCardId = `${targetSection.id}-${template.id}-sell-${firstCardNumber + 1}`;
@@ -1600,7 +1631,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     setAnnouncement(`${template.name} 패키지의 ${addedKinds} 전략 카드를 ${targetSection.id.replace('section-', 'PARTITION ')}에 추가했습니다.`);
   };
 
-  const addLibraryBlock = (label: string, tone: BlockTone, targetCardId: string | null = selectedCardId, targetIndex?: number) => {
+  const addLibraryBlock = (label: string, tone: BlockTone, targetCardId: string | null = selectedCardId, targetIndex?: number, selectCard = true) => {
     if (!targetCardId || !cardBlocks[targetCardId]) {
       setAnnouncement('먼저 블록을 넣을 전략 카드를 선택해 주세요.');
       return;
@@ -1616,8 +1647,15 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       nextBlocks.splice(insertionIndex, 0, createLibraryBlock(label, tone, `${targetCardId}-library-${nextCount}`));
       return { ...current, [targetCardId]: nextBlocks };
     });
-    setSelectedCardId(targetCardId);
-    setSelectedCardIds([targetCardId]);
+    // Dropping a block must not select the card (keeps the natural-language
+    // overlay out of the way while moving blocks); clicking-to-add still selects.
+    if (selectCard) {
+      setSelectedCardId(targetCardId);
+      setSelectedCardIds([targetCardId]);
+    } else {
+      setSelectedCardId(null);
+      setSelectedCardIds([]);
+    }
     setAnnouncement(`${label} 블록을 대상 전략 카드에 추가했습니다.`);
   };
 
@@ -1742,7 +1780,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     if (libraryDrag?.type !== 'block') return false;
     event.preventDefault();
     event.stopPropagation();
-    addLibraryBlock(libraryDrag.label, libraryDrag.tone, targetCardId, targetIndex);
+    addLibraryBlock(libraryDrag.label, libraryDrag.tone, targetCardId, targetIndex, false);
     finishLibraryDrag();
     return true;
   };
@@ -1918,7 +1956,16 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       (cardId, index) => section.cardPositions?.[cardId] ?? getDefaultCardPosition(index),
       cardSizes,
     );
-    return { width: Math.max(600, layout.width), height: Math.max(430, layout.height) };
+    // The empty-column placeholders (required buy / optional sell) sit at the real
+    // card slots, so reserve room for whichever is shown or the frame clips them.
+    // The sell slot lives in the second column and is the widest reservation.
+    const placeholderRight = section.cards.sell.length === 0
+      ? getDefaultCardPosition(1).x + BASIC_STRATEGY_CARD_WIDTH
+      : section.cards.buy.length === 0
+        ? getDefaultCardPosition(0).x + BASIC_STRATEGY_CARD_WIDTH
+        : 0;
+    const reservedWidth = placeholderRight ? placeholderRight + BASIC_SECTION_PADDING : 0;
+    return { width: Math.max(600, layout.width, reservedWidth), height: Math.max(430, layout.height) };
   };
 
   /*
@@ -2136,18 +2183,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
       rememberEditorChange();
       const sectionNumber = sections.length + 1;
       const sectionId = `section-${sectionNumber}`;
-      const buyCardId = `${sectionId}-buy-1`;
-      setCardBlocks((current) => ({ ...current, [buyCardId]: createDefaultCardBlocks(buyCardId, 'buy') }));
-      setCardMeta((current) => ({
-        ...current,
-        [buyCardId]: {
-          title: '매수 전략',
-          detail: '직접 구성 · 블록을 추가해 보세요',
-          explanation: '왼쪽 라이브러리의 블록 탭에서 조건을 골라 매수 규칙을 구성합니다.',
-        },
-      }));
-      setBuySettings((current) => ({ ...current, [buyCardId]: createDefaultBuySettings() }));
       setSymbolLimits((current) => ({ ...current, [sectionId]: {} }));
+      // A new partition starts empty — the required-buy prompt guides the first card.
       setSections((current) => [...current, {
         id: sectionId,
         symbol: '종목 선택',
@@ -2157,14 +2194,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         y: draftRect.y,
         width: Math.max(600, draftRect.width),
         minHeight: Math.max(340, draftRect.height),
-        cards: { buy: [buyCardId], sell: [], risk: [] },
-        cardOrder: [buyCardId],
-        cardPositions: { [buyCardId]: getDefaultCardPosition(0) },
+        cards: { buy: [], sell: [], risk: [] },
+        cardOrder: [],
+        cardPositions: {},
       }]);
       setActiveSectionId(sectionId);
-      setSelectedCardId(buyCardId);
-      setSelectedCardIds([buyCardId]);
-      setAnnouncement(`PARTITION ${String(sectionNumber).padStart(2, '0')}을 만들었습니다. 매수 전략 카드가 기본으로 포함됩니다.`);
+      setSelectedCardId(null);
+      setSelectedCardIds([]);
+      setAnnouncement(`PARTITION ${String(sectionNumber).padStart(2, '0')}을 만들었습니다. 매수 전략 카드를 추가해 시작하세요.`);
     }
     if (drawStart) setDrawMode(false);
     setDrawStart(null);
@@ -2347,8 +2384,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
             aria-expanded={expandedSettingsCardId === cardId}
             onClick={(event) => {
               event.stopPropagation();
-              setSelectedCardId(cardId);
-              setSelectedCardIds([cardId]);
+              // Opening settings must not select the card / show the narrative overlay.
+              setSelectedCardId(null);
+              setSelectedCardIds([]);
               setExpandedSettingsCardId((current) => current === cardId ? null : cardId);
             }}
           ><Settings2 size={12} /></button>}
@@ -2362,7 +2400,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
             블록에서 직접 편집하므로, 설정창에는 반복 진입만 남겨 중복을 없앴습니다. */}
         <label className="setting-toggle"><input type="checkbox" aria-label="반복 진입 허용" checked={settings.allowAdditionalBuy} onChange={(event) => {
           rememberEditorChange();
-          setSelectedCardId(cardId);
           setBuySettings((current) => ({ ...current, [cardId]: { ...settings, allowAdditionalBuy: event.target.checked } }));
         }} /><span><strong>반복 진입</strong><small>조건이 다시 맞으면 재진입</small></span></label>
         {settings.allowAdditionalBuy && <div className="additional-buy-settings">
@@ -2379,7 +2416,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
         {/* 매도 비율은 카드 하단 요청 블록에서 편집하므로, 설정창에는 반복 매도만 둡니다. */}
         <label className="setting-toggle"><input type="checkbox" aria-label="반복 매도 허용" checked={sellExecution.allowRepeatSell} onChange={(event) => {
           rememberEditorChange();
-          setSelectedCardId(cardId);
           setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), allowRepeatSell: event.target.checked } }));
         }} /><span><strong>반복 매도</strong><small>조건이 다시 맞으면 추가 매도</small></span></label>
         {sellExecution.allowRepeatSell && <div className="additional-buy-settings">
@@ -2515,10 +2551,11 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
     </div>
     <div ref={basicLayoutRef} className={`editor-layout basic-layout full-editor-workspace ${templatesCollapsed ? 'is-library-collapsed' : ''} ${highlightValidation ? 'is-validation-highlighting' : ''}`} data-testid="basic-editor-workspace">
       <div className="basic-editor-left-rail" data-testid="basic-editor-left-rail">
-        <aside className={`editor-palette basic-library-panel panel floating-editor-panel ${templatesCollapsed ? 'is-docked-hidden' : ''}`} data-collapse-direction="left" data-testid="basic-library-panel" aria-hidden={templatesCollapsed}>
+        <aside className={`editor-palette basic-library-panel panel floating-editor-panel ${templatesCollapsed ? 'is-docked-hidden' : ''}`} data-collapse-direction="left" data-testid="basic-library-panel" aria-hidden={templatesCollapsed} onClick={templatesCollapsed ? () => setTemplatesCollapsed(false) : undefined}>
+          <span className="pro-collapsed-label" aria-hidden="true">BLOCK LIBRARY</span>
           <div className="palette-title"><span>LIBRARY</span><Boxes size={15} /><button ref={libraryCollapseButtonRef} type="button" className="sidebar-toggle" aria-label={`라이브러리 ${templatesCollapsed ? '펼치기' : '접기'}`} aria-expanded={!templatesCollapsed} onClick={() => templatesCollapsed ? setTemplatesCollapsed(false) : collapseLibrary()}>{templatesCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}</button></div>
           <p className="library-intro">{libraryView === 'packages'
-            ? '원하는 방식을 고르면 매수·매도·위기관리 전략 카드를 함께 구성합니다.'
+            ? '원하는 방식을 고르면 매수·매도 전략 카드를 함께 구성합니다.'
             : '전략 카드를 선택한 뒤 블록을 클릭하거나 원하는 위치로 드래그하세요.'}</p>
           <div className="basic-library-tabs pro-library-primary-tabs" role="tablist" aria-label="전략 라이브러리">
             <button type="button" role="tab" aria-selected={libraryView === 'blocks'} className={libraryView === 'blocks' ? 'active' : ''} onClick={() => setLibraryView('blocks')}>블록 <b>{BLOCK_LIBRARY.reduce((count, category) => count + category.items.length, 0)}</b></button>
@@ -2550,7 +2587,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
               </Fragment>)}
             </div>
           </div> : <div className="basic-library-view" data-testid="basic-block-library">
-            <label className="palette-search"><Search size={14} /><input aria-label="블록 검색" placeholder="가격, RSI, 위기관리" value={blockQuery} onChange={(event) => setBlockQuery(event.target.value)} /></label>
+            <label className="palette-search"><Search size={14} /><input aria-label="블록 검색" placeholder="가격, RSI, 평균선" value={blockQuery} onChange={(event) => setBlockQuery(event.target.value)} /></label>
             <div className="block-category-list pro-library-scroll">
               {favoriteBlockLabels.length > 0 && <section className="block-category pro-library-category is-input-group basic-library-favorites tone-condition" role="region" aria-label="즐겨찾는 블록">
                 <header className="block-category-divider is-sticky"><span><Star size={11} fill="currentColor" /> 즐겨찾기</span><b>{favoriteBlockLabels.length}</b></header>
@@ -2568,8 +2605,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           </div>}
         </aside>
       </div>
-      {templatesCollapsed && <button type="button" className="pro-panel-edge-handle basic-panel-edge-handle is-panel-title-height is-left" style={{ top: libraryReopenTop }} aria-label="라이브러리 펼치기" onClick={() => setTemplatesCollapsed(false)}>
-        <Boxes size={15} aria-hidden="true" /><ChevronRight size={13} aria-hidden="true" />
+      {templatesCollapsed && <button type="button" className="pro-panel-edge-handle basic-panel-edge-handle is-panel-title-height is-left" aria-label="라이브러리 펼치기" onClick={() => setTemplatesCollapsed(false)}>
+        <ChevronRight size={15} aria-hidden="true" />
       </button>}
       <section
         className="editor-canvas basic-canvas"
@@ -2629,7 +2666,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
             >
               <header className="strategy-section-header">
                 <button className="section-move-handle" data-testid={`${section.id}-move-handle`} aria-label={`PARTITION ${sectionNumber} 이동`} onPointerDown={(event) => beginSectionMove(event, section)}><GripVertical size={16} /></button>
-                <div className="section-identity"><span>PARTITION {sectionNumber}</span><strong>{section.symbol}</strong><small>매수 {section.cards.buy.length} · 매도 {section.cards.sell.length} · 위기관리 {section.cards.risk.length}</small></div>
+                <div className="section-identity"><span>PARTITION {sectionNumber}</span><strong>{section.symbol}</strong><small>매수 {section.cards.buy.length} · 매도 {section.cards.sell.length}</small></div>
                 <div className="section-settings">
                   <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="거래 종목">종목</span><button type="button" className="section-symbol-manager" aria-label={`PARTITION ${sectionNumber} 종목 관리`} onClick={() => setSymbolManagerSectionId(section.id)}><strong>{splitPartitionSymbols(section.symbol).length || 0}개 종목</strong><small>한도 설정</small></button></label>
                   <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="전체 전략 대비 예산">예산</span><span className="section-allocation"><input type="number" min=".1" max="100" step=".1" aria-label={`PARTITION ${sectionNumber} 전체 전략 대비 예산`} value={section.allocation} onWheel={(event) => event.stopPropagation()} onChange={(event) => updateSection(section.id, { allocation: Number(event.target.value) })} /><b>%</b></span></label>
@@ -2638,7 +2675,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
                 <div className="section-card-actions">
                   <button className="tone-buy" aria-label={`PARTITION ${sectionNumber} 매수 전략 추가`} onClick={() => addStrategyCard(section.id, 'buy')}><Plus size={13} /> 매수</button>
                   <button className="tone-sell" aria-label={`PARTITION ${sectionNumber} 매도 전략 추가`} onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={13} /> 매도</button>
-                  <button className="tone-risk" aria-label={`PARTITION ${sectionNumber} 위기관리 전략 추가`} onClick={() => addStrategyCard(section.id, 'risk')}><Plus size={13} /> 위기관리</button>
                   <button
                     className={`section-preview-button ${previewSectionId === section.id ? 'active' : ''}`}
                     aria-label={`PARTITION ${sectionNumber} 전략 미리보기`}
@@ -2663,7 +2699,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
                   aria-label={`PARTITION ${sectionNumber} 필수 매수 전략 추가`}
                   onClick={() => addStrategyCard(section.id, 'buy')}
                 ><TriangleAlert size={18} /><strong>매수 전략이 필요해요</strong><span>필수 항목 · 추가해야 출시할 수 있어요</span></button>}
-                {section.cards.sell.length === 0 && <button className="optional-sell-slot" onClick={() => addStrategyCard(section.id, 'sell')}><Plus size={18} /><strong>매도 전략 추가</strong><span>선택 사항 · 없어도 저장할 수 있어요</span></button>}
               </div>
             </article>;
           })}
@@ -3084,7 +3119,7 @@ const PRO_TIMEFRAMES = ['1분', '5분', '15분', '1시간', '1일'];
 
 interface ProEditorProps {
   goBack: () => void;
-  openEditor?: (mode: EditorMode) => void;
+  openEditor?: (mode: EditorMode, blank?: boolean) => void;
 }
 
 function LegacyProEditor({ goBack, openEditor }: ProEditorProps) {

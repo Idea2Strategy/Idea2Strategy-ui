@@ -128,7 +128,7 @@ describe('Pro editor infinite canvas', () => {
     expect(world).toHaveStyle('transform: translate3d(0px, 0px, 0) scale(1)');
   });
 
-  test('collapses an empty inspector while navigating and reopens it when a node is selected', () => {
+  test('keeps a collapsed inspector closed on node selection and reopens it only from validation', () => {
     render(<ProEditor goBack={() => {}} />);
 
     const surface = screen.getByTestId('pro-graph-surface');
@@ -136,12 +136,18 @@ describe('Pro editor infinite canvas', () => {
     fireEvent.pointerUp(surface, { clientX: 70, clientY: 70, pointerId: 13 });
     expect(screen.getByTestId('pro-editor-workspace')).toHaveClass('is-inspector-collapsed');
 
+    // Selecting a node updates the inspector contents but must not force a
+    // collapsed panel back open.
     fireEvent.pointerDown(screen.getByTestId('pro-node-pro-rsi').querySelector('.pro-node-heading strong')!, {
       clientX: 500,
       clientY: 220,
       pointerId: 14,
       button: 0,
     });
+    expect(screen.getByTestId('pro-editor-workspace')).toHaveClass('is-inspector-collapsed');
+
+    // The validation / incomplete-error control is the one exception that reopens it.
+    fireEvent.click(screen.getByRole('button', { name: '검증' }));
     expect(screen.getByTestId('pro-editor-workspace')).not.toHaveClass('is-inspector-collapsed');
   });
 
@@ -394,25 +400,24 @@ describe('Pro editor library and packages', () => {
     expect(screen.getByRole('button', { name: '설정 패널 펼치기' })).toBeInTheDocument();
   });
 
-  test('keeps the inspector reopen control at the same height for automatic and manual collapse', async () => {
+  test('shows the inspector reopen control for both automatic and manual collapse', async () => {
     const user = userEvent.setup();
     render(<ProEditor goBack={() => {}} />);
 
     const workspace = screen.getByTestId('pro-editor-workspace');
-    const collapseButton = screen.getByRole('button', { name: '설정 패널 접기' });
-    vi.spyOn(workspace, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 10, top: 10, left: 0, right: 1200, bottom: 800, width: 1200, height: 790, toJSON: () => ({}) });
-    vi.spyOn(collapseButton, 'getBoundingClientRect').mockReturnValue({ x: 1150, y: 100, top: 100, left: 1150, right: 1180, bottom: 130, width: 30, height: 30, toJSON: () => ({}) });
-
     const surface = screen.getByTestId('pro-graph-surface');
+    // The collapsed bookmark's reopen arrow is fixed at the bookmark's vertical
+    // centre (CSS), so it appears for automatic collapse (clicking empty canvas)…
     fireEvent.pointerDown(surface, { clientX: 70, clientY: 70, pointerId: 31, button: 0 });
     fireEvent.pointerUp(surface, { clientX: 70, clientY: 70, pointerId: 31 });
-    expect(screen.getByRole('button', { name: '설정 패널 펼치기' })).toHaveStyle({ top: '90px' });
-
+    expect(workspace).toHaveClass('is-inspector-collapsed');
     await user.click(screen.getByRole('button', { name: '설정 패널 펼치기' }));
-    const manualCollapseButton = screen.getByRole('button', { name: '설정 패널 접기' });
-    vi.spyOn(manualCollapseButton, 'getBoundingClientRect').mockReturnValue({ x: 1150, y: 100, top: 100, left: 1150, right: 1180, bottom: 130, width: 30, height: 30, toJSON: () => ({}) });
-    await user.click(manualCollapseButton);
-    expect(screen.getByRole('button', { name: '설정 패널 펼치기' })).toHaveStyle({ top: '90px' });
+    expect(workspace).not.toHaveClass('is-inspector-collapsed');
+
+    // …and again for manual collapse.
+    await user.click(screen.getByRole('button', { name: '설정 패널 접기' }));
+    expect(workspace).toHaveClass('is-inspector-collapsed');
+    expect(screen.getByRole('button', { name: '설정 패널 펼치기' })).toBeInTheDocument();
   });
 
   test('pins favorite nodes above the categorized library and persists the choice', async () => {
