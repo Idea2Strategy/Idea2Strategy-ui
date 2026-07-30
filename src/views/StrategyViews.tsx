@@ -418,6 +418,7 @@ const BLOCK_LIBRARY: BlockLibraryCategory[] = [
   { name: '추세', tone: 'indicator', items: ['평균선 교차'] },
   { name: '반전', tone: 'condition', items: ['RSI 반등', 'MACD 전환', '가격 띠 반전'] },
   { name: '일정', tone: 'time', items: ['정기 실행'] },
+  { name: '청산', tone: 'risk', items: ['현재 수익률', '보유 기간', '최고 수익률', '고점 대비 하락'] },
 ];
 
 const BASIC_FAVORITE_BLOCKS_STORAGE_KEY = 'i2s-basic-editor-favorite-blocks-v1';
@@ -855,7 +856,7 @@ const CustomBlockSelect = ({ label, value, options, onChange, compact = false }:
     <button
       ref={triggerRef}
       type="button"
-      className={`block-custom-select-trigger tone-${selectedPresentation.tone}`}
+      className={`block-custom-select-trigger${compact ? ` tone-${selectedPresentation.tone}` : ''}`}
       role="combobox"
       aria-label={label}
       aria-haspopup="listbox"

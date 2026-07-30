@@ -7979,6 +7979,13 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .block-custom-select.is-value-select .block-custom-select-trigger {
   border-color: color-mix(in srgb, var(--block-tone-color) 62%, rgba(0,0,0,.24));
 }
+/* A picked value stays on the block's locked white ink over its own tone fill —
+   the semantic option tones live only in the open menu, so the trigger never
+   drifts to an off-block colour (icon included; it is outside the text lock). */
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-value-select .block-custom-select-trigger .select-trigger-value,
+.variant-balanced[data-design="signal-studio"] .block-custom-select.is-value-select .block-custom-select-trigger .select-trigger-value > svg {
+  color: var(--block-tone-ink, #fff);
+}
 
 /* The active insertion edge follows the pointer, including after the last block. */
 .variant-balanced[data-design="signal-studio"] .draggable-strategy-block[data-drop-position="after"]::before {
@@ -9389,23 +9396,25 @@ small.dashboard-bot-scope {
   left — cyan, orange, violet, pink — plus a neutral slate for one category to
   keep the cool hues from crowding, gives five readily separable tones.
 */
-/* Category palette (risk retired, so gold is free again):
-   가격=gold (price = money/value), 추세=cyan (direction), 반전=violet (inflection),
-   일정=slate (schedule). Deep gold keeps white block text legible. */
+/* Category palette. Reds/blues/greens are reserved for buy/sell/US cards and
+   gold for the favorites tab, so categories draw from the remaining hues:
+   가격=orange (value/energy — replaces the muddy dark gold),
+   추세=violet (momentum), 반전=magenta (inflection), 일정=slate (schedule),
+   청산=pink (exit). All stay dark enough to keep white block text legible. */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-data,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-data {
-  --block-tone-color: #9a7010;
-  --block-tone-surface: #9a7010;
+  --block-tone-color: #dd6f12;
+  --block-tone-surface: #dd6f12;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-indicator,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-indicator {
-  --block-tone-color: #0891b2;
-  --block-tone-surface: #0891b2;
+  --block-tone-color: #6d3fd6;
+  --block-tone-surface: #6d3fd6;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-condition,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-condition {
-  --block-tone-color: #7c3aed;
-  --block-tone-surface: #7c3aed;
+  --block-tone-color: #c23bc0;
+  --block-tone-surface: #c23bc0;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-logic,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-logic {
@@ -9414,13 +9423,13 @@ small.dashboard-bot-scope {
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-time,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-time {
-  --block-tone-color: #64748b;
-  --block-tone-surface: #64748b;
+  --block-tone-color: #74849e;
+  --block-tone-surface: #74849e;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-risk,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-risk {
-  --block-tone-color: #db2777;
-  --block-tone-surface: #db2777;
+  --block-tone-color: #ec5385;
+  --block-tone-surface: #ec5385;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-order,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-order {
@@ -9546,22 +9555,25 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper label > b:empty {
   display: none;
 }
-/* Operator/value icons get a white outline so their tone colour stays legible
-   on the saturated block fill. Directional (x/y-offset) drop-shadows chain
-   unevenly — one side builds up thicker (a 3D look) and the diagonals stay
-   empty (angular corners). Zero-offset shadows are radially symmetric, so
-   stacking a few tight ones traces an even, rounded outline with no embossing. */
+/* Operator icons get a white outline so their tone colour stays legible on the
+   saturated pill fill. Directional (x/y-offset) drop-shadows chain unevenly —
+   one side builds up thicker (a 3D look) and the diagonals stay empty (angular
+   corners) — so we keep zero-offset (radially symmetric) shadows. A wide blur
+   reads as a soft gradient halo; tightening the radius and stacking more copies
+   packs the white right at the glyph edge, tracing a crisp, simple outline. */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-relation-icon {
   filter:
-    drop-shadow(0 0 0.5px #fff) drop-shadow(0 0 0.5px #fff)
-    drop-shadow(0 0 0.5px #fff) drop-shadow(0 0 0.5px #fff);
+    drop-shadow(0 0 0.3px #fff) drop-shadow(0 0 0.3px #fff)
+    drop-shadow(0 0 0.3px #fff) drop-shadow(0 0 0.3px #fff)
+    drop-shadow(0 0 0.3px #fff) drop-shadow(0 0 0.3px #fff);
 }
-/* Value dropdowns center their label like the operator pills; the chevron
-   floats at the right, out of the centering flow. */
+/* Value dropdowns left-align their label so the icon hugs the left edge instead
+   of leaving a wide gap when centred; the chevron floats at the right, out of
+   flow, so the right padding just reserves room for it. */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-value-select .block-custom-select-trigger {
   position: relative;
-  justify-content: center;
-  padding-inline: 16px;
+  justify-content: flex-start;
+  padding-inline: 10px 20px;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-value-select .block-custom-select-trigger > svg {
   position: absolute;
