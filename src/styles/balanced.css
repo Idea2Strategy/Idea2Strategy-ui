@@ -12353,8 +12353,6 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.basic-library-favorites {
   --block-tone-color: #d6ae43;
   --category-color: #d6ae43;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line);
 }
 
 .variant-balanced[data-design="signal-studio"] .basic-package-card-stack {

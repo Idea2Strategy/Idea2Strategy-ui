@@ -508,19 +508,19 @@ const getBlockDisplayLabel = (label: string): string => ({
 }[label] ?? label);
 
 const getBlockLibraryDescription = (label: string): string => ({
-  '가격 비교': '기준 가격과 현재가를 비교하는 블록이다.',
-  '가격 변화율': '기준 시점부터의 변화를 확인하는 블록이다.',
-  '연속 상승·하락': '같은 방향의 연속 봉을 확인하는 블록이다.',
-  '평균선 교차': '두 평균선이 만나는 시점을 찾는 블록이다.',
-  'RSI 반등': 'RSI가 방향을 바꾸는지 확인하는 블록이다.',
-  'MACD 전환': 'MACD 신호의 방향 전환을 확인하는 블록이다.',
-  '가격 띠 반전': '가격이 기준 띠로 돌아오는지 확인하는 블록이다.',
-  '정기 실행': '정해 둔 거래 일정에 실행하는 블록이다.',
-  '현재 수익률': '현재 포지션의 수익률을 확인하는 블록이다.',
-  '보유 기간': '진입 뒤 지난 기간을 확인하는 블록이다.',
-  '최고 수익률': '보유 중 기록한 최고 수익을 확인하는 블록이다.',
-  '고점 대비 하락': '최고 수익에서 줄어든 폭을 확인하는 블록이다.',
-}[label] ?? `${getBlockDisplayLabel(label)} 조건을 설정하는 블록이다.`);
+  '가격 비교': '기준 가격과 현재가를 비교합니다',
+  '가격 변화율': '기준 시점부터의 변화를 확인합니다',
+  '연속 상승·하락': '같은 방향의 연속 봉을 확인합니다',
+  '평균선 교차': '두 평균선이 만나는 시점을 찾습니다',
+  'RSI 반등': 'RSI가 방향을 바꾸는지 확인합니다',
+  'MACD 전환': 'MACD 신호의 방향 전환을 확인합니다',
+  '가격 띠 반전': '가격이 기준 띠로 돌아오는지 확인합니다',
+  '정기 실행': '정해 둔 거래 일정에 실행합니다',
+  '현재 수익률': '현재 포지션의 수익률을 확인합니다',
+  '보유 기간': '진입 뒤 지난 기간을 확인합니다',
+  '최고 수익률': '보유 중 기록한 최고 수익을 확인합니다',
+  '고점 대비 하락': '최고 수익에서 줄어든 폭을 확인합니다',
+}[label] ?? `${getBlockDisplayLabel(label)} 조건을 설정합니다`);
 
 const BASIC_VALIDATION_EMPHASIS = [
   '매수 전략 카드',
@@ -2552,7 +2552,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot }: BasicEditorProp
           </div> : <div className="basic-library-view" data-testid="basic-block-library">
             <label className="palette-search"><Search size={14} /><input aria-label="블록 검색" placeholder="가격, RSI, 위기관리" value={blockQuery} onChange={(event) => setBlockQuery(event.target.value)} /></label>
             <div className="block-category-list pro-library-scroll">
-              {favoriteBlockLabels.length > 0 && <section className="block-category pro-library-category basic-library-favorites tone-condition" role="region" aria-label="즐겨찾는 블록">
+              {favoriteBlockLabels.length > 0 && <section className="block-category pro-library-category is-input-group basic-library-favorites tone-condition" role="region" aria-label="즐겨찾는 블록">
                 <header className="block-category-divider is-sticky"><span><Star size={11} fill="currentColor" /> 즐겨찾기</span><b>{favoriteBlockLabels.length}</b></header>
                 <div className="block-chip-list">
                   {favoriteBlockLabels.map((item) => renderLibraryBlock(item, getLibraryBlockTone(item), true))}

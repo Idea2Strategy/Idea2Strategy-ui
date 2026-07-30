@@ -293,7 +293,7 @@ describe('Basic editor interactions', () => {
     renderEditor();
     const blocks = await openBlocks(user);
     expect(within(blocks).queryByText('가격 조건 블록')).not.toBeInTheDocument();
-    expect(within(blocks).getByText('기준 가격과 현재가를 비교하는 블록이다.')).toBeInTheDocument();
+    expect(within(blocks).getByText('기준 가격과 현재가를 비교합니다')).toBeInTheDocument();
     expect(blocks.querySelector('.block-category-divider')).toHaveClass('is-sticky');
   });
 

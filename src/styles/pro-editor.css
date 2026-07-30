@@ -492,17 +492,12 @@
   background: transparent;
 }
 .variant-balanced[data-design="signal-studio"] .pro-library-favorites {
-  /* Favourites read as gold (matching the Basic library's favourite tone). */
-  --category-color: #d6ae43;
+  /* Favourites now share the exact category header style (is-input-group) with
+     a gold --category-color set inline, so no bespoke colouring is needed. */
   margin: 2px 10px 8px;
   padding: 0;
   border: 0;
   background: transparent;
-}
-.variant-balanced[data-design="signal-studio"] .pro-library-favorites > header,
-.variant-balanced[data-design="signal-studio"] .pro-library-favorites > header span,
-.variant-balanced[data-design="signal-studio"] .pro-library-favorites > header b {
-  color: #d6ae43;
 }
 .variant-balanced[data-design="signal-studio"] .pro-library-category strong,
 .variant-balanced[data-design="signal-studio"] .pro-template-section strong {
