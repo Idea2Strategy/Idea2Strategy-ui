@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, test } from 'vitest';
 import { App } from './App';
 
 const balancedStyles = readFileSync(resolve(process.cwd(), 'src/styles/balanced.css'), 'utf8');
+const baseStyles = readFileSync(resolve(process.cwd(), 'src/styles/base.css'), 'utf8');
 
 /* Theme, market colours and language live behind the nav gear, so open it
    first. The trigger keeps its accessible name in both languages. */
@@ -259,6 +260,47 @@ describe('Signal product UI', () => {
     expect(screen.getByRole('dialog', { name: '최근 알림' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
     expect(screen.queryByRole('dialog', { name: '최근 알림' })).not.toBeInTheDocument();
+  });
+
+  test('the top navigation reads and behaves as a row of buttons', () => {
+    /* #74. jsdom applies no stylesheet, so these are asserted against the CSS
+       source — the same way the competition heading rhythm is checked. */
+    const navButtonRule = balancedStyles.match(
+      /\.signal-product-nav > nav button \{([^}]*)\}/,
+    )?.[1] ?? '';
+
+    /* Was 9px, the micro-label floor: too small for the five primary
+       destinations. 11px is the caption tier and still clears the documented
+       86px target for COMPETITION. */
+    expect(navButtonRule).toMatch(/font:\s*700\s*11px/);
+    /* And exactly one rule may own that type. A later `.signal-product-nav >
+       nav button { font: ... }` re-declaration is what pinned the labels at
+       9px while the rule above already said otherwise. */
+    const fontDeclaringRules = balancedStyles.match(
+      /\.signal-product-nav > nav button \{[^}]*\bfont:[^}]*\}/g,
+    ) ?? [];
+    expect(fontDeclaringRules).toHaveLength(1);
+    /* Hover has to say "button": a cursor and a visible surface, not just a
+       faint colour shift on flat text. */
+    expect(navButtonRule).toContain('cursor:pointer');
+    expect(balancedStyles).toMatch(
+      /\.signal-product-nav > nav button:hover \{[^}]*background:\s*var\(--surface-2\)/,
+    );
+
+    const userRule = balancedStyles.match(
+      /\.signal-product-nav \.signal-user \{([^}]*)\}/,
+    )?.[1] ?? '';
+    expect(userRule).toContain('cursor:pointer');
+  });
+
+  test('reserves the scrollbar gutter without forcing a scrollbar on pages that fit', () => {
+    /* #74. The gutter is what keeps navigation from shifting when page height
+       changes; `overflow-y: scroll` additionally painted a track on pages with
+       nothing to scroll. Keep the first, never reintroduce the second. */
+    const htmlRule = baseStyles.match(/(?:^|\n)html \{([^}]*)\}/)?.[1] ?? '';
+
+    expect(htmlRule).toContain('scrollbar-gutter: stable');
+    expect(htmlRule).not.toMatch(/overflow-y:\s*scroll/);
   });
 
   test('does not show a global search box in the top navigation', () => {
