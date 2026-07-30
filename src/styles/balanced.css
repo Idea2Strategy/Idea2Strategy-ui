@@ -9469,13 +9469,17 @@ small.dashboard-bot-scope {
 
 /* Basic editor panels share one visual rhythm and collapse to a compact rail. */
 .variant-balanced[data-design="signal-studio"] .editor-shell-page .basic-editor-left-rail {
-  width: 280px;
-  min-width: 280px;
+  width: var(--basic-panel-width, 280px);
+  min-width: var(--basic-panel-width, 280px);
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-left-rail .basic-validation-summary,
 .variant-balanced[data-design="signal-studio"] .editor-shell-page .basic-editor-left-rail .template-library-panel,
 .variant-balanced[data-design="signal-studio"] .editor-shell-page .editor-inspector {
-  width: 280px;
+  width: var(--basic-panel-width, 280px);
+}
+/* Match the Pro node-library panel width at every breakpoint (Pro: 280px, 260px <=1280px). */
+@media (max-width: 1280px) {
+  .variant-balanced[data-design="signal-studio"] .editor-shell-page { --basic-panel-width: 260px; }
 }
 .variant-balanced[data-design="signal-studio"] .template-library-panel .palette-title,
 .variant-balanced[data-design="signal-studio"] .block-library-panel .inspector-title {
@@ -11731,6 +11735,9 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .palette-search { margin: 0 12px 10px; }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .template-list,
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category-list { padding: 0 10px 12px; }
+/* Match Pro's inter-category spacing: no list gap; the space between a category's last
+   card and the next category comes only from the card margin + category padding-bottom. */
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category-list { gap: 0; }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card {
   position: relative;
   width: 100%;
@@ -11766,7 +11773,9 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-risk { --category-color: #d06f6b; }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-chip-list {
   display: grid;
-  gap: 6px;
+  /* Match Pro's node rhythm: 6px between cards comes from each card's margin-bottom,
+     so the list itself adds no extra gap (Pro uses the same card-margin scheme). */
+  gap: 0;
 }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .library-block-button {
   position: relative;
@@ -12908,6 +12917,26 @@ small.dashboard-bot-scope {
   min-width: 6px;
   padding: 0;
   justify-content: flex-start;
+}
+/* No empty suffix slot — the number / '입력' placeholder centers between −/+. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper label > b:empty {
+  display: none;
+}
+/* Operator/value icons get a white halo so their tone colour stays visible on
+   the saturated block fill. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-relation-icon {
+  filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);
+}
+/* Value dropdowns center their label like the operator pills; the chevron
+   floats at the right, out of the centering flow. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-value-select .block-custom-select-trigger {
+  position: relative;
+  justify-content: center;
+  padding-inline: 16px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-value-select .block-custom-select-trigger > svg {
+  position: absolute;
+  right: 6px;
 }
 .block-custom-select-menu.is-compact {
   width: 80px !important;
