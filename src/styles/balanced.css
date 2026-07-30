@@ -287,7 +287,11 @@
   content:"";
   position:absolute;
   right:0;
-  bottom:-1px;
+  /* Flush with the bottom edge, not 1px past it. The bleed made this row's
+     content taller than the row itself, which is what produced a vertical
+     scrollbar once the row scrolled horizontally — and it would now be the
+     1px this row clips. */
+  bottom:0;
   left:0;
   height:2px;
   transform:scaleX(0);
@@ -1905,6 +1909,11 @@
     grid-column:1 / -1;
     grid-row:2;
     overflow-x:auto;
+    /* CSS promotes `visible` to `auto` on the other axis whenever one axis
+       scrolls, so this row inherited a vertical scrollbar the moment the
+       active item's 2px underline (bottom:-1px) bled 1px past the box. Say
+       hidden explicitly: only the horizontal axis may ever scroll here. */
+    overflow-y:hidden;
     justify-content:flex-start;
   }
   .signal-product-nav > nav button { min-width:max-content; }

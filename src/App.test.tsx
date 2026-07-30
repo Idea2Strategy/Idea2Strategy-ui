@@ -293,6 +293,27 @@ describe('Signal product UI', () => {
     expect(userRule).toContain('cursor:pointer');
   });
 
+  test('the narrow-width nav row scrolls sideways only, never vertically', () => {
+    /* #74. The reported scrollbar was inside the nav row, not on the document:
+       CSS promotes the other axis to `auto` when one axis scrolls, so the row
+       gained a vertical scrollbar as soon as the active item's underline bled
+       past its box. Both halves of the fix are pinned here. */
+    const narrowNavRule = balancedStyles.match(
+      /\.signal-product-nav > nav \{[^}]*overflow-x:\s*auto[^}]*\}/,
+    )?.[0] ?? '';
+
+    expect(narrowNavRule).toContain('overflow-x:auto');
+    expect(narrowNavRule).toMatch(/overflow-y:\s*hidden/);
+
+    /* And the underline must sit inside the box, so `overflow-y: hidden` has
+       nothing to clip. A negative bottom is what caused the overflow. */
+    const underlineRule = balancedStyles.match(
+      /\.signal-product-nav > nav button::after \{([^}]*)\}/,
+    )?.[1] ?? '';
+    expect(underlineRule).toMatch(/bottom:\s*0/);
+    expect(underlineRule).not.toMatch(/bottom:\s*-/);
+  });
+
   test('reserves the scrollbar gutter without forcing a scrollbar on pages that fit', () => {
     /* #74. The gutter is what keeps navigation from shifting when page height
        changes; `overflow-y: scroll` additionally painted a track on pages with
