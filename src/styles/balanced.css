@@ -274,24 +274,42 @@
   padding:0;
   border:0;
   background:transparent;
+  cursor:pointer;
   color:var(--text-faint);
-  font:700 9px var(--font-mono);
-  letter-spacing:.08em;
+  /* Caption tier, not the 9px micro-label floor: these are the product's five
+     primary destinations, not incidental metadata. 11px with .06em tracking
+     leaves 7px of slack inside the documented 86px target for the widest
+     label (COMPETITION), so a font fallback cannot make it overflow. */
+  font:700 11px var(--font-mono);
+  letter-spacing:.06em;
 }
 .signal-product-nav > nav button::after {
   content:"";
   position:absolute;
   right:0;
-  bottom:-1px;
+  /* Flush with the bottom edge, not 1px past it. The bleed made this row's
+     content taller than the row itself, which is what produced a vertical
+     scrollbar once the row scrolled horizontally — and it would now be the
+     1px this row clips. */
+  bottom:0;
   left:0;
   height:2px;
   transform:scaleX(0);
   background:var(--accent);
   box-shadow:none;
-  transition:transform .16s ease;
+  transition:transform .16s ease, opacity .16s ease;
 }
-.signal-product-nav > nav button:hover { color:var(--text); }
+/* Hover said "this is a link" only by a faint colour shift, which on a nav of
+   flat text was easy to miss. A surface tint plus a ghosted underline makes
+   the hit target itself visible — the same underline the active item wears, at
+   partial strength, so hovering previews where the marker will land. */
+.signal-product-nav > nav button:hover {
+  color:var(--text);
+  background:var(--surface-2);
+}
+.signal-product-nav > nav button:hover::after { transform:scaleX(1); opacity:.4; }
 .signal-product-nav > nav button.active { color:var(--accent); }
+.signal-product-nav > nav button.active::after { opacity:1; }
 .signal-product-nav > nav button.active::after { transform:scaleX(1); }
 .signal-nav-tools { display:flex; align-items:center; justify-content:flex-end; gap:6px; }
 .signal-product-nav .icon-button,
@@ -321,8 +339,9 @@
   border:1px solid var(--line-strong);
   border-radius:4px;
   background:var(--surface-2);
+  cursor:pointer;
   color:var(--text);
-  font:700 10px var(--font-mono);
+  font:700 11px var(--font-mono);
 }
 .signal-product-nav .signal-user i {
   width:6px;
@@ -1890,6 +1909,11 @@
     grid-column:1 / -1;
     grid-row:2;
     overflow-x:auto;
+    /* CSS promotes `visible` to `auto` on the other axis whenever one axis
+       scrolls, so this row inherited a vertical scrollbar the moment the
+       active item's 2px underline (bottom:-1px) bled 1px past the box. Say
+       hidden explicitly: only the horizontal axis may ever scroll here. */
+    overflow-y:hidden;
     justify-content:flex-start;
   }
   .signal-product-nav > nav button { min-width:max-content; }
@@ -3684,11 +3708,14 @@
   justify-self:center;
   gap:0;
 }
+/* Geometry only. The type is declared once, further up with the rest of this
+   button's appearance — re-stating `font` here is what previously pinned the
+   labels at 9px no matter what that rule said. */
 .signal-product-nav > nav button {
   width:86px;
   min-width:86px;
   height:72px;
-  font:700 9px/1 var(--font-mono);
+  line-height:1;
 }
 .signal-product-nav > nav button:focus-visible {
   outline:0;
