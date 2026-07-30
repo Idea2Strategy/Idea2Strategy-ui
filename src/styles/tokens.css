@@ -302,12 +302,24 @@
   --gain-soft: #1c3328;
   --loss: #ff7c88;
   --loss-soft: #3a1e23;
+
+  /* Order direction follows the same convention: US buy sits on the gain hue
+     (green), sell on the loss hue (red), so strategy cards match the chart. */
+  --buy-block-color: rgb(52, 179, 125);
+  --sell-block-color: rgb(240, 66, 81);
+  --buy-text: #57d39b;
+  --sell-text: #ff7c88;
 }
 .theme-light[data-updown="us"] {
   --gain: #1f7a55;
   --gain-soft: #e3f2ea;
   --loss: #c92f3f;
   --loss-soft: #fce9eb;
+
+  --buy-block-color: rgb(23, 138, 92);
+  --sell-block-color: rgb(226, 52, 67);
+  --buy-text: #1f7a55;
+  --sell-text: #c92f3f;
 }
 
 /* Respect the OS preference for reduced motion everywhere, not per component. */

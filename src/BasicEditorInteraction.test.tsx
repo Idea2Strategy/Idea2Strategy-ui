@@ -193,9 +193,7 @@ describe('Basic editor interactions', () => {
     expect(within(buySettings).getByRole('checkbox', { name: '반복 진입 허용' })).not.toBeChecked();
     expect(within(buySettings).getByText('조건이 다시 맞으면 재진입')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '매도 전략 실행 설정' }));
-    const sellSettings = screen.getByRole('group', { name: '매도 실행 설정' });
-    expect(within(sellSettings).getByRole('spinbutton', { name: '매도 비율' })).toHaveValue(null);
+    expect(screen.getByRole('spinbutton', { name: '매도 비율' })).toHaveValue(null);
     expect(screen.getByTestId('sell-order-block')).toHaveTextContent('매도 요청');
     expect(screen.queryByText('전량 매도')).not.toBeInTheDocument();
   });
@@ -295,7 +293,7 @@ describe('Basic editor interactions', () => {
     renderEditor();
     const blocks = await openBlocks(user);
     expect(within(blocks).queryByText('가격 조건 블록')).not.toBeInTheDocument();
-    expect(within(blocks).getByText('기준 가격과 현재가를 비교하는 블록이다.')).toBeInTheDocument();
+    expect(within(blocks).getByText('기준 가격과 현재가를 비교합니다')).toBeInTheDocument();
     expect(blocks.querySelector('.block-category-divider')).toHaveClass('is-sticky');
   });
 
@@ -407,7 +405,6 @@ describe('Basic editor interactions', () => {
       await user.click(screen.getByRole('option', { name: direction }));
       await user.type(within(block).getByLabelText('RSI 반등 값'), value);
     }
-    await user.click(screen.getByRole('button', { name: '매도 전략 실행 설정' }));
     await user.type(screen.getByRole('spinbutton', { name: '매도 비율' }), '50');
     await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
 

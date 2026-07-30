@@ -2702,12 +2702,12 @@ export function ProEditor({ goBack, openEditor, onLaunchBot }: ProEditorProps) {
           </button>}
           <div className="pro-library-scroll">
             {libraryView === 'nodes' && favoriteNodeIds.length > 0 && <section
-              className="pro-library-category pro-library-favorites"
+              className="pro-library-category is-input-group pro-library-favorites"
               role="region"
               aria-label="즐겨찾는 노드"
-              style={{ '--category-color': 'var(--accent)' } as CSSProperties}
+              style={{ '--category-color': '#d6ae43' } as CSSProperties}
             >
-              <header className="is-sticky"><Star size={10} fill="currentColor" /><span>즐겨찾기</span><b>{favoriteNodeIds.length}</b></header>
+              <header className="is-sticky"><span><Star size={10} fill="currentColor" /> 즐겨찾기</span><b>{favoriteNodeIds.length}</b></header>
               {favoriteNodeIds.map((id) => BLUEPRINT_BY_ID[id]).filter(Boolean).map((blueprint) => renderLibraryBlueprint(blueprint, true))}
             </section>}
             {libraryView === 'nodes' && groupedLibrary.map(([groupKey, items]) => {

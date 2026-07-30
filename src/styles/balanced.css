@@ -1527,6 +1527,95 @@
   border-top:0;
   background:transparent;
 }
+/*
+  Fixed order terminal: a full-width action block set apart from the draggable
+  condition blocks — solid card colour, white ink, no drag handle — carrying
+  the request line and its (effectively required) ratio inline. Slight margin
+  so it reads as a distinct block on the card's dark surface. A missing sell
+  ratio gets a bright ring to flag the required input.
+*/
+.variant-balanced[data-design="signal-studio"] .strategy-card .terminal-request-block {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 46px;
+  /* No top margin: the stack's own bottom padding is the only gap, so the
+     condition block sits balanced between the header and this terminal
+     instead of being pushed up. */
+  margin: 0 6px 6px;
+  padding: 8px 10px 8px 13px;
+  border-radius: 12px;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22), 0 8px 20px rgba(var(--shadow-rgb), .26);
+}
+.variant-balanced[data-design="signal-studio"] .buy-container .terminal-request-block { background: var(--buy-block-color); }
+.variant-balanced[data-design="signal-studio"] .sell-container .terminal-request-block { background: var(--sell-block-color); }
+/* Risk terminal is the exact same flat mustard as the card header. */
+.variant-balanced[data-design="signal-studio"] .risk-container .terminal-request-block {
+  color: #fff;
+  background: #d9a520;
+}
+/* Plain icon, not a button chip: no fill, just the mark on the card colour. */
+.variant-balanced[data-design="signal-studio"] .terminal-request-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: inherit;
+}
+.variant-balanced[data-design="signal-studio"] .terminal-request-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .01em;
+}
+.variant-balanced[data-design="signal-studio"] .terminal-request-block .terminal-request-ratio.setting-with-unit {
+  flex: 0 0 auto;
+  width: 68px;
+  min-height: 28px;
+  /* White ink (input value + % both inherit this), overriding the themed
+     --text that .setting-with-unit otherwise applies — which turned the value
+     dark on the coloured terminal, especially in light mode. */
+  color: #fff;
+  border-color: rgba(255, 255, 255, .42);
+  /* Same fill as the terminal (transparent); only the border + inset shadow
+     mark the recessed input. */
+  background: transparent;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .28);
+}
+.variant-balanced[data-design="signal-studio"] .risk-container .terminal-request-block .terminal-request-ratio.setting-with-unit {
+  border-color: rgba(47, 38, 10, .3);
+  background: rgba(255, 255, 255, .34);
+}
+.variant-balanced[data-design="signal-studio"] .terminal-request-block .terminal-request-ratio input {
+  width: 100%;
+  padding: 0 4px 0 8px;
+  color: inherit;
+  text-align: right;
+  font: 800 12px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .terminal-request-block .terminal-request-ratio input::placeholder { color: rgba(255, 255, 255, .7); }
+.variant-balanced[data-design="signal-studio"] .terminal-request-block .terminal-request-ratio b { color: inherit; opacity: .72; }
+/* No extra white ring for an unset sell ratio — the validation drawer/error
+   highlight already flags it. It just uses the normal recessed input look. */
+.variant-balanced[data-design="signal-studio"] .terminal-request-block.is-unset .terminal-request-ratio.setting-with-unit {
+  background: transparent;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .28);
+}
+/* Card value inputs shouldn't show the global green (accent) focus outline —
+   it read as an off-tone, misaligned ring. Focus is conveyed by the recessed
+   well and, for the terminal ratio, a subtle white border. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card input:focus,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card input:focus-visible,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select-trigger:focus-visible {
+  outline: none;
+}
+.variant-balanced[data-design="signal-studio"] .terminal-request-block .terminal-request-ratio.setting-with-unit:focus-within {
+  border-color: #fff;
+}
 .variant-balanced[data-design="signal-studio"] .block-stack {
   padding-bottom: 14px;
 }
@@ -5051,7 +5140,9 @@
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--line-strong) 84%, transparent);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--surface) 98%, transparent);
+  /* Transparent body so blocks sit directly on the canvas instead of a second
+     dark/white panel that made the layering read as overly deep. */
+  background: transparent;
   box-shadow: 0 10px 28px rgba(var(--shadow-rgb), .13);
 }
 .variant-balanced[data-design="signal-studio"] .strategy-card .strategy-container-header {
@@ -5067,8 +5158,9 @@
 }
 .variant-balanced[data-design="signal-studio"] .strategy-card .strategy-container-header::after { display: none; }
 .variant-balanced[data-design="signal-studio"] .risk-container .strategy-container-header {
-  color: #2f260a;
-  background: linear-gradient(135deg, #edc84c, #d9a827);
+  color: #fff;
+  /* Flat, brighter mustard (no gradient, no text shadow). */
+  background: #d9a520;
 }
 .variant-balanced[data-design="signal-studio"] .container-symbol {
   width: 26px;
@@ -5436,6 +5528,48 @@
   gap: 10px;
   padding: 16px 22px 20px;
   border-top: 1px solid var(--line);
+}
+/*
+ * The dialog is portalled to <body>, outside the `.variant-balanced` scope, so
+ * the themed `.setting-with-unit` input styles don't reach it and the number
+ * fields fell back to the native white box. Restyle them here (unscoped) to
+ * match the rest of the app.
+ */
+.symbol-manager-list .setting-with-unit {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding-right: 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  color: var(--text);
+  background: var(--surface);
+}
+.symbol-manager-list .setting-with-unit:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line-strong));
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.symbol-manager-list .setting-with-unit input {
+  width: 100%;
+  min-width: 0;
+  padding: 0 10px;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  font: 800 14px var(--font-mono);
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.symbol-manager-list .setting-with-unit input:focus-visible { outline: none; }
+.symbol-manager-list .setting-with-unit input::-webkit-inner-spin-button,
+.symbol-manager-list .setting-with-unit input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.symbol-manager-list .setting-with-unit b {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font: 800 10px var(--font-mono);
 }
 .snapshot-read-only-card .block-with-copy.is-read-only { cursor: default; }
 .snapshot-read-only-card .block-with-copy.is-read-only .block-drag-handle { opacity: .38; }
@@ -6825,13 +6959,17 @@ small.dashboard-bot-scope {
 
 /* Basic editor panels share one visual rhythm and collapse to a compact rail. */
 .variant-balanced[data-design="signal-studio"] .editor-shell-page .basic-editor-left-rail {
-  width: 280px;
-  min-width: 280px;
+  width: var(--basic-panel-width, 280px);
+  min-width: var(--basic-panel-width, 280px);
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-left-rail .basic-validation-summary,
 .variant-balanced[data-design="signal-studio"] .editor-shell-page .basic-editor-left-rail .template-library-panel,
 .variant-balanced[data-design="signal-studio"] .editor-shell-page .editor-inspector {
-  width: 280px;
+  width: var(--basic-panel-width, 280px);
+}
+/* Match the Pro node-library panel width at every breakpoint (Pro: 280px, 260px <=1280px). */
+@media (max-width: 1280px) {
+  .variant-balanced[data-design="signal-studio"] .editor-shell-page { --basic-panel-width: 260px; }
 }
 .variant-balanced[data-design="signal-studio"] .template-library-panel .palette-title,
 .variant-balanced[data-design="signal-studio"] .block-library-panel .inspector-title {
@@ -6956,14 +7094,14 @@ small.dashboard-bot-scope {
 }
 .variant-balanced[data-design="signal-studio"] .risk-container .container-title-tags > span,
 .variant-balanced[data-design="signal-studio"] .risk-container .strategy-validation-badge {
-  color: color-mix(in srgb, var(--ink) 82%, transparent);
-  border-color: rgba(0,0,0,.11);
-  background: rgba(255,255,255,.26);
+  color: #fff;
+  border-color: rgba(255,255,255,.42);
+  background: rgba(46,33,4,.2);
 }
 
 /* An empty target is deliberately block-sized; its duplicate add row is omitted in JSX. */
 .variant-balanced[data-design="signal-studio"] .empty-container-drop {
-  min-height: 46px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -8074,6 +8212,45 @@ small.dashboard-bot-scope {
   50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning) 38%, transparent), 0 18px 42px rgba(var(--shadow-rgb), .24); }
 }
 
+/*
+  Picking a single validation issue in the drawer pins its card and the exact
+  field(s) that still need input: a red ring on the card, a red outline on each
+  unfilled block, and a red highlight on the empty control itself — so the
+  person is led straight to what to fix, the way the Pro editor does.
+*/
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card.is-issue-focused {
+  border-color: color-mix(in srgb, var(--negative) 60%, var(--line-strong));
+  animation: basic-issue-focus-pulse 1.7s ease-in-out infinite;
+}
+@keyframes basic-issue-focus-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--negative) 46%, transparent), 0 18px 40px rgba(var(--shadow-rgb), .22); }
+  50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--negative) 64%, transparent), 0 20px 46px rgba(var(--shadow-rgb), .28); }
+}
+/* The specific unfilled block(s) inside the focused card: the ring hugs the
+   visible block (.scratch-block) itself — same box and radius — so it tracks
+   the block exactly rather than the wider drag wrapper. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .draggable-strategy-block.is-field-invalid > .scratch-block {
+  outline: 2px solid color-mix(in srgb, var(--negative) 74%, transparent);
+  outline-offset: 1px;
+}
+/* And the empty control within it — the exact operator/value still to choose. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .draggable-strategy-block.is-field-invalid .is-null {
+  border-color: color-mix(in srgb, var(--negative) 78%, var(--line)) !important;
+  background: color-mix(in srgb, var(--negative) 15%, var(--surface)) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--negative) 28%, transparent);
+}
+/* Empty card / missing sell ratio: outline the slot that needs completing. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card.is-issue-empty .block-stack,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card.is-issue-sellPercent .container-settings-card.is-popover {
+  outline: 2px solid color-mix(in srgb, var(--negative) 64%, transparent);
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card.is-issue-sellPercent .order-limit-setting input {
+  border-color: color-mix(in srgb, var(--negative) 78%, var(--line)) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--negative) 28%, transparent);
+}
+
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .section-strategy-grid .strategy-card {
   width: 344px;
   min-width: 344px;
@@ -8177,6 +8354,9 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .palette-search { margin: 0 12px 10px; }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .template-list,
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category-list { padding: 0 10px 12px; }
+/* Match Pro's inter-category spacing: no list gap; the space between a category's last
+   card and the next category comes only from the card margin + category padding-bottom. */
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category-list { gap: 0; }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card {
   position: relative;
   width: 100%;
@@ -8212,7 +8392,9 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-risk { --category-color: #d06f6b; }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-chip-list {
   display: grid;
-  gap: 6px;
+  /* Match Pro's node rhythm: 6px between cards comes from each card's margin-bottom,
+     so the list itself adds no extra gap (Pro uses the same card-margin scheme). */
+  gap: 0;
 }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .library-block-button {
   position: relative;
@@ -8236,7 +8418,7 @@ small.dashboard-bot-scope {
   content: "";
   position: absolute;
   inset: 0 auto 0 0;
-  width: 4px;
+  width: 6px;
   background: var(--category-color);
 }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .library-block-button:hover {
@@ -8245,7 +8427,8 @@ small.dashboard-bot-scope {
 }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-block-icon {
   color: var(--category-color);
-  background: color-mix(in srgb, var(--category-color) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--category-color) 34%, transparent);
+  background: color-mix(in srgb, var(--category-color) 24%, var(--surface));
 }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-block-copy {
   min-width: 0;
@@ -8549,11 +8732,12 @@ small.dashboard-bot-scope {
   height: 100%;
   max-height: 100%;
 }
+/* Match the Pro library header rhythm exactly: same tab and search margins. */
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-tabs.pro-library-primary-tabs {
-  margin: 8px 12px 0;
+  margin: 0 12px 10px;
 }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-view > .palette-search {
-  margin: 8px 12px 10px;
+  margin: 0 12px 10px;
 }
 .variant-balanced[data-design="signal-studio"] .basic-library-view .pro-library-scroll {
   padding-bottom: 64px;
@@ -8797,30 +8981,33 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.basic-library-favorites {
   --block-tone-color: #d6ae43;
   --category-color: #d6ae43;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--line);
 }
 
 .variant-balanced[data-design="signal-studio"] .basic-package-card-stack {
   position: relative;
   min-height: 78px;
-  margin: 0 0 8px;
-  padding: 0 5px 6px 0;
+  /* Spacing comes from the list's 7px grid gap alone (matching Pro's ~8px
+     package rhythm); the bottom-right layer peek tucks into that gap and the
+     list's bottom padding, so no extra margin is needed. */
+  margin: 0;
 }
 .variant-balanced[data-design="signal-studio"] .basic-package-layer {
   position: absolute;
-  inset: 5px 1px 1px 5px;
+  inset: 0;
   border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface-2) 94%, var(--accent-soft));
   pointer-events: none;
 }
+/* Layers fan out to the bottom-right so the deck reads on two edges (like the
+   Pro package cards), not only along the right side. */
 .variant-balanced[data-design="signal-studio"] .basic-package-layer:first-child {
-  inset: 3px 3px 3px 3px;
   opacity: .72;
+  transform: translate(3px, 4px);
 }
 .variant-balanced[data-design="signal-studio"] .basic-package-layer:nth-child(2) {
   opacity: .42;
+  transform: translate(6px, 8px);
 }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card.basic-package-card {
   position: relative;
@@ -9057,22 +9244,25 @@ small.dashboard-bot-scope {
   display: block;
   transform: translate(-50%, -50%);
 }
+/* Theme-adaptive so the AND chain reads on both the dark and light canvas
+   (it was a fixed light grey that vanished in light mode). The outline is a
+   halo of the surface colour; the mark is a mid neutral that follows the
+   theme. */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group .condition-chain-outline {
   z-index: 0;
-  color: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
+  color: var(--surface);
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.is-chain-linked-group .condition-chain-mark {
   z-index: 1;
-  color: #d9e0df;
-  filter: drop-shadow(0 1px 0 rgba(var(--shadow-rgb), .18));
+  color: var(--text-faint);
   transition: color 140ms ease-out;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card:hover .condition-chain-mark {
-  color: #edf1f0;
+  color: var(--text-soft);
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card.is-selected .condition-chain-mark,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card:focus-within .condition-chain-mark {
-  color: #fff;
+  color: var(--text);
 }
 
 /* Retire every pseudo rail from the previous bracket treatment. */
@@ -9156,12 +9346,26 @@ small.dashboard-bot-scope {
   max-height: 46px;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .scratch-block {
-  --block-tone-ink: #142023;
+  /* Blocks now use deep saturated fills, so their text is white to match the
+     card chrome (previously dark ink on pale fills). */
+  --block-tone-ink: #fff;
+  --block-control-ink: #fff;
   color: var(--block-tone-ink);
 }
+/* Lock every bit of block text to white in both themes — no tone/theme path
+   should turn a label, value or icon dark on the saturated fill. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .scratch-block,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .scratch-block :is(span, b, strong, small, em, .block-op, .block-value, .block-relation-label),
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .scratch-block .block-number-stepper input,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .scratch-block .block-type-icon {
+  color: #fff;
+}
+/* Unset dropdown label and number placeholder share one clearly-readable ink
+   so the dropdown no longer looks greyer than the neighbouring inputs. */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select-trigger[data-value=""],
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select-trigger[data-value=""] span,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper input::placeholder {
-  color: color-mix(in srgb, #142023 68%, transparent);
+  color: rgba(255, 255, 255, .82);
   opacity: 1;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .scratch-block > span:not([class]) {
@@ -9176,21 +9380,27 @@ small.dashboard-bot-scope {
   margin: -4px 0;
 }
 
-/* Distinct Basic category palette, separate from buy/sell/risk card chrome. */
+/*
+  Distinct Basic category palette, separate from the strategy-card chrome.
+  Every card colour is off-limits here so a block never blends into the card
+  it sits in: red (buy), blue (sell), green (US buy) and gold (risk). What's
+  left — cyan, orange, violet, pink — plus a neutral slate for one category to
+  keep the cool hues from crowding, gives five readily separable tones.
+*/
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-data,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-data {
-  --block-tone-color: #24866a;
-  --block-tone-surface: #a1e4cc;
+  --block-tone-color: #0891b2;
+  --block-tone-surface: #0891b2;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-indicator,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-indicator {
-  --block-tone-color: #7048b5;
-  --block-tone-surface: #cdb5f2;
+  --block-tone-color: #ea580c;
+  --block-tone-surface: #ea580c;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-condition,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-condition {
-  --block-tone-color: #825b43;
-  --block-tone-surface: #deb89d;
+  --block-tone-color: #7c3aed;
+  --block-tone-surface: #7c3aed;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-logic,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-logic {
@@ -9199,13 +9409,13 @@ small.dashboard-bot-scope {
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-time,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-time {
-  --block-tone-color: #1f8178;
-  --block-tone-surface: #96ddd6;
+  --block-tone-color: #64748b;
+  --block-tone-surface: #64748b;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-risk,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-risk {
-  --block-tone-color: #7b478d;
-  --block-tone-surface: #cda3dc;
+  --block-tone-color: #db2777;
+  --block-tone-surface: #db2777;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-order,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-order {
@@ -9251,22 +9461,18 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-recessed-control .block-custom-select-trigger,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper.is-recessed-control {
   border: 1px solid color-mix(in srgb, var(--block-tone-color) 38%, rgba(20, 32, 35, .2));
-  border-right-color: color-mix(in srgb, var(--block-tone-surface) 72%, rgba(255, 255, 255, .42));
-  border-bottom-color: color-mix(in srgb, var(--block-tone-surface) 72%, rgba(255, 255, 255, .42));
   border-radius: 7px;
   color: var(--block-control-ink);
-  background: color-mix(in srgb, var(--block-tone-surface) 83%, #53615d 17%);
-  box-shadow:
-    inset 1px 1px 0 rgba(20, 32, 35, .12),
-    0 1px 1px rgba(20, 32, 35, .08);
+  /* Same fill as the block, one soft inset shadow (matching the terminal ratio
+     input) — recessed but flat, not heavily bevelled, and no white border. */
+  background: var(--block-tone-surface);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .28);
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-recessed-control .block-custom-select-trigger:hover,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-recessed-control.is-open .block-custom-select-trigger,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper.is-recessed-control button:hover {
-  background: color-mix(in srgb, var(--block-tone-surface) 77%, #53615d 23%);
-  box-shadow:
-    inset 1px 1px 0 rgba(20, 32, 35, .15),
-    0 1px 1px rgba(20, 32, 35, .08);
+  background: color-mix(in srgb, var(--block-tone-surface) 88%, #000);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .34);
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-recessed-control .block-custom-select-trigger:focus-visible,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper.is-recessed-control:focus-within {
@@ -9331,6 +9537,26 @@ small.dashboard-bot-scope {
   padding: 0;
   justify-content: flex-start;
 }
+/* No empty suffix slot — the number / '입력' placeholder centers between −/+. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper label > b:empty {
+  display: none;
+}
+/* Operator/value icons get a white halo so their tone colour stays visible on
+   the saturated block fill. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-relation-icon {
+  filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff);
+}
+/* Value dropdowns center their label like the operator pills; the chevron
+   floats at the right, out of the centering flow. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-value-select .block-custom-select-trigger {
+  position: relative;
+  justify-content: center;
+  padding-inline: 16px;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-value-select .block-custom-select-trigger > svg {
+  position: absolute;
+  right: 6px;
+}
 .block-custom-select-menu.is-compact {
   width: 80px !important;
   padding: 4px;
@@ -9340,9 +9566,14 @@ small.dashboard-bot-scope {
   padding-inline: 7px;
 }
 
-/* Basic library uses the same interaction model as the Pro node drawer. */
+/* Basic library uses the same interaction model as the Pro node drawer.
+   The category colour washes across the chip (not just the edge band) so the
+   drawer reads with the same palette as the canvas blocks. */
+/* Flat, faint category tint (no gradient wash) — reads cleanly in both light
+   and dark. The category is carried by the left band and the coloured icon
+   chip, not a fading gradient across the row. */
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-node-card > .pro-library-node-main.has-tone-band {
-  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+  background: color-mix(in srgb, var(--category-color) 9%, var(--surface-2));
 }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-node-card > .pro-library-node-main.has-tone-band:hover,
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .basic-library-node-card > .pro-library-node-main.has-tone-band:focus-visible {
@@ -9463,8 +9694,8 @@ small.dashboard-bot-scope {
 }
 
 /* Strategy add buttons carry a restrained cue from the card they create. */
-.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-buy { --strategy-action-color: #d95359; }
-.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-sell { --strategy-action-color: #638cf0; }
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-buy { --strategy-action-color: var(--buy-block-color); }
+.variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-sell { --strategy-action-color: var(--sell-block-color); }
 .variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-risk { --strategy-action-color: #d2b04d; }
 .variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-buy,
 .variant-balanced[data-design="signal-studio"] .section-card-actions button.tone-sell,

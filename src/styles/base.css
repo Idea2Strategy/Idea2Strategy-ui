@@ -294,12 +294,30 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     transform: translate3d(-50%, 0, 0) scale(1);
   }
 }
+/* Dismissal reverses the entrance: the toast slides back down and fades out
+   before it unmounts, instead of disappearing instantly. */
+.editor-save-toast.is-closing {
+  pointer-events: none;
+  animation: editorToastExit .24s cubic-bezier(.4, 0, 1, 1) forwards;
+}
+.editor-save-toast.is-closing::after { animation: none; }
+@keyframes editorToastExit {
+  from {
+    opacity: 1;
+    transform: translate3d(-50%, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(-50%, calc(100% + 56px), 0) scale(.96);
+  }
+}
 @keyframes editorToastTimer {
   from { transform: scaleX(1); }
   to { transform: scaleX(0); }
 }
 @media (prefers-reduced-motion: reduce) {
   .editor-save-toast,
+  .editor-save-toast.is-closing,
   .editor-save-toast::after { animation: none; }
 }
 .floating-editor-mode-controls { display: flex; gap: 5px; }
