@@ -427,12 +427,10 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('button', { name: '균형형 보기' })).not.toBeInTheDocument();
   });
 
-  test('keeps natural-language rule notes attached to the selected Basic strategy card', async () => {
-    const user = userEvent.setup();
+  test('keeps natural-language rule notes attached to the selected Basic strategy card', () => {
+    // The create flow now opens a blank canvas, so reach the seeded editor directly.
+    window.history.replaceState({}, '', '/strategies/new/basic');
     render(<App initialVariant="balanced" />);
-    await user.click(screen.getByRole('button', { name: '전략' }));
-    await user.click(screen.getByRole('button', { name: '새 전략' }));
-    await user.click(screen.getByRole('button', { name: 'Basic으로 시작' }));
     expect(screen.getAllByRole('note')).toHaveLength(2);
     expect(screen.getByTestId('basic-narrative-budget')).toHaveTextContent('전략 예산');
     fireEvent.keyDown(screen.getByLabelText('매도 전략 카드 이동 영역'), { key: 'Enter' });
@@ -440,12 +438,10 @@ describe('Signal product UI', () => {
     expect(screen.getByTestId('basic-narrative-budget')).toHaveTextContent('매도 비율');
   });
 
-  test('opens a typed compatible-node picker where a Pro connection is released', async () => {
-    const user = userEvent.setup();
+  test('opens a typed compatible-node picker where a Pro connection is released', () => {
+    // The create flow now opens a blank canvas, so reach the seeded editor directly.
+    window.history.replaceState({}, '', '/strategies/new/pro');
     render(<App initialVariant="terminal" />);
-    await user.click(screen.getByRole('button', { name: '전략' }));
-    await user.click(screen.getByRole('button', { name: '새 전략' }));
-    await user.click(screen.getByRole('button', { name: 'Pro로 시작' }));
     fireEvent.pointerDown(screen.getByTestId('true-output'), { clientX: 438, clientY: 276, pointerId: 4, button: 0 });
     fireEvent.pointerUp(screen.getByTestId('true-output'), { clientX: 438, clientY: 276, pointerId: 4 });
     const picker = screen.getByRole('dialog', { name: '호환 노드 선택' });

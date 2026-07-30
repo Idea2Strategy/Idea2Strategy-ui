@@ -150,37 +150,32 @@
 }
 .variant-balanced[data-design="signal-studio"] .pro-panel-edge-handle {
   position: absolute;
-  z-index: 24;
-  top: 77px;
-  min-width: 38px;
-  height: 32px;
+  /* Arrow only, sitting at the collapsed bookmark's vertical centre and jutting
+     out past its edge; slides with the panel (see :has hover). Revealed after
+     the collapse finishes so it doesn't flash over the still-collapsing wing. */
+  z-index: 40;
+  top: 124px;
+  min-width: 24px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  border: 1px solid var(--line-strong);
+  border: 0;
   color: var(--text-soft);
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow: 0 12px 30px rgba(var(--shadow-rgb), .22);
+  background: transparent;
   cursor: pointer;
-  backdrop-filter: blur(12px);
+  transition: transform .2s ease, color .16s ease;
+  animation: pro-edge-handle-reveal .16s ease .24s both;
 }
-.variant-balanced[data-design="signal-studio"] .pro-panel-edge-handle.is-left {
-  left: 0;
-  padding: 0 8px 0 5px;
-  border-left: 0;
-  border-radius: 0 12px 12px 0;
+@keyframes pro-edge-handle-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-.variant-balanced[data-design="signal-studio"] .pro-panel-edge-handle.is-right {
-  right: 0;
-  padding: 0 5px 0 8px;
-  border-right: 0;
-  border-radius: 12px 0 0 12px;
-}
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-library-collapsed .pro-graph-navigator { left: 18px; }
+.variant-balanced[data-design="signal-studio"] .pro-panel-edge-handle.is-left { left: 40px; }
+.variant-balanced[data-design="signal-studio"] .pro-panel-edge-handle.is-right { right: 40px; }
 .variant-balanced[data-design="signal-studio"] .pro-panel-edge-handle:hover {
   color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
 .variant-balanced[data-design="signal-studio"] .pro-side-panel-content {
   min-height: 0;
@@ -190,13 +185,53 @@
   overflow: hidden;
   transition: opacity .14s ease;
 }
-.variant-balanced[data-design="signal-studio"] .pro-layout.is-library-collapsed .pro-side-panel.is-left { transform: translateX(calc(-100% - 12px)); }
-.variant-balanced[data-design="signal-studio"] .pro-layout.is-inspector-collapsed .pro-side-panel.is-right { transform: translateX(calc(100% + 12px)); }
+/* Collapsed: the wing becomes a bookmark tab from the top down to ~1/3 of the
+   screen, showing a rotated, centred label; the title/content are hidden. The
+   arrow handle sits at its vertical centre. Hovering slides it out ~6px; click
+   expands. The panel keeps its own surface fill (dark→black, light→white). */
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-library-collapsed .pro-side-panel.is-left,
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-inspector-collapsed .pro-side-panel.is-right {
+  bottom: auto;
+  /* Tall enough for the rotated label (~105px) with breathing room. */
+  height: 150px;
+  cursor: pointer;
+  z-index: 20;
+  overflow: hidden;
+}
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-library-collapsed .pro-side-panel.is-left { transform: translateX(calc(-100% + 22px)); border-radius: 0 14px 14px 0; }
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-inspector-collapsed .pro-side-panel.is-right { transform: translateX(calc(100% - 22px)); border-radius: 14px 0 0 14px; }
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-library-collapsed:has(.pro-side-panel.is-left:hover, .pro-panel-edge-handle.is-left:hover) .pro-side-panel.is-left { transform: translateX(calc(-100% + 28px)); }
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-library-collapsed:has(.pro-side-panel.is-left:hover, .pro-panel-edge-handle.is-left:hover) .pro-panel-edge-handle.is-left { transform: translateX(6px); }
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-inspector-collapsed:has(.pro-side-panel.is-right:hover, .pro-panel-edge-handle.is-right:hover) .pro-side-panel.is-right { transform: translateX(calc(100% - 28px)); }
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-inspector-collapsed:has(.pro-side-panel.is-right:hover, .pro-panel-edge-handle.is-right:hover) .pro-panel-edge-handle.is-right { transform: translateX(-6px); }
 .variant-balanced[data-design="signal-studio"] .pro-layout.is-library-collapsed .pro-side-panel.is-left .pro-side-panel-content,
-.variant-balanced[data-design="signal-studio"] .pro-layout.is-inspector-collapsed .pro-side-panel.is-right .pro-side-panel-content {
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-library-collapsed .pro-side-panel.is-left .palette-title,
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-inspector-collapsed .pro-side-panel.is-right .pro-side-panel-content,
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-inspector-collapsed .pro-side-panel.is-right .inspector-title {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
+}
+/* Rotated, centred bookmark label (shown only when collapsed). */
+.variant-balanced[data-design="signal-studio"] .pro-collapsed-label { display: none; }
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-library-collapsed .pro-side-panel.is-left > .pro-collapsed-label,
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-inspector-collapsed .pro-side-panel.is-right > .pro-collapsed-label {
+  display: block;
+  position: absolute;
+  top: 50%;
+  white-space: nowrap;
+  font: 800 10px var(--font-mono);
+  letter-spacing: .22em;
+  color: var(--text-soft);
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-library-collapsed .pro-side-panel.is-left > .pro-collapsed-label {
+  left: calc(100% - 20px);
+  transform: translate(-50%, -50%) rotate(-90deg);
+}
+.variant-balanced[data-design="signal-studio"] .pro-layout.is-inspector-collapsed .pro-side-panel.is-right > .pro-collapsed-label {
+  left: 20px;
+  transform: translate(-50%, -50%) rotate(90deg);
 }
 
 .variant-balanced[data-design="signal-studio"] .pro-editor-v2 .library-intro {
@@ -1695,6 +1730,9 @@
   position: absolute;
   z-index: 75;
   bottom: 18px;
+  /* Sit just right of the open panel (adapts to its width) so they never overlap;
+     when the wing is collapsed to a bookmark, drop to the far-left edge. */
+  left: calc(32px + var(--pro-panel-width));
   width: 210px;
   overflow: hidden;
   border: 1px solid var(--line-strong);

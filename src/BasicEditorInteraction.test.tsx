@@ -167,9 +167,10 @@ describe('Basic editor interactions', () => {
     fireEvent.dragStart(packageButton, { dataTransfer });
     fireEvent.drop(section, { dataTransfer, clientX: 180, clientY: 260 });
 
-    const added = Array.from(section.querySelectorAll<HTMLElement>('[data-strategy-card]')).slice(-3);
-    expect(added).toHaveLength(3);
-    expect(added.map((card) => card.style.left)).toEqual(['24px', '384px', '744px']);
+    // Risk-management cards are retired, so a package now lays out buy + sell only.
+    const added = Array.from(section.querySelectorAll<HTMLElement>('[data-strategy-card]')).slice(-2);
+    expect(added).toHaveLength(2);
+    expect(added.map((card) => card.style.left)).toEqual(['24px', '384px']);
     expect(added.every((card) => card.style.top === '136px')).toBe(true);
   });
 
@@ -260,9 +261,12 @@ describe('Basic editor interactions', () => {
     expect(within(multiStack).queryByText('IF')).not.toBeInTheDocument();
   });
 
-  test('does not render resize handles on the partition corners', () => {
+  test('renders a resize handle on each partition corner', () => {
     renderEditor();
-    expect(document.querySelector('.section-corner')).not.toBeInTheDocument();
+    const handles = document.querySelectorAll('.partition-resize-handle');
+    expect(handles.length).toBe(document.querySelectorAll('.strategy-section-frame').length);
+    expect(handles.length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /크기 조절$/ })).toBeInTheDocument();
   });
 
   test('keeps block tones separate from buy, sell and risk card chrome', async () => {
@@ -329,7 +333,8 @@ describe('Basic editor interactions', () => {
     expect(screen.getAllByTestId('partition-setting-caption').map((caption) => caption.textContent)).toEqual(['종목', '예산', '봉 주기']);
     expect(screen.getByRole('button', { name: 'PARTITION 01 매수 전략 추가' })).toHaveClass('tone-buy');
     expect(screen.getByRole('button', { name: 'PARTITION 01 매도 전략 추가' })).toHaveClass('tone-sell');
-    expect(screen.getByRole('button', { name: 'PARTITION 01 위기관리 전략 추가' })).toHaveClass('tone-risk');
+    // 위기관리 전략은 제거되어 해당 추가 버튼이 더 이상 존재하지 않습니다.
+    expect(screen.queryByRole('button', { name: 'PARTITION 01 위기관리 전략 추가' })).not.toBeInTheDocument();
   });
 
   test('does not zoom the canvas while the partition budget input handles the wheel', () => {
