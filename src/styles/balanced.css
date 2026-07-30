@@ -948,6 +948,46 @@
   cursor: grabbing;
   transition: box-shadow 120ms ease-out, border-color 120ms ease-out;
 }
+/* Drag the bottom-right corner to resize the partition. Faint by default, it
+   firms up on hover / when the partition is selected so it stays discoverable
+   without cluttering every frame. (Its own class — .section-corner is already
+   used by the bots view for a top-corner accent decoration.) */
+.variant-balanced[data-design="signal-studio"] .strategy-section-frame .partition-resize-handle {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: nwse-resize;
+  z-index: 6;
+  opacity: .38;
+  transition: opacity 140ms ease-out;
+  touch-action: none;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-section-frame .partition-resize-handle::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid color-mix(in srgb, var(--accent) 66%, var(--line-strong));
+  border-bottom: 2px solid color-mix(in srgb, var(--accent) 66%, var(--line-strong));
+  border-bottom-right-radius: 5px;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-section-frame:hover .partition-resize-handle,
+.variant-balanced[data-design="signal-studio"] .strategy-section-frame.is-selected .partition-resize-handle,
+.variant-balanced[data-design="signal-studio"] .strategy-section-frame.is-section-resizing .partition-resize-handle {
+  opacity: 1;
+}
+.variant-balanced[data-design="signal-studio"] .strategy-section-frame.is-section-resizing {
+  z-index: 18;
+  cursor: nwse-resize;
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--line-strong));
+}
 .variant-balanced[data-design="signal-studio"] .strategy-section-frame::before,
 .variant-balanced[data-design="signal-studio"] .strategy-section-frame::after {
   content: "";
@@ -1293,6 +1333,8 @@
   opacity: .9;
 }
 .variant-balanced[data-design="signal-studio"] .required-buy-slot {
+  /* Top-left aligned, in the first card column, so it reads as the start of the
+     grid (and matches where the first card lands once one is added). */
   left: 24px;
   border-color: color-mix(in srgb, var(--warning) 72%, var(--line-strong));
   color: var(--warning);

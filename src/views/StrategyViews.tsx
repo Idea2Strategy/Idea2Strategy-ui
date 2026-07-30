@@ -20,8 +20,6 @@ import { splitPartitionSymbols } from '../lib/strategyPreview';
 import type { PreviewFlow } from '../lib/strategyPreview';
 import { Localized } from '../lib/i18n';
 import {
-  BASIC_SECTION_PADDING,
-  BASIC_STRATEGY_CARD_WIDTH,
   getBasicSectionLayout,
   getDefaultBasicCardPosition,
   getMovedBasicCardPosition,
@@ -61,8 +59,10 @@ interface StrategySection {
   timeframe: string;
   x: number;
   y: number;
+  // Explicit drawn/resized size; getSectionLayout floors these to the minimum
+  // that keeps the required-buy prompt visible and to the current card content.
   width?: number;
-  minHeight?: number;
+  height?: number;
   cards: Record<Side, string[]>;
   cardOrder: string[];
   cardPositions: Record<string, CanvasPoint>;
@@ -214,6 +214,22 @@ interface SectionMoveGesture extends CardMoveGesture {
   sectionId: string;
   historyRecorded?: boolean;
 }
+
+interface SectionResizeGesture {
+  sectionId: string;
+  startX: number;
+  startY: number;
+  originWidth: number;
+  originHeight: number;
+  historyRecorded?: boolean;
+}
+
+// Floor for a partition: 420 is the tightest width that still keeps every header
+// button on one row (below it the header wraps and would overlap the content),
+// and the height fits the top-left required-buy prompt with an even bottom gap
+// (slot top 136 + slot min-height 170 + ~24 section padding).
+const MIN_SECTION_WIDTH = 420;
+const MIN_SECTION_HEIGHT = 330;
 
 interface CardMoveState extends CardMoveGesture {
   sectionId: string;
@@ -1032,6 +1048,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
   const spacePanningRef = useRef(false);
   const pointerPositionRef = useRef<CanvasPoint | null>(null);
   const [sectionMove, setSectionMove] = useState<SectionMoveGesture | null>(null);
+  const [sectionResize, setSectionResize] = useState<SectionResizeGesture | null>(null);
   const [cardMove, setCardMove] = useState<CardMoveState | null>(null);
   const cardSelectionAtPointerDownRef = useRef<{ cardId: string; wasSelected: boolean } | null>(null);
   const trashZoneRef = useRef<HTMLDivElement | null>(null);
@@ -1957,16 +1974,13 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
       (cardId, index) => section.cardPositions?.[cardId] ?? getDefaultCardPosition(index),
       cardSizes,
     );
-    // The empty-column placeholders (required buy / optional sell) sit at the real
-    // card slots, so reserve room for whichever is shown or the frame clips them.
-    // The sell slot lives in the second column and is the widest reservation.
-    const placeholderRight = section.cards.sell.length === 0
-      ? getDefaultCardPosition(1).x + BASIC_STRATEGY_CARD_WIDTH
-      : section.cards.buy.length === 0
-        ? getDefaultCardPosition(0).x + BASIC_STRATEGY_CARD_WIDTH
-        : 0;
-    const reservedWidth = placeholderRight ? placeholderRight + BASIC_SECTION_PADDING : 0;
-    return { width: Math.max(600, layout.width, reservedWidth), height: Math.max(430, layout.height) };
+    // The partition is at least the minimum that shows the required-buy prompt,
+    // at least big enough for its current cards, and at least the size the user
+    // drew or resized it to — whichever is largest wins on each axis.
+    return {
+      width: Math.max(MIN_SECTION_WIDTH, layout.width, section.width ?? 0),
+      height: Math.max(MIN_SECTION_HEIGHT, layout.height, section.height ?? 0),
+    };
   };
 
   /*
@@ -2083,7 +2097,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
 
   const zoomCanvasWithWheel = (event: WheelEvent<HTMLDivElement>) => {
     event.preventDefault();
-    if (drawMode || sectionMove || cardMove) return;
+    if (drawMode || sectionMove || sectionResize || cardMove) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const cursorX = event.clientX - bounds.left;
     const cursorY = event.clientY - bounds.top;
@@ -2135,6 +2149,17 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
         y: sectionMove.originY + (event.clientY - sectionMove.startY) / zoom,
       });
       updateSection(sectionMove.sectionId, nextPosition);
+      return;
+    }
+    if (sectionResize) {
+      if (!sectionResize.historyRecorded) {
+        rememberEditorChange();
+        setSectionResize((current) => current ? { ...current, historyRecorded: true } : current);
+      }
+      updateSection(sectionResize.sectionId, {
+        width: Math.max(MIN_SECTION_WIDTH, Math.round(sectionResize.originWidth + (event.clientX - sectionResize.startX) / zoom)),
+        height: Math.max(MIN_SECTION_HEIGHT, Math.round(sectionResize.originHeight + (event.clientY - sectionResize.startY) / zoom)),
+      });
       return;
     }
     if (panGesture) {
@@ -2193,8 +2218,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
         timeframe: '1분봉',
         x: draftRect.x,
         y: draftRect.y,
-        width: Math.max(600, draftRect.width),
-        minHeight: Math.max(340, draftRect.height),
+        // Keep the drawn size; getSectionLayout clamps it up to the minimum.
+        width: Math.round(draftRect.width),
+        height: Math.round(draftRect.height),
         cards: { buy: [], sell: [], risk: [] },
         cardOrder: [],
         cardPositions: {},
@@ -2209,6 +2235,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
     setDraftRect(null);
     setPanGesture(null);
     setSectionMove(null);
+    setSectionResize(null);
     setCardMove(null);
     setTrashReady(false);
   };
@@ -2227,6 +2254,22 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
     setSelectedCardId(null);
     setSelectedCardIds([]);
     beginSectionMove(event, section);
+  };
+
+  const beginSectionResize = (event: ReactPointerEvent<HTMLElement>, section: StrategySection) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setActiveSectionId(section.id);
+    const current = getSectionLayout(section);
+    setSectionResize({
+      sectionId: section.id,
+      startX: event.clientX,
+      startY: event.clientY,
+      originWidth: current.width,
+      originHeight: current.height,
+    });
+    event.currentTarget.closest('.section-workspace')?.setPointerCapture?.(event.pointerId);
   };
 
   const beginCardMove = (event: ReactPointerEvent<HTMLElement>, section: StrategySection, cardId: string, wasSelected: boolean) => {
@@ -2650,7 +2693,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
             const sectionLayout = getSectionLayout(section);
             return <article
               key={section.id}
-              className={`strategy-section-frame ${activeSectionId === section.id ? 'is-selected' : ''} ${invalidSectionIds.has(section.id) ? 'has-validation-error' : ''} ${sectionMove?.sectionId === section.id ? 'is-section-moving' : ''} ${libraryDrag?.type === 'template' ? 'is-template-drop-ready' : ''}`}
+              className={`strategy-section-frame ${activeSectionId === section.id ? 'is-selected' : ''} ${invalidSectionIds.has(section.id) ? 'has-validation-error' : ''} ${sectionMove?.sectionId === section.id ? 'is-section-moving' : ''} ${sectionResize?.sectionId === section.id ? 'is-section-resizing' : ''} ${libraryDrag?.type === 'template' ? 'is-template-drop-ready' : ''}`}
               data-testid={`strategy-${section.id}`}
               aria-label={`PARTITION ${sectionNumber}`}
               style={{ left: section.x, top: section.y, width: sectionLayout.width, height: sectionLayout.height }}
@@ -2701,6 +2744,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
                   onClick={() => addStrategyCard(section.id, 'buy')}
                 ><TriangleAlert size={18} /><strong>매수 전략이 필요해요</strong><span>필수 항목 · 추가해야 출시할 수 있어요</span></button>}
               </div>
+              <button
+                type="button"
+                className="partition-resize-handle"
+                data-testid={`${section.id}-resize-handle`}
+                aria-label={`PARTITION ${sectionNumber} 크기 조절`}
+                onPointerDown={(event) => beginSectionResize(event, section)}
+                onClick={(event) => event.stopPropagation()}
+              />
             </article>;
           })}
           </div>

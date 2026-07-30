@@ -261,9 +261,12 @@ describe('Basic editor interactions', () => {
     expect(within(multiStack).queryByText('IF')).not.toBeInTheDocument();
   });
 
-  test('does not render resize handles on the partition corners', () => {
+  test('renders a resize handle on each partition corner', () => {
     renderEditor();
-    expect(document.querySelector('.section-corner')).not.toBeInTheDocument();
+    const handles = document.querySelectorAll('.partition-resize-handle');
+    expect(handles.length).toBe(document.querySelectorAll('.strategy-section-frame').length);
+    expect(handles.length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /크기 조절$/ })).toBeInTheDocument();
   });
 
   test('keeps block tones separate from buy, sell and risk card chrome', async () => {
