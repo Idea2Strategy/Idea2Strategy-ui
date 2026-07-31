@@ -10,7 +10,7 @@ import type {
   WheelEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Activity, ArrowDown, ArrowLeft, ArrowUp, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, CircleDot, Gauge, GitBranch, Grid3X3, GripVertical, History, Import, Layers3, LayoutGrid, Link2, Minus, Mouse, MousePointer2, Pencil, Play, Plus, Redo2, RefreshCw, Repeat2, Rocket, Save, Scale, Search, Settings2, ShieldCheck, Sparkles, Split, Star, Target, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, Undo2, X } from 'lucide-react';
+import { Activity, ArrowDown, ArrowLeft, ArrowUp, BarChart3, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, CircleDot, Gauge, GitBranch, Grid3X3, GripVertical, History, Import, Layers3, LayoutGrid, Link2, Minus, Mouse, MousePointer2, Pencil, Play, Plus, Redo2, RefreshCw, Repeat2, Rocket, Save, Scale, Search, Settings2, ShieldCheck, Sparkles, Split, Star, Target, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, Undo2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { strategies } from '../data/mockData';
 import type { StrategySummary } from '../data/mockData';
@@ -49,6 +49,8 @@ interface BasicBlock {
   label: string;
   op?: string;
   value?: string;
+  // 일부 블록(가격 변화율)은 비교 기준(전일 종가·장 시작가·평균 진입가)을 함께 고른다.
+  base?: string;
   tone: BlockTone;
 }
 
@@ -87,6 +89,9 @@ interface StrategyTemplate {
   buyBlocks?: StrategyTemplateBlock[];
   sellBlocks?: StrategyTemplateBlock[];
   riskContainers?: StrategyTemplateRiskContainer[];
+  // 매수 컨테이너를 '주기마다' 진입(정기·적립식 매수)으로 만드는 패키지. 조건 블록
+  // 없이 지정 주기에만 매수한다.
+  buyCycle?: BuyCycle;
   description: string;
 }
 
@@ -112,36 +117,51 @@ interface CardMeta {
   explanation: string;
 }
 
+// 지정 주기마다 조건을 확인하는 단위(정기·적립식 매수의 주기).
+type BuyCycle = '매 거래일' | '매주 첫 거래일' | '매월 첫 거래일' | '매월 마지막 거래일' | 'N거래일마다';
+// 실행(진입/매도) 후 다시 조건을 확인하기까지의 대기 방식.
+type RerunWait = '조건 재충족' | 'N봉 이후' | 'N거래일 이후';
+
 interface BuyContainerSettings {
   maxOrderPercent: number;
-  allowAdditionalBuy: boolean;
-  rerunMode: '조건 재충족' | 'N봉 이후' | 'N거래일 이후';
-  rerunInterval: number;
-  maxEntries: number;
+  // 진입 방식은 셋 중 하나만 고른다. '스케줄(주기마다)'과 '재진입 대기'는 모두
+  // "언제 다시 조건을 확인해 진입할지"를 정하므로 상호 배타 모드로 통합했다.
+  //   1회만        - 조건 충족 시 한 번만 진입
+  //   주기마다      - 지정 주기에 조건 확인(조건 없으면 정기·적립식 매수)
+  //   대기 후 재진입 - 진입 후 대기 기간을 두고 조건을 재확인
+  entryMode: '1회만' | '주기마다' | '대기 후 재진입';
+  cycle: BuyCycle;          // 주기마다 → 확인 주기
+  cycleInterval: number;    // N거래일마다 → 간격(거래일)
+  reentryWait: RerunWait;   // 대기 후 재진입 → 대기 방식
+  reentryInterval: number;  // N봉/N거래일 이후 → 간격
+  maxEntries: number;       // 주기마다·대기 후 재진입 공통 → 한 포지션 최대 진입 횟수
 }
 
 const createDefaultBuySettings = (): BuyContainerSettings => ({
   maxOrderPercent: 100,
-  allowAdditionalBuy: false,
-  rerunMode: '조건 재충족',
-  rerunInterval: 1,
-  maxEntries: 1,
+  entryMode: '1회만',
+  cycle: '매 거래일',
+  cycleInterval: 2,
+  reentryWait: '조건 재충족',
+  reentryInterval: 1,
+  maxEntries: 2,
 });
 
 interface SellContainerSettings {
   sellPercent: number | '';
-  allowRepeatSell: boolean;
-  rerunMode: '조건 재충족' | 'N봉 이후' | 'N거래일 이후';
-  rerunInterval: number;
-  maxEntries: number;
+  // 매도에는 주기 개념이 없어 1회만 / 대기 후 재실행 두 모드만 둔다.
+  executeMode: '1회만' | '대기 후 재실행';
+  reexecWait: RerunWait;
+  reexecInterval: number;
+  maxExecutions: number;
 }
 
 const createDefaultSellSettings = (): SellContainerSettings => ({
   sellPercent: '',
-  allowRepeatSell: false,
-  rerunMode: '조건 재충족',
-  rerunInterval: 1,
-  maxEntries: 1,
+  executeMode: '1회만',
+  reexecWait: '조건 재충족',
+  reexecInterval: 1,
+  maxExecutions: 2,
 });
 
 interface BasicEditorSnapshot {
@@ -416,7 +436,7 @@ const TEMPLATE_LIBRARY: StrategyTemplate[] = [
   { id: 'high-breakout', name: '최근 최고 가격 돌파', category: '가격', indicator: '가격 비교', buyTitle: '최근 최고 가격 돌파', sellTitle: '최근 평균 가격 이탈', buyOp: '>', buyValue: '이전 20봉 최고 가격', sellOp: '<', sellValue: '최근 20봉 평균 가격', buyTone: 'data', sellTone: 'data', description: '새로운 고점을 돌파하면 진입하고 평균 가격 이탈에 정리해요' },
   { id: 'open-rise', name: '장 시작가 대비 상승', category: '가격', indicator: '가격 변화율', buyTitle: '장 시작가 대비 상승', buyOp: '↑', buyValue: '3%', sellOp: '=', sellValue: '', buyTone: 'data', includeSell: false, riskContainers: [{ title: '당일 장 마감 청산', blocks: [{ label: '보유 기간', tone: 'risk' }] }], description: '장 시작가 대비 상승하면 진입해요' },
   { id: 'daily-drop', name: '하루 급락 매수', category: '가격', indicator: '가격 변화율', buyTitle: '하루 급락 매수', buyOp: '↓', buyValue: '5%', sellOp: '=', sellValue: '', buyTone: 'data', includeSell: false, riskContainers: [{ title: '다음 거래일 청산', blocks: [{ label: '보유 기간', tone: 'risk' }] }], description: '전일 대비 급락하면 진입해요' },
-  { id: 'scheduled-buy', name: '정기 매수', category: '일정', indicator: '정기 실행', buyTitle: '정기 매수', buyOp: '=', buyValue: '매 거래일', sellOp: '=', sellValue: '', buyTone: 'time', includeSell: false, description: '선택한 거래 일정마다 매수 요청을 만들어요' },
+  { id: 'scheduled-buy', name: '정기 매수', category: '일정', indicator: '정기 실행', buyTitle: '정기 매수', buyOp: '=', buyValue: '매 거래일', sellOp: '=', sellValue: '', buyTone: 'time', includeSell: false, buyCycle: '매 거래일', description: '선택한 거래 일정마다 매수 요청을 만들어요' },
   { id: 'donchian', name: 'Donchian 돌파', category: '추세', indicator: '가격 비교', buyTitle: 'Donchian 상향 돌파', sellTitle: 'Donchian 하향 이탈', buyOp: '>', buyValue: '이전 20봉 최고 가격', sellOp: '<', sellValue: '이전 10봉 최저 가격', buyTone: 'indicator', sellTone: 'indicator', buyBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], sellBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], riskContainers: [{ title: '수익 보호 청산', blocks: [{ label: '최고 수익률', tone: 'risk' }, { label: '고점 대비 하락', tone: 'risk' }] }], description: '가격 범위 돌파를 추세로 확인하고 하향 이탈에 정리해요' },
   { id: 'rsi', name: 'RSI 반등', category: '반전', indicator: 'RSI 반등', buyTitle: 'RSI 반등 매수', sellTitle: 'RSI 하락 매도', buyOp: '↑', buyValue: '30', sellOp: '↓', sellValue: '70', description: 'RSI가 낮은 구간에서 반등하면 사고 높은 구간에서 하락하면 정리해요' },
   { id: 'sma', name: 'SMA 교차', category: '추세', indicator: '평균선 교차', buyOp: '↑', buyValue: '20봉 · 60봉', sellOp: '↓', sellValue: '20봉 · 60봉', description: '짧은 평균선과 긴 평균선의 교차를 따라가요' },
@@ -430,10 +450,10 @@ const getTemplateStructureLabel = (template: StrategyTemplate) => [
 ].join(' · ');
 
 const BLOCK_LIBRARY: BlockLibraryCategory[] = [
-  { name: '가격', tone: 'data', items: ['가격 비교', '가격 변화율', '연속 상승·하락'] },
+  { name: '가격', tone: 'data', items: ['가격 비교', '가격 변화율', '연속 상승·하락', '거래량'] },
   { name: '추세', tone: 'indicator', items: ['평균선 교차'] },
   { name: '반전', tone: 'condition', items: ['RSI 반등', 'MACD 전환', '가격 띠 반전'] },
-  { name: '일정', tone: 'time', items: ['정기 실행'] },
+  // 정기 실행(일정)은 조건 블록이 아니라 매수 카드의 '스케줄' 설정으로 이동했다.
   { name: '청산', tone: 'risk', items: ['현재 수익률', '보유 기간', '최고 수익률', '고점 대비 하락'] },
 ];
 
@@ -463,6 +483,7 @@ const getTemplateBlockDefinitions = (template: StrategyTemplate, side: Exclude<S
 };
 
 const getBasicBlockIcon = (label: string, tone: BlockTone): LucideIcon => {
+  if (label.includes('거래량')) return BarChart3;
   if (label.includes('RSI')) return Activity;
   if (label.includes('MACD')) return RefreshCw;
   if (label.includes('평균선')) return GitBranch;
@@ -486,7 +507,7 @@ const createBlocksFromDefinitions = (cardId: string, definitions: StrategyTempla
     id: `${cardId}-condition-${index + 1}`,
     icon: getBasicBlockIcon(definition.label, definition.tone),
     label: definition.label,
-    op: definition.label === '정기 실행' || definition.label === '보유 기간' ? '=' : NULL_BLOCK_VALUE,
+    op: definition.label === '보유 기간' ? '=' : NULL_BLOCK_VALUE,
     value: NULL_BLOCK_VALUE,
     tone: definition.tone,
   }));
@@ -500,7 +521,7 @@ const createLibraryBlock = (label: string, tone: BlockTone, id: string): BasicBl
     id,
     icon: getBasicBlockIcon(label, tone),
     label,
-    op: label === '정기 실행' || label === '보유 기간' ? '=' : NULL_BLOCK_VALUE,
+    op: label === '보유 기간' ? '=' : NULL_BLOCK_VALUE,
     value: NULL_BLOCK_VALUE,
     tone,
   };
@@ -515,9 +536,16 @@ const blockOperatorCopy: Record<string, string> = {
 };
 
 const DIRECTION_BLOCKS = new Set(['연속 상승·하락', '평균선 교차', 'RSI 반등', 'MACD 전환', '가격 띠 반전']);
-const EQUALITY_BLOCKS = new Set(['정기 실행', '보유 기간']);
+const EQUALITY_BLOCKS = new Set(['보유 기간']);
+// 청산 조건은 보유 포지션을 전제로 평가되므로 매수 카드에는 논리적으로 들어갈 수
+// 없다(진입 시점엔 포지션이 없음). 매도 전략 카드에서만 사용한다.
+const SELL_ONLY_BLOCKS = new Set(['현재 수익률', '보유 기간', '최고 수익률', '고점 대비 하락']);
 
 const getBlockOperatorOptions = (block: BlockRuleInput): string[] => {
+  // 가격 변화율·현재 수익률은 명세대로 방향(상승/하락, 수익/손실)으로 고른다.
+  // ↑/↓ 대신 명시적 라벨을 써서 '돌파' 계열 서술과 섞이지 않게 한다.
+  if (block.label === '가격 변화율') return [NULL_BLOCK_VALUE, '상승', '하락'];
+  if (block.label === '현재 수익률') return [NULL_BLOCK_VALUE, '수익', '손실'];
   if (DIRECTION_BLOCKS.has(block.label)) return [NULL_BLOCK_VALUE, '↑', '↓'];
   if (EQUALITY_BLOCKS.has(block.label)) return ['='];
   return [NULL_BLOCK_VALUE, '<', '>'];
@@ -531,7 +559,6 @@ const getBlockDisplayLabel = (label: string): string => ({
   'RSI 반등': 'RSI',
   'MACD 전환': 'MACD',
   '가격 띠 반전': '가격 띠',
-  '정기 실행': '일정',
   '현재 수익률': '수익률',
   '보유 기간': '보유',
   '최고 수익률': '최고 수익',
@@ -540,14 +567,14 @@ const getBlockDisplayLabel = (label: string): string => ({
 
 const getBlockLibraryDescription = (label: string): string => ({
   '가격 비교': '기준 가격과 현재가를 비교합니다',
-  '가격 변화율': '기준 시점부터의 변화를 확인합니다',
+  '거래량': '현재 거래량을 기준 거래량과 비교합니다',
+  '가격 변화율': '전일 종가 대비 상승·하락 변화율을 확인합니다',
   '연속 상승·하락': '같은 방향의 연속 봉을 확인합니다',
   '평균선 교차': '두 평균선이 만나는 시점을 찾습니다',
   'RSI 반등': 'RSI가 방향을 바꾸는지 확인합니다',
   'MACD 전환': 'MACD 신호의 방향 전환을 확인합니다',
   '가격 띠 반전': '가격이 기준 띠로 돌아오는지 확인합니다',
-  '정기 실행': '정해 둔 거래 일정에 실행합니다',
-  '현재 수익률': '현재 포지션의 수익률을 확인합니다',
+  '현재 수익률': '보유 포지션이 수익·손실 구간인지 확인합니다',
   '보유 기간': '진입 뒤 지난 기간을 확인합니다',
   '최고 수익률': '보유 중 기록한 최고 수익을 확인합니다',
   '고점 대비 하락': '최고 수익에서 줄어든 폭을 확인합니다',
@@ -576,11 +603,11 @@ const renderBasicValidationMessage = (message: string): ReactNode => {
 const getBlockValueOptions = (block: BlockRuleInput): string[] => {
   const normalizedLabel = block.label.toUpperCase();
   if (block.label === '가격 비교') return ['전일 종가', '당일 장 시작가', '평균 진입가', '최근 20봉 평균 가격', '이전 20봉 최고 가격', '이전 20봉 최저 가격'];
+  if (block.label === '거래량') return ['최근 20봉 평균 거래량', '최근 20봉 평균 거래량 2배', '최근 20봉 평균 거래량 3배', '이전 봉 거래량'];
   if (block.label === '연속 상승·하락') return ['2봉', '3봉', '5봉', '10봉', '20봉', '30봉'];
   if (block.label === '평균선 교차') return ['5봉 · 20봉', '20봉 · 60봉', '60봉 · 120봉'];
   if (block.label === 'MACD 전환') return ['12 · 26 · 9'];
   if (block.label === '가격 띠 반전') return ['20봉 · 2σ'];
-  if (block.label === '정기 실행') return ['매 거래일', '매주 첫 거래일', '매월 첫 거래일', '매월 마지막 거래일', '2거래일마다', '5거래일마다'];
   if (block.label === '보유 기간') return ['당일 장 마감', '1봉', '5봉', '20봉', '1거래일', '5거래일'];
   if (normalizedLabel.includes('POSITION') || block.label.includes('포지션')) return ['OPEN', 'CLOSED', 'ANY'];
   if (block.tone === 'data') return ['현재', '이전 봉', '2봉 전'];
@@ -637,6 +664,11 @@ const getBlockNarrative = (block: BasicBlock, isLast: boolean): ReactNode => {
   const label = getBlockDisplayLabel(block.label);
   const operator = blockOperatorCopy[String(block.op ?? '')] ?? String(block.op ?? '');
   const value = String(block.value ?? '').trim();
+  if (BASE_BLOCKS.has(block.label)) {
+    const baseCopy = String(block.base ?? '').trim() || '기준가';
+    const moveCopy = [value || '설정값', operator || '방향'].join(' ');
+    return <><b>{baseCopy}</b> 대비 <b>{moveCopy}</b>{isLast ? '일 때' : '이고'}</>;
+  }
   if (DIRECTION_BLOCKS.has(block.label)) {
     const valueCopy = value || '기준값';
     const directionCopy = block.op === '↑' ? '상향 돌파' : block.op === '↓' ? '하향 돌파' : null;
@@ -677,88 +709,20 @@ const NumericBlockValue = ({ label, value, onChange }: NumericBlockValueProps) =
   const parsed = getNumericValue(value);
   const numeric = parsed ?? { number: 0, suffix: PERCENTAGE_BLOCK_LABELS.has(label) ? '%' : '' };
   const isNull = value == null || String(value).trim() === NULL_BLOCK_VALUE;
-  const valueRef = useRef(numeric.number);
-  const repeatTimerRef = useRef<number | null>(null);
-  const repeatStartedAtRef = useRef(0);
-  const repeatedRef = useRef(false);
-  valueRef.current = numeric.number;
+  const max = numeric.suffix === '%' || label.includes('RSI') ? 100 : 9999;
 
   const update = (next: number | string) => {
     if (String(next).trim() === NULL_BLOCK_VALUE) {
-      valueRef.current = 0;
       onChange(NULL_BLOCK_VALUE);
       return;
     }
-    const bounded = Math.max(0, Math.min(numeric.suffix === '%' || label.includes('RSI') ? 100 : 9999, Number(next)));
-    valueRef.current = Number.isFinite(bounded) ? bounded : 0;
+    const bounded = Math.max(0, Math.min(max, Number(next)));
     onChange(`${Number.isFinite(bounded) ? bounded : 0}${numeric.suffix}`);
   };
 
-  const stopRepeating = () => {
-    if (repeatTimerRef.current !== null) window.clearTimeout(repeatTimerRef.current);
-    repeatTimerRef.current = null;
-  };
-
-  const cancelRepeating = () => {
-    stopRepeating();
-    repeatedRef.current = false;
-  };
-
-  const repeatChange = (delta: number, delay: number) => {
-    repeatTimerRef.current = window.setTimeout(() => {
-      repeatedRef.current = true;
-      update(valueRef.current + delta);
-      const elapsed = Date.now() - repeatStartedAtRef.current;
-      repeatChange(delta, elapsed > 1400 ? 45 : elapsed > 750 ? 75 : 110);
-    }, delay);
-  };
-
-  const beginRepeating = (event: ReactPointerEvent<HTMLButtonElement>, delta: number) => {
-    if (event.button !== 0) return;
-    stopRepeating();
-    repeatedRef.current = false;
-    repeatStartedAtRef.current = Date.now();
-    repeatChange(delta, 360);
-  };
-
-  const clickOnce = (delta: number) => {
-    if (repeatedRef.current) {
-      repeatedRef.current = false;
-      return;
-    }
-    update(valueRef.current + delta);
-  };
-
-  useEffect(() => {
-    window.addEventListener('blur', cancelRepeating);
-    return () => {
-      window.removeEventListener('blur', cancelRepeating);
-      cancelRepeating();
-    };
-  }, []);
-
+  // 블록 공간 확보를 위해 −/+ 스테퍼 버튼은 제거하고 숫자 입력 필드만 둔다.
   return <span className={`block-number-stepper is-fixed-width is-recessed-control ${isNull ? 'is-null' : ''}`} aria-label={`${label} 숫자 설정`} onPointerDown={(event) => event.stopPropagation()}>
-    <button
-      type="button"
-      aria-label={`${label} 값 감소`}
-      title="길게 눌러 빠르게 조정"
-      onPointerDown={(event) => beginRepeating(event, -1)}
-      onPointerUp={stopRepeating}
-      onPointerCancel={cancelRepeating}
-      onPointerLeave={cancelRepeating}
-      onClick={() => clickOnce(-1)}
-    ><Minus size={11} aria-hidden="true" /></button>
-    <label><span className="sr-only">{label} 값</span><input className="is-centered-number" type="number" min="0" max={numeric.suffix === '%' || label.includes('RSI') ? 100 : 9999} value={isNull ? '' : numeric.number} placeholder={UNSET_NUMBER_PLACEHOLDER} onChange={(event) => update(event.target.value)} /><b aria-hidden="true">{numeric.suffix}</b></label>
-    <button
-      type="button"
-      aria-label={`${label} 값 증가`}
-      title="길게 눌러 빠르게 조정"
-      onPointerDown={(event) => beginRepeating(event, 1)}
-      onPointerUp={stopRepeating}
-      onPointerCancel={cancelRepeating}
-      onPointerLeave={cancelRepeating}
-      onClick={() => clickOnce(1)}
-    ><Plus size={11} aria-hidden="true" /></button>
+    <label><span className="sr-only">{label} 값</span><input className="is-centered-number" type="number" min="0" max={max} value={isNull ? '' : numeric.number} placeholder={UNSET_NUMBER_PLACEHOLDER} onChange={(event) => update(event.target.value)} /><b aria-hidden="true">{numeric.suffix}</b></label>
   </span>;
 };
 
@@ -774,6 +738,8 @@ const getSelectOptionIcon = (option: string): LucideIcon => {
   if (option === NULL_BLOCK_VALUE) return Minus;
   if (option === '↑') return ArrowUp;
   if (option === '↓') return ArrowDown;
+  if (option === '수익') return TrendingUp;
+  if (option === '손실') return TrendingDown;
   if (option === '<') return ChevronLeft;
   if (option === '>') return ChevronRight;
   if (option === '당일 장 시작가') return BellRing;
@@ -791,11 +757,14 @@ const getSelectOptionPresentation = (option: string): { label: string; tone: str
   if (option === NULL_BLOCK_VALUE) return { label: UNSET_SELECT_LABEL, tone: 'neutral' };
   if (option === '↑') return { label: '상승', tone: 'up' };
   if (option === '↓') return { label: '하락', tone: 'down' };
-  if (option === '<') return { label: '미만', tone: 'down' };
-  if (option === '>') return { label: '초과', tone: 'up' };
-  if (option === '≤') return { label: '이하', tone: 'down' };
-  if (option === '≥') return { label: '이상', tone: 'up' };
+  // 비교(초과/미만)는 방향(상승/하강)과 구분되도록 별도 톤을 쓴다.
+  if (option === '<') return { label: '미만', tone: 'under' };
+  if (option === '>') return { label: '초과', tone: 'over' };
+  if (option === '≤') return { label: '이하', tone: 'under' };
+  if (option === '≥') return { label: '이상', tone: 'over' };
   if (option === '=') return { label: '같음', tone: 'neutral' };
+  if (option === '수익') return { label: '수익', tone: 'up' };
+  if (option === '손실') return { label: '손실', tone: 'down' };
   if (option.includes('최고') || option.includes('상승') || option.includes('돌파')) return { label: option, tone: 'up' };
   if (option.includes('최저') || option.includes('하락') || option.includes('이탈')) return { label: option, tone: 'down' };
   if (option.includes('전일') || option.includes('이전')) return { label: option, tone: 'history' };
@@ -810,6 +779,10 @@ const getSelectOptionPresentation = (option: string): { label: string; tone: str
 const CustomBlockSelect = ({ label, value, options, onChange, compact = false }: CustomBlockSelectProps) => {
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ left: number; top: number; width: number } | null>(null);
+  // 메뉴는 createPortal로 body(=data-updown 조상 밖)에 렌더되므로 등락색(--gain/--loss)이
+  // 항상 :root 기본(한국)으로 잡힌다. 트리거에서 실제 해석된 값을 읽어 메뉴에 주입해
+  // 국가 설정(미국 등)이 드롭다운 옵션 색에도 반영되게 한다.
+  const [menuTokens, setMenuTokens] = useState<Record<string, string> | null>(null);
   const rootRef = useRef<HTMLSpanElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLSpanElement>(null);
@@ -850,6 +823,15 @@ const CustomBlockSelect = ({ label, value, options, onChange, compact = false }:
       top: opensUpward ? Math.max(8, bounds.top - estimatedHeight - 4) : bounds.bottom + 4,
       width,
     });
+    if (triggerRef.current) {
+      const resolved = getComputedStyle(triggerRef.current);
+      setMenuTokens({
+        '--gain': resolved.getPropertyValue('--gain'),
+        '--loss': resolved.getPropertyValue('--loss'),
+        '--gain-soft': resolved.getPropertyValue('--gain-soft'),
+        '--loss-soft': resolved.getPropertyValue('--loss-soft'),
+      });
+    }
     setOpen(true);
   };
 
@@ -886,15 +868,17 @@ const CustomBlockSelect = ({ label, value, options, onChange, compact = false }:
         }
       }}
     >{compact
-      ? <>{hasSelectedIcon && <SelectedIcon className="block-relation-icon" size={12} aria-hidden="true" />}<span className="block-relation-label">{selectedPresentation.label}</span></>
-      : <span className="select-trigger-value">{hasSelectedIcon && <SelectedIcon size={12} aria-hidden="true" />}<span>{selectedPresentation.label}</span></span>}
+      ? <>{hasSelectedIcon
+          ? <SelectedIcon className="block-relation-icon" size={13} aria-hidden="true" />
+          : <Plus className="block-relation-icon is-placeholder" size={14} aria-hidden="true" />}<span className="block-relation-label">{selectedPresentation.label}</span></>
+      : <span className="select-trigger-value"><span>{selectedPresentation.label}</span></span>}
       {!compact && <ChevronDown size={11} aria-hidden="true" />}</button>
     {open && menuPosition && createPortal(<span
       ref={menuRef}
       className={`block-custom-select-menu ${compact ? 'is-compact' : ''}`}
       role="listbox"
       aria-label={`${label} 옵션`}
-      style={menuPosition}
+      style={{ ...menuPosition, ...menuTokens }}
       onPointerDown={(event) => event.stopPropagation()}
       onWheel={(event) => event.stopPropagation()}
     >
@@ -922,18 +906,27 @@ interface BlockProps {
   label: string;
   value?: string;
   op?: string;
+  base?: string;
   tone?: BlockTone;
   locked?: boolean;
-  onChange?: (patch: { op?: string; value?: string }) => void;
+  onChange?: (patch: { op?: string; value?: string; base?: string }) => void;
 }
 
-const Block = ({ icon: Icon, label, value, op, tone = 'neutral', locked = false, onChange }: BlockProps) => {
+const BASE_BLOCKS = new Set(['가격 변화율']);
+const getBlockBaseOptions = (label: string): string[] => (
+  label === '가격 변화율' ? ['전일 종가', '당일 장 시작가', '평균 진입가'] : []
+);
+
+const Block = ({ icon: Icon, label, value, op, base, tone = 'neutral', locked = false, onChange }: BlockProps) => {
   const block = { label, value, op, tone };
   const operatorOptions = getBlockOperatorOptions(block);
-  const operatorLabel = operatorOptions.filter(Boolean).every((option) => option === '↑' || option === '↓') ? `${label} 방향` : `${label} 비교`;
+  const operatorLabel = operatorOptions.filter(Boolean).every((option) => ['↑', '↓', '상승', '하락', '수익', '손실'].includes(option)) ? `${label} 방향` : `${label} 비교`;
   return <div className={`scratch-block block-${tone}`}>
     {Icon && <Icon className="block-type-icon" size={15} />}
     <span title={label}>{getBlockDisplayLabel(label)}</span>
+    {BASE_BLOCKS.has(label) && (locked
+      ? base && <span className="block-value is-locked">{base}</span>
+      : <CustomBlockSelect label={`${label} 기준 선택`} value={base ?? NULL_BLOCK_VALUE} options={getBlockBaseOptions(label)} onChange={(nextBase) => onChange!({ base: nextBase })} />)}
     {locked
       ? op && <b className="block-op">{op}</b>
       : operatorOptions.length === 1
@@ -1139,7 +1132,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
         const sideLabel = side === 'buy' ? '매수' : side === 'sell' ? '매도' : '위기관리';
         return section.cards[side].flatMap((cardId): ValidationIssue[] => {
           const blocks = cardBlocks[cardId] ?? [];
-          if (blocks.length === 0) {
+          // 매수 카드는 '주기마다' 진입(정기 매수)이면 조건 블록 없이도 트리거가 있는 것으로 본다.
+          const periodicEntry = side === 'buy' && (buySettings[cardId]?.entryMode ?? '1회만') === '주기마다';
+          if (blocks.length === 0 && !periodicEntry) {
             return [{
               id: `${cardId}-empty`,
               sectionId: section.id,
@@ -1149,7 +1144,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
           }
           const hasNullField = blocks.some((block) => {
             const operatorRequired = getBlockOperatorOptions(block).length > 1;
-            return !String(block.value ?? '').trim() || (operatorRequired && !String(block.op ?? '').trim());
+            const baseRequired = BASE_BLOCKS.has(block.label);
+            return !String(block.value ?? '').trim()
+              || (operatorRequired && !String(block.op ?? '').trim())
+              || (baseRequired && !String(block.base ?? '').trim());
           });
           if (side === 'sell' && !sellSettings[cardId]?.sellPercent) {
             return [{
@@ -1168,7 +1166,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
         });
       });
     });
-  }, [cardBlocks, sections, sellSettings]);
+  }, [cardBlocks, sections, sellSettings, buySettings]);
   const validationSignature = validationIssues.map((issue) => issue.id).join('|');
   const isLaunchable = validationIssues.length === 0;
   const groupedValidationIssues = useMemo(() => {
@@ -1593,7 +1591,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
     setCardCount(cardCount + addedCardIds.length);
     setCardBlocks((current) => ({
       ...current,
-      [buyCardId]: createTemplateBlocks(template, buyCardId, 'buy'),
+      // 정기 매수 패키지는 조건 블록 없이 '주기마다' 진입 설정만으로 동작한다.
+      [buyCardId]: template.buyCycle ? [] : createTemplateBlocks(template, buyCardId, 'buy'),
       ...(includeSell ? { [sellCardId]: createTemplateBlocks(template, sellCardId, 'sell') } : {}),
       ...Object.fromEntries(riskCards.map((card) => [card.id, createBlocksFromDefinitions(card.id, card.blocks)])),
     }));
@@ -1638,7 +1637,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
         },
       }
       : section));
-    setBuySettings((current) => ({ ...current, [buyCardId]: createDefaultBuySettings() }));
+    setBuySettings((current) => ({
+      ...current,
+      [buyCardId]: { ...createDefaultBuySettings(), ...(template.buyCycle ? { entryMode: '주기마다' as const, cycle: template.buyCycle, maxEntries: 60 } : {}) },
+    }));
     if (includeSell) {
       setSellSettings((current) => ({ ...current, [sellCardId]: createDefaultSellSettings() }));
     }
@@ -1653,6 +1655,13 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
     if (!targetCardId || !cardBlocks[targetCardId]) {
       setAnnouncement('먼저 블록을 넣을 전략 카드를 선택해 주세요.');
       return;
+    }
+    if (SELL_ONLY_BLOCKS.has(label)) {
+      const owner = sections.find((item) => item.cardOrder.includes(targetCardId));
+      if (!owner?.cards.sell.includes(targetCardId)) {
+        setAnnouncement(`${label}은(는) 매도 전략 카드에서만 사용할 수 있어요. 포지션을 보유한 뒤 평가되는 청산 조건입니다.`);
+        return;
+      }
     }
     rememberEditorChange();
     const nextCount = customBlockCount + 1;
@@ -2325,8 +2334,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
       detail: '조건을 모두 만족하면 실행',
       explanation: '',
     };
-    const settings = buySettings[cardId] ?? createDefaultBuySettings();
-    const sellExecution = sellSettings[cardId] ?? createDefaultSellSettings();
+    // 기본값을 먼저 깔고 저장된 값을 덮어써, 이전 스키마로 저장돼 entryMode 등이
+    // 빠진 데이터에서도 항상 유효한 모드(기본 '1회만')가 선택되도록 한다.
+    const settings = { ...createDefaultBuySettings(), ...buySettings[cardId] };
+    const sellExecution = { ...createDefaultSellSettings(), ...sellSettings[cardId] };
     const position = section.cardPositions?.[cardId] ?? getDefaultCardPosition(cardIndex);
     const ruleSide: 'left' | 'right' = position.x > Math.max(520, (section.width ?? 752) * .56) ? 'left' : 'right';
     const budgetRule = side === 'buy'
@@ -2416,8 +2427,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
             {side === 'buy' && <>
               <span>예산 {Math.round(section.allocation / Math.max(1, section.cards.buy.length))}%</span>
               <span>주문 최대 {settings.maxOrderPercent}%</span>
+              {settings.entryMode !== '1회만' && <span>{settings.entryMode}</span>}
             </>}
-            {side === 'sell' && <span>{sellExecution.sellPercent ? `매도 ${sellExecution.sellPercent}%` : '비율 미설정'}</span>}
+            {side === 'sell' && <>
+              <span>{sellExecution.sellPercent ? `매도 ${sellExecution.sellPercent}%` : '비율 미설정'}</span>
+              {sellExecution.executeMode !== '1회만' && <span>{sellExecution.executeMode}</span>}
+            </>}
             {invalidCardIds.has(cardId) && <em className="strategy-validation-badge">{cardBlocks[cardId]?.length ? '입력 필요' : '조건 필요'}</em>}
           </span>}
         </div>
@@ -2440,16 +2455,41 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
           <span><Settings2 size={13} aria-hidden="true" /><strong>매수 설정</strong></span>
           <button type="button" aria-label="매수 실행 설정 닫기" onClick={() => setExpandedSettingsCardId(null)}><X size={13} /></button>
         </header>
-        {/* 사용 예산(균등 배분)은 헤더 태그로 이미 보이고, 주문 비율은 카드 하단 요청
-            블록에서 직접 편집하므로, 설정창에는 반복 진입만 남겨 중복을 없앴습니다. */}
-        <label className="setting-toggle"><input type="checkbox" aria-label="반복 진입 허용" checked={settings.allowAdditionalBuy} onChange={(event) => {
-          rememberEditorChange();
-          setBuySettings((current) => ({ ...current, [cardId]: { ...settings, allowAdditionalBuy: event.target.checked } }));
-        }} /><span><strong>반복 진입</strong><small>조건이 다시 맞으면 재진입</small></span></label>
-        {settings.allowAdditionalBuy && <div className="additional-buy-settings">
-          <label><span>방식</span><select aria-label="재실행 방식" value={settings.rerunMode} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, rerunMode: event.target.value as BuyContainerSettings['rerunMode'] } }))}><option>조건 재충족</option><option>N봉 이후</option><option>N거래일 이후</option></select></label>
-          <label><span>간격</span><input type="number" min="1" max="365" aria-label="재실행 간격" value={settings.rerunInterval} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, rerunInterval: Number(event.target.value) } }))} /></label>
-          <label><span>최대 진입</span><input type="number" min="1" max="1000" aria-label="한 포지션 최대 진입 횟수" value={settings.maxEntries} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxEntries: Number(event.target.value) } }))} /></label>
+        {/* 사용 예산·주문 비율은 헤더 태그·요청 블록에서 다루므로, 여기엔 '진입 방식'만 둔다.
+            스케줄(주기마다)과 재진입 대기는 모두 "언제 다시 조건을 확인해 진입할지"를 정하므로
+            하나의 상호 배타 모드로 통합했다. '주기마다'는 조건 블록 없이도 정기 매수가 된다. */}
+        <div className="setting-field-group">
+          <span className="setting-field-title"><strong>진입 방식</strong><small>조건을 언제 다시 확인해 진입할지 정합니다</small></span>
+          <div className="setting-mode-tabs" role="radiogroup" aria-label="진입 방식">
+            {(['1회만', '주기마다', '대기 후 재진입'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={settings.entryMode === mode}
+                className={settings.entryMode === mode ? 'is-active' : ''}
+                onClick={() => {
+                  rememberEditorChange();
+                  setBuySettings((current) => ({ ...current, [cardId]: { ...settings, entryMode: mode } }));
+                }}
+              >{mode}</button>
+            ))}
+          </div>
+        </div>
+        {settings.entryMode === '1회만' && <p className="setting-mode-hint">조건을 충족하면 한 번만 진입합니다.</p>}
+        {settings.entryMode === '주기마다' && <div className="additional-buy-settings">
+          <label><span>주기</span><select aria-label="진입 주기" value={settings.cycle} onChange={(event) => {
+            rememberEditorChange();
+            setBuySettings((current) => ({ ...current, [cardId]: { ...settings, cycle: event.target.value as BuyCycle } }));
+          }}><option>매 거래일</option><option>매주 첫 거래일</option><option>매월 첫 거래일</option><option>매월 마지막 거래일</option><option>N거래일마다</option></select></label>
+          {settings.cycle === 'N거래일마다' && <label><span>간격</span><input type="number" min="2" max="365" aria-label="진입 주기 간격(거래일)" value={settings.cycleInterval} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, cycleInterval: Number(event.target.value) } }))} /></label>}
+          <label><span>최대 진입</span><input type="number" min="2" max="1000" aria-label="한 포지션 최대 진입 횟수" value={settings.maxEntries} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxEntries: Number(event.target.value) } }))} /></label>
+          <p className="setting-mode-hint">조건 블록이 없으면 지정 주기마다 정기 매수합니다.</p>
+        </div>}
+        {settings.entryMode === '대기 후 재진입' && <div className="additional-buy-settings">
+          <label><span>대기</span><select aria-label="재진입 대기 방식" value={settings.reentryWait} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, reentryWait: event.target.value as RerunWait } }))}><option>조건 재충족</option><option>N봉 이후</option><option>N거래일 이후</option></select></label>
+          {settings.reentryWait !== '조건 재충족' && <label><span>간격</span><input type="number" min="1" max="365" aria-label="재진입 간격" value={settings.reentryInterval} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, reentryInterval: Number(event.target.value) } }))} /></label>}
+          <label><span>최대 진입</span><input type="number" min="2" max="1000" aria-label="한 포지션 최대 진입 횟수" value={settings.maxEntries} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxEntries: Number(event.target.value) } }))} /></label>
         </div>}
       </section>}
       {side === 'sell' && expandedSettingsCardId === cardId && <section className="container-settings-card is-popover" role="group" aria-label="매도 실행 설정">
@@ -2457,15 +2497,31 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
           <span><Settings2 size={13} aria-hidden="true" /><strong>매도 설정</strong></span>
           <button type="button" aria-label="매도 실행 설정 닫기" onClick={() => setExpandedSettingsCardId(null)}><X size={13} /></button>
         </header>
-        {/* 매도 비율은 카드 하단 요청 블록에서 편집하므로, 설정창에는 반복 매도만 둡니다. */}
-        <label className="setting-toggle"><input type="checkbox" aria-label="반복 매도 허용" checked={sellExecution.allowRepeatSell} onChange={(event) => {
-          rememberEditorChange();
-          setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), allowRepeatSell: event.target.checked } }));
-        }} /><span><strong>반복 매도</strong><small>조건이 다시 맞으면 추가 매도</small></span></label>
-        {sellExecution.allowRepeatSell && <div className="additional-buy-settings">
-          <label><span>방식</span><select aria-label="재매도 방식" value={sellExecution.rerunMode} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), rerunMode: event.target.value as SellContainerSettings['rerunMode'] } }))}><option>조건 재충족</option><option>N봉 이후</option><option>N거래일 이후</option></select></label>
-          <label><span>간격</span><input type="number" min="1" max="365" aria-label="재매도 간격" value={sellExecution.rerunInterval} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), rerunInterval: Number(event.target.value) } }))} /></label>
-          <label><span>최대 실행</span><input type="number" min="1" max="1000" aria-label="한 포지션 최대 매도 횟수" value={sellExecution.maxEntries} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), maxEntries: Number(event.target.value) } }))} /></label>
+        {/* 매도 비율은 카드 하단 요청 블록에서 편집하므로, 설정창에는 '실행 방식'만 둔다.
+            매도엔 주기 개념이 없어 1회만 / 대기 후 재실행 두 모드만 제공한다. */}
+        <div className="setting-field-group">
+          <span className="setting-field-title"><strong>실행 방식</strong><small>조건을 언제 다시 확인해 매도할지 정합니다</small></span>
+          <div className="setting-mode-tabs" role="radiogroup" aria-label="실행 방식">
+            {(['1회만', '대기 후 재실행'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={sellExecution.executeMode === mode}
+                className={sellExecution.executeMode === mode ? 'is-active' : ''}
+                onClick={() => {
+                  rememberEditorChange();
+                  setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), executeMode: mode } }));
+                }}
+              >{mode}</button>
+            ))}
+          </div>
+        </div>
+        {sellExecution.executeMode === '1회만' && <p className="setting-mode-hint">조건을 충족하면 한 번만 매도합니다.</p>}
+        {sellExecution.executeMode === '대기 후 재실행' && <div className="additional-buy-settings">
+          <label><span>대기</span><select aria-label="재매도 대기 방식" value={sellExecution.reexecWait} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), reexecWait: event.target.value as RerunWait } }))}><option>조건 재충족</option><option>N봉 이후</option><option>N거래일 이후</option></select></label>
+          {sellExecution.reexecWait !== '조건 재충족' && <label><span>간격</span><input type="number" min="1" max="365" aria-label="재매도 간격" value={sellExecution.reexecInterval} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), reexecInterval: Number(event.target.value) } }))} /></label>}
+          <label><span>최대 실행</span><input type="number" min="2" max="1000" aria-label="한 포지션 최대 매도 횟수" value={sellExecution.maxExecutions} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), maxExecutions: Number(event.target.value) } }))} /></label>
         </div>}
       </section>}
       <div

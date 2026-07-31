@@ -1330,7 +1330,7 @@
   /* Align with the real card grid (BASIC_CARD_MIN_Y / card width) so the prompt
      sits in its column below the header instead of overlapping the divider. */
   top: 136px;
-  width: 344px;
+  width: 340px;
   min-height: 170px;
   display: grid;
   place-items: center;
@@ -1813,11 +1813,12 @@
   box-shadow: 0 0 0 2px rgba(235, 245, 213, .62);
 }
 .variant-balanced[data-design="signal-studio"] .block-number-stepper {
-  width: 68px;
+  /* −/+ 버튼 제거 후 입력만 남으므로 단일 중앙 열로, 폭도 좁힌다. */
+  width: 44px;
   height: 24px;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) 8px 18px;
-  flex: 0 0 68px;
+  place-items: center;
+  flex: 0 0 44px;
   align-items: center;
   margin-left: auto;
   overflow: hidden;
@@ -5503,6 +5504,48 @@
 .variant-balanced[data-design="signal-studio"] .setting-toggle strong { color: var(--text); font-size: 9px; }
 .variant-balanced[data-design="signal-studio"] .setting-toggle small { color: var(--text-faint); line-height: 1.45; }
 .variant-balanced[data-design="signal-studio"] .additional-buy-settings { display: grid; gap: 8px; }
+.variant-balanced[data-design="signal-studio"] .setting-field-group { display: grid; gap: 6px; }
+.variant-balanced[data-design="signal-studio"] .setting-field-title { display: grid; gap: 2px; }
+.variant-balanced[data-design="signal-studio"] .setting-field-title strong { color: var(--text); font-size: 9px; }
+.variant-balanced[data-design="signal-studio"] .setting-field-title small { color: var(--text-faint); font-size: 8px; line-height: 1.45; }
+/* 진입/실행 방식: 상호 배타 모드를 고르는 세그먼트 컨트롤. */
+.variant-balanced[data-design="signal-studio"] .setting-mode-tabs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .setting-mode-tabs button {
+  min-height: 27px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-faint);
+  background: transparent;
+  font: 700 9px var(--font-mono);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .12s ease, background .12s ease;
+}
+.variant-balanced[data-design="signal-studio"] .setting-mode-tabs button:hover { color: var(--text-soft); }
+.variant-balanced[data-design="signal-studio"] .setting-mode-tabs button.is-active {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .setting-mode-tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.variant-balanced[data-design="signal-studio"] .setting-mode-hint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 8px;
+  line-height: 1.5;
+}
 .variant-balanced[data-design="signal-studio"] .settings-natural-summary {
   margin: 0;
   padding: 9px 10px;
@@ -7348,15 +7391,26 @@ small.dashboard-bot-scope {
   --select-tone: var(--text-soft);
   --select-tone-soft: var(--surface-3);
 }
+/* 방향(상승/하강·수익/손실)은 시장 국가에 연동된 등락 색을 그대로 쓴다.
+   KR: gain=빨강 / loss=파랑, US: gain=초록 / loss=빨강 */
 .block-custom-select-menu > button.tone-up,
 .variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-up {
-  --select-tone: #16885d;
-  --select-tone-soft: color-mix(in srgb, #44bd87 18%, var(--surface));
+  --select-tone: var(--gain);
+  --select-tone-soft: color-mix(in srgb, var(--gain) 18%, var(--surface));
 }
 .block-custom-select-menu > button.tone-down,
 .variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-down {
-  --select-tone: #d75563;
-  --select-tone-soft: color-mix(in srgb, #e86470 17%, var(--surface));
+  --select-tone: var(--loss);
+  --select-tone-soft: color-mix(in srgb, var(--loss) 17%, var(--surface));
+}
+/* 비교(초과/미만)는 방향 색과 구분되도록 무채색(흰색)으로 표시한다.
+   미선택 '+' 플레이스홀더와 같은 톤이라 연산자 pill 위에서 일관되게 보인다. */
+.block-custom-select-menu > button.tone-over,
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-over,
+.block-custom-select-menu > button.tone-under,
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-under {
+  --select-tone: #ffffff;
+  --select-tone-soft: color-mix(in srgb, #ffffff 16%, var(--surface));
 }
 .block-custom-select-menu > button.tone-history,
 .variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-history {
@@ -8330,8 +8384,9 @@ small.dashboard-bot-scope {
 }
 
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .section-strategy-grid .strategy-card {
-  width: 344px;
-  min-width: 344px;
+  /* 변화율처럼 컨트롤이 3개(기준·연산자·값)인 블록이 넘치지 않도록 카드 폭을 넓힌다. */
+  width: 340px;
+  min-width: 340px;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .scratch-block > span:not([class]) {
   max-width: 88px;
@@ -8467,7 +8522,7 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-indicator { --category-color: #9180d8; }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-condition { --category-color: #d2b04d; }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-time { --category-color: #69b7c1; }
-.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-risk { --category-color: #d06f6b; }
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-risk { --category-color: color-mix(in srgb, var(--sell-block-color) 82%, #0d1524); }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-chip-list {
   display: grid;
   /* Match Pro's node rhythm: 6px between cards comes from each card's margin-bottom,
@@ -9397,10 +9452,12 @@ small.dashboard-bot-scope {
   background: #d9a827;
 }
 
-/* Basic cards and their rule stacks keep one compact width at every count. */
+/* Basic cards and their rule stacks keep one compact width at every count.
+   변화율처럼 컨트롤이 3개(기준·연산자·값)인 블록의 최장 내용(≈330px)이 넘치지 않는
+   최소 폭으로만 넓혀, 다른 블록에서 우측 여백이 과하게 남지 않게 한다. */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .section-strategy-grid .strategy-card {
-  width: 320px;
-  min-width: 320px;
+  width: 340px;
+  min-width: 340px;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.has-condition-blocks,
@@ -9495,10 +9552,12 @@ small.dashboard-bot-scope {
   --block-tone-color: #74849e;
   --block-tone-surface: #74849e;
 }
+/* 청산 블록은 매도 전용 → 매도 카드색(국가 연동: 한국 파랑 / 미국 빨강)을
+   살짝 더 깊은 톤으로 써서 매도 계열임을 드러내되 카드와는 구분한다. */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-risk,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-risk {
-  --block-tone-color: #ec5385;
-  --block-tone-surface: #ec5385;
+  --block-tone-color: color-mix(in srgb, var(--sell-block-color) 82%, #0d1524);
+  --block-tone-surface: color-mix(in srgb, var(--sell-block-color) 82%, #0d1524);
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-order,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-order {
@@ -9569,25 +9628,45 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select.is-fixed-width.is-null,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select.is-fixed-width .block-custom-select-trigger,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select.is-fixed-width.is-null .block-custom-select-trigger {
-  width: 44px;
-  min-width: 44px;
-  flex-basis: 44px;
+  /* 아이콘만 표시하므로 컨트롤 높이(24px)에 맞춘 정사각형으로 좁혀 공간을 확보한다. */
+  width: 26px;
+  min-width: 26px;
+  flex-basis: 26px;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select .block-custom-select-trigger {
   min-height: 24px;
   padding-inline: 4px;
   border-radius: 7px;
+  justify-content: center;
+}
+/* 연산자 pill은 아이콘만 노출: 라벨은 스크린리더용으로 DOM에 남기고 시각적으로 숨긴다. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-relation-select .block-relation-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-relation-select .block-relation-icon.is-placeholder {
+  color: #fff;
+  opacity: 1;
+  filter: none;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-value-select {
   width: auto;
   min-width: 64px;
-  max-width: 116px;
+  /* 긴 옵션(최근 20봉 평균 거래량 등)이 잘리지 않도록 폭을 넓힌다. */
+  max-width: 148px;
   flex-basis: auto;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-value-select .block-custom-select-trigger {
   width: max-content;
   min-width: 64px;
-  max-width: 116px;
+  max-width: 148px;
   min-height: 26px;
   padding-inline: 8px 6px;
 }
@@ -9597,10 +9676,12 @@ small.dashboard-bot-scope {
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper.is-null {
-  width: 68px;
+  /* −/+ 버튼 제거 후 입력만 남으므로 폭을 좁히고 단일 중앙 열로 정렬한다. */
+  width: 44px;
   height: 26px;
-  flex-basis: 68px;
-  grid-template-columns: 18px minmax(0, 1fr) 18px;
+  flex-basis: 44px;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper label {
   min-width: 0;
@@ -9635,6 +9716,11 @@ small.dashboard-bot-scope {
     drop-shadow(0 0 0.3px #fff) drop-shadow(0 0 0.3px #fff)
     drop-shadow(0 0 0.3px #fff) drop-shadow(0 0 0.3px #fff)
     drop-shadow(0 0 0.3px #fff) drop-shadow(0 0 0.3px #fff);
+}
+/* 대소 비교(초과/미만)는 흰색 아이콘이라 흰 아웃라인이 겹쳐 지저분하므로 제거한다. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .tone-over .block-relation-icon,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .tone-under .block-relation-icon {
+  filter: none;
 }
 /* Value dropdowns left-align their label so the icon hugs the left edge instead
    of leaving a wide gap when centred; the chevron floats at the right, out of

@@ -2,7 +2,7 @@ export const BASIC_SECTION_HEADER_HEIGHT = 96;
 export const BASIC_SECTION_MIN_WIDTH = 420;
 export const BASIC_SECTION_PADDING = 24;
 export const BASIC_CARD_MIN_Y = 136;
-export const BASIC_STRATEGY_CARD_WIDTH = 344;
+export const BASIC_STRATEGY_CARD_WIDTH = 340;
 export const BASIC_STRATEGY_CARD_FALLBACK_HEIGHT = 286;
 
 export interface CanvasPoint {
