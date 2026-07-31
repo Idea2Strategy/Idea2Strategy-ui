@@ -10,7 +10,7 @@ import type {
   WheelEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Activity, ArrowDown, ArrowLeft, ArrowUp, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, CircleDot, Gauge, GitBranch, Grid3X3, GripVertical, History, Import, Layers3, LayoutGrid, Link2, Minus, Mouse, MousePointer2, Pencil, Play, Plus, Redo2, RefreshCw, Repeat2, Rocket, Save, Scale, Search, Settings2, ShieldCheck, Sparkles, Split, Star, Target, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, Undo2, X } from 'lucide-react';
+import { Activity, ArrowDown, ArrowLeft, ArrowUp, BarChart3, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, CircleDot, Gauge, GitBranch, Grid3X3, GripVertical, History, Import, Layers3, LayoutGrid, Link2, Minus, Mouse, MousePointer2, Pencil, Play, Plus, Redo2, RefreshCw, Repeat2, Rocket, Save, Scale, Search, Settings2, ShieldCheck, Sparkles, Split, Star, Target, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, Undo2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { strategies } from '../data/mockData';
 import type { StrategySummary } from '../data/mockData';
@@ -443,7 +443,7 @@ const getTemplateStructureLabel = (template: StrategyTemplate) => [
 ].join(' · ');
 
 const BLOCK_LIBRARY: BlockLibraryCategory[] = [
-  { name: '가격', tone: 'data', items: ['가격 비교', '가격 변화율', '연속 상승·하락'] },
+  { name: '가격', tone: 'data', items: ['가격 비교', '가격 변화율', '연속 상승·하락', '거래량'] },
   { name: '추세', tone: 'indicator', items: ['평균선 교차'] },
   { name: '반전', tone: 'condition', items: ['RSI 반등', 'MACD 전환', '가격 띠 반전'] },
   // 정기 실행(일정)은 조건 블록이 아니라 매수 카드의 '스케줄' 설정으로 이동했다.
@@ -476,6 +476,7 @@ const getTemplateBlockDefinitions = (template: StrategyTemplate, side: Exclude<S
 };
 
 const getBasicBlockIcon = (label: string, tone: BlockTone): LucideIcon => {
+  if (label.includes('거래량')) return BarChart3;
   if (label.includes('RSI')) return Activity;
   if (label.includes('MACD')) return RefreshCw;
   if (label.includes('평균선')) return GitBranch;
@@ -560,6 +561,7 @@ const getBlockDisplayLabel = (label: string): string => ({
 
 const getBlockLibraryDescription = (label: string): string => ({
   '가격 비교': '기준 가격과 현재가를 비교합니다',
+  '거래량': '현재 거래량을 기준 거래량과 비교합니다',
   '가격 변화율': '전일 종가 대비 상승·하락 변화율을 확인합니다',
   '연속 상승·하락': '같은 방향의 연속 봉을 확인합니다',
   '평균선 교차': '두 평균선이 만나는 시점을 찾습니다',
@@ -596,6 +598,7 @@ const renderBasicValidationMessage = (message: string): ReactNode => {
 const getBlockValueOptions = (block: BlockRuleInput): string[] => {
   const normalizedLabel = block.label.toUpperCase();
   if (block.label === '가격 비교') return ['전일 종가', '당일 장 시작가', '평균 진입가', '최근 20봉 평균 가격', '이전 20봉 최고 가격', '이전 20봉 최저 가격'];
+  if (block.label === '거래량') return ['최근 20봉 평균 거래량', '최근 20봉 평균 거래량 2배', '최근 20봉 평균 거래량 3배', '이전 봉 거래량'];
   if (block.label === '연속 상승·하락') return ['2봉', '3봉', '5봉', '10봉', '20봉', '30봉'];
   if (block.label === '평균선 교차') return ['5봉 · 20봉', '20봉 · 60봉', '60봉 · 120봉'];
   if (block.label === 'MACD 전환') return ['12 · 26 · 9'];
