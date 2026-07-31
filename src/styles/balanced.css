@@ -738,6 +738,8 @@
 .variant-balanced[data-design="signal-studio"] .tone-risk,
 .variant-balanced[data-design="signal-studio"] .block-risk { --block-tone-color: var(--block-risk-color); --block-tone-surface: var(--block-risk-surface); }
 .variant-balanced[data-design="signal-studio"] .strategy-section-frame.is-selected {
+  /* 선택(활성) 파티션은 겹칠 때 앞으로 올라와 카드·팝오버가 다른 파티션 위에 보이도록 한다. */
+  z-index: 4;
   border-color: color-mix(in srgb, var(--accent) 62%, var(--line-strong));
 }
 .variant-balanced[data-design="signal-studio"] .section-strategy-grid .strategy-card.is-selected {
@@ -952,6 +954,10 @@
 .variant-balanced[data-design="signal-studio"] .strategy-section-frame {
   position: absolute;
   box-sizing: border-box;
+  /* 각 파티션을 독립 stacking context로 격리한다. 이게 없으면 카드(z-index:2)가
+     다른 파티션 프레임 위로 뚫고 올라와 렌더링 순서가 뒤섞인다. */
+  z-index: 1;
+  isolation: isolate;
   padding: 0 18px 18px;
   border: 1px solid color-mix(in srgb, var(--line-strong) 78%, var(--accent) 22%);
   border-radius: 20px;
@@ -1352,8 +1358,8 @@
   opacity: .9;
 }
 .variant-balanced[data-design="signal-studio"] .required-buy-slot {
-  /* Top-left aligned, in the first card column, so it reads as the start of the
-     grid (and matches where the first card lands once one is added). */
+  /* 전략 카드와 같은 폭(340)으로 크기를 고정하고 좌상단(left 24 · top 136)에 정렬한다.
+     right/bottom 인셋을 쓰지 않으므로 파티션 프레임을 리사이즈해도 슬롯 크기는 그대로다. */
   left: 24px;
   border-color: color-mix(in srgb, var(--warning) 72%, var(--line-strong));
   color: var(--warning);

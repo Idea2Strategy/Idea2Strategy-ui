@@ -238,6 +238,8 @@ interface SectionResizeGesture {
 // button on one row (below it the header wraps and would overlap the content),
 // and the height fits the top-left required-buy prompt with an even bottom gap
 // (slot top 136 + slot min-height 170 + ~24 section padding).
+// 헤더(핸들·정보·설정·버튼)가 한 줄에 들어가는 최소 폭. 이보다 좁히면 헤더가
+// 줄바꿈되어 높아지고 required-buy-slot과 겹친다.
 const MIN_SECTION_WIDTH = 420;
 const MIN_SECTION_HEIGHT = 330;
 

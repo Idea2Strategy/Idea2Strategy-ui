@@ -1,4 +1,6 @@
 export const BASIC_SECTION_HEADER_HEIGHT = 96;
+// 빈 파티션 최소 폭. 헤더(핸들·정보·설정 3필드·버튼 3개)가 한 줄에 들어가는 폭을
+// 확보해야 하므로 420 미만으로 줄이면 헤더가 크게 줄바꿈되어 슬롯과 겹친다.
 export const BASIC_SECTION_MIN_WIDTH = 420;
 export const BASIC_SECTION_PADDING = 24;
 export const BASIC_CARD_MIN_Y = 136;
