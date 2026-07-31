@@ -5208,9 +5208,9 @@
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--line-strong) 84%, transparent);
   border-radius: 16px;
-  /* Transparent body so blocks sit directly on the canvas instead of a second
-     dark/white panel that made the layering read as overly deep. */
-  background: transparent;
+  /* 카드 본문에 테마 연동 옅은 틴트(다크=옅은 검정 / 라이트=옅은 하양)를 준다.
+     surface를 낮은 비율로 섞어, 너무 어두워지지 않게 아주 살짝만 얹는다. */
+  background: color-mix(in srgb, var(--surface) 30%, transparent);
   box-shadow: 0 10px 28px rgba(var(--shadow-rgb), .13);
 }
 .variant-balanced[data-design="signal-studio"] .strategy-card .strategy-container-header {
@@ -8616,29 +8616,37 @@ small.dashboard-bot-scope {
       color-mix(in srgb, var(--surface-2) 84%, var(--surface)) 74px
     );
 }
+/* 패키지 섹션 헤딩(핵심/확장)을 블록 라이브러리 카테고리 디바이더 디자인에 맞춘다:
+   가운데 컬러 라벨 + 양옆 얇은 선. */
 .variant-balanced[data-design="signal-studio"] .basic-package-section-heading {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(10px, 1fr) auto minmax(10px, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   min-height: 28px;
   margin: 0;
   padding: 6px 4px;
-  color: var(--text-faint);
+  color: var(--accent);
   font: 800 8px var(--font-mono);
-  letter-spacing: .08em;
+  letter-spacing: .05em;
 }
-.variant-balanced[data-design="signal-studio"] .basic-package-section-heading::before {
+.variant-balanced[data-design="signal-studio"] .basic-package-section-heading::before,
+.variant-balanced[data-design="signal-studio"] .basic-package-section-heading::after {
   content: "";
-  width: 18px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent);
+  height: 1px;
+  background: var(--line);
 }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .template-advanced-break.basic-package-section-heading {
-  min-height: 31px;
+  min-height: 28px;
   margin: 4px 0 0;
-  padding-top: 9px;
-  border-top: 1px solid var(--line);
+  padding: 6px 4px;
+  border-top: 0;
+}
+/* 확장 헤딩의 라벨도 핵심과 동일 크기/자간으로(기존 template-advanced-break span 무력화). */
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-advanced-break.basic-package-section-heading > span {
+  color: var(--accent);
+  font: 800 8px var(--font-mono);
+  letter-spacing: .05em;
 }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card.pro-package-card {
   min-height: 66px;
@@ -9602,12 +9610,13 @@ small.dashboard-bot-scope {
  */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-recessed-control .block-custom-select-trigger,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper.is-recessed-control {
-  border: 1px solid color-mix(in srgb, var(--block-tone-color) 38%, rgba(20, 32, 35, .2));
+  /* 테두리를 아예 두지 않고(미선택과 동일) 살짝 어두운 배경 + 부드러운 인셋 그림자로만
+     리세스감을 준다. 투명이라도 1px 테두리가 있으면 그 가장자리에 배경 띠가 남아
+     값이 들어간 박스만 얇은 외곽선이 생겨 보였다. */
+  border: 0;
   border-radius: 7px;
   color: var(--block-control-ink);
-  /* Same fill as the block, one soft inset shadow (matching the terminal ratio
-     input) — recessed but flat, not heavily bevelled, and no white border. */
-  background: var(--block-tone-surface);
+  background: color-mix(in srgb, var(--block-tone-surface) 90%, #000);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, .28);
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-recessed-control .block-custom-select-trigger:hover,
@@ -9619,10 +9628,11 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-recessed-control .block-custom-select-trigger:focus-visible,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper.is-recessed-control:focus-within {
   outline: 0;
-  border-color: color-mix(in srgb, var(--block-tone-color) 58%, rgba(20, 32, 35, .24));
-  box-shadow:
-    inset 1px 1px 0 rgba(20, 32, 35, .14),
-    0 0 0 1px color-mix(in srgb, var(--block-tone-color) 22%, transparent);
+  /* 선택/포커스 시에도 어두운 아웃라인 없이 기본 리세스 그림자를 그대로 유지한다.
+     포커스 표시는 배경을 아주 살짝만 어둡게 해서 대신한다. */
+  border-color: transparent;
+  background: color-mix(in srgb, var(--block-tone-surface) 86%, #000);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .28);
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select.is-fixed-width,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select.is-fixed-width.is-null,

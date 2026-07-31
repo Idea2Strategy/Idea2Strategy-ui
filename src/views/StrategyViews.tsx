@@ -428,9 +428,9 @@ const TEMPLATE_LIBRARY: StrategyTemplate[] = [
   { id: 'daily-drop', name: '하루 급락 매수', category: '가격', indicator: '가격 변화율', buyTitle: '하루 급락 매수', buyTone: 'data', includeSell: false, description: '전일 대비 급락하면 진입해요' },
   { id: 'scheduled-buy', name: '정기 매수', category: '일정', indicator: '정기 매수', buyTitle: '정기 매수', buyTone: 'time', includeSell: false, buyCycle: '매 거래일', description: '선택한 거래 일정마다 매수 요청을 만들어요' },
   { id: 'donchian', name: 'Donchian 돌파', category: '추세', indicator: '가격 비교', buyTitle: 'Donchian 상향 돌파', sellTitle: 'Donchian 하향 이탈', buyTone: 'indicator', sellTone: 'indicator', buyBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], sellBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], description: '가격 범위 돌파를 추세로 확인하고 하향 이탈에 정리해요' },
-  { id: 'rsi', name: 'RSI 반등', category: '반전', indicator: 'RSI 반등', buyTitle: 'RSI 반등 매수', sellTitle: 'RSI 하락 매도', description: 'RSI가 낮은 구간에서 반등하면 사고 높은 구간에서 하락하면 정리해요' },
-  { id: 'sma', name: 'SMA 교차', category: '추세', indicator: '평균선 교차', description: '짧은 평균선과 긴 평균선의 교차를 따라가요' },
-  { id: 'macd', name: 'MACD 전환', category: '반전', indicator: 'MACD 전환', description: 'MACD가 상승 또는 하락 신호로 전환되는 순간을 찾아요' },
+  { id: 'rsi', name: 'RSI 반등', category: '반전', indicator: 'RSI 반등', buyTitle: 'RSI 반등 매수', sellTitle: 'RSI 하락 매도', buyBlocks: [{ label: 'RSI 반등', tone: 'condition' }, { label: '거래량', tone: 'data' }], description: 'RSI가 낮은 구간에서 반등하면 사고 높은 구간에서 하락하면 정리해요' },
+  { id: 'sma', name: 'SMA 교차', category: '추세', indicator: '평균선 교차', buyBlocks: [{ label: '평균선 교차', tone: 'indicator' }, { label: '연속 상승·하락', tone: 'indicator' }], description: '짧은 평균선과 긴 평균선의 교차를 따라가요' },
+  { id: 'macd', name: 'MACD 전환', category: '반전', indicator: 'MACD 전환', buyBlocks: [{ label: 'MACD 전환', tone: 'condition' }, { label: '평균선 교차', tone: 'indicator' }], description: 'MACD가 상승 또는 하락 신호로 전환되는 순간을 찾아요' },
   { id: 'bollinger', name: 'Bollinger 반전', category: '반전', indicator: '가격 띠 반전', buyBlocks: [{ label: '가격 띠 반전', tone: 'condition' }, { label: 'RSI 반등', tone: 'condition' }], sellBlocks: [{ label: '가격 띠 반전', tone: 'condition' }, { label: 'RSI 반등', tone: 'condition' }], description: '가격 띠 복귀를 RSI로 확인하고 띠 상단 이탈에 정리해요' },
 ];
 
