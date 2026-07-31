@@ -220,7 +220,7 @@ describe('Basic editor interactions', () => {
     expect(within(buyCard).getAllByRole('note', { name: /규칙 설명/ })).toHaveLength(2);
     const blockNarrative = within(buyCard).getByTestId('basic-narrative-block');
     expect(blockNarrative).toHaveTextContent('RSI');
-    expect(blockNarrative).toHaveTextContent('RSI가 기준값에서 선택한 방향으로 움직일 때');
+    expect(blockNarrative).toHaveTextContent('RSI가 기준선에서 방향을 바꿀 때');
     expect(blockNarrative).not.toHaveTextContent('비어');
     expect(blockNarrative).toHaveClass('tone-condition');
     expect(blockNarrative.querySelectorAll('b').length).toBeGreaterThanOrEqual(2);
@@ -232,8 +232,8 @@ describe('Basic editor interactions', () => {
     const blocks = await openBlocks(user);
     await user.click(within(blocks).getByRole('button', { name: 'MACD 전환 블록 추가' }));
     const narratives = within(buyCard).getAllByTestId('basic-narrative-block');
-    expect(narratives[0]).toHaveTextContent('움직이고');
-    expect(narratives[1]).toHaveTextContent('움직일 때');
+    expect(narratives[0]).toHaveTextContent('방향을 바꾸고');
+    expect(narratives[1]).toHaveTextContent('교차할 때');
 
     fireEvent.keyDown(screen.getByRole('group', { name: '매도 전략 카드 이동 영역' }), { key: 'Enter' });
     const sellCard = screen.getByTestId('basic-sell-group');

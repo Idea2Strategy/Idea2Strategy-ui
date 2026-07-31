@@ -79,16 +79,11 @@ interface StrategyTemplate {
   sellIndicator?: string;
   buyTitle?: string;
   sellTitle?: string;
-  buyOp: string;
-  buyValue: string;
-  sellOp: string;
-  sellValue: string;
   buyTone?: BlockTone;
   sellTone?: BlockTone;
   includeSell?: boolean;
   buyBlocks?: StrategyTemplateBlock[];
   sellBlocks?: StrategyTemplateBlock[];
-  riskContainers?: StrategyTemplateRiskContainer[];
   // 매수 컨테이너를 '주기마다' 진입(정기·적립식 매수)으로 만드는 패키지. 조건 블록
   // 없이 지정 주기에만 매수한다.
   buyCycle?: BuyCycle;
@@ -98,11 +93,6 @@ interface StrategyTemplate {
 interface StrategyTemplateBlock {
   label: string;
   tone: BlockTone;
-}
-
-interface StrategyTemplateRiskContainer {
-  title: string;
-  blocks: StrategyTemplateBlock[];
 }
 
 interface BlockLibraryCategory {
@@ -431,17 +421,17 @@ const createBlankStrategySections = (): StrategySection[] => [{
 const createDefaultCardBlocks = (_cardId: string, _side: Side): BasicBlock[] => [];
 
 const TEMPLATE_LIBRARY: StrategyTemplate[] = [
-  { id: 'streak', name: '연속 상승·하락', category: '가격', indicator: '연속 상승·하락', buyTitle: '연속 상승 매수', sellTitle: '연속 하락 매도', buyOp: '↑', buyValue: '3봉', sellOp: '↓', sellValue: '3봉', buyTone: 'data', sellTone: 'data', description: '연속 상승에서 진입하고 연속 하락에서 정리해요' },
-  { id: 'average-breakout', name: '최근 평균 가격 돌파', category: '가격', indicator: '가격 비교', buyTitle: '평균 가격 상향 돌파', sellTitle: '평균 가격 하향 이탈', buyOp: '>', buyValue: '최근 20봉 평균 가격', sellOp: '<', sellValue: '최근 20봉 평균 가격', buyTone: 'data', sellTone: 'data', description: '최근 평균 가격을 기준으로 진입과 청산을 구성해요' },
-  { id: 'high-breakout', name: '최근 최고 가격 돌파', category: '가격', indicator: '가격 비교', buyTitle: '최근 최고 가격 돌파', sellTitle: '최근 평균 가격 이탈', buyOp: '>', buyValue: '이전 20봉 최고 가격', sellOp: '<', sellValue: '최근 20봉 평균 가격', buyTone: 'data', sellTone: 'data', description: '새로운 고점을 돌파하면 진입하고 평균 가격 이탈에 정리해요' },
-  { id: 'open-rise', name: '장 시작가 대비 상승', category: '가격', indicator: '가격 변화율', buyTitle: '장 시작가 대비 상승', buyOp: '↑', buyValue: '3%', sellOp: '=', sellValue: '', buyTone: 'data', includeSell: false, riskContainers: [{ title: '당일 장 마감 청산', blocks: [{ label: '보유 기간', tone: 'risk' }] }], description: '장 시작가 대비 상승하면 진입해요' },
-  { id: 'daily-drop', name: '하루 급락 매수', category: '가격', indicator: '가격 변화율', buyTitle: '하루 급락 매수', buyOp: '↓', buyValue: '5%', sellOp: '=', sellValue: '', buyTone: 'data', includeSell: false, riskContainers: [{ title: '다음 거래일 청산', blocks: [{ label: '보유 기간', tone: 'risk' }] }], description: '전일 대비 급락하면 진입해요' },
-  { id: 'scheduled-buy', name: '정기 매수', category: '일정', indicator: '정기 실행', buyTitle: '정기 매수', buyOp: '=', buyValue: '매 거래일', sellOp: '=', sellValue: '', buyTone: 'time', includeSell: false, buyCycle: '매 거래일', description: '선택한 거래 일정마다 매수 요청을 만들어요' },
-  { id: 'donchian', name: 'Donchian 돌파', category: '추세', indicator: '가격 비교', buyTitle: 'Donchian 상향 돌파', sellTitle: 'Donchian 하향 이탈', buyOp: '>', buyValue: '이전 20봉 최고 가격', sellOp: '<', sellValue: '이전 10봉 최저 가격', buyTone: 'indicator', sellTone: 'indicator', buyBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], sellBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], riskContainers: [{ title: '수익 보호 청산', blocks: [{ label: '최고 수익률', tone: 'risk' }, { label: '고점 대비 하락', tone: 'risk' }] }], description: '가격 범위 돌파를 추세로 확인하고 하향 이탈에 정리해요' },
-  { id: 'rsi', name: 'RSI 반등', category: '반전', indicator: 'RSI 반등', buyTitle: 'RSI 반등 매수', sellTitle: 'RSI 하락 매도', buyOp: '↑', buyValue: '30', sellOp: '↓', sellValue: '70', description: 'RSI가 낮은 구간에서 반등하면 사고 높은 구간에서 하락하면 정리해요' },
-  { id: 'sma', name: 'SMA 교차', category: '추세', indicator: '평균선 교차', buyOp: '↑', buyValue: '20봉 · 60봉', sellOp: '↓', sellValue: '20봉 · 60봉', description: '짧은 평균선과 긴 평균선의 교차를 따라가요' },
-  { id: 'macd', name: 'MACD 전환', category: '반전', indicator: 'MACD 전환', buyOp: '↑', buyValue: '12 · 26 · 9', sellOp: '↓', sellValue: '12 · 26 · 9', description: 'MACD가 상승 또는 하락 신호로 전환되는 순간을 찾아요' },
-  { id: 'bollinger', name: 'Bollinger 반전', category: '반전', indicator: '가격 띠 반전', buyOp: '↑', buyValue: '20봉 · 2σ', sellOp: '↓', sellValue: '20봉 · 2σ', buyBlocks: [{ label: '가격 띠 반전', tone: 'condition' }, { label: 'RSI 반등', tone: 'condition' }], sellBlocks: [{ label: '가격 띠 반전', tone: 'condition' }, { label: 'RSI 반등', tone: 'condition' }], riskContainers: [{ title: '손실 제한 청산', blocks: [{ label: '현재 수익률', tone: 'risk' }] }], description: '가격 띠 복귀를 RSI로 확인하고 띠 상단 이탈에 정리해요' },
+  { id: 'streak', name: '연속 상승·하락', category: '추세', indicator: '연속 상승·하락', buyTitle: '연속 상승 매수', sellTitle: '연속 하락 매도', buyTone: 'indicator', sellTone: 'indicator', description: '연속 상승에서 진입하고 연속 하락에서 정리해요' },
+  { id: 'average-breakout', name: '최근 평균 가격 돌파', category: '가격', indicator: '가격 비교', buyTitle: '평균 가격 상향 돌파', sellTitle: '평균 가격 하향 이탈', buyTone: 'data', sellTone: 'data', description: '최근 평균 가격을 기준으로 진입과 청산을 구성해요' },
+  { id: 'high-breakout', name: '최근 최고 가격 돌파', category: '가격', indicator: '가격 비교', buyTitle: '최근 최고 가격 돌파', sellTitle: '최근 평균 가격 이탈', buyTone: 'data', sellTone: 'data', description: '새로운 고점을 돌파하면 진입하고 평균 가격 이탈에 정리해요' },
+  { id: 'open-rise', name: '장 시작가 대비 상승', category: '가격', indicator: '가격 변화율', buyTitle: '장 시작가 대비 상승', buyTone: 'data', includeSell: false, description: '장 시작가 대비 상승하면 진입해요' },
+  { id: 'daily-drop', name: '하루 급락 매수', category: '가격', indicator: '가격 변화율', buyTitle: '하루 급락 매수', buyTone: 'data', includeSell: false, description: '전일 대비 급락하면 진입해요' },
+  { id: 'scheduled-buy', name: '정기 매수', category: '일정', indicator: '정기 매수', buyTitle: '정기 매수', buyTone: 'time', includeSell: false, buyCycle: '매 거래일', description: '선택한 거래 일정마다 매수 요청을 만들어요' },
+  { id: 'donchian', name: 'Donchian 돌파', category: '추세', indicator: '가격 비교', buyTitle: 'Donchian 상향 돌파', sellTitle: 'Donchian 하향 이탈', buyTone: 'indicator', sellTone: 'indicator', buyBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], sellBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], description: '가격 범위 돌파를 추세로 확인하고 하향 이탈에 정리해요' },
+  { id: 'rsi', name: 'RSI 반등', category: '반전', indicator: 'RSI 반등', buyTitle: 'RSI 반등 매수', sellTitle: 'RSI 하락 매도', description: 'RSI가 낮은 구간에서 반등하면 사고 높은 구간에서 하락하면 정리해요' },
+  { id: 'sma', name: 'SMA 교차', category: '추세', indicator: '평균선 교차', description: '짧은 평균선과 긴 평균선의 교차를 따라가요' },
+  { id: 'macd', name: 'MACD 전환', category: '반전', indicator: 'MACD 전환', description: 'MACD가 상승 또는 하락 신호로 전환되는 순간을 찾아요' },
+  { id: 'bollinger', name: 'Bollinger 반전', category: '반전', indicator: '가격 띠 반전', buyBlocks: [{ label: '가격 띠 반전', tone: 'condition' }, { label: 'RSI 반등', tone: 'condition' }], sellBlocks: [{ label: '가격 띠 반전', tone: 'condition' }, { label: 'RSI 반등', tone: 'condition' }], description: '가격 띠 복귀를 RSI로 확인하고 띠 상단 이탈에 정리해요' },
 ];
 
 const getTemplateStructureLabel = (template: StrategyTemplate) => [
@@ -450,11 +440,11 @@ const getTemplateStructureLabel = (template: StrategyTemplate) => [
 ].join(' · ');
 
 const BLOCK_LIBRARY: BlockLibraryCategory[] = [
-  { name: '가격', tone: 'data', items: ['가격 비교', '가격 변화율', '연속 상승·하락', '거래량'] },
-  { name: '추세', tone: 'indicator', items: ['평균선 교차'] },
+  { name: '가격', tone: 'data', items: ['가격 비교', '가격 변화율', '거래량'] },
+  { name: '추세', tone: 'indicator', items: ['평균선 교차', '연속 상승·하락'] },
   { name: '반전', tone: 'condition', items: ['RSI 반등', 'MACD 전환', '가격 띠 반전'] },
   // 정기 실행(일정)은 조건 블록이 아니라 매수 카드의 '스케줄' 설정으로 이동했다.
-  { name: '청산', tone: 'risk', items: ['현재 수익률', '보유 기간', '최고 수익률', '고점 대비 하락'] },
+  { name: '매도', tone: 'risk', items: ['현재 수익률', '보유 기간', '최고 수익률', '고점 대비 하락'] },
 ];
 
 const BASIC_FAVORITE_BLOCKS_STORAGE_KEY = 'i2s-basic-editor-favorite-blocks-v1';
@@ -490,7 +480,6 @@ const getBasicBlockIcon = (label: string, tone: BlockTone): LucideIcon => {
   if (label.includes('연속')) return Repeat2;
   if (label.includes('변화율')) return Gauge;
   if (label.includes('비교') || label === '가격') return Scale;
-  if (label.includes('정기')) return CalendarDays;
   if (label.includes('보유 기간')) return History;
   if (label.includes('최고 수익')) return Target;
   if (label.includes('수익률')) return TrendingUp;
@@ -507,7 +496,7 @@ const createBlocksFromDefinitions = (cardId: string, definitions: StrategyTempla
     id: `${cardId}-condition-${index + 1}`,
     icon: getBasicBlockIcon(definition.label, definition.tone),
     label: definition.label,
-    op: definition.label === '보유 기간' ? '=' : NULL_BLOCK_VALUE,
+    op: definition.label === '보유 기간' ? '≥' : NULL_BLOCK_VALUE,
     value: NULL_BLOCK_VALUE,
     tone: definition.tone,
   }));
@@ -521,7 +510,7 @@ const createLibraryBlock = (label: string, tone: BlockTone, id: string): BasicBl
     id,
     icon: getBasicBlockIcon(label, tone),
     label,
-    op: label === '보유 기간' ? '=' : NULL_BLOCK_VALUE,
+    op: label === '보유 기간' ? '≥' : NULL_BLOCK_VALUE,
     value: NULL_BLOCK_VALUE,
     tone,
   };
@@ -531,12 +520,14 @@ const blockOperatorCopy: Record<string, string> = {
   '<': '미만',
   '>': '초과',
   '=': '같은지',
+  '≥': '이상',
   '↑': '상향 돌파하는지',
   '↓': '하향 돌파하는지',
 };
 
 const DIRECTION_BLOCKS = new Set(['연속 상승·하락', '평균선 교차', 'RSI 반등', 'MACD 전환', '가격 띠 반전']);
-const EQUALITY_BLOCKS = new Set(['보유 기간']);
+// 보유 기간은 "N봉/거래일 이상 보유 시" 청산이 자연스러우므로 '이상(≥)' 하나만 쓴다.
+const AT_LEAST_BLOCKS = new Set(['보유 기간']);
 // 청산 조건은 보유 포지션을 전제로 평가되므로 매수 카드에는 논리적으로 들어갈 수
 // 없다(진입 시점엔 포지션이 없음). 매도 전략 카드에서만 사용한다.
 const SELL_ONLY_BLOCKS = new Set(['현재 수익률', '보유 기간', '최고 수익률', '고점 대비 하락']);
@@ -547,7 +538,7 @@ const getBlockOperatorOptions = (block: BlockRuleInput): string[] => {
   if (block.label === '가격 변화율') return [NULL_BLOCK_VALUE, '상승', '하락'];
   if (block.label === '현재 수익률') return [NULL_BLOCK_VALUE, '수익', '손실'];
   if (DIRECTION_BLOCKS.has(block.label)) return [NULL_BLOCK_VALUE, '↑', '↓'];
-  if (EQUALITY_BLOCKS.has(block.label)) return ['='];
+  if (AT_LEAST_BLOCKS.has(block.label)) return ['≥'];
   return [NULL_BLOCK_VALUE, '<', '>'];
 };
 
@@ -600,27 +591,28 @@ const renderBasicValidationMessage = (message: string): ReactNode => {
   ));
 };
 
-const getBlockValueOptions = (block: BlockRuleInput): string[] => {
-  const normalizedLabel = block.label.toUpperCase();
-  if (block.label === '가격 비교') return ['전일 종가', '당일 장 시작가', '평균 진입가', '최근 20봉 평균 가격', '이전 20봉 최고 가격', '이전 20봉 최저 가격'];
-  if (block.label === '거래량') return ['최근 20봉 평균 거래량', '최근 20봉 평균 거래량 2배', '최근 20봉 평균 거래량 3배', '이전 봉 거래량'];
+const getBlockValueOptions = (block: BlockRuleInput, side?: Side): string[] => {
+  // '평균 진입가'는 보유 포지션이 전제라 매수 시점엔 성립하지 않으므로 매도 카드에서만 노출한다.
+  // 봉 구간은 20봉 고정 대신 5·20·60봉 프리셋을 제공해 단기·중기·장기 전략을 모두 만들 수 있게 한다.
+  if (block.label === '가격 비교') return [
+    '전일 종가', '당일 장 시작가', ...(side === 'sell' ? ['평균 진입가'] : []),
+    '최근 5봉 평균 가격', '최근 20봉 평균 가격', '최근 60봉 평균 가격',
+    '이전 5봉 최고 가격', '이전 20봉 최고 가격', '이전 60봉 최고 가격',
+    '이전 5봉 최저 가격', '이전 20봉 최저 가격', '이전 60봉 최저 가격',
+  ];
+  if (block.label === '거래량') return [
+    '최근 5봉 평균 거래량', '최근 5봉 평균 거래량 2배', '최근 5봉 평균 거래량 3배',
+    '최근 20봉 평균 거래량', '최근 20봉 평균 거래량 2배', '최근 20봉 평균 거래량 3배',
+    '최근 60봉 평균 거래량', '최근 60봉 평균 거래량 2배', '최근 60봉 평균 거래량 3배',
+    '이전 봉 거래량',
+  ];
   if (block.label === '연속 상승·하락') return ['2봉', '3봉', '5봉', '10봉', '20봉', '30봉'];
   if (block.label === '평균선 교차') return ['5봉 · 20봉', '20봉 · 60봉', '60봉 · 120봉'];
   if (block.label === 'MACD 전환') return ['12 · 26 · 9'];
   if (block.label === '가격 띠 반전') return ['20봉 · 2σ'];
   if (block.label === '보유 기간') return ['당일 장 마감', '1봉', '5봉', '20봉', '1거래일', '5거래일'];
-  if (normalizedLabel.includes('POSITION') || block.label.includes('포지션')) return ['OPEN', 'CLOSED', 'ANY'];
-  if (block.tone === 'data') return ['현재', '이전 봉', '2봉 전'];
-  if (block.tone === 'condition') return ['설정', 'TRUE', 'FALSE', 'OPEN', 'CLOSED'];
-  if (block.tone === 'time') return ['설정', '1분', '5분', '15분', '60분'];
-  if (block.tone === 'order') return ['기본', '시장가', '지정가', '다음 봉 체결'];
-  if (block.tone === 'risk') return ['설정', '1%', '2%', '5%', '10%', '25%'];
-  if (block.value === 'SIGNAL') return ['SIGNAL', 'ZERO', 'HISTOGRAM'];
-  if (block.value === 'UP' || block.value === 'DOWN') return ['UP', 'DOWN'];
-  if (block.value === 'LOWER' || block.value === 'UPPER') return ['LOWER', 'MIDDLE', 'UPPER'];
-  if (String(block.value).includes(' / ')) return ['5 / 20', '10 / 30', '20 / 60', '50 / 200'];
-  if (String(block.value).includes('HIGH') || String(block.value).includes('LOW')) return ['HIGH 20', 'LOW 20', 'HIGH 60', 'LOW 60'];
-  return [String(block.value)];
+  // 위 라벨들이 값 옵션을 가진 전부다. 그 외(예: 숫자 입력 블록)는 이 함수를 쓰지 않는다.
+  return block.value ? [String(block.value)] : [];
 };
 
 const getNumericValue = (value: string | number | null | undefined) => {
@@ -660,6 +652,13 @@ const getTerminalRule = (side?: string): ReactNode => side === 'buy'
   ? <>다음 봉에서 <b>시장가 매수</b> 후보를 만듭니다.</>
   : <>보유 수량의 <b>100%</b>를 <b>시장가 매도</b> 후보로 만듭니다.</>;
 
+// 받침 유무에 맞는 주격조사(이/가)를 고른다. 한글이 아니면(영문 지표명 등) '가'.
+const subjectParticle = (word: string): '이' | '가' => {
+  const last = word.charCodeAt(word.length - 1);
+  if (Number.isNaN(last) || last < 0xAC00 || last > 0xD7A3) return '가';
+  return (last - 0xAC00) % 28 !== 0 ? '이' : '가';
+};
+
 const getBlockNarrative = (block: BasicBlock, isLast: boolean): ReactNode => {
   const label = getBlockDisplayLabel(block.label);
   const operator = blockOperatorCopy[String(block.op ?? '')] ?? String(block.op ?? '');
@@ -670,20 +669,50 @@ const getBlockNarrative = (block: BasicBlock, isLast: boolean): ReactNode => {
     return <><b>{baseCopy}</b> 대비 <b>{moveCopy}</b>{isLast ? '일 때' : '이고'}</>;
   }
   if (DIRECTION_BLOCKS.has(block.label)) {
+    const dirUp = block.op === '↑';
+    const dirDown = block.op === '↓';
+    // 방향 블록은 종류마다 의미가 달라 '돌파'로 뭉뚱그리지 않는다.
+    // 연속 상승·하락 = 연속 봉, 가격 띠 반전 = 평균 회귀, RSI = 반등/꺾임, 교차/전환 = 돌파(크로스).
+    if (block.label === '연속 상승·하락') {
+      const barsCopy = value || '여러 봉';
+      const moveWord = dirUp ? '상승' : dirDown ? '하락' : '상승·하락';
+      return <><b>{barsCopy}</b> <b>연속 {moveWord}</b>{isLast ? '할 때' : '하고'}</>;
+    }
+    if (block.label === '가격 띠 반전') {
+      const bandCopy = dirUp ? '하단 띠' : dirDown ? '상단 띠' : '기준 띠';
+      return <>가격이 <b>{bandCopy}</b>에서 <b>{isLast ? '되돌릴 때' : '되돌리고'}</b></>;
+    }
+    if (block.label === 'RSI 반등') {
+      const levelCopy = value || '기준선';
+      const moveCopy = dirUp
+        ? (isLast ? '위로 반등할 때' : '위로 반등하고')
+        : dirDown
+          ? (isLast ? '아래로 꺾일 때' : '아래로 꺾이고')
+          : (isLast ? '방향을 바꿀 때' : '방향을 바꾸고');
+      return <><b>RSI</b>가 <b>{levelCopy}</b>에서 <b>{moveCopy}</b></>;
+    }
+    // 평균선 교차·MACD 전환: 크로스(상향/하향 돌파)
     const valueCopy = value || '기준값';
-    const directionCopy = block.op === '↑' ? '상향 돌파' : block.op === '↓' ? '하향 돌파' : null;
-    const movementCopy = directionCopy
-      ? isLast ? `${directionCopy}할 때` : `${directionCopy}하고`
-      : isLast ? '선택한 방향으로 움직일 때' : '선택한 방향으로 움직이고';
-    return <><b>{label}</b>가 <b>{valueCopy}</b>에서 <b>{movementCopy}</b></>;
+    const movementCopy = dirUp
+      ? (isLast ? '상향 돌파할 때' : '상향 돌파하고')
+      : dirDown
+        ? (isLast ? '하향 돌파할 때' : '하향 돌파하고')
+        : (isLast ? '교차할 때' : '교차하고');
+    return <><b>{label}</b>{subjectParticle(label)} <b>{valueCopy}</b>에서 <b>{movementCopy}</b></>;
   }
-  if (!operator && !value) return <><b>{label}</b>가 기준값과 <b>비교 방식</b>에 {isLast ? '맞을 때' : '맞고'}</>;
-  if (!operator) return <><b>{label}</b>가 <b>{value}</b>와 선택한 방식으로 {isLast ? '비교될 때' : '비교되고'}</>;
-  if (!value) return <><b>{label}</b>가 기준값보다 <b>{operator}</b>{isLast ? '일 때' : '이고'}</>;
+  if (block.label === '보유 기간') {
+    // '당일 장 마감'은 기간 임계값이 아니라 장중 청산 이벤트라 '이상' 서술과 분리한다.
+    if (value === '당일 장 마감') return <><b>당일 장 마감</b>까지 보유{isLast ? '했을 때' : '하고'}</>;
+    const durationCopy = value || '설정 기간';
+    return <><b>보유 기간</b>이 <b>{durationCopy} 이상</b>{isLast ? '일 때' : '이고'}</>;
+  }
+  if (!operator && !value) return <><b>{label}</b>{subjectParticle(label)} 기준값과 <b>비교 방식</b>에 {isLast ? '맞을 때' : '맞고'}</>;
+  if (!operator) return <><b>{label}</b>{subjectParticle(label)} <b>{value}</b>와 선택한 방식으로 {isLast ? '비교될 때' : '비교되고'}</>;
+  if (!value) return <><b>{label}</b>{subjectParticle(label)} 기준값 <b>{operator}</b>{isLast ? '일 때' : '이고'}</>;
   if (block.tone === 'time') return <><b>{label}</b> 시점이 <b>{value}</b>{isLast ? '일 때' : '이고'}</>;
-  if (block.tone === 'risk') return <><b>{label}</b> 기준이 <b>{[operator, value].filter(Boolean).join(' ')}</b>{isLast ? '일 때' : '이고'}</>;
-  const condition = [operator, value].filter(Boolean).join(' ');
-  return <><b>{label}</b>{condition && <>이(가) <b>{condition}</b></>}{isLast ? '인 조건일 때' : '인 조건이고'}</>;
+  // 값 뒤에 연산자(초과/미만/수익/손실 등)를 붙여 "가격이 최근 20봉 평균 가격 초과일 때"처럼 읽히게 한다.
+  const condition = [value, operator].filter(Boolean).join(' ');
+  return <><b>{label}</b>{subjectParticle(label)} <b>{condition}</b>{isLast ? '일 때' : '이고'}</>;
 };
 
 interface BlockRuleNoteProps {
@@ -709,7 +738,15 @@ const NumericBlockValue = ({ label, value, onChange }: NumericBlockValueProps) =
   const parsed = getNumericValue(value);
   const numeric = parsed ?? { number: 0, suffix: PERCENTAGE_BLOCK_LABELS.has(label) ? '%' : '' };
   const isNull = value == null || String(value).trim() === NULL_BLOCK_VALUE;
-  const max = numeric.suffix === '%' || label.includes('RSI') ? 100 : 9999;
+  // RSI(0~100)와 고점 대비 하락(드로다운은 최대 100%)만 100으로 묶고, 수익률·변화율은
+  // 100%를 넘길 수 있으므로(예: +150%) 상한을 넉넉히 둔다.
+  const max = label.includes('RSI') || label === '고점 대비 하락'
+    ? 100
+    : PERCENTAGE_BLOCK_LABELS.has(label)
+      ? 1000
+      : numeric.suffix === '%'
+        ? 100
+        : 9999;
 
   const update = (next: number | string) => {
     if (String(next).trim() === NULL_BLOCK_VALUE) {
@@ -909,15 +946,21 @@ interface BlockProps {
   base?: string;
   tone?: BlockTone;
   locked?: boolean;
+  // 어느 카드(매수/매도)에 놓였는지. '평균 진입가'처럼 포지션이 있어야 성립하는
+  // 기준을 매도 카드에서만 노출하는 데 쓴다.
+  side?: Side;
   onChange?: (patch: { op?: string; value?: string; base?: string }) => void;
 }
 
 const BASE_BLOCKS = new Set(['가격 변화율']);
-const getBlockBaseOptions = (label: string): string[] => (
-  label === '가격 변화율' ? ['전일 종가', '당일 장 시작가', '평균 진입가'] : []
+// '평균 진입가'는 보유 포지션이 전제라 매수 시점엔 성립하지 않는다. 매도 카드에서만 노출한다.
+const getBlockBaseOptions = (label: string, side?: Side): string[] => (
+  label === '가격 변화율'
+    ? ['전일 종가', '당일 장 시작가', ...(side === 'sell' ? ['평균 진입가'] : [])]
+    : []
 );
 
-const Block = ({ icon: Icon, label, value, op, base, tone = 'neutral', locked = false, onChange }: BlockProps) => {
+const Block = ({ icon: Icon, label, value, op, base, tone = 'neutral', locked = false, side, onChange }: BlockProps) => {
   const block = { label, value, op, tone };
   const operatorOptions = getBlockOperatorOptions(block);
   const operatorLabel = operatorOptions.filter(Boolean).every((option) => ['↑', '↓', '상승', '하락', '수익', '손실'].includes(option)) ? `${label} 방향` : `${label} 비교`;
@@ -926,7 +969,7 @@ const Block = ({ icon: Icon, label, value, op, base, tone = 'neutral', locked = 
     <span title={label}>{getBlockDisplayLabel(label)}</span>
     {BASE_BLOCKS.has(label) && (locked
       ? base && <span className="block-value is-locked">{base}</span>
-      : <CustomBlockSelect label={`${label} 기준 선택`} value={base ?? NULL_BLOCK_VALUE} options={getBlockBaseOptions(label)} onChange={(nextBase) => onChange!({ base: nextBase })} />)}
+      : <CustomBlockSelect label={`${label} 기준 선택`} value={base ?? NULL_BLOCK_VALUE} options={getBlockBaseOptions(label, side)} onChange={(nextBase) => onChange!({ base: nextBase })} />)}
     {locked
       ? op && <b className="block-op">{op}</b>
       : operatorOptions.length === 1
@@ -936,7 +979,7 @@ const Block = ({ icon: Icon, label, value, op, base, tone = 'neutral', locked = 
       ? value && <span className="block-value is-locked">{value}</span>
       : usesNumericBlockValue(label)
         ? <NumericBlockValue label={label} value={value ?? NULL_BLOCK_VALUE} onChange={(nextValue) => onChange!({ value: nextValue })} />
-        : <CustomBlockSelect label={`${label} 값 선택`} value={value ?? NULL_BLOCK_VALUE} options={getBlockValueOptions(block)} onChange={(nextValue) => onChange!({ value: nextValue })} />}
+        : <CustomBlockSelect label={`${label} 값 선택`} value={value ?? NULL_BLOCK_VALUE} options={getBlockValueOptions(block, side)} onChange={(nextValue) => onChange!({ value: nextValue })} />}
   </div>;
 };
 
@@ -1578,23 +1621,16 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
     if (!targetSection) return;
     rememberEditorChange();
     const includeSell = template.includeSell !== false;
-    // Risk-management cards are retired — packages never spawn them.
-    const riskContainers: StrategyTemplateRiskContainer[] = [];
     const firstCardNumber = cardCount + 1;
     const buyCardId = `${targetSection.id}-${template.id}-buy-${firstCardNumber}`;
     const sellCardId = `${targetSection.id}-${template.id}-sell-${firstCardNumber + 1}`;
-    const riskCards = riskContainers.map((container, index) => ({
-      ...container,
-      id: `${targetSection.id}-${template.id}-risk-${firstCardNumber + (includeSell ? 2 : 1) + index}`,
-    }));
-    const addedCardIds = [buyCardId, ...(includeSell ? [sellCardId] : []), ...riskCards.map((card) => card.id)];
+    const addedCardIds = [buyCardId, ...(includeSell ? [sellCardId] : [])];
     setCardCount(cardCount + addedCardIds.length);
     setCardBlocks((current) => ({
       ...current,
       // 정기 매수 패키지는 조건 블록 없이 '주기마다' 진입 설정만으로 동작한다.
       [buyCardId]: template.buyCycle ? [] : createTemplateBlocks(template, buyCardId, 'buy'),
       ...(includeSell ? { [sellCardId]: createTemplateBlocks(template, sellCardId, 'sell') } : {}),
-      ...Object.fromEntries(riskCards.map((card) => [card.id, createBlocksFromDefinitions(card.id, card.blocks)])),
     }));
     setCardMeta((current) => ({
       ...current,
@@ -1608,11 +1644,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
         detail: `${template.category} 패키지 · 자동 청산`,
         explanation: `${template.description} 반대 신호가 나오면 보유 포지션을 정리합니다.`,
       } } : {}),
-      ...Object.fromEntries(riskCards.map((card) => [card.id, {
-        title: card.title,
-        detail: '위기관리 패키지 · 전량 청산',
-        explanation: `${template.description} 위기관리 조건을 만족하면 통합 포지션을 전량 청산합니다.`,
-      }])),
     }));
     setSections((current) => current.map((section) => section.id === targetSection.id
       ? {
@@ -1620,7 +1651,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
         cards: {
           buy: [...section.cards.buy, buyCardId],
           sell: includeSell ? [...section.cards.sell, sellCardId] : section.cards.sell,
-          risk: [...section.cards.risk, ...riskCards.map((card) => card.id)],
+          risk: section.cards.risk,
         },
         cardOrder: [...section.cardOrder, ...addedCardIds],
         cardPositions: {
@@ -1647,7 +1678,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
     setSelectedCardId(buyCardId);
     setSelectedCardIds([buyCardId]);
     setActiveSectionId(targetSection.id);
-    const addedKinds = ['매수', ...(includeSell ? ['매도'] : []), ...(riskCards.length > 0 ? ['위기관리'] : [])].join('·');
+    const addedKinds = ['매수', ...(includeSell ? ['매도'] : [])].join('·');
     setAnnouncement(`${template.name} 패키지의 ${addedKinds} 전략 카드를 ${targetSection.id.replace('section-', 'PARTITION ')}에 추가했습니다.`);
   };
 
@@ -1885,6 +1916,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
     </span>}
     <StrategyBlock
       {...block}
+      side={side}
       invalid={focusedInvalidBlockIds.has(block.id)}
       showRule={selectedCardId === cardId}
       rule={getBlockNarrative(block, index === cardBlocks[cardId].length - 1)}
@@ -2567,10 +2599,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
                 onFocus={rememberEditorChange}
                 onChange={(event) => {
                   setSelectedCardId(cardId);
+                  // 비율은 1~100%로 제한한다(직접 타이핑 시 100 초과·0 방지).
+                  const clampPercent = (raw: number) => Math.max(1, Math.min(100, raw));
                   if (side === 'buy') {
-                    setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxOrderPercent: Number(event.target.value) } }));
+                    setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxOrderPercent: clampPercent(Number(event.target.value) || 1) } }));
                   } else {
-                    setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), sellPercent: event.target.value === '' ? '' : Number(event.target.value) } }));
+                    setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), sellPercent: event.target.value === '' ? '' : clampPercent(Number(event.target.value)) } }));
                   }
                 }}
               />
