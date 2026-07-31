@@ -2,6 +2,11 @@
   "name": "idea2strategy-ui-prototypes",
   "private": true,
   "version": "0.1.0",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": "24.x",
+    "pnpm": "11.x"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
