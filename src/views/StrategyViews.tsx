@@ -10,7 +10,7 @@ import type {
   WheelEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Activity, ArrowDown, ArrowLeft, ArrowUp, BarChart3, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, CircleDot, Gauge, GitBranch, Grid3X3, GripVertical, History, Import, Layers3, LayoutGrid, Link2, Minus, Mouse, MousePointer2, Pencil, Play, Plus, Redo2, RefreshCw, Repeat2, Rocket, Save, Scale, Search, Settings2, ShieldCheck, Sparkles, Split, Star, Target, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, Undo2, X } from 'lucide-react';
+import { Activity, ArrowDown, ArrowLeft, ArrowUp, BarChart3, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsUpDown, CircleDollarSign, CircleDot, Gauge, GitBranch, Grid3X3, GripVertical, History, Import, Layers3, LayoutGrid, Link2, Minus, Mouse, MousePointer2, Pencil, Play, Plus, Redo2, RefreshCw, Repeat2, Rocket, Save, Scale, Search, Settings2, ShieldCheck, Sparkles, Split, Star, Target, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, Undo2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { strategies } from '../data/mockData';
 import type { StrategySummary } from '../data/mockData';
@@ -702,88 +702,20 @@ const NumericBlockValue = ({ label, value, onChange }: NumericBlockValueProps) =
   const parsed = getNumericValue(value);
   const numeric = parsed ?? { number: 0, suffix: PERCENTAGE_BLOCK_LABELS.has(label) ? '%' : '' };
   const isNull = value == null || String(value).trim() === NULL_BLOCK_VALUE;
-  const valueRef = useRef(numeric.number);
-  const repeatTimerRef = useRef<number | null>(null);
-  const repeatStartedAtRef = useRef(0);
-  const repeatedRef = useRef(false);
-  valueRef.current = numeric.number;
+  const max = numeric.suffix === '%' || label.includes('RSI') ? 100 : 9999;
 
   const update = (next: number | string) => {
     if (String(next).trim() === NULL_BLOCK_VALUE) {
-      valueRef.current = 0;
       onChange(NULL_BLOCK_VALUE);
       return;
     }
-    const bounded = Math.max(0, Math.min(numeric.suffix === '%' || label.includes('RSI') ? 100 : 9999, Number(next)));
-    valueRef.current = Number.isFinite(bounded) ? bounded : 0;
+    const bounded = Math.max(0, Math.min(max, Number(next)));
     onChange(`${Number.isFinite(bounded) ? bounded : 0}${numeric.suffix}`);
   };
 
-  const stopRepeating = () => {
-    if (repeatTimerRef.current !== null) window.clearTimeout(repeatTimerRef.current);
-    repeatTimerRef.current = null;
-  };
-
-  const cancelRepeating = () => {
-    stopRepeating();
-    repeatedRef.current = false;
-  };
-
-  const repeatChange = (delta: number, delay: number) => {
-    repeatTimerRef.current = window.setTimeout(() => {
-      repeatedRef.current = true;
-      update(valueRef.current + delta);
-      const elapsed = Date.now() - repeatStartedAtRef.current;
-      repeatChange(delta, elapsed > 1400 ? 45 : elapsed > 750 ? 75 : 110);
-    }, delay);
-  };
-
-  const beginRepeating = (event: ReactPointerEvent<HTMLButtonElement>, delta: number) => {
-    if (event.button !== 0) return;
-    stopRepeating();
-    repeatedRef.current = false;
-    repeatStartedAtRef.current = Date.now();
-    repeatChange(delta, 360);
-  };
-
-  const clickOnce = (delta: number) => {
-    if (repeatedRef.current) {
-      repeatedRef.current = false;
-      return;
-    }
-    update(valueRef.current + delta);
-  };
-
-  useEffect(() => {
-    window.addEventListener('blur', cancelRepeating);
-    return () => {
-      window.removeEventListener('blur', cancelRepeating);
-      cancelRepeating();
-    };
-  }, []);
-
+  // 블록 공간 확보를 위해 −/+ 스테퍼 버튼은 제거하고 숫자 입력 필드만 둔다.
   return <span className={`block-number-stepper is-fixed-width is-recessed-control ${isNull ? 'is-null' : ''}`} aria-label={`${label} 숫자 설정`} onPointerDown={(event) => event.stopPropagation()}>
-    <button
-      type="button"
-      aria-label={`${label} 값 감소`}
-      title="길게 눌러 빠르게 조정"
-      onPointerDown={(event) => beginRepeating(event, -1)}
-      onPointerUp={stopRepeating}
-      onPointerCancel={cancelRepeating}
-      onPointerLeave={cancelRepeating}
-      onClick={() => clickOnce(-1)}
-    ><Minus size={11} aria-hidden="true" /></button>
-    <label><span className="sr-only">{label} 값</span><input className="is-centered-number" type="number" min="0" max={numeric.suffix === '%' || label.includes('RSI') ? 100 : 9999} value={isNull ? '' : numeric.number} placeholder={UNSET_NUMBER_PLACEHOLDER} onChange={(event) => update(event.target.value)} /><b aria-hidden="true">{numeric.suffix}</b></label>
-    <button
-      type="button"
-      aria-label={`${label} 값 증가`}
-      title="길게 눌러 빠르게 조정"
-      onPointerDown={(event) => beginRepeating(event, 1)}
-      onPointerUp={stopRepeating}
-      onPointerCancel={cancelRepeating}
-      onPointerLeave={cancelRepeating}
-      onClick={() => clickOnce(1)}
-    ><Plus size={11} aria-hidden="true" /></button>
+    <label><span className="sr-only">{label} 값</span><input className="is-centered-number" type="number" min="0" max={max} value={isNull ? '' : numeric.number} placeholder={UNSET_NUMBER_PLACEHOLDER} onChange={(event) => update(event.target.value)} /><b aria-hidden="true">{numeric.suffix}</b></label>
   </span>;
 };
 
@@ -915,8 +847,10 @@ const CustomBlockSelect = ({ label, value, options, onChange, compact = false }:
         }
       }}
     >{compact
-      ? <>{hasSelectedIcon && <SelectedIcon className="block-relation-icon" size={12} aria-hidden="true" />}<span className="block-relation-label">{selectedPresentation.label}</span></>
-      : <span className="select-trigger-value">{hasSelectedIcon && <SelectedIcon size={12} aria-hidden="true" />}<span>{selectedPresentation.label}</span></span>}
+      ? <>{hasSelectedIcon
+          ? <SelectedIcon className="block-relation-icon" size={13} aria-hidden="true" />
+          : <ChevronsUpDown className="block-relation-icon is-placeholder" size={13} aria-hidden="true" />}<span className="block-relation-label">{selectedPresentation.label}</span></>
+      : <span className="select-trigger-value"><span>{selectedPresentation.label}</span></span>}
       {!compact && <ChevronDown size={11} aria-hidden="true" />}</button>
     {open && menuPosition && createPortal(<span
       ref={menuRef}
