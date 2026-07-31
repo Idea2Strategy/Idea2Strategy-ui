@@ -9600,18 +9600,21 @@ small.dashboard-bot-scope {
   border: 0;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-relation-select .block-relation-icon.is-placeholder {
-  opacity: .72;
+  color: #fff;
+  opacity: 1;
+  filter: none;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-value-select {
   width: auto;
   min-width: 64px;
-  max-width: 116px;
+  /* 긴 옵션(최근 20봉 평균 거래량 등)이 잘리지 않도록 폭을 넓힌다. */
+  max-width: 148px;
   flex-basis: auto;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-value-select .block-custom-select-trigger {
   width: max-content;
   min-width: 64px;
-  max-width: 116px;
+  max-width: 148px;
   min-height: 26px;
   padding-inline: 8px 6px;
 }
