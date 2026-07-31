@@ -192,7 +192,9 @@ describe('Basic editor interactions', () => {
     await user.click(screen.getByRole('button', { name: '매수 전략 실행 설정' }));
     const buySettings = screen.getByRole('group', { name: '매수 실행 설정' });
     expect(within(buySettings).getByRole('checkbox', { name: '반복 진입 허용' })).not.toBeChecked();
-    expect(within(buySettings).getByText('조건이 다시 맞으면 재진입')).toBeInTheDocument();
+    expect(within(buySettings).getByText('재활성화까지의 기간을 두고 다시 진입')).toBeInTheDocument();
+    // 일정(정기 실행)은 이제 조건 블록이 아니라 매수 카드의 스케줄 설정이다.
+    expect(within(buySettings).getByRole('combobox', { name: '조건 확인 스케줄' })).toHaveValue('없음');
 
     expect(screen.getByRole('spinbutton', { name: '매도 비율' })).toHaveValue(null);
     expect(screen.getByTestId('sell-order-block')).toHaveTextContent('매도 요청');

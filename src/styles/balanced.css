@@ -5503,6 +5503,10 @@
 .variant-balanced[data-design="signal-studio"] .setting-toggle strong { color: var(--text); font-size: 9px; }
 .variant-balanced[data-design="signal-studio"] .setting-toggle small { color: var(--text-faint); line-height: 1.45; }
 .variant-balanced[data-design="signal-studio"] .additional-buy-settings { display: grid; gap: 8px; }
+.variant-balanced[data-design="signal-studio"] .setting-field-group { display: grid; gap: 6px; }
+.variant-balanced[data-design="signal-studio"] .setting-field-title { display: grid; gap: 2px; }
+.variant-balanced[data-design="signal-studio"] .setting-field-title strong { color: var(--text); font-size: 9px; }
+.variant-balanced[data-design="signal-studio"] .setting-field-title small { color: var(--text-faint); font-size: 8px; line-height: 1.45; }
 .variant-balanced[data-design="signal-studio"] .settings-natural-summary {
   margin: 0;
   padding: 9px 10px;
@@ -8467,7 +8471,7 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-indicator { --category-color: #9180d8; }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-condition { --category-color: #d2b04d; }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-time { --category-color: #69b7c1; }
-.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-risk { --category-color: #d06f6b; }
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .block-category.tone-risk { --category-color: color-mix(in srgb, var(--sell-block-color) 82%, #0d1524); }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .block-chip-list {
   display: grid;
   /* Match Pro's node rhythm: 6px between cards comes from each card's margin-bottom,
@@ -9495,10 +9499,12 @@ small.dashboard-bot-scope {
   --block-tone-color: #74849e;
   --block-tone-surface: #74849e;
 }
+/* 청산 블록은 매도 전용 → 매도 카드색(국가 연동: 한국 파랑 / 미국 빨강)을
+   살짝 더 깊은 톤으로 써서 매도 계열임을 드러내되 카드와는 구분한다. */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-risk,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-risk {
-  --block-tone-color: #ec5385;
-  --block-tone-surface: #ec5385;
+  --block-tone-color: color-mix(in srgb, var(--sell-block-color) 82%, #0d1524);
+  --block-tone-surface: color-mix(in srgb, var(--sell-block-color) 82%, #0d1524);
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .tone-order,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .block-order {

@@ -87,6 +87,9 @@ interface StrategyTemplate {
   buyBlocks?: StrategyTemplateBlock[];
   sellBlocks?: StrategyTemplateBlock[];
   riskContainers?: StrategyTemplateRiskContainer[];
+  // 매수 컨테이너를 스케줄(정기 매수) 설정으로 만드는 패키지. 조건 블록 없이
+  // 지정 일정에만 매수한다.
+  buySchedule?: BuySchedule;
   description: string;
 }
 
@@ -112,8 +115,14 @@ interface CardMeta {
   explanation: string;
 }
 
+type BuySchedule = '없음' | '매 거래일' | '매주 첫 거래일' | '매월 첫 거래일' | '매월 마지막 거래일' | 'N거래일마다';
+
 interface BuyContainerSettings {
   maxOrderPercent: number;
+  // 특정 날짜에만 조건을 확인하는 스케줄. '없음'이면 매 봉마다 평가한다.
+  // 조건 블록 없이 스케줄만 있으면 지정 일정마다 매수(정기·적립식 매수).
+  schedule: BuySchedule;
+  scheduleInterval: number;
   allowAdditionalBuy: boolean;
   rerunMode: '조건 재충족' | 'N봉 이후' | 'N거래일 이후';
   rerunInterval: number;
@@ -122,6 +131,8 @@ interface BuyContainerSettings {
 
 const createDefaultBuySettings = (): BuyContainerSettings => ({
   maxOrderPercent: 100,
+  schedule: '없음',
+  scheduleInterval: 2,
   allowAdditionalBuy: false,
   rerunMode: '조건 재충족',
   rerunInterval: 1,
@@ -416,7 +427,7 @@ const TEMPLATE_LIBRARY: StrategyTemplate[] = [
   { id: 'high-breakout', name: '최근 최고 가격 돌파', category: '가격', indicator: '가격 비교', buyTitle: '최근 최고 가격 돌파', sellTitle: '최근 평균 가격 이탈', buyOp: '>', buyValue: '이전 20봉 최고 가격', sellOp: '<', sellValue: '최근 20봉 평균 가격', buyTone: 'data', sellTone: 'data', description: '새로운 고점을 돌파하면 진입하고 평균 가격 이탈에 정리해요' },
   { id: 'open-rise', name: '장 시작가 대비 상승', category: '가격', indicator: '가격 변화율', buyTitle: '장 시작가 대비 상승', buyOp: '↑', buyValue: '3%', sellOp: '=', sellValue: '', buyTone: 'data', includeSell: false, riskContainers: [{ title: '당일 장 마감 청산', blocks: [{ label: '보유 기간', tone: 'risk' }] }], description: '장 시작가 대비 상승하면 진입해요' },
   { id: 'daily-drop', name: '하루 급락 매수', category: '가격', indicator: '가격 변화율', buyTitle: '하루 급락 매수', buyOp: '↓', buyValue: '5%', sellOp: '=', sellValue: '', buyTone: 'data', includeSell: false, riskContainers: [{ title: '다음 거래일 청산', blocks: [{ label: '보유 기간', tone: 'risk' }] }], description: '전일 대비 급락하면 진입해요' },
-  { id: 'scheduled-buy', name: '정기 매수', category: '일정', indicator: '정기 실행', buyTitle: '정기 매수', buyOp: '=', buyValue: '매 거래일', sellOp: '=', sellValue: '', buyTone: 'time', includeSell: false, description: '선택한 거래 일정마다 매수 요청을 만들어요' },
+  { id: 'scheduled-buy', name: '정기 매수', category: '일정', indicator: '정기 실행', buyTitle: '정기 매수', buyOp: '=', buyValue: '매 거래일', sellOp: '=', sellValue: '', buyTone: 'time', includeSell: false, buySchedule: '매 거래일', description: '선택한 거래 일정마다 매수 요청을 만들어요' },
   { id: 'donchian', name: 'Donchian 돌파', category: '추세', indicator: '가격 비교', buyTitle: 'Donchian 상향 돌파', sellTitle: 'Donchian 하향 이탈', buyOp: '>', buyValue: '이전 20봉 최고 가격', sellOp: '<', sellValue: '이전 10봉 최저 가격', buyTone: 'indicator', sellTone: 'indicator', buyBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], sellBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], riskContainers: [{ title: '수익 보호 청산', blocks: [{ label: '최고 수익률', tone: 'risk' }, { label: '고점 대비 하락', tone: 'risk' }] }], description: '가격 범위 돌파를 추세로 확인하고 하향 이탈에 정리해요' },
   { id: 'rsi', name: 'RSI 반등', category: '반전', indicator: 'RSI 반등', buyTitle: 'RSI 반등 매수', sellTitle: 'RSI 하락 매도', buyOp: '↑', buyValue: '30', sellOp: '↓', sellValue: '70', description: 'RSI가 낮은 구간에서 반등하면 사고 높은 구간에서 하락하면 정리해요' },
   { id: 'sma', name: 'SMA 교차', category: '추세', indicator: '평균선 교차', buyOp: '↑', buyValue: '20봉 · 60봉', sellOp: '↓', sellValue: '20봉 · 60봉', description: '짧은 평균선과 긴 평균선의 교차를 따라가요' },
@@ -433,7 +444,7 @@ const BLOCK_LIBRARY: BlockLibraryCategory[] = [
   { name: '가격', tone: 'data', items: ['가격 비교', '가격 변화율', '연속 상승·하락'] },
   { name: '추세', tone: 'indicator', items: ['평균선 교차'] },
   { name: '반전', tone: 'condition', items: ['RSI 반등', 'MACD 전환', '가격 띠 반전'] },
-  { name: '일정', tone: 'time', items: ['정기 실행'] },
+  // 정기 실행(일정)은 조건 블록이 아니라 매수 카드의 '스케줄' 설정으로 이동했다.
   { name: '청산', tone: 'risk', items: ['현재 수익률', '보유 기간', '최고 수익률', '고점 대비 하락'] },
 ];
 
@@ -516,6 +527,9 @@ const blockOperatorCopy: Record<string, string> = {
 
 const DIRECTION_BLOCKS = new Set(['연속 상승·하락', '평균선 교차', 'RSI 반등', 'MACD 전환', '가격 띠 반전']);
 const EQUALITY_BLOCKS = new Set(['정기 실행', '보유 기간']);
+// 청산 조건은 보유 포지션을 전제로 평가되므로 매수 카드에는 논리적으로 들어갈 수
+// 없다(진입 시점엔 포지션이 없음). 매도 전략 카드에서만 사용한다.
+const SELL_ONLY_BLOCKS = new Set(['현재 수익률', '보유 기간', '최고 수익률', '고점 대비 하락']);
 
 const getBlockOperatorOptions = (block: BlockRuleInput): string[] => {
   if (DIRECTION_BLOCKS.has(block.label)) return [NULL_BLOCK_VALUE, '↑', '↓'];
@@ -1139,7 +1153,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
         const sideLabel = side === 'buy' ? '매수' : side === 'sell' ? '매도' : '위기관리';
         return section.cards[side].flatMap((cardId): ValidationIssue[] => {
           const blocks = cardBlocks[cardId] ?? [];
-          if (blocks.length === 0) {
+          // 매수 카드는 스케줄(정기 매수)만 있어도 트리거가 있는 것으로 본다.
+          const scheduleActive = side === 'buy' && (buySettings[cardId]?.schedule ?? '없음') !== '없음';
+          if (blocks.length === 0 && !scheduleActive) {
             return [{
               id: `${cardId}-empty`,
               sectionId: section.id,
@@ -1168,7 +1184,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
         });
       });
     });
-  }, [cardBlocks, sections, sellSettings]);
+  }, [cardBlocks, sections, sellSettings, buySettings]);
   const validationSignature = validationIssues.map((issue) => issue.id).join('|');
   const isLaunchable = validationIssues.length === 0;
   const groupedValidationIssues = useMemo(() => {
@@ -1593,7 +1609,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
     setCardCount(cardCount + addedCardIds.length);
     setCardBlocks((current) => ({
       ...current,
-      [buyCardId]: createTemplateBlocks(template, buyCardId, 'buy'),
+      // 스케줄(정기 매수) 패키지는 조건 블록 없이 스케줄 설정만으로 동작한다.
+      [buyCardId]: template.buySchedule ? [] : createTemplateBlocks(template, buyCardId, 'buy'),
       ...(includeSell ? { [sellCardId]: createTemplateBlocks(template, sellCardId, 'sell') } : {}),
       ...Object.fromEntries(riskCards.map((card) => [card.id, createBlocksFromDefinitions(card.id, card.blocks)])),
     }));
@@ -1638,7 +1655,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
         },
       }
       : section));
-    setBuySettings((current) => ({ ...current, [buyCardId]: createDefaultBuySettings() }));
+    setBuySettings((current) => ({
+      ...current,
+      [buyCardId]: { ...createDefaultBuySettings(), ...(template.buySchedule ? { schedule: template.buySchedule } : {}) },
+    }));
     if (includeSell) {
       setSellSettings((current) => ({ ...current, [sellCardId]: createDefaultSellSettings() }));
     }
@@ -1653,6 +1673,13 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
     if (!targetCardId || !cardBlocks[targetCardId]) {
       setAnnouncement('먼저 블록을 넣을 전략 카드를 선택해 주세요.');
       return;
+    }
+    if (SELL_ONLY_BLOCKS.has(label)) {
+      const owner = sections.find((item) => item.cardOrder.includes(targetCardId));
+      if (!owner?.cards.sell.includes(targetCardId)) {
+        setAnnouncement(`${label}은(는) 매도 전략 카드에서만 사용할 수 있어요. 포지션을 보유한 뒤 평가되는 청산 조건입니다.`);
+        return;
+      }
     }
     rememberEditorChange();
     const nextCount = customBlockCount + 1;
@@ -2440,12 +2467,23 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
           <span><Settings2 size={13} aria-hidden="true" /><strong>매수 설정</strong></span>
           <button type="button" aria-label="매수 실행 설정 닫기" onClick={() => setExpandedSettingsCardId(null)}><X size={13} /></button>
         </header>
-        {/* 사용 예산(균등 배분)은 헤더 태그로 이미 보이고, 주문 비율은 카드 하단 요청
-            블록에서 직접 편집하므로, 설정창에는 반복 진입만 남겨 중복을 없앴습니다. */}
+        {/* 사용 예산·주문 비율은 헤더 태그·요청 블록에서 다루므로, 여기엔 '스케줄
+            (특정 날짜에만 조건 확인)'과 '재진입(재활성화까지의 기간)'만 둔다.
+            조건 블록 없이 스케줄만 있으면 지정 일정마다 매수하는 정기 매수가 된다. */}
+        <div className="setting-field-group">
+          <span className="setting-field-title"><strong>스케줄</strong><small>특정 날짜에만 조건 확인 · 없으면 매 봉마다</small></span>
+          <div className="additional-buy-settings">
+            <label><span>주기</span><select aria-label="조건 확인 스케줄" value={settings.schedule} onChange={(event) => {
+              rememberEditorChange();
+              setBuySettings((current) => ({ ...current, [cardId]: { ...settings, schedule: event.target.value as BuySchedule } }));
+            }}><option>없음</option><option>매 거래일</option><option>매주 첫 거래일</option><option>매월 첫 거래일</option><option>매월 마지막 거래일</option><option>N거래일마다</option></select></label>
+            {settings.schedule === 'N거래일마다' && <label><span>간격</span><input type="number" min="2" max="365" aria-label="스케줄 간격(거래일)" value={settings.scheduleInterval} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, scheduleInterval: Number(event.target.value) } }))} /></label>}
+          </div>
+        </div>
         <label className="setting-toggle"><input type="checkbox" aria-label="반복 진입 허용" checked={settings.allowAdditionalBuy} onChange={(event) => {
           rememberEditorChange();
           setBuySettings((current) => ({ ...current, [cardId]: { ...settings, allowAdditionalBuy: event.target.checked } }));
-        }} /><span><strong>반복 진입</strong><small>조건이 다시 맞으면 재진입</small></span></label>
+        }} /><span><strong>반복 진입</strong><small>재활성화까지의 기간을 두고 다시 진입</small></span></label>
         {settings.allowAdditionalBuy && <div className="additional-buy-settings">
           <label><span>방식</span><select aria-label="재실행 방식" value={settings.rerunMode} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, rerunMode: event.target.value as BuyContainerSettings['rerunMode'] } }))}><option>조건 재충족</option><option>N봉 이후</option><option>N거래일 이후</option></select></label>
           <label><span>간격</span><input type="number" min="1" max="365" aria-label="재실행 간격" value={settings.rerunInterval} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, rerunInterval: Number(event.target.value) } }))} /></label>
