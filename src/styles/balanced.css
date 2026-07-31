@@ -1813,11 +1813,12 @@
   box-shadow: 0 0 0 2px rgba(235, 245, 213, .62);
 }
 .variant-balanced[data-design="signal-studio"] .block-number-stepper {
-  width: 68px;
+  /* −/+ 버튼 제거 후 입력만 남으므로 단일 중앙 열로, 폭도 좁힌다. */
+  width: 44px;
   height: 24px;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) 8px 18px;
-  flex: 0 0 68px;
+  place-items: center;
+  flex: 0 0 44px;
   align-items: center;
   margin-left: auto;
   overflow: hidden;
@@ -9575,10 +9576,10 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select.is-fixed-width.is-null,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select.is-fixed-width .block-custom-select-trigger,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select.is-fixed-width.is-null .block-custom-select-trigger {
-  /* 아이콘만 표시하므로 폭을 좁혀 블록 공간을 더 확보한다. */
-  width: 32px;
-  min-width: 32px;
-  flex-basis: 32px;
+  /* 아이콘만 표시하므로 컨트롤 높이(24px)에 맞춘 정사각형으로 좁혀 공간을 확보한다. */
+  width: 26px;
+  min-width: 26px;
+  flex-basis: 26px;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select .block-custom-select-trigger {
   min-height: 24px;
@@ -9620,10 +9621,12 @@ small.dashboard-bot-scope {
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper.is-null {
-  width: 68px;
+  /* −/+ 버튼 제거 후 입력만 남으므로 폭을 좁히고 단일 중앙 열로 정렬한다. */
+  width: 44px;
   height: 26px;
-  flex-basis: 68px;
-  grid-template-columns: 18px minmax(0, 1fr) 18px;
+  flex-basis: 44px;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper label {
   min-width: 0;
