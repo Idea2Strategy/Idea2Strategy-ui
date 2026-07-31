@@ -750,10 +750,11 @@ const getSelectOptionPresentation = (option: string): { label: string; tone: str
   if (option === NULL_BLOCK_VALUE) return { label: UNSET_SELECT_LABEL, tone: 'neutral' };
   if (option === '↑') return { label: '상승', tone: 'up' };
   if (option === '↓') return { label: '하락', tone: 'down' };
-  if (option === '<') return { label: '미만', tone: 'down' };
-  if (option === '>') return { label: '초과', tone: 'up' };
-  if (option === '≤') return { label: '이하', tone: 'down' };
-  if (option === '≥') return { label: '이상', tone: 'up' };
+  // 비교(초과/미만)는 방향(상승/하강)과 구분되도록 별도 톤을 쓴다.
+  if (option === '<') return { label: '미만', tone: 'under' };
+  if (option === '>') return { label: '초과', tone: 'over' };
+  if (option === '≤') return { label: '이하', tone: 'under' };
+  if (option === '≥') return { label: '이상', tone: 'over' };
   if (option === '=') return { label: '같음', tone: 'neutral' };
   if (option === '수익') return { label: '수익', tone: 'up' };
   if (option === '손실') return { label: '손실', tone: 'down' };
@@ -771,6 +772,10 @@ const getSelectOptionPresentation = (option: string): { label: string; tone: str
 const CustomBlockSelect = ({ label, value, options, onChange, compact = false }: CustomBlockSelectProps) => {
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ left: number; top: number; width: number } | null>(null);
+  // 메뉴는 createPortal로 body(=data-updown 조상 밖)에 렌더되므로 등락색(--gain/--loss)이
+  // 항상 :root 기본(한국)으로 잡힌다. 트리거에서 실제 해석된 값을 읽어 메뉴에 주입해
+  // 국가 설정(미국 등)이 드롭다운 옵션 색에도 반영되게 한다.
+  const [menuTokens, setMenuTokens] = useState<Record<string, string> | null>(null);
   const rootRef = useRef<HTMLSpanElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLSpanElement>(null);
@@ -811,6 +816,15 @@ const CustomBlockSelect = ({ label, value, options, onChange, compact = false }:
       top: opensUpward ? Math.max(8, bounds.top - estimatedHeight - 4) : bounds.bottom + 4,
       width,
     });
+    if (triggerRef.current) {
+      const resolved = getComputedStyle(triggerRef.current);
+      setMenuTokens({
+        '--gain': resolved.getPropertyValue('--gain'),
+        '--loss': resolved.getPropertyValue('--loss'),
+        '--gain-soft': resolved.getPropertyValue('--gain-soft'),
+        '--loss-soft': resolved.getPropertyValue('--loss-soft'),
+      });
+    }
     setOpen(true);
   };
 
@@ -857,7 +871,7 @@ const CustomBlockSelect = ({ label, value, options, onChange, compact = false }:
       className={`block-custom-select-menu ${compact ? 'is-compact' : ''}`}
       role="listbox"
       aria-label={`${label} 옵션`}
-      style={menuPosition}
+      style={{ ...menuPosition, ...menuTokens }}
       onPointerDown={(event) => event.stopPropagation()}
       onWheel={(event) => event.stopPropagation()}
     >

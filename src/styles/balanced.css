@@ -1330,7 +1330,7 @@
   /* Align with the real card grid (BASIC_CARD_MIN_Y / card width) so the prompt
      sits in its column below the header instead of overlapping the divider. */
   top: 136px;
-  width: 344px;
+  width: 340px;
   min-height: 170px;
   display: grid;
   place-items: center;
@@ -7353,15 +7353,26 @@ small.dashboard-bot-scope {
   --select-tone: var(--text-soft);
   --select-tone-soft: var(--surface-3);
 }
+/* 방향(상승/하강·수익/손실)은 시장 국가에 연동된 등락 색을 그대로 쓴다.
+   KR: gain=빨강 / loss=파랑, US: gain=초록 / loss=빨강 */
 .block-custom-select-menu > button.tone-up,
 .variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-up {
-  --select-tone: #16885d;
-  --select-tone-soft: color-mix(in srgb, #44bd87 18%, var(--surface));
+  --select-tone: var(--gain);
+  --select-tone-soft: color-mix(in srgb, var(--gain) 18%, var(--surface));
 }
 .block-custom-select-menu > button.tone-down,
 .variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-down {
-  --select-tone: #d75563;
-  --select-tone-soft: color-mix(in srgb, #e86470 17%, var(--surface));
+  --select-tone: var(--loss);
+  --select-tone-soft: color-mix(in srgb, var(--loss) 17%, var(--surface));
+}
+/* 비교(초과/미만)는 방향 색과 구분되도록 무채색(흰색)으로 표시한다.
+   미선택 '+' 플레이스홀더와 같은 톤이라 연산자 pill 위에서 일관되게 보인다. */
+.block-custom-select-menu > button.tone-over,
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-over,
+.block-custom-select-menu > button.tone-under,
+.variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-under {
+  --select-tone: #ffffff;
+  --select-tone-soft: color-mix(in srgb, #ffffff 16%, var(--surface));
 }
 .block-custom-select-menu > button.tone-history,
 .variant-balanced[data-design="signal-studio"] .block-custom-select-trigger.tone-history {
@@ -8335,8 +8346,9 @@ small.dashboard-bot-scope {
 }
 
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .section-strategy-grid .strategy-card {
-  width: 344px;
-  min-width: 344px;
+  /* 변화율처럼 컨트롤이 3개(기준·연산자·값)인 블록이 넘치지 않도록 카드 폭을 넓힌다. */
+  width: 340px;
+  min-width: 340px;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .scratch-block > span:not([class]) {
   max-width: 88px;
@@ -9402,10 +9414,12 @@ small.dashboard-bot-scope {
   background: #d9a827;
 }
 
-/* Basic cards and their rule stacks keep one compact width at every count. */
+/* Basic cards and their rule stacks keep one compact width at every count.
+   변화율처럼 컨트롤이 3개(기준·연산자·값)인 블록의 최장 내용(≈330px)이 넘치지 않는
+   최소 폭으로만 넓혀, 다른 블록에서 우측 여백이 과하게 남지 않게 한다. */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .section-strategy-grid .strategy-card {
-  width: 320px;
-  min-width: 320px;
+  width: 340px;
+  min-width: 340px;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-stack.has-condition-blocks,
@@ -9664,6 +9678,11 @@ small.dashboard-bot-scope {
     drop-shadow(0 0 0.3px #fff) drop-shadow(0 0 0.3px #fff)
     drop-shadow(0 0 0.3px #fff) drop-shadow(0 0 0.3px #fff)
     drop-shadow(0 0 0.3px #fff) drop-shadow(0 0 0.3px #fff);
+}
+/* 대소 비교(초과/미만)는 흰색 아이콘이라 흰 아웃라인이 겹쳐 지저분하므로 제거한다. */
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .tone-over .block-relation-icon,
+.variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .tone-under .block-relation-icon {
+  filter: none;
 }
 /* Value dropdowns left-align their label so the icon hugs the left edge instead
    of leaving a wide gap when centred; the chevron floats at the right, out of
