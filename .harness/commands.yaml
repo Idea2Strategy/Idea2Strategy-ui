@@ -1,0 +1,7 @@
+schema_version: 1
+workspace_id: workspace.ui
+commands:
+  - id: command.develop-integration
+    kind: integration
+    argv: [git, merge-base, --is-ancestor, HEAD, origin/develop]
+    timeout_seconds: 30
