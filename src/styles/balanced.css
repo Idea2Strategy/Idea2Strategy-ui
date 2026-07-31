@@ -738,6 +738,8 @@
 .variant-balanced[data-design="signal-studio"] .tone-risk,
 .variant-balanced[data-design="signal-studio"] .block-risk { --block-tone-color: var(--block-risk-color); --block-tone-surface: var(--block-risk-surface); }
 .variant-balanced[data-design="signal-studio"] .strategy-section-frame.is-selected {
+  /* 선택(활성) 파티션은 겹칠 때 앞으로 올라와 카드·팝오버가 다른 파티션 위에 보이도록 한다. */
+  z-index: 4;
   border-color: color-mix(in srgb, var(--accent) 62%, var(--line-strong));
 }
 .variant-balanced[data-design="signal-studio"] .section-strategy-grid .strategy-card.is-selected {
@@ -952,6 +954,10 @@
 .variant-balanced[data-design="signal-studio"] .strategy-section-frame {
   position: absolute;
   box-sizing: border-box;
+  /* 각 파티션을 독립 stacking context로 격리한다. 이게 없으면 카드(z-index:2)가
+     다른 파티션 프레임 위로 뚫고 올라와 렌더링 순서가 뒤섞인다. */
+  z-index: 1;
+  isolation: isolate;
   padding: 0 18px 18px;
   border: 1px solid color-mix(in srgb, var(--line-strong) 78%, var(--accent) 22%);
   border-radius: 20px;
@@ -1352,8 +1358,8 @@
   opacity: .9;
 }
 .variant-balanced[data-design="signal-studio"] .required-buy-slot {
-  /* Top-left aligned, in the first card column, so it reads as the start of the
-     grid (and matches where the first card lands once one is added). */
+  /* 전략 카드와 같은 폭(340)으로 크기를 고정하고 좌상단(left 24 · top 136)에 정렬한다.
+     right/bottom 인셋을 쓰지 않으므로 파티션 프레임을 리사이즈해도 슬롯 크기는 그대로다. */
   left: 24px;
   border-color: color-mix(in srgb, var(--warning) 72%, var(--line-strong));
   color: var(--warning);
@@ -5208,9 +5214,9 @@
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--line-strong) 84%, transparent);
   border-radius: 16px;
-  /* Transparent body so blocks sit directly on the canvas instead of a second
-     dark/white panel that made the layering read as overly deep. */
-  background: transparent;
+  /* 카드 본문에 테마 연동 옅은 틴트(다크=옅은 검정 / 라이트=옅은 하양)를 준다.
+     surface를 낮은 비율로 섞어, 너무 어두워지지 않게 아주 살짝만 얹는다. */
+  background: color-mix(in srgb, var(--surface) 30%, transparent);
   box-shadow: 0 10px 28px rgba(var(--shadow-rgb), .13);
 }
 .variant-balanced[data-design="signal-studio"] .strategy-card .strategy-container-header {
@@ -8616,29 +8622,37 @@ small.dashboard-bot-scope {
       color-mix(in srgb, var(--surface-2) 84%, var(--surface)) 74px
     );
 }
+/* 패키지 섹션 헤딩(핵심/확장)을 블록 라이브러리 카테고리 디바이더 디자인에 맞춘다:
+   가운데 컬러 라벨 + 양옆 얇은 선. */
 .variant-balanced[data-design="signal-studio"] .basic-package-section-heading {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(10px, 1fr) auto minmax(10px, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   min-height: 28px;
   margin: 0;
   padding: 6px 4px;
-  color: var(--text-faint);
+  color: var(--accent);
   font: 800 8px var(--font-mono);
-  letter-spacing: .08em;
+  letter-spacing: .05em;
 }
-.variant-balanced[data-design="signal-studio"] .basic-package-section-heading::before {
+.variant-balanced[data-design="signal-studio"] .basic-package-section-heading::before,
+.variant-balanced[data-design="signal-studio"] .basic-package-section-heading::after {
   content: "";
-  width: 18px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent);
+  height: 1px;
+  background: var(--line);
 }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .template-advanced-break.basic-package-section-heading {
-  min-height: 31px;
+  min-height: 28px;
   margin: 4px 0 0;
-  padding-top: 9px;
-  border-top: 1px solid var(--line);
+  padding: 6px 4px;
+  border-top: 0;
+}
+/* 확장 헤딩의 라벨도 핵심과 동일 크기/자간으로(기존 template-advanced-break span 무력화). */
+.variant-balanced[data-design="signal-studio"] .basic-library-panel .template-advanced-break.basic-package-section-heading > span {
+  color: var(--accent);
+  font: 800 8px var(--font-mono);
+  letter-spacing: .05em;
 }
 .variant-balanced[data-design="signal-studio"] .basic-library-panel .template-card.pro-package-card {
   min-height: 66px;
@@ -9602,12 +9616,13 @@ small.dashboard-bot-scope {
  */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-recessed-control .block-custom-select-trigger,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper.is-recessed-control {
-  border: 1px solid color-mix(in srgb, var(--block-tone-color) 38%, rgba(20, 32, 35, .2));
+  /* 테두리를 아예 두지 않고(미선택과 동일) 살짝 어두운 배경 + 부드러운 인셋 그림자로만
+     리세스감을 준다. 투명이라도 1px 테두리가 있으면 그 가장자리에 배경 띠가 남아
+     값이 들어간 박스만 얇은 외곽선이 생겨 보였다. */
+  border: 0;
   border-radius: 7px;
   color: var(--block-control-ink);
-  /* Same fill as the block, one soft inset shadow (matching the terminal ratio
-     input) — recessed but flat, not heavily bevelled, and no white border. */
-  background: var(--block-tone-surface);
+  background: color-mix(in srgb, var(--block-tone-surface) 90%, #000);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, .28);
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-recessed-control .block-custom-select-trigger:hover,
@@ -9619,10 +9634,11 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-recessed-control .block-custom-select-trigger:focus-visible,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-number-stepper.is-recessed-control:focus-within {
   outline: 0;
-  border-color: color-mix(in srgb, var(--block-tone-color) 58%, rgba(20, 32, 35, .24));
-  box-shadow:
-    inset 1px 1px 0 rgba(20, 32, 35, .14),
-    0 0 0 1px color-mix(in srgb, var(--block-tone-color) 22%, transparent);
+  /* 선택/포커스 시에도 어두운 아웃라인 없이 기본 리세스 그림자를 그대로 유지한다.
+     포커스 표시는 배경을 아주 살짝만 어둡게 해서 대신한다. */
+  border-color: transparent;
+  background: color-mix(in srgb, var(--block-tone-surface) 86%, #000);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .28);
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select.is-fixed-width,
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-relation-select.is-fixed-width.is-null,
@@ -9651,22 +9667,25 @@ small.dashboard-bot-scope {
   white-space: nowrap;
   border: 0;
 }
+/* 미선택 '+'는 채워진 초과/미만(또렷한 흰색)과 헷갈리지 않도록, 옅은 반투명 흰색으로
+   pill 위에 가라앉혀 placeholder(비어 있음)임을 드러낸다. */
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .is-relation-select .block-relation-icon.is-placeholder {
-  color: #fff;
+  color: rgba(255, 255, 255, .42);
   opacity: 1;
   filter: none;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-value-select {
   width: auto;
   min-width: 64px;
-  /* 긴 옵션(최근 20봉 평균 거래량 등)이 잘리지 않도록 폭을 넓힌다. */
-  max-width: 148px;
+  /* 가장 긴 옵션('최근 20봉 평균 거래량 3배' ≈ 163px)이 잘리지 않도록 상한을 잡는다.
+     블록 자연 폭(≈283px)이 카드(340px) 안에 들어오므로 카드는 넓히지 않아도 된다. */
+  max-width: 172px;
   flex-basis: auto;
 }
 .variant-balanced[data-design="signal-studio"] .basic-editor-page .strategy-card .block-custom-select.is-value-select .block-custom-select-trigger {
   width: max-content;
   min-width: 64px;
-  max-width: 148px;
+  max-width: 172px;
   min-height: 26px;
   padding-inline: 8px 6px;
 }
