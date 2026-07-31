@@ -49,6 +49,8 @@ interface BasicBlock {
   label: string;
   op?: string;
   value?: string;
+  // 일부 블록(가격 변화율)은 비교 기준(전일 종가·장 시작가·평균 진입가)을 함께 고른다.
+  base?: string;
   tone: BlockTone;
 }
 
@@ -655,6 +657,11 @@ const getBlockNarrative = (block: BasicBlock, isLast: boolean): ReactNode => {
   const label = getBlockDisplayLabel(block.label);
   const operator = blockOperatorCopy[String(block.op ?? '')] ?? String(block.op ?? '');
   const value = String(block.value ?? '').trim();
+  if (BASE_BLOCKS.has(block.label)) {
+    const baseCopy = String(block.base ?? '').trim() || '기준가';
+    const moveCopy = [value || '설정값', operator || '방향'].join(' ');
+    return <><b>{baseCopy}</b> 대비 <b>{moveCopy}</b>{isLast ? '일 때' : '이고'}</>;
+  }
   if (DIRECTION_BLOCKS.has(block.label)) {
     const valueCopy = value || '기준값';
     const directionCopy = block.op === '↑' ? '상향 돌파' : block.op === '↓' ? '하향 돌파' : null;
@@ -944,18 +951,27 @@ interface BlockProps {
   label: string;
   value?: string;
   op?: string;
+  base?: string;
   tone?: BlockTone;
   locked?: boolean;
-  onChange?: (patch: { op?: string; value?: string }) => void;
+  onChange?: (patch: { op?: string; value?: string; base?: string }) => void;
 }
 
-const Block = ({ icon: Icon, label, value, op, tone = 'neutral', locked = false, onChange }: BlockProps) => {
+const BASE_BLOCKS = new Set(['가격 변화율']);
+const getBlockBaseOptions = (label: string): string[] => (
+  label === '가격 변화율' ? ['전일 종가', '당일 장 시작가', '평균 진입가'] : []
+);
+
+const Block = ({ icon: Icon, label, value, op, base, tone = 'neutral', locked = false, onChange }: BlockProps) => {
   const block = { label, value, op, tone };
   const operatorOptions = getBlockOperatorOptions(block);
   const operatorLabel = operatorOptions.filter(Boolean).every((option) => ['↑', '↓', '상승', '하락', '수익', '손실'].includes(option)) ? `${label} 방향` : `${label} 비교`;
   return <div className={`scratch-block block-${tone}`}>
     {Icon && <Icon className="block-type-icon" size={15} />}
     <span title={label}>{getBlockDisplayLabel(label)}</span>
+    {BASE_BLOCKS.has(label) && (locked
+      ? base && <span className="block-value is-locked">{base}</span>
+      : <CustomBlockSelect label={`${label} 기준 선택`} value={base ?? NULL_BLOCK_VALUE} options={getBlockBaseOptions(label)} onChange={(nextBase) => onChange!({ base: nextBase })} />)}
     {locked
       ? op && <b className="block-op">{op}</b>
       : operatorOptions.length === 1
@@ -1173,7 +1189,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
           }
           const hasNullField = blocks.some((block) => {
             const operatorRequired = getBlockOperatorOptions(block).length > 1;
-            return !String(block.value ?? '').trim() || (operatorRequired && !String(block.op ?? '').trim());
+            const baseRequired = BASE_BLOCKS.has(block.label);
+            return !String(block.value ?? '').trim()
+              || (operatorRequired && !String(block.op ?? '').trim())
+              || (baseRequired && !String(block.base ?? '').trim());
           });
           if (side === 'sell' && !sellSettings[cardId]?.sellPercent) {
             return [{
