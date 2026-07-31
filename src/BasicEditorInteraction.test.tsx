@@ -185,16 +185,20 @@ describe('Basic editor interactions', () => {
     expect(within(screen.getByTestId('basic-buy-group')).getByText('첫진입')).toBeInTheDocument();
   });
 
-  test('uses clearer repeat-entry wording and gives sell strategies an unset percentage', async () => {
+  test('unifies schedule and re-entry into one entry-mode picker and gives sell strategies an unset percentage', async () => {
     const user = userEvent.setup();
     renderEditor();
 
     await user.click(screen.getByRole('button', { name: '매수 전략 실행 설정' }));
     const buySettings = screen.getByRole('group', { name: '매수 실행 설정' });
-    expect(within(buySettings).getByRole('checkbox', { name: '반복 진입 허용' })).not.toBeChecked();
-    expect(within(buySettings).getByText('재활성화까지의 기간을 두고 다시 진입')).toBeInTheDocument();
-    // 일정(정기 실행)은 이제 조건 블록이 아니라 매수 카드의 스케줄 설정이다.
-    expect(within(buySettings).getByRole('combobox', { name: '조건 확인 스케줄' })).toHaveValue('없음');
+    // 스케줄(주기마다)과 재진입 대기는 하나의 '진입 방식' 모드로 통합됐다. 기본은 1회만.
+    const entryModes = within(buySettings).getByRole('radiogroup', { name: '진입 방식' });
+    expect(within(entryModes).getByRole('radio', { name: '1회만' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(buySettings).getByText('조건을 충족하면 한 번만 진입합니다.')).toBeInTheDocument();
+    // '주기마다'로 바꾸면 주기 선택과 정기 매수 안내가 나타난다.
+    await user.click(within(entryModes).getByRole('radio', { name: '주기마다' }));
+    expect(within(buySettings).getByRole('combobox', { name: '진입 주기' })).toHaveValue('매 거래일');
+    expect(within(buySettings).getByText('조건 블록이 없으면 지정 주기마다 정기 매수합니다.')).toBeInTheDocument();
 
     expect(screen.getByRole('spinbutton', { name: '매도 비율' })).toHaveValue(null);
     expect(screen.getByTestId('sell-order-block')).toHaveTextContent('매도 요청');

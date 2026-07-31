@@ -89,9 +89,9 @@ interface StrategyTemplate {
   buyBlocks?: StrategyTemplateBlock[];
   sellBlocks?: StrategyTemplateBlock[];
   riskContainers?: StrategyTemplateRiskContainer[];
-  // 매수 컨테이너를 스케줄(정기 매수) 설정으로 만드는 패키지. 조건 블록 없이
-  // 지정 일정에만 매수한다.
-  buySchedule?: BuySchedule;
+  // 매수 컨테이너를 '주기마다' 진입(정기·적립식 매수)으로 만드는 패키지. 조건 블록
+  // 없이 지정 주기에만 매수한다.
+  buyCycle?: BuyCycle;
   description: string;
 }
 
@@ -117,44 +117,51 @@ interface CardMeta {
   explanation: string;
 }
 
-type BuySchedule = '없음' | '매 거래일' | '매주 첫 거래일' | '매월 첫 거래일' | '매월 마지막 거래일' | 'N거래일마다';
+// 지정 주기마다 조건을 확인하는 단위(정기·적립식 매수의 주기).
+type BuyCycle = '매 거래일' | '매주 첫 거래일' | '매월 첫 거래일' | '매월 마지막 거래일' | 'N거래일마다';
+// 실행(진입/매도) 후 다시 조건을 확인하기까지의 대기 방식.
+type RerunWait = '조건 재충족' | 'N봉 이후' | 'N거래일 이후';
 
 interface BuyContainerSettings {
   maxOrderPercent: number;
-  // 특정 날짜에만 조건을 확인하는 스케줄. '없음'이면 매 봉마다 평가한다.
-  // 조건 블록 없이 스케줄만 있으면 지정 일정마다 매수(정기·적립식 매수).
-  schedule: BuySchedule;
-  scheduleInterval: number;
-  allowAdditionalBuy: boolean;
-  rerunMode: '조건 재충족' | 'N봉 이후' | 'N거래일 이후';
-  rerunInterval: number;
-  maxEntries: number;
+  // 진입 방식은 셋 중 하나만 고른다. '스케줄(주기마다)'과 '재진입 대기'는 모두
+  // "언제 다시 조건을 확인해 진입할지"를 정하므로 상호 배타 모드로 통합했다.
+  //   1회만        - 조건 충족 시 한 번만 진입
+  //   주기마다      - 지정 주기에 조건 확인(조건 없으면 정기·적립식 매수)
+  //   대기 후 재진입 - 진입 후 대기 기간을 두고 조건을 재확인
+  entryMode: '1회만' | '주기마다' | '대기 후 재진입';
+  cycle: BuyCycle;          // 주기마다 → 확인 주기
+  cycleInterval: number;    // N거래일마다 → 간격(거래일)
+  reentryWait: RerunWait;   // 대기 후 재진입 → 대기 방식
+  reentryInterval: number;  // N봉/N거래일 이후 → 간격
+  maxEntries: number;       // 주기마다·대기 후 재진입 공통 → 한 포지션 최대 진입 횟수
 }
 
 const createDefaultBuySettings = (): BuyContainerSettings => ({
   maxOrderPercent: 100,
-  schedule: '없음',
-  scheduleInterval: 2,
-  allowAdditionalBuy: false,
-  rerunMode: '조건 재충족',
-  rerunInterval: 1,
-  maxEntries: 1,
+  entryMode: '1회만',
+  cycle: '매 거래일',
+  cycleInterval: 2,
+  reentryWait: '조건 재충족',
+  reentryInterval: 1,
+  maxEntries: 2,
 });
 
 interface SellContainerSettings {
   sellPercent: number | '';
-  allowRepeatSell: boolean;
-  rerunMode: '조건 재충족' | 'N봉 이후' | 'N거래일 이후';
-  rerunInterval: number;
-  maxEntries: number;
+  // 매도에는 주기 개념이 없어 1회만 / 대기 후 재실행 두 모드만 둔다.
+  executeMode: '1회만' | '대기 후 재실행';
+  reexecWait: RerunWait;
+  reexecInterval: number;
+  maxExecutions: number;
 }
 
 const createDefaultSellSettings = (): SellContainerSettings => ({
   sellPercent: '',
-  allowRepeatSell: false,
-  rerunMode: '조건 재충족',
-  rerunInterval: 1,
-  maxEntries: 1,
+  executeMode: '1회만',
+  reexecWait: '조건 재충족',
+  reexecInterval: 1,
+  maxExecutions: 2,
 });
 
 interface BasicEditorSnapshot {
@@ -429,7 +436,7 @@ const TEMPLATE_LIBRARY: StrategyTemplate[] = [
   { id: 'high-breakout', name: '최근 최고 가격 돌파', category: '가격', indicator: '가격 비교', buyTitle: '최근 최고 가격 돌파', sellTitle: '최근 평균 가격 이탈', buyOp: '>', buyValue: '이전 20봉 최고 가격', sellOp: '<', sellValue: '최근 20봉 평균 가격', buyTone: 'data', sellTone: 'data', description: '새로운 고점을 돌파하면 진입하고 평균 가격 이탈에 정리해요' },
   { id: 'open-rise', name: '장 시작가 대비 상승', category: '가격', indicator: '가격 변화율', buyTitle: '장 시작가 대비 상승', buyOp: '↑', buyValue: '3%', sellOp: '=', sellValue: '', buyTone: 'data', includeSell: false, riskContainers: [{ title: '당일 장 마감 청산', blocks: [{ label: '보유 기간', tone: 'risk' }] }], description: '장 시작가 대비 상승하면 진입해요' },
   { id: 'daily-drop', name: '하루 급락 매수', category: '가격', indicator: '가격 변화율', buyTitle: '하루 급락 매수', buyOp: '↓', buyValue: '5%', sellOp: '=', sellValue: '', buyTone: 'data', includeSell: false, riskContainers: [{ title: '다음 거래일 청산', blocks: [{ label: '보유 기간', tone: 'risk' }] }], description: '전일 대비 급락하면 진입해요' },
-  { id: 'scheduled-buy', name: '정기 매수', category: '일정', indicator: '정기 실행', buyTitle: '정기 매수', buyOp: '=', buyValue: '매 거래일', sellOp: '=', sellValue: '', buyTone: 'time', includeSell: false, buySchedule: '매 거래일', description: '선택한 거래 일정마다 매수 요청을 만들어요' },
+  { id: 'scheduled-buy', name: '정기 매수', category: '일정', indicator: '정기 실행', buyTitle: '정기 매수', buyOp: '=', buyValue: '매 거래일', sellOp: '=', sellValue: '', buyTone: 'time', includeSell: false, buyCycle: '매 거래일', description: '선택한 거래 일정마다 매수 요청을 만들어요' },
   { id: 'donchian', name: 'Donchian 돌파', category: '추세', indicator: '가격 비교', buyTitle: 'Donchian 상향 돌파', sellTitle: 'Donchian 하향 이탈', buyOp: '>', buyValue: '이전 20봉 최고 가격', sellOp: '<', sellValue: '이전 10봉 최저 가격', buyTone: 'indicator', sellTone: 'indicator', buyBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], sellBlocks: [{ label: '가격 비교', tone: 'data' }, { label: '평균선 교차', tone: 'indicator' }], riskContainers: [{ title: '수익 보호 청산', blocks: [{ label: '최고 수익률', tone: 'risk' }, { label: '고점 대비 하락', tone: 'risk' }] }], description: '가격 범위 돌파를 추세로 확인하고 하향 이탈에 정리해요' },
   { id: 'rsi', name: 'RSI 반등', category: '반전', indicator: 'RSI 반등', buyTitle: 'RSI 반등 매수', sellTitle: 'RSI 하락 매도', buyOp: '↑', buyValue: '30', sellOp: '↓', sellValue: '70', description: 'RSI가 낮은 구간에서 반등하면 사고 높은 구간에서 하락하면 정리해요' },
   { id: 'sma', name: 'SMA 교차', category: '추세', indicator: '평균선 교차', buyOp: '↑', buyValue: '20봉 · 60봉', sellOp: '↓', sellValue: '20봉 · 60봉', description: '짧은 평균선과 긴 평균선의 교차를 따라가요' },
@@ -1125,9 +1132,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
         const sideLabel = side === 'buy' ? '매수' : side === 'sell' ? '매도' : '위기관리';
         return section.cards[side].flatMap((cardId): ValidationIssue[] => {
           const blocks = cardBlocks[cardId] ?? [];
-          // 매수 카드는 스케줄(정기 매수)만 있어도 트리거가 있는 것으로 본다.
-          const scheduleActive = side === 'buy' && (buySettings[cardId]?.schedule ?? '없음') !== '없음';
-          if (blocks.length === 0 && !scheduleActive) {
+          // 매수 카드는 '주기마다' 진입(정기 매수)이면 조건 블록 없이도 트리거가 있는 것으로 본다.
+          const periodicEntry = side === 'buy' && (buySettings[cardId]?.entryMode ?? '1회만') === '주기마다';
+          if (blocks.length === 0 && !periodicEntry) {
             return [{
               id: `${cardId}-empty`,
               sectionId: section.id,
@@ -1584,8 +1591,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
     setCardCount(cardCount + addedCardIds.length);
     setCardBlocks((current) => ({
       ...current,
-      // 스케줄(정기 매수) 패키지는 조건 블록 없이 스케줄 설정만으로 동작한다.
-      [buyCardId]: template.buySchedule ? [] : createTemplateBlocks(template, buyCardId, 'buy'),
+      // 정기 매수 패키지는 조건 블록 없이 '주기마다' 진입 설정만으로 동작한다.
+      [buyCardId]: template.buyCycle ? [] : createTemplateBlocks(template, buyCardId, 'buy'),
       ...(includeSell ? { [sellCardId]: createTemplateBlocks(template, sellCardId, 'sell') } : {}),
       ...Object.fromEntries(riskCards.map((card) => [card.id, createBlocksFromDefinitions(card.id, card.blocks)])),
     }));
@@ -1632,7 +1639,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
       : section));
     setBuySettings((current) => ({
       ...current,
-      [buyCardId]: { ...createDefaultBuySettings(), ...(template.buySchedule ? { schedule: template.buySchedule } : {}) },
+      [buyCardId]: { ...createDefaultBuySettings(), ...(template.buyCycle ? { entryMode: '주기마다' as const, cycle: template.buyCycle, maxEntries: 60 } : {}) },
     }));
     if (includeSell) {
       setSellSettings((current) => ({ ...current, [sellCardId]: createDefaultSellSettings() }));
@@ -2327,8 +2334,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
       detail: '조건을 모두 만족하면 실행',
       explanation: '',
     };
-    const settings = buySettings[cardId] ?? createDefaultBuySettings();
-    const sellExecution = sellSettings[cardId] ?? createDefaultSellSettings();
+    // 기본값을 먼저 깔고 저장된 값을 덮어써, 이전 스키마로 저장돼 entryMode 등이
+    // 빠진 데이터에서도 항상 유효한 모드(기본 '1회만')가 선택되도록 한다.
+    const settings = { ...createDefaultBuySettings(), ...buySettings[cardId] };
+    const sellExecution = { ...createDefaultSellSettings(), ...sellSettings[cardId] };
     const position = section.cardPositions?.[cardId] ?? getDefaultCardPosition(cardIndex);
     const ruleSide: 'left' | 'right' = position.x > Math.max(520, (section.width ?? 752) * .56) ? 'left' : 'right';
     const budgetRule = side === 'buy'
@@ -2418,8 +2427,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
             {side === 'buy' && <>
               <span>예산 {Math.round(section.allocation / Math.max(1, section.cards.buy.length))}%</span>
               <span>주문 최대 {settings.maxOrderPercent}%</span>
+              {settings.entryMode !== '1회만' && <span>{settings.entryMode}</span>}
             </>}
-            {side === 'sell' && <span>{sellExecution.sellPercent ? `매도 ${sellExecution.sellPercent}%` : '비율 미설정'}</span>}
+            {side === 'sell' && <>
+              <span>{sellExecution.sellPercent ? `매도 ${sellExecution.sellPercent}%` : '비율 미설정'}</span>
+              {sellExecution.executeMode !== '1회만' && <span>{sellExecution.executeMode}</span>}
+            </>}
             {invalidCardIds.has(cardId) && <em className="strategy-validation-badge">{cardBlocks[cardId]?.length ? '입력 필요' : '조건 필요'}</em>}
           </span>}
         </div>
@@ -2442,27 +2455,41 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
           <span><Settings2 size={13} aria-hidden="true" /><strong>매수 설정</strong></span>
           <button type="button" aria-label="매수 실행 설정 닫기" onClick={() => setExpandedSettingsCardId(null)}><X size={13} /></button>
         </header>
-        {/* 사용 예산·주문 비율은 헤더 태그·요청 블록에서 다루므로, 여기엔 '스케줄
-            (특정 날짜에만 조건 확인)'과 '재진입(재활성화까지의 기간)'만 둔다.
-            조건 블록 없이 스케줄만 있으면 지정 일정마다 매수하는 정기 매수가 된다. */}
+        {/* 사용 예산·주문 비율은 헤더 태그·요청 블록에서 다루므로, 여기엔 '진입 방식'만 둔다.
+            스케줄(주기마다)과 재진입 대기는 모두 "언제 다시 조건을 확인해 진입할지"를 정하므로
+            하나의 상호 배타 모드로 통합했다. '주기마다'는 조건 블록 없이도 정기 매수가 된다. */}
         <div className="setting-field-group">
-          <span className="setting-field-title"><strong>스케줄</strong><small>특정 날짜에만 조건 확인 · 없으면 매 봉마다</small></span>
-          <div className="additional-buy-settings">
-            <label><span>주기</span><select aria-label="조건 확인 스케줄" value={settings.schedule} onChange={(event) => {
-              rememberEditorChange();
-              setBuySettings((current) => ({ ...current, [cardId]: { ...settings, schedule: event.target.value as BuySchedule } }));
-            }}><option>없음</option><option>매 거래일</option><option>매주 첫 거래일</option><option>매월 첫 거래일</option><option>매월 마지막 거래일</option><option>N거래일마다</option></select></label>
-            {settings.schedule === 'N거래일마다' && <label><span>간격</span><input type="number" min="2" max="365" aria-label="스케줄 간격(거래일)" value={settings.scheduleInterval} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, scheduleInterval: Number(event.target.value) } }))} /></label>}
+          <span className="setting-field-title"><strong>진입 방식</strong><small>조건을 언제 다시 확인해 진입할지 정합니다</small></span>
+          <div className="setting-mode-tabs" role="radiogroup" aria-label="진입 방식">
+            {(['1회만', '주기마다', '대기 후 재진입'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={settings.entryMode === mode}
+                className={settings.entryMode === mode ? 'is-active' : ''}
+                onClick={() => {
+                  rememberEditorChange();
+                  setBuySettings((current) => ({ ...current, [cardId]: { ...settings, entryMode: mode } }));
+                }}
+              >{mode}</button>
+            ))}
           </div>
         </div>
-        <label className="setting-toggle"><input type="checkbox" aria-label="반복 진입 허용" checked={settings.allowAdditionalBuy} onChange={(event) => {
-          rememberEditorChange();
-          setBuySettings((current) => ({ ...current, [cardId]: { ...settings, allowAdditionalBuy: event.target.checked } }));
-        }} /><span><strong>반복 진입</strong><small>재활성화까지의 기간을 두고 다시 진입</small></span></label>
-        {settings.allowAdditionalBuy && <div className="additional-buy-settings">
-          <label><span>방식</span><select aria-label="재실행 방식" value={settings.rerunMode} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, rerunMode: event.target.value as BuyContainerSettings['rerunMode'] } }))}><option>조건 재충족</option><option>N봉 이후</option><option>N거래일 이후</option></select></label>
-          <label><span>간격</span><input type="number" min="1" max="365" aria-label="재실행 간격" value={settings.rerunInterval} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, rerunInterval: Number(event.target.value) } }))} /></label>
-          <label><span>최대 진입</span><input type="number" min="1" max="1000" aria-label="한 포지션 최대 진입 횟수" value={settings.maxEntries} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxEntries: Number(event.target.value) } }))} /></label>
+        {settings.entryMode === '1회만' && <p className="setting-mode-hint">조건을 충족하면 한 번만 진입합니다.</p>}
+        {settings.entryMode === '주기마다' && <div className="additional-buy-settings">
+          <label><span>주기</span><select aria-label="진입 주기" value={settings.cycle} onChange={(event) => {
+            rememberEditorChange();
+            setBuySettings((current) => ({ ...current, [cardId]: { ...settings, cycle: event.target.value as BuyCycle } }));
+          }}><option>매 거래일</option><option>매주 첫 거래일</option><option>매월 첫 거래일</option><option>매월 마지막 거래일</option><option>N거래일마다</option></select></label>
+          {settings.cycle === 'N거래일마다' && <label><span>간격</span><input type="number" min="2" max="365" aria-label="진입 주기 간격(거래일)" value={settings.cycleInterval} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, cycleInterval: Number(event.target.value) } }))} /></label>}
+          <label><span>최대 진입</span><input type="number" min="2" max="1000" aria-label="한 포지션 최대 진입 횟수" value={settings.maxEntries} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxEntries: Number(event.target.value) } }))} /></label>
+          <p className="setting-mode-hint">조건 블록이 없으면 지정 주기마다 정기 매수합니다.</p>
+        </div>}
+        {settings.entryMode === '대기 후 재진입' && <div className="additional-buy-settings">
+          <label><span>대기</span><select aria-label="재진입 대기 방식" value={settings.reentryWait} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, reentryWait: event.target.value as RerunWait } }))}><option>조건 재충족</option><option>N봉 이후</option><option>N거래일 이후</option></select></label>
+          {settings.reentryWait !== '조건 재충족' && <label><span>간격</span><input type="number" min="1" max="365" aria-label="재진입 간격" value={settings.reentryInterval} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, reentryInterval: Number(event.target.value) } }))} /></label>}
+          <label><span>최대 진입</span><input type="number" min="2" max="1000" aria-label="한 포지션 최대 진입 횟수" value={settings.maxEntries} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxEntries: Number(event.target.value) } }))} /></label>
         </div>}
       </section>}
       {side === 'sell' && expandedSettingsCardId === cardId && <section className="container-settings-card is-popover" role="group" aria-label="매도 실행 설정">
@@ -2470,15 +2497,31 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
           <span><Settings2 size={13} aria-hidden="true" /><strong>매도 설정</strong></span>
           <button type="button" aria-label="매도 실행 설정 닫기" onClick={() => setExpandedSettingsCardId(null)}><X size={13} /></button>
         </header>
-        {/* 매도 비율은 카드 하단 요청 블록에서 편집하므로, 설정창에는 반복 매도만 둡니다. */}
-        <label className="setting-toggle"><input type="checkbox" aria-label="반복 매도 허용" checked={sellExecution.allowRepeatSell} onChange={(event) => {
-          rememberEditorChange();
-          setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), allowRepeatSell: event.target.checked } }));
-        }} /><span><strong>반복 매도</strong><small>조건이 다시 맞으면 추가 매도</small></span></label>
-        {sellExecution.allowRepeatSell && <div className="additional-buy-settings">
-          <label><span>방식</span><select aria-label="재매도 방식" value={sellExecution.rerunMode} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), rerunMode: event.target.value as SellContainerSettings['rerunMode'] } }))}><option>조건 재충족</option><option>N봉 이후</option><option>N거래일 이후</option></select></label>
-          <label><span>간격</span><input type="number" min="1" max="365" aria-label="재매도 간격" value={sellExecution.rerunInterval} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), rerunInterval: Number(event.target.value) } }))} /></label>
-          <label><span>최대 실행</span><input type="number" min="1" max="1000" aria-label="한 포지션 최대 매도 횟수" value={sellExecution.maxEntries} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), maxEntries: Number(event.target.value) } }))} /></label>
+        {/* 매도 비율은 카드 하단 요청 블록에서 편집하므로, 설정창에는 '실행 방식'만 둔다.
+            매도엔 주기 개념이 없어 1회만 / 대기 후 재실행 두 모드만 제공한다. */}
+        <div className="setting-field-group">
+          <span className="setting-field-title"><strong>실행 방식</strong><small>조건을 언제 다시 확인해 매도할지 정합니다</small></span>
+          <div className="setting-mode-tabs" role="radiogroup" aria-label="실행 방식">
+            {(['1회만', '대기 후 재실행'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                role="radio"
+                aria-checked={sellExecution.executeMode === mode}
+                className={sellExecution.executeMode === mode ? 'is-active' : ''}
+                onClick={() => {
+                  rememberEditorChange();
+                  setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), executeMode: mode } }));
+                }}
+              >{mode}</button>
+            ))}
+          </div>
+        </div>
+        {sellExecution.executeMode === '1회만' && <p className="setting-mode-hint">조건을 충족하면 한 번만 매도합니다.</p>}
+        {sellExecution.executeMode === '대기 후 재실행' && <div className="additional-buy-settings">
+          <label><span>대기</span><select aria-label="재매도 대기 방식" value={sellExecution.reexecWait} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), reexecWait: event.target.value as RerunWait } }))}><option>조건 재충족</option><option>N봉 이후</option><option>N거래일 이후</option></select></label>
+          {sellExecution.reexecWait !== '조건 재충족' && <label><span>간격</span><input type="number" min="1" max="365" aria-label="재매도 간격" value={sellExecution.reexecInterval} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), reexecInterval: Number(event.target.value) } }))} /></label>}
+          <label><span>최대 실행</span><input type="number" min="2" max="1000" aria-label="한 포지션 최대 매도 횟수" value={sellExecution.maxExecutions} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), maxExecutions: Number(event.target.value) } }))} /></label>
         </div>}
       </section>}
       <div

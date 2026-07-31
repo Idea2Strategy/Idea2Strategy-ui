@@ -5508,6 +5508,44 @@
 .variant-balanced[data-design="signal-studio"] .setting-field-title { display: grid; gap: 2px; }
 .variant-balanced[data-design="signal-studio"] .setting-field-title strong { color: var(--text); font-size: 9px; }
 .variant-balanced[data-design="signal-studio"] .setting-field-title small { color: var(--text-faint); font-size: 8px; line-height: 1.45; }
+/* 진입/실행 방식: 상호 배타 모드를 고르는 세그먼트 컨트롤. */
+.variant-balanced[data-design="signal-studio"] .setting-mode-tabs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .setting-mode-tabs button {
+  min-height: 27px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-faint);
+  background: transparent;
+  font: 700 9px var(--font-mono);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .12s ease, background .12s ease;
+}
+.variant-balanced[data-design="signal-studio"] .setting-mode-tabs button:hover { color: var(--text-soft); }
+.variant-balanced[data-design="signal-studio"] .setting-mode-tabs button.is-active {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .setting-mode-tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.variant-balanced[data-design="signal-studio"] .setting-mode-hint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 8px;
+  line-height: 1.5;
+}
 .variant-balanced[data-design="signal-studio"] .settings-natural-summary {
   margin: 0;
   padding: 9px 10px;
