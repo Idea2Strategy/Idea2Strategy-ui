@@ -500,7 +500,7 @@ const createBlocksFromDefinitions = (cardId: string, definitions: StrategyTempla
     id: `${cardId}-condition-${index + 1}`,
     icon: getBasicBlockIcon(definition.label, definition.tone),
     label: definition.label,
-    op: definition.label === '정기 실행' || definition.label === '보유 기간' ? '=' : NULL_BLOCK_VALUE,
+    op: definition.label === '보유 기간' ? '=' : NULL_BLOCK_VALUE,
     value: NULL_BLOCK_VALUE,
     tone: definition.tone,
   }));
@@ -514,7 +514,7 @@ const createLibraryBlock = (label: string, tone: BlockTone, id: string): BasicBl
     id,
     icon: getBasicBlockIcon(label, tone),
     label,
-    op: label === '정기 실행' || label === '보유 기간' ? '=' : NULL_BLOCK_VALUE,
+    op: label === '보유 기간' ? '=' : NULL_BLOCK_VALUE,
     value: NULL_BLOCK_VALUE,
     tone,
   };
@@ -529,7 +529,7 @@ const blockOperatorCopy: Record<string, string> = {
 };
 
 const DIRECTION_BLOCKS = new Set(['연속 상승·하락', '평균선 교차', 'RSI 반등', 'MACD 전환', '가격 띠 반전']);
-const EQUALITY_BLOCKS = new Set(['정기 실행', '보유 기간']);
+const EQUALITY_BLOCKS = new Set(['보유 기간']);
 // 청산 조건은 보유 포지션을 전제로 평가되므로 매수 카드에는 논리적으로 들어갈 수
 // 없다(진입 시점엔 포지션이 없음). 매도 전략 카드에서만 사용한다.
 const SELL_ONLY_BLOCKS = new Set(['현재 수익률', '보유 기간', '최고 수익률', '고점 대비 하락']);
@@ -552,7 +552,6 @@ const getBlockDisplayLabel = (label: string): string => ({
   'RSI 반등': 'RSI',
   'MACD 전환': 'MACD',
   '가격 띠 반전': '가격 띠',
-  '정기 실행': '일정',
   '현재 수익률': '수익률',
   '보유 기간': '보유',
   '최고 수익률': '최고 수익',
@@ -568,7 +567,6 @@ const getBlockLibraryDescription = (label: string): string => ({
   'RSI 반등': 'RSI가 방향을 바꾸는지 확인합니다',
   'MACD 전환': 'MACD 신호의 방향 전환을 확인합니다',
   '가격 띠 반전': '가격이 기준 띠로 돌아오는지 확인합니다',
-  '정기 실행': '정해 둔 거래 일정에 실행합니다',
   '현재 수익률': '보유 포지션이 수익·손실 구간인지 확인합니다',
   '보유 기간': '진입 뒤 지난 기간을 확인합니다',
   '최고 수익률': '보유 중 기록한 최고 수익을 확인합니다',
@@ -603,7 +601,6 @@ const getBlockValueOptions = (block: BlockRuleInput): string[] => {
   if (block.label === '평균선 교차') return ['5봉 · 20봉', '20봉 · 60봉', '60봉 · 120봉'];
   if (block.label === 'MACD 전환') return ['12 · 26 · 9'];
   if (block.label === '가격 띠 반전') return ['20봉 · 2σ'];
-  if (block.label === '정기 실행') return ['매 거래일', '매주 첫 거래일', '매월 첫 거래일', '매월 마지막 거래일', '2거래일마다', '5거래일마다'];
   if (block.label === '보유 기간') return ['당일 장 마감', '1봉', '5봉', '20봉', '1거래일', '5거래일'];
   if (normalizedLabel.includes('POSITION') || block.label.includes('포지션')) return ['OPEN', 'CLOSED', 'ANY'];
   if (block.tone === 'data') return ['현재', '이전 봉', '2봉 전'];
