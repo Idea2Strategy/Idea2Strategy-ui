@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
-import type { StrategyAuthoringClient, StrategyDocument, StrategyLibraryClient } from './api/strategies';
+import type { BasicStrategyCatalog, StrategyAuthoringClient, StrategyCatalogClient, StrategyDocument, StrategyLibraryClient } from './api/strategies';
 import { BasicEditor, StrategyHome } from './views/StrategyViews';
 
 describe('Strategy API view', () => {
@@ -69,8 +69,25 @@ describe('Strategy API view', () => {
       releaseLease: vi.fn().mockResolvedValue(undefined),
       saveDocument: vi.fn().mockResolvedValue({ ...document, editSequence: 1 }),
     };
+    const catalog: BasicStrategyCatalog = {
+      version: {
+        id: 'catalog-id', languageVersion: 'basic/v1', schemaVersion: 'schema/v1', catalogVersion: 'catalog/v1',
+        dataRequirementVersion: 'data/v1', definitionHash: 'catalog-hash', publishedAt: '2026-08-01T12:00:00Z', retiredAt: null,
+      },
+      elements: [],
+      features: [],
+      instruments: [
+        { id: 'aapl-id', assetType: 'STOCK', primaryExchangeMic: 'XNAS', currencyCode: 'USD', symbol: 'AAPL' },
+        { id: 'spy-id', assetType: 'ETF', primaryExchangeMic: 'ARCX', currencyCode: 'USD', symbol: 'SPY' },
+      ],
+    };
+    const catalogClient: StrategyCatalogClient = { getBasic: vi.fn().mockResolvedValue(catalog) };
 
-    const { unmount } = render(<BasicEditor goBack={() => {}} strategyId="strategy-id" authoringClient={authoringClient} />);
+    const { unmount } = render(<BasicEditor blank goBack={() => {}} strategyId="strategy-id" authoringClient={authoringClient} catalogClient={catalogClient} />);
+    await waitFor(() => expect(catalogClient.getBasic).toHaveBeenCalledWith(expect.any(AbortSignal)));
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 종목 관리' }));
+    await user.click(screen.getByRole('button', { name: '종목 추가' }));
+    expect(screen.getByRole('dialog', { name: 'PARTITION 1 종목 관리' })).toHaveTextContent('AAPL');
     const save = screen.getByRole('button', { name: '저장' });
     await waitFor(() => expect(save).toBeEnabled());
     await user.click(save);
@@ -79,7 +96,14 @@ describe('Strategy API view', () => {
       expectedEditSequence: 0,
       leaseToken: 'lease-token',
       semanticDocument: { mode: 'BASIC', groups: [] },
-      presentationDocument: expect.objectContaining({ basicEditor: expect.objectContaining({ version: 1 }) }),
+      presentationDocument: expect.objectContaining({
+        basicEditor: expect.objectContaining({
+          version: 1,
+          snapshot: expect.objectContaining({
+            sections: [expect.objectContaining({ symbol: 'AAPL', instrumentIds: ['aapl-id'] })],
+          }),
+        }),
+      }),
     })));
     unmount();
     await waitFor(() => expect(authoringClient.releaseLease).toHaveBeenCalledWith('strategy-id', 'lease-token'));

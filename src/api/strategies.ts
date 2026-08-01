@@ -57,6 +57,54 @@ export interface StrategyAuthoringClient {
   saveDocument(strategyId: string, input: SaveStrategyDocumentInput, signal?: AbortSignal): Promise<StrategyDocument>;
 }
 
+export interface BasicCatalogInstrument {
+  id: string;
+  assetType: string;
+  primaryExchangeMic: string;
+  currencyCode: string;
+  symbol: string;
+}
+
+export interface BasicStrategyCatalog {
+  version: {
+    id: string;
+    languageVersion: string;
+    schemaVersion: string;
+    catalogVersion: string;
+    dataRequirementVersion: string;
+    definitionHash: string;
+    publishedAt: string;
+    retiredAt: string | null;
+  };
+  elements: Array<{
+    id: string;
+    catalogId: string;
+    elementCode: string;
+    elementKind: string;
+    parameterSchema: Record<string, unknown>;
+    inputPortSchema: Record<string, unknown>;
+    outputPortSchema: Record<string, unknown>;
+    executionContract: Record<string, unknown>;
+    definitionHash: string;
+  }>;
+  features: Array<{
+    id: string;
+    catalogId: string;
+    featureCode: string;
+    calculatorVersion: string;
+    resolution: string;
+    normalizedParameters: Record<string, unknown>;
+    outputValueType: string;
+    requiredHistoryPoints: number;
+    definitionHash: string;
+  }>;
+  instruments: BasicCatalogInstrument[];
+}
+
+export interface StrategyCatalogClient {
+  getBasic(signal?: AbortSignal): Promise<BasicStrategyCatalog>;
+}
+
 export class StrategyApiError extends Error {
   constructor(public readonly status: number, operation: string) {
     super(`${operation} failed (${status})`);
@@ -165,6 +213,34 @@ export function createStrategyAuthoringClient({
   };
 }
 
+export function createStrategyCatalogClient({
+  baseUrl = '',
+  fetchImpl = fetch,
+  getAccessToken,
+}: ClientOptions = {}): StrategyCatalogClient {
+  const root = baseUrl.replace(/\/$/, '');
+  return {
+    async getBasic(signal) {
+      const query = new URLSearchParams({
+        languageVersion: 'basic/v1',
+        schemaVersion: 'schema/v1',
+        catalogVersion: 'catalog/v1',
+      });
+      const token = getAccessToken?.();
+      const response = await fetchImpl(`${root}/api/v1/strategy-catalogs/basic?${query.toString()}`, {
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        signal,
+      });
+      if (!response.ok) throw new StrategyApiError(response.status, 'Basic strategy catalog request');
+      return readBasicCatalog(await response.json());
+    },
+  };
+}
+
 function readPage(value: unknown): StrategyLibraryPage {
   const page = object(value, 'Invalid strategy library response');
   if (!Array.isArray(page.items)) throw new Error('Invalid strategy library items');
@@ -211,6 +287,64 @@ function readDocument(value: unknown): StrategyDocument {
   };
 }
 
+function readBasicCatalog(value: unknown): BasicStrategyCatalog {
+  const catalog = object(value, 'Invalid Basic strategy catalog response');
+  const version = object(catalog.version, 'Invalid Basic strategy catalog version');
+  if (!Array.isArray(catalog.elements) || !Array.isArray(catalog.features) || !Array.isArray(catalog.instruments)) {
+    throw new Error('Invalid Basic strategy catalog collections');
+  }
+  return {
+    version: {
+      id: string(version.id, 'catalog version id'),
+      languageVersion: string(version.languageVersion, 'languageVersion'),
+      schemaVersion: string(version.schemaVersion, 'schemaVersion'),
+      catalogVersion: string(version.catalogVersion, 'catalogVersion'),
+      dataRequirementVersion: string(version.dataRequirementVersion, 'dataRequirementVersion'),
+      definitionHash: string(version.definitionHash, 'catalog definitionHash'),
+      publishedAt: string(version.publishedAt, 'publishedAt'),
+      retiredAt: nullableString(version.retiredAt, 'retiredAt'),
+    },
+    elements: catalog.elements.map((value) => {
+      const element = object(value, 'Invalid Basic strategy catalog element');
+      return {
+        id: string(element.id, 'element id'),
+        catalogId: string(element.catalogId, 'element catalogId'),
+        elementCode: string(element.elementCode, 'elementCode'),
+        elementKind: string(element.elementKind, 'elementKind'),
+        parameterSchema: object(element.parameterSchema, 'Invalid parameterSchema'),
+        inputPortSchema: object(element.inputPortSchema, 'Invalid inputPortSchema'),
+        outputPortSchema: object(element.outputPortSchema, 'Invalid outputPortSchema'),
+        executionContract: object(element.executionContract, 'Invalid executionContract'),
+        definitionHash: string(element.definitionHash, 'element definitionHash'),
+      };
+    }),
+    features: catalog.features.map((value) => {
+      const feature = object(value, 'Invalid Basic strategy catalog feature');
+      return {
+        id: string(feature.id, 'feature id'),
+        catalogId: string(feature.catalogId, 'feature catalogId'),
+        featureCode: string(feature.featureCode, 'featureCode'),
+        calculatorVersion: string(feature.calculatorVersion, 'calculatorVersion'),
+        resolution: string(feature.resolution, 'resolution'),
+        normalizedParameters: object(feature.normalizedParameters, 'Invalid normalizedParameters'),
+        outputValueType: string(feature.outputValueType, 'outputValueType'),
+        requiredHistoryPoints: nonNegativeInteger(feature.requiredHistoryPoints, 'requiredHistoryPoints'),
+        definitionHash: string(feature.definitionHash, 'feature definitionHash'),
+      };
+    }),
+    instruments: catalog.instruments.map((value) => {
+      const instrument = object(value, 'Invalid Basic strategy catalog instrument');
+      return {
+        id: string(instrument.id, 'instrument id'),
+        assetType: string(instrument.assetType, 'assetType'),
+        primaryExchangeMic: string(instrument.primaryExchangeMic, 'primaryExchangeMic'),
+        currencyCode: string(instrument.currencyCode, 'currencyCode'),
+        symbol: string(instrument.symbol, 'symbol'),
+      };
+    }),
+  };
+}
+
 function object(value: unknown, label: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error(label);
   return value as Record<string, unknown>;
@@ -240,5 +374,9 @@ export const defaultStrategyLibraryClient = createStrategyLibraryClient({
 });
 
 export const defaultStrategyAuthoringClient = createStrategyAuthoringClient({
+  baseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
+});
+
+export const defaultStrategyCatalogClient = createStrategyCatalogClient({
   baseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
 });

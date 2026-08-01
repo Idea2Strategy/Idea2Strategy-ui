@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createStrategyAuthoringClient, createStrategyLibraryClient, StrategyApiError } from './strategies';
+import { createStrategyAuthoringClient, createStrategyCatalogClient, createStrategyLibraryClient, StrategyApiError } from './strategies';
 
 describe('strategy library API client', () => {
   it('loads the owner strategy library from the versioned API', async () => {
@@ -120,5 +120,49 @@ describe('strategy authoring API client', () => {
       semanticDocument: {},
       presentationDocument: {},
     })).rejects.not.toThrow(/do-not-leak/);
+  });
+});
+
+describe('Basic strategy catalog API client', () => {
+  it('loads official elements, features, and instrument identifiers', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      version: {
+        id: 'catalog-id', languageVersion: 'basic/v1', schemaVersion: 'schema/v1',
+        catalogVersion: 'catalog/v1', dataRequirementVersion: 'data/v1',
+        definitionHash: 'catalog-hash', publishedAt: '2026-08-01T12:00:00Z', retiredAt: null,
+      },
+      elements: [{
+        id: 'element-id', catalogId: 'catalog-id', elementCode: 'RSI', elementKind: 'CONDITION',
+        parameterSchema: { required: ['period'] }, inputPortSchema: {}, outputPortSchema: {},
+        executionContract: { containers: ['BUY', 'SELL'] }, definitionHash: 'element-hash',
+      }],
+      features: [{
+        id: 'feature-id', catalogId: 'catalog-id', featureCode: 'RSI_14', calculatorVersion: '1.0.0',
+        resolution: '1m', normalizedParameters: { period: 14 }, outputValueType: 'NUMBER',
+        requiredHistoryPoints: 14, definitionHash: 'feature-hash',
+      }],
+      instruments: [{
+        id: 'instrument-id', assetType: 'STOCK', primaryExchangeMic: 'XNAS', currencyCode: 'USD', symbol: 'AAPL',
+      }],
+    }), { status: 200 }));
+
+    const catalog = await createStrategyCatalogClient({ baseUrl: 'https://api.example.com/', fetchImpl }).getBasic();
+
+    expect(catalog.version.id).toBe('catalog-id');
+    expect(catalog.elements[0].parameterSchema).toEqual({ required: ['period'] });
+    expect(catalog.instruments[0]).toMatchObject({ id: 'instrument-id', symbol: 'AAPL' });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/strategy-catalogs/basic?languageVersion=basic%2Fv1&schemaVersion=schema%2Fv1&catalogVersion=catalog%2Fv1',
+      expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+
+  it('rejects malformed catalog collections', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      version: {}, elements: [], features: [], instruments: null,
+    }), { status: 200 }));
+
+    await expect(createStrategyCatalogClient({ fetchImpl }).getBasic())
+      .rejects.toThrow('Invalid Basic strategy catalog collections');
   });
 });

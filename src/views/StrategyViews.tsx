@@ -26,8 +26,8 @@ import {
   getStrategyCanvasWheelZoom,
 } from '../lib/strategyCanvasLayout';
 import type { CanvasPoint, CanvasSize, CardMoveGesture } from '../lib/strategyCanvasLayout';
-import { defaultStrategyAuthoringClient, defaultStrategyLibraryClient, StrategyApiError } from '../api/strategies';
-import type { StrategyAuthoringClient, StrategyLibraryClient, StrategyLibraryItem } from '../api/strategies';
+import { defaultStrategyAuthoringClient, defaultStrategyCatalogClient, defaultStrategyLibraryClient, StrategyApiError } from '../api/strategies';
+import type { BasicCatalogInstrument, BasicStrategyCatalog, StrategyAuthoringClient, StrategyCatalogClient, StrategyLibraryClient, StrategyLibraryItem } from '../api/strategies';
 
 type EditorMode = 'basic' | 'pro';
 type Side = 'buy' | 'sell' | 'risk';
@@ -59,6 +59,7 @@ interface BasicBlock {
 interface StrategySection {
   id: string;
   symbol: string;
+  instrumentIds?: string[];
   allocation: number;
   timeframe: string;
   x: number;
@@ -168,6 +169,7 @@ interface BasicEditorSnapshot {
 const cloneBasicEditorSnapshot = (snapshot: BasicEditorSnapshot): BasicEditorSnapshot => ({
   sections: snapshot.sections.map((section) => ({
     ...section,
+    instrumentIds: [...(section.instrumentIds ?? [])],
     cards: {
       buy: [...section.cards.buy],
       sell: [...section.cards.sell],
@@ -274,6 +276,10 @@ const automaticStrategyLibraryClient = import.meta.env.MODE === 'test'
 const automaticStrategyAuthoringClient = import.meta.env.MODE === 'test'
   ? null
   : defaultStrategyAuthoringClient;
+
+const automaticStrategyCatalogClient = import.meta.env.MODE === 'test'
+  ? null
+  : defaultStrategyCatalogClient;
 
 const strategyListItem = (item: StrategyLibraryItem): StrategyListItem => ({
   id: item.id,
@@ -452,6 +458,7 @@ const INITIAL_BASIC_BLOCKS: Record<Side, BasicBlock[]> = {
 const INITIAL_STRATEGY_SECTIONS: StrategySection[] = [{
   id: 'section-1',
   symbol: 'AAPL · MSFT · SPY',
+  instrumentIds: [],
   allocation: 40,
   timeframe: '1분봉',
   x: 290,
@@ -476,6 +483,7 @@ const INITIAL_CARD_BLOCKS: Record<string, BasicBlock[]> = {
 const createBlankStrategySections = (): StrategySection[] => [{
   id: 'section-1',
   symbol: '',
+  instrumentIds: [],
   allocation: 100,
   timeframe: '1분봉',
   x: 290,
@@ -515,6 +523,7 @@ const BLOCK_LIBRARY: BlockLibraryCategory[] = [
 ];
 
 const BASIC_FAVORITE_BLOCKS_STORAGE_KEY = 'i2s-basic-editor-favorite-blocks-v1';
+const LOCAL_PREVIEW_SYMBOLS = ['AAPL', 'MSFT', 'SPY', 'NVDA', 'QQQ'];
 const getLibraryBlockTone = (label: string): BlockTone => (
   BLOCK_LIBRARY.find((category) => category.items.includes(label))?.tone ?? 'neutral'
 );
@@ -1169,9 +1178,10 @@ interface BasicEditorProps {
   blank?: boolean;
   strategyId?: string;
   authoringClient?: StrategyAuthoringClient | null;
+  catalogClient?: StrategyCatalogClient | null;
 }
 
-export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, strategyId, authoringClient = automaticStrategyAuthoringClient }: BasicEditorProps) {
+export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, strategyId, authoringClient = automaticStrategyAuthoringClient, catalogClient = automaticStrategyCatalogClient }: BasicEditorProps) {
   const [activeSectionId, setActiveSectionId] = useState('section-1');
   const [selectedCardId, setSelectedCardId] = useState<string | null>(blank ? null : 'primary-buy');
   const [sections, setSections] = useState<StrategySection[]>(blank ? createBlankStrategySections : INITIAL_STRATEGY_SECTIONS);
@@ -1220,6 +1230,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const editSequenceRef = useRef(0);
   const semanticDocumentRef = useRef<Record<string, unknown>>({ mode: 'BASIC', groups: [] });
   const presentationDocumentRef = useRef<Record<string, unknown>>({});
+  const [basicCatalog, setBasicCatalog] = useState<BasicStrategyCatalog | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   // Two-phase dismissal so the toast can slide back down (mirroring its entry)
   // instead of vanishing instantly.
   const [saveFeedbackClosing, setSaveFeedbackClosing] = useState(false);
@@ -1390,6 +1402,22 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   useEffect(() => {
     window.localStorage.setItem(BASIC_FAVORITE_BLOCKS_STORAGE_KEY, JSON.stringify(favoriteBlockLabels));
   }, [favoriteBlockLabels]);
+
+  useEffect(() => {
+    if (!catalogClient) return undefined;
+    const controller = new AbortController();
+    void catalogClient.getBasic(controller.signal)
+      .then((catalog) => {
+        setBasicCatalog(catalog);
+        setCatalogError(null);
+      })
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setCatalogError('공식 종목을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+        }
+      });
+    return () => controller.abort();
+  }, [catalogClient]);
   // The settings popover is a lightweight overlay — dismiss it when the user
   // clicks anywhere outside it (excluding the toggle/close controls themselves).
   useEffect(() => {
@@ -1403,7 +1431,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     return () => document.removeEventListener('pointerdown', closeOnOutside);
   }, [expandedSettingsCardId]);
   const captureEditorSnapshot = (): BasicEditorSnapshot => cloneBasicEditorSnapshot({
-    sections,
+    sections: sections.map((section) => ({
+      ...section,
+      instrumentIds: basicCatalog
+        ? splitPartitionSymbols(section.symbol)
+          .map((symbol) => basicCatalog.instruments.find((instrument) => instrument.symbol === symbol)?.id)
+          .filter((id): id is string => Boolean(id))
+        : (section.instrumentIds ?? []),
+    })),
     cardBlocks,
     cardMeta,
     buySettings,
@@ -2850,10 +2885,20 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
 
   const symbolManagerSection = sections.find((section) => section.id === symbolManagerSectionId) ?? null;
   const managedSymbols = symbolManagerSection ? splitPartitionSymbols(symbolManagerSection.symbol) : [];
+  const selectableInstruments: Array<Pick<BasicCatalogInstrument, 'id' | 'symbol'>> = basicCatalog
+    ? basicCatalog.instruments
+    : catalogClient
+      ? []
+      : LOCAL_PREVIEW_SYMBOLS.map((symbol) => ({ id: '', symbol }));
+  const nextSelectableInstrument = selectableInstruments.find((instrument) => !managedSymbols.includes(instrument.symbol));
   const removeManagedSymbol = (symbol: string) => {
     if (!symbolManagerSection) return;
     const nextSymbols = managedSymbols.filter((item) => item !== symbol);
-    updateSection(symbolManagerSection.id, { symbol: nextSymbols.length > 0 ? nextSymbols.join(' · ') : '종목 선택' });
+    const removedInstrumentId = basicCatalog?.instruments.find((instrument) => instrument.symbol === symbol)?.id;
+    updateSection(symbolManagerSection.id, {
+      symbol: nextSymbols.length > 0 ? nextSymbols.join(' · ') : '종목 선택',
+      instrumentIds: (symbolManagerSection.instrumentIds ?? []).filter((id) => id !== removedInstrumentId),
+    });
     setSymbolLimits((current) => {
       const nextSection = { ...(current[symbolManagerSection.id] ?? {}) };
       delete nextSection[symbol];
@@ -2861,11 +2906,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     });
   };
   const addManagedSymbol = () => {
-    if (!symbolManagerSection) return;
-    const candidates = ['AAPL', 'MSFT', 'SPY', 'NVDA', 'QQQ'];
-    const symbol = candidates.find((candidate) => !managedSymbols.includes(candidate));
-    if (!symbol) return;
-    updateSection(symbolManagerSection.id, { symbol: [...managedSymbols, symbol].join(' · ') });
+    if (!symbolManagerSection || !nextSelectableInstrument) return;
+    const { id, symbol } = nextSelectableInstrument;
+    updateSection(symbolManagerSection.id, {
+      symbol: [...managedSymbols, symbol].join(' · '),
+      instrumentIds: id
+        ? [...new Set([...(symbolManagerSection.instrumentIds ?? []), id])]
+        : (symbolManagerSection.instrumentIds ?? []),
+    });
     setSymbolLimits((current) => ({
       ...current,
       [symbolManagerSection.id]: { ...(current[symbolManagerSection.id] ?? {}), [symbol]: 25 },
@@ -3137,10 +3185,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     {symbolManagerSection && createPortal(<div className="symbol-manager-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSymbolManagerSectionId(null); }}>
       <section className="symbol-manager-dialog" role="dialog" aria-modal="true" aria-label={`${symbolManagerSection.id.replace('section-', 'PARTITION ')} 종목 관리`}>
         <header><div><small>SYMBOL LIMITS</small><h2>거래 종목 관리</h2><p>종목별 최대 보유 비율은 예약 자금이 아니라 보유 한도입니다.</p></div><button type="button" aria-label="종목 관리 닫기" onClick={() => setSymbolManagerSectionId(null)}><X size={16} /></button></header>
+        {catalogClient && !basicCatalog && !catalogError && <p className="bots-decision-note" role="status">공식 종목 확인 중…</p>}
+        {catalogError && <p className="bots-decision-note" role="status">{catalogError}</p>}
         <div className="symbol-manager-list">
           {managedSymbols.map((symbol) => <div key={symbol}><span><strong>{symbol}</strong><small>미국 주식</small></span><label><span>최대 보유 비율</span><span className="setting-with-unit"><input type="number" min=".1" max="100" step=".1" aria-label={`${symbol} 종목별 최대 보유 비율`} value={symbolLimits[symbolManagerSection.id]?.[symbol] ?? 25} onChange={(event) => setSymbolLimits((current) => ({ ...current, [symbolManagerSection.id]: { ...(current[symbolManagerSection.id] ?? {}), [symbol]: Number(event.target.value) } }))} /><b>%</b></span></label><button type="button" aria-label={`${symbol} 삭제`} onClick={() => removeManagedSymbol(symbol)}><Trash2 size={14} /></button></div>)}
         </div>
-        <footer><Button type="button" icon={Plus} onClick={addManagedSymbol}>종목 추가</Button><Button type="button" kind="primary" onClick={() => setSymbolManagerSectionId(null)}>완료</Button></footer>
+        <footer><Button type="button" icon={Plus} disabled={!nextSelectableInstrument} onClick={addManagedSymbol}>종목 추가</Button><Button type="button" kind="primary" onClick={() => setSymbolManagerSectionId(null)}>완료</Button></footer>
       </section>
     </div>, document.body)}
     {launchDialogOpen && createPortal(<div

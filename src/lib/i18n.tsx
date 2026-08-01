@@ -368,6 +368,8 @@ const english: Record<string, string> = {
   '전략을 저장하지 못했습니다.': 'Could not save the strategy.',
   '목록으로 돌아가 최신 전략을 다시 열어 주세요.': 'Return to the list and reopen the latest strategy.',
   '잠시 후 다시 시도해 주세요.': 'Please try again shortly.',
+  '공식 종목 확인 중…': 'Checking official symbols…',
+  '공식 종목을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.': 'Could not load official symbols. Please try again shortly.',
   '대상 종목': 'Symbols',
   '예산 상한': 'Budget cap',
   '배분': 'Allocation',
