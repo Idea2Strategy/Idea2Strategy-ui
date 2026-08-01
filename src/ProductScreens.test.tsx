@@ -966,7 +966,7 @@ describe('Competition ranking', () => {
     expect(rowsOf()).toBe(11);
 
     /* 봇 모음: 내 봇만 모아 본다 — 흩어져 있어도 한 화면에서 비교된다. */
-    await user2.click(screen.getByRole('button', { name: '내 봇만 3' }));
+    await user2.click(screen.getByRole('button', { name: '내 봇만' }));
     expect(rowsOf()).toBe(3);
     expect(leaderboard.querySelectorAll('.is-mine')).toHaveLength(3);
     expect(screen.getByText('내 봇 3개 · 전체 18개 중')).toBeInTheDocument();

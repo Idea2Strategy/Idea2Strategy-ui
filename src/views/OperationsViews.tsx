@@ -2463,7 +2463,7 @@ export function RoomsView({
                     onClick={() => setOnlyMyBots((only) => !only)}
                   >
                     <Bot size={13} aria-hidden="true" />
-                    {`내 봇만 ${myRankedEntries.length}`}
+                    내 봇만
                   </button>
                 </>}
                 {/* 지표는 원하는 만큼 열로 켤 수 있다. 정렬은 열 머리로. */}
