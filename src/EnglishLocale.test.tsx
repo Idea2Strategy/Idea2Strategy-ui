@@ -2,6 +2,8 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { App } from './App';
+import { LanguageProvider } from './lib/i18n';
+import { BacktestView } from './views/OperationsViews';
 
 /*
   영어 로케일 화면 점검.
@@ -20,7 +22,7 @@ const ROUTES: Array<{ path: string; marker: () => HTMLElement }> = [
   { path: '/strategies/new/basic', marker: () => screen.getByTestId('basic-editor-workspace') },
   { path: '/strategies/new/pro', marker: () => screen.getByTestId('pro-editor-workspace') },
   { path: '/bots', marker: () => screen.getByRole('heading', { name: /Bot operations/i }) },
-  { path: '/backtests', marker: () => screen.getByTestId('backtest-candle-canvas') },
+  { path: '/backtests', marker: () => screen.getByRole('heading', { name: /Bots Backtest/i }) },
   { path: '/competition', marker: () => screen.getByRole('heading', { name: /^Competition$/i }) },
   { path: '/competition-v2', marker: () => screen.getByRole('heading', { name: /^Competition$/i }) },
   { path: '/notifications', marker: () => screen.getAllByRole('heading', { name: /Notifications/i })[0] },
@@ -50,8 +52,7 @@ describe('English locale', () => {
 
   test('draws candles for every chart timeframe, not just the default', async () => {
     const user = userEvent.setup();
-    window.history.replaceState({}, '', '/backtests');
-    render(<App />);
+    render(<LanguageProvider><BacktestView /></LanguageProvider>);
 
     /* 기간 버튼의 이름은 번역돼도, 내부 식별자는 그대로여야 한다. 여섯 개 모두
        눌러 캔들이 그려지는지 확인한다. */
