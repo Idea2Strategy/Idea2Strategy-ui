@@ -34,8 +34,10 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button, DataTable, EmptyState, MetricRow, PageHeading, Panel, Status, type DataTableColumn } from '../components/common';
+import type { BacktestClient } from '../api/backtests';
 import { bots as botRecords, leaderboard, strategies, type LeaderboardEntry } from '../data/mockData';
 import { Localized, useLanguage } from '../lib/i18n';
+import { BacktestLiveView } from './BacktestLiveView';
 
 interface Benchmark {
   id: string;
@@ -921,7 +923,11 @@ function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange 
   </div>;
 }
 
-export function BacktestView() {
+export function BacktestView({ client }: { client?: BacktestClient } = {}) {
+  return client ? <BacktestLiveView client={client} /> : <BacktestPrototypeView />;
+}
+
+function BacktestPrototypeView() {
   const [selectedBotName, setSelectedBotName] = useState(backtestBots[0].name);
   const [selectedSymbol, setSelectedSymbol] = useState(botInstruments[backtestBots[0].name][0].symbol);
   const [botQuery, setBotQuery] = useState('');

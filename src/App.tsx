@@ -16,6 +16,7 @@ import { DashboardView } from './views/DashboardView';
 import { DesignConceptLab } from './views/DesignConceptLab';
 import { BOT_ICON_STORAGE_KEY, loadBotIcons } from './components/BotGlyph';
 import type { BotIconMap, BotIconSelection } from './components/BotGlyph';
+import { defaultBacktestClient } from './api/backtests';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
@@ -276,7 +277,7 @@ function ProductApp() {
     <Route path="/strategies/new/basic" element={<BasicEditor blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
     <Route path="/strategies/new/pro" element={<ProEditor blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
     <Route path="/bots" element={<BotsView key={requestedBot ?? 'bots'} botIcons={botIcons} onBotIconChange={changeBotIcon} initialBot={requestedBot} />} />
-    <Route path="/backtests" element={<BacktestView />} />
+    <Route path="/backtests" element={<BacktestView client={defaultBacktestClient} />} />
     <Route path="/competition" element={<RoomsView openBot={openBot} />} />
     <Route path="/competition-v2" element={<RoomsView visualVariant="image" openBot={openBot} />} />
     <Route path="/notifications" element={<NotificationsView setPage={setPage} />} />

@@ -11502,3 +11502,148 @@ small.dashboard-bot-scope {
   color: var(--text-soft);
   font: 650 var(--fs-caption) var(--font-mono);
 }
+
+/* D31: official backtest read-model workspace. */
+.variant-balanced[data-design="signal-studio"] .backtest-live-workspace {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list {
+  padding: 0;
+  overflow: hidden;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list-head span,
+.variant-balanced[data-design="signal-studio"] .backtest-live-list-head small {
+  color: var(--text-faint);
+  font: 700 var(--fs-micro) var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list-head h2 {
+  margin: var(--space-1) 0 0;
+  font-size: var(--fs-body);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list [role="listitem"] + [role="listitem"] {
+  border-top: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list [role="listitem"] > button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list [role="listitem"] > button:hover,
+.variant-balanced[data-design="signal-studio"] .backtest-live-list [role="listitem"] > button.active {
+  background: var(--accent-soft);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list button > span:first-child {
+  display: grid;
+  gap: var(--space-1);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list button strong {
+  font-family: var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list button small {
+  color: var(--text-faint);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-detail {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-state-copy,
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure > strong {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--negative) 40%, var(--line));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--negative) 8%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure code {
+  width: fit-content;
+  color: var(--negative);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure ul {
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--text-soft);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-month-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-month-tabs button {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-month-tabs button.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-judgments {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-judgments header,
+.variant-balanced[data-design="signal-studio"] .backtest-live-judgments li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-judgments header span,
+.variant-balanced[data-design="signal-studio"] .backtest-live-judgments small {
+  color: var(--text-faint);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-judgments ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-judgments li > span {
+  display: grid;
+  gap: 2px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-trades {
+  overflow-x: auto;
+}
+
+@media (max-width: 860px) {
+  .variant-balanced[data-design="signal-studio"] .backtest-live-workspace {
+    grid-template-columns: 1fr;
+  }
+}
