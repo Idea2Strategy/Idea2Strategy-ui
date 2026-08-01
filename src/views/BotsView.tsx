@@ -4,6 +4,7 @@ import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyho
 import { Button, DataTable, EmptyState, PageHeading, Status, TabPanel, Tabs } from '../components/common';
 import { EquityChart } from '../components/EquityChart';
 import { LiveExecutionChart } from '../components/LiveExecutionChart';
+import type { LiveMarketBar } from '../components/LiveExecutionChart';
 import {
   BOT_ICON_COLORS,
   BOT_ICON_OPTIONS,
@@ -22,6 +23,13 @@ import {
   getStrategyCanvasWheelZoom,
 } from '../lib/strategyCanvasLayout';
 import { ReadOnlyStrategyBlock } from './StrategyViews';
+import { defaultBotOperationsClient } from '../api/botOperations';
+import type {
+  BotJudgmentLogEntry,
+  BotOperationsClient,
+  BotOperationsState,
+  BotOperationsView,
+} from '../api/botOperations';
 
 /* ---------- Types ----------------------------------------------------------- */
 
@@ -32,6 +40,8 @@ type LogScope = 'fills' | 'all';
 type LogPeriod = 'all' | 'today' | 'week' | 'month';
 
 interface BotRecord {
+  id?: string;
+  operationState?: BotOperationsState;
   name: string;
   state: string;
   capital: string;
@@ -61,8 +71,8 @@ interface Position {
   and notes are everything else — checks passed, deferrals, unmet conditions.
 */
 type LogEvent =
-  | { kind: 'fill'; time: string; side: '매수' | '매도'; symbol: string; quantity: string; price: string; partition: string; rule: string }
-  | { kind: 'note'; tone: 'positive' | 'neutral' | 'muted'; time: string; title: string; detail: string };
+  | { kind: 'fill'; eventId?: string; sequence?: number; timestamp?: string; time: string; side: '매수' | '매도'; symbol: string; quantity: string; price: string; partition: string; rule: string }
+  | { kind: 'note'; eventId?: string; sequence?: number; tone: 'positive' | 'neutral' | 'muted'; time: string; title: string; detail: string };
 
 interface SnapshotBlock {
   tone: StepTone;
@@ -124,7 +134,7 @@ interface BotDetail {
   snapshot: StrategySnapshot;
 }
 
-const botList = bots as BotRecord[];
+const staticBotList = bots as BotRecord[];
 
 /* ---------- Data ------------------------------------------------------------ */
 
@@ -342,7 +352,172 @@ const matchesBotFilter = (bot: BotRecord, filter: FilterId): boolean => {
 /* Each state gets its own tone: running green, evaluating blue, attention
    amber — two different states must never share a colour. */
 const botTone = (state: string): 'positive' | 'info' | 'warning' =>
-  state === '실행 중' ? 'positive' : state === '평가 중' ? 'info' : 'warning';
+  state === '실행 중' ? 'positive' : ['대기 중', '평가 중', '중지 중'].includes(state) ? 'info' : 'warning';
+
+const OPERATION_STATE_LABELS: Record<BotOperationsState, string> = {
+  waiting: '대기 중',
+  running: '실행 중',
+  'action-required': '조치 필요',
+  stopping: '중지 중',
+  stopped: '중지됨',
+  'data-degraded': '데이터 저하',
+  'settlement-failed': '정산 실패',
+};
+
+const automaticBotOperationsClient = import.meta.env.MODE === 'test'
+  ? null
+  : defaultBotOperationsClient;
+
+const mergeBotOperations = (operations: BotOperationsView[]): BotRecord[] => operations.map((operation) => {
+  const existing = staticBotList.find((bot) => bot.name === operation.name);
+  if (existing) {
+    return {
+      ...existing,
+      id: operation.botId,
+      operationState: operation.state,
+      state: OPERATION_STATE_LABELS[operation.state],
+    };
+  }
+
+  const changedAt = new Date(operation.lifecycleChangedAt);
+  const age = Number.isNaN(changedAt.getTime())
+    ? 1
+    : Math.max(1, Math.floor((Date.now() - changedAt.getTime()) / 86400000));
+  return {
+    id: operation.botId,
+    operationState: operation.state,
+    name: operation.name,
+    state: OPERATION_STATE_LABELS[operation.state],
+    capital: '—',
+    change: '—',
+    strategies: 0,
+    room: '개인 봇',
+    labels: ['개인'],
+    startDaysAgo: age,
+    startedAt: formatRuntimeTime(operation.lifecycleChangedAt),
+  };
+});
+
+const formatRuntimeTime = (value: string): string => {
+  const time = new Date(value);
+  if (Number.isNaN(time.getTime())) return value;
+  const month = String(time.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(time.getUTCDate()).padStart(2, '0');
+  const hour = String(time.getUTCHours()).padStart(2, '0');
+  const minute = String(time.getUTCMinutes()).padStart(2, '0');
+  return `${month}.${day} ${hour}:${minute} UTC`;
+};
+
+const summaryValue = (summary: Record<string, unknown>, ...keys: string[]): unknown => {
+  for (const key of keys) {
+    if (summary[key] !== undefined && summary[key] !== null) return summary[key];
+  }
+  return undefined;
+};
+
+const displayValue = (value: unknown, fallback: string): string => {
+  if (typeof value === 'string' && value.trim()) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return fallback;
+};
+
+const judgmentToLogEvent = (entry: BotJudgmentLogEntry): LogEvent => {
+  const sideValue = displayValue(summaryValue(entry.summary, 'side', 'decision', 'action'), '').toUpperCase();
+  const symbol = displayValue(summaryValue(entry.summary, 'symbol', 'instrumentSymbol'), '종목 미상');
+  const quantityValue = summaryValue(entry.summary, 'quantity', 'filledQuantity', 'qty');
+  const priceValue = summaryValue(entry.summary, 'price', 'fillPrice', 'averagePrice');
+  if (sideValue === 'BUY' || sideValue === 'SELL' || sideValue === '매수' || sideValue === '매도') {
+    const quantity = displayValue(quantityValue, '수량 미상');
+    const price = typeof priceValue === 'number'
+      ? `$${priceValue.toLocaleString('en-US', { maximumFractionDigits: 8 })}`
+      : displayValue(priceValue, '가격 미상');
+    return {
+      kind: 'fill',
+      eventId: entry.eventId,
+      sequence: entry.sequence,
+      timestamp: entry.occurredAt,
+      time: formatRuntimeTime(entry.occurredAt),
+      side: sideValue === 'BUY' || sideValue === '매수' ? '매수' : '매도',
+      symbol,
+      quantity: typeof quantityValue === 'number' ? `${quantity}주` : quantity,
+      price,
+      partition: displayValue(summaryValue(entry.summary, 'partition', 'partitionName', 'flowName'), '실행 판단'),
+      rule: displayValue(summaryValue(entry.summary, 'rule', 'reason', 'firstFailure'), entry.eventType),
+    };
+  }
+
+  const detail = displayValue(
+    summaryValue(entry.summary, 'detail', 'reason', 'firstFailure', 'message'),
+    JSON.stringify(entry.summary),
+  );
+  return {
+    kind: 'note',
+    eventId: entry.eventId,
+    sequence: entry.sequence,
+    tone: entry.eventType.includes('FAILED') || entry.eventType.includes('BLOCKED') ? 'muted' : 'neutral',
+    time: formatRuntimeTime(entry.occurredAt),
+    title: displayValue(summaryValue(entry.summary, 'title'), entry.eventType.replaceAll('_', ' ')),
+    detail,
+  };
+};
+
+interface RuntimeMarketBar extends LiveMarketBar {
+  symbol?: string;
+}
+
+const judgmentToMarketBar = (entry: BotJudgmentLogEntry): RuntimeMarketBar | null => {
+  const nested = entry.summary.marketBar;
+  const source = typeof nested === 'object' && nested !== null && !Array.isArray(nested)
+    ? nested as Record<string, unknown>
+    : entry.summary;
+  const open = summaryValue(source, 'open', 'openPrice');
+  const high = summaryValue(source, 'high', 'highPrice');
+  const low = summaryValue(source, 'low', 'lowPrice');
+  const close = summaryValue(source, 'close', 'closePrice');
+  if (![open, high, low, close].every((value) => typeof value === 'number' && Number.isFinite(value))) {
+    return null;
+  }
+  const numericOpen = open as number;
+  const numericHigh = high as number;
+  const numericLow = low as number;
+  const numericClose = close as number;
+  if (numericHigh < Math.max(numericOpen, numericClose) || numericLow > Math.min(numericOpen, numericClose)) {
+    return null;
+  }
+  const volume = summaryValue(source, 'volume');
+  return {
+    time: displayValue(summaryValue(source, 'time', 'occurredAt'), entry.occurredAt),
+    open: numericOpen,
+    high: numericHigh,
+    low: numericLow,
+    close: numericClose,
+    volume: typeof volume === 'number' && Number.isFinite(volume) ? volume : undefined,
+    symbol: displayValue(
+      summaryValue(source, 'symbol', 'instrumentSymbol')
+        ?? summaryValue(entry.summary, 'symbol', 'instrumentSymbol'),
+      '',
+    ) || undefined,
+  };
+};
+
+const emptyBotDetail = (botName: string): BotDetail => ({
+  strategy: '서버 실행 스냅샷',
+  monthReturn: 0,
+  dailyVol: 0,
+  cash: '—',
+  cashShare: 100,
+  invested: '—',
+  positions: [],
+  events: [],
+  snapshot: {
+    mode: 'Basic',
+    version: '잠금됨',
+    takenAt: '서버 기준',
+    plain: `${botName}의 잠긴 실행 스냅샷입니다. 상세 구성은 서버 응답이 연결되면 표시됩니다.`,
+    layout: {},
+    partitions: [],
+  },
+});
 
 interface PositionColumn {
   key: string;
@@ -779,18 +954,26 @@ function StrategyLayoutModal({ botName, detail, layout, onClose, onSave }: Strat
 interface BotsViewProps {
   botIcons?: BotIconMap;
   onBotIconChange?: (botName: string, selection: BotIconSelection) => void;
+  operationsClient?: BotOperationsClient | null;
+  pollIntervalMs?: number;
   /* 대회 리더보드에서 내 봇을 눌러 들어오는 경로(#54). 그 봇이 보이는
      운용 유형으로 필터까지 맞춰 열어야 목록에서 사라지지 않는다. */
   initialBot?: string;
 }
 
-export function BotsView({ botIcons: controlledBotIcons, onBotIconChange, initialBot }: BotsViewProps = {}): ReactNode {
-  const requestedBot = initialBot && botList.some((bot) => bot.name === initialBot) ? initialBot : null;
+export function BotsView({
+  botIcons: controlledBotIcons,
+  onBotIconChange,
+  operationsClient = automaticBotOperationsClient,
+  pollIntervalMs = 5000,
+  initialBot,
+}: BotsViewProps = {}): ReactNode {
+  const requestedBot = initialBot && staticBotList.some((bot) => bot.name === initialBot) ? initialBot : null;
   const [filter, setFilter] = useState<FilterId>(() => {
-    const bot = requestedBot ? botList.find((item) => item.name === requestedBot) : null;
+    const bot = requestedBot ? staticBotList.find((item) => item.name === requestedBot) : null;
     return bot && !matchesBotFilter(bot, 'personal') ? 'competition' : 'personal';
   });
-  const [selectedName, setSelectedName] = useState<string>(requestedBot ?? botList[0].name);
+  const [selectedName, setSelectedName] = useState<string>(requestedBot ?? staticBotList[0].name);
   const [tab, setTab] = useState<TabId>('live');
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [savedLayouts, setSavedLayouts] = useState<Record<string, SnapshotLayout>>(
@@ -805,6 +988,49 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange, initia
   const [logScope, setLogScope] = useState<LogScope>('fills');
   const [logPeriod, setLogPeriod] = useState<LogPeriod>('all');
   const [decisionSymbol, setDecisionSymbol] = useState('');
+  const [operations, setOperations] = useState<BotOperationsView[] | null>(null);
+  const [judgmentsByBot, setJudgmentsByBot] = useState<Record<string, BotJudgmentLogEntry[]>>({});
+  const [operationsError, setOperationsError] = useState<string | null>(null);
+  const [judgmentsError, setJudgmentsError] = useState<string | null>(null);
+  const cursorByBot = useRef<Record<string, number>>({});
+  const activeBots = useMemo(
+    () => operations === null ? staticBotList : mergeBotOperations(operations),
+    [operations],
+  );
+
+  useEffect(() => {
+    if (!operationsClient) return undefined;
+    const controller = new AbortController();
+    let requestInFlight = false;
+
+    const refresh = async () => {
+      if (requestInFlight || document.visibilityState === 'hidden') return;
+      requestInFlight = true;
+      try {
+        const next = await operationsClient.listOperations(controller.signal);
+        setOperations(next);
+        setOperationsError(null);
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setOperationsError('실행 상태를 새로 불러오지 못했습니다. 마지막으로 확인한 상태를 유지합니다.');
+        }
+      } finally {
+        requestInFlight = false;
+      }
+    };
+
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), pollIntervalMs);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, [operationsClient, pollIntervalMs]);
+
+  useEffect(() => {
+    if (activeBots.some((bot) => bot.name === selectedName)) return;
+    setSelectedName(activeBots[0]?.name ?? '');
+  }, [activeBots, selectedName]);
 
   const changeBotIcon = (botName: string, selection: BotIconSelection) => {
     if (onBotIconChange) {
@@ -814,15 +1040,80 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange, initia
     setLocalBotIcons((current) => ({ ...current, [botName]: selection }));
   };
 
-  const visibleBots = botList.filter((bot) => matchesBotFilter(bot, filter));
+  const visibleBots = activeBots.filter((bot) => matchesBotFilter(bot, filter));
   const selected = visibleBots.find((bot) => bot.name === selectedName) ?? visibleBots[0] ?? null;
-  const detail = selected ? botDetails[selected.name] : null;
-  const attention = botList.filter((bot) => bot.state === '조치 필요');
-  const healthyCount = botList.length - attention.length;
+  const detail = useMemo(() => {
+    if (!selected) return null;
+    const base = botDetails[selected.name] ?? emptyBotDetail(selected.name);
+    const liveEntries = selected.id ? judgmentsByBot[selected.id] : undefined;
+    return liveEntries === undefined
+      ? base
+      : { ...base, events: liveEntries.map(judgmentToLogEvent) };
+  }, [judgmentsByBot, selected]);
+  const selectedOperations = selected?.id
+    ? operations?.find((item) => item.botId === selected.id) ?? null
+    : null;
+  const attention = activeBots.filter((bot) => ['action-required', 'data-degraded', 'settlement-failed'].includes(bot.operationState ?? ''));
+  const healthyCount = activeBots.filter((bot) => !bot.operationState || ['waiting', 'running'].includes(bot.operationState)).length;
+
+  useEffect(() => {
+    if (!operationsClient || !selected?.id) return undefined;
+    const botId = selected.id;
+    const controller = new AbortController();
+    let requestInFlight = false;
+
+    const refresh = async () => {
+      if (requestInFlight || document.visibilityState === 'hidden') return;
+      requestInFlight = true;
+      try {
+        let after = cursorByBot.current[botId] ?? 0;
+        const received: BotJudgmentLogEntry[] = [];
+        let pageCount = 0;
+        let hasMore = true;
+        while (hasMore && pageCount < 10) {
+          const page = await operationsClient.listJudgments(botId, after, 100, controller.signal);
+          received.push(...page.entries);
+          after = Math.max(after, page.nextAfterSequence);
+          hasMore = page.hasMore;
+          pageCount += 1;
+          if (page.entries.length === 0) break;
+        }
+        cursorByBot.current[botId] = after;
+        setJudgmentsByBot((current) => {
+          const merged = new Map((current[botId] ?? []).map((entry) => [entry.eventId, entry]));
+          received.forEach((entry) => merged.set(entry.eventId, entry));
+          return {
+            ...current,
+            [botId]: Array.from(merged.values()).sort((left, right) => left.sequence - right.sequence),
+          };
+        });
+        setJudgmentsError(null);
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setJudgmentsError('판단 기록을 새로 불러오지 못했습니다. 마지막으로 확인한 기록을 유지합니다.');
+        }
+      } finally {
+        requestInFlight = false;
+      }
+    };
+
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), pollIntervalMs);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+  }, [operationsClient, pollIntervalMs, selected?.id]);
   const fillEvents = useMemo(
     () => (detail?.events ?? []).filter((event): event is Extract<LogEvent, { kind: 'fill' }> => event.kind === 'fill'),
     [detail],
   );
+  const runtimeMarketBars = useMemo(() => {
+    if (!selected?.id) return undefined;
+    return (judgmentsByBot[selected.id] ?? [])
+      .map(judgmentToMarketBar)
+      .filter((bar): bar is RuntimeMarketBar => bar !== null);
+  }, [judgmentsByBot, selected?.id]);
   const decisionSymbols = useMemo(
     () => Array.from(new Set(fillEvents.map((event) => event.symbol))),
     [fillEvents],
@@ -893,7 +1184,7 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange, initia
   // the tooltip. A newer bot starts at its real launch date instead of showing
   // invented pre-launch history.
   const chartDays = selected ? Math.min(30, selected.startDaysAgo) : 30;
-  const series = selected && detail ? walkSeries(selected.name, chartDays, CAPITALS[selected.name], detail.monthReturn, detail.dailyVol) : [];
+  const series = selected && detail ? walkSeries(selected.name, chartDays, CAPITALS[selected.name] ?? 10000, detail.monthReturn, detail.dailyVol) : [];
   const botProfit = series.map((value) => value - series[0]);
   const botRates = series.map((value) => (value / series[0] - 1) * 100);
   const chartDates = dateLabels(SAMPLE_END_DATE, chartDays);
@@ -908,9 +1199,12 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange, initia
       eyebrow="LIVE OPERATIONS"
       title="봇 운영 센터"
       description={attention.length > 0
-        ? `봇 ${botList.length}개 중 ${healthyCount}개가 정상 실행 중이에요. ${attention.map((bot) => bot.name).join(', ')} 하나만 확인하면 됩니다.`
-        : `봇 ${botList.length}개가 모두 정상 실행 중이에요. 확인할 문제가 없습니다.`}
+        ? `봇 ${activeBots.length}개 중 ${healthyCount}개가 정상 실행 중이에요. ${attention.map((bot) => bot.name).join(', ')} 상태를 확인해 주세요.`
+        : `봇 ${activeBots.length}개가 정상 상태예요. 확인할 문제가 없습니다.`}
     />
+    {(operationsError || judgmentsError) && <p className="bots-decision-note" role="status">
+      {judgmentsError ?? operationsError}
+    </p>}
 
     <div className="bots-workspace">
       <section className="bots-list-panel panel" aria-labelledby="bots-list-title">
@@ -1041,6 +1335,9 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange, initia
           </div>
           <Status tone={botTone(selected.state)}>{selected.state}</Status>
         </header>
+        {selectedOperations?.executionBlockReasonCode && <p className="bots-decision-note" role="status">
+          {`실행 차단 사유: ${selectedOperations.executionBlockReasonCode}`}
+        </p>}
 
         <div className="bots-detail-tabbar" role="group" aria-label={`${selected.name} 상세 탐색`}>
           <Tabs
@@ -1066,6 +1363,7 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange, initia
           {decisionSymbol && <LiveExecutionChart
             botName={selected.name}
             executions={fillEvents}
+            marketBars={runtimeMarketBars?.filter((bar) => !bar.symbol || bar.symbol === decisionSymbol)}
             symbols={decisionSymbols}
             symbol={decisionSymbol}
             onSymbolChange={setDecisionSymbol}
@@ -1164,7 +1462,7 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange, initia
 
           {visibleEvents.length > 0 ? <div className="bots-event-list" role="list" aria-label={`${selected.name} 판단 기록 목록`}>
             {visibleEvents.map((event, index) => event.kind === 'fill'
-              ? <div role="listitem" key={`fill-${event.time}-${index}`} className="bots-event">
+              ? <div role="listitem" key={event.eventId ?? `fill-${event.time}-${index}`} className="bots-event">
                 <span className={`bots-event-kind ${event.side === '매수' ? 'is-buy' : 'is-sell'}`}>{event.side}</span>
                 <span className="bots-event-copy">
                   <strong>{`${event.symbol} ${event.quantity} · ${event.price}`}</strong>
@@ -1175,7 +1473,7 @@ export function BotsView({ botIcons: controlledBotIcons, onBotIconChange, initia
                   <time>{event.time}</time>
                 </span>
               </div>
-              : <div role="listitem" key={`note-${event.time}-${index}`} className={`bots-event is-note tone-${event.tone}`}>
+              : <div role="listitem" key={event.eventId ?? `note-${event.time}-${index}`} className={`bots-event is-note tone-${event.tone}`}>
                 <span className="bots-event-kind is-log">기록</span>
                 <span className="bots-event-copy">
                   <strong>{event.title}</strong>

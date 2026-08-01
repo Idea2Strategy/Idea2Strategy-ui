@@ -16,15 +16,26 @@ import {
 
 export interface LiveExecution {
   time: string;
+  timestamp?: string;
   side: '매수' | '매도';
   symbol: string;
   quantity: string;
   price: string;
 }
 
+export interface LiveMarketBar {
+  time: string | number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
 interface LiveExecutionChartProps {
   botName: string;
   executions: LiveExecution[];
+  marketBars?: LiveMarketBar[];
   symbols: string[];
   symbol: string;
   onSymbolChange: (symbol: string) => void;
@@ -96,6 +107,52 @@ function generateMarket(symbol: string, seconds: number, referencePrice: number)
   return { candles, volumes };
 }
 
+function aggregateMarketBars(bars: LiveMarketBar[], seconds: number): GeneratedMarket {
+  const buckets = new Map<number, { open: number; high: number; low: number; close: number; volume: number }>();
+  bars
+    .map((bar) => ({ ...bar, timestamp: marketTimestamp(bar.time) }))
+    .filter((bar): bar is LiveMarketBar & { timestamp: number } => bar.timestamp !== null)
+    .sort((left, right) => left.timestamp - right.timestamp)
+    .forEach((bar) => {
+      const time = Math.floor(bar.timestamp / seconds) * seconds;
+      const current = buckets.get(time);
+      if (!current) {
+        buckets.set(time, {
+          open: bar.open,
+          high: bar.high,
+          low: bar.low,
+          close: bar.close,
+          volume: bar.volume ?? 0,
+        });
+        return;
+      }
+      current.high = Math.max(current.high, bar.high);
+      current.low = Math.min(current.low, bar.low);
+      current.close = bar.close;
+      current.volume += bar.volume ?? 0;
+    });
+
+  const candles: CandlestickData<Time>[] = [];
+  const volumes: HistogramData<Time>[] = [];
+  Array.from(buckets.entries()).forEach(([time, value]) => {
+    candles.push({ time: time as UTCTimestamp, open: value.open, high: value.high, low: value.low, close: value.close });
+    volumes.push({
+      time: time as UTCTimestamp,
+      value: value.volume,
+      color: value.close >= value.open ? 'rgba(240, 66, 81, .28)' : 'rgba(67, 145, 255, .28)',
+    });
+  });
+  return { candles, volumes };
+}
+
+function marketTimestamp(value: string | number): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? (value > 100000000000 ? Math.floor(value / 1000) : Math.floor(value)) : null;
+  }
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : Math.floor(parsed / 1000);
+}
+
 function getThemeColors(element: HTMLElement) {
   const style = getComputedStyle(element);
   const value = (name: string, fallback: string) => style.getPropertyValue(name).trim() || fallback;
@@ -111,6 +168,7 @@ function getThemeColors(element: HTMLElement) {
 export function LiveExecutionChart({
   botName,
   executions,
+  marketBars,
   symbols,
   symbol,
   onSymbolChange,
@@ -125,16 +183,21 @@ export function LiveExecutionChart({
     () => executions.filter((execution) => execution.symbol === symbol),
     [executions, symbol],
   );
-  const referencePrice = numberFromPrice(symbolExecutions[0]?.price ?? '$100');
+  const usesApiMarket = marketBars !== undefined;
+  const referencePrice = marketBars && marketBars.length > 0
+    ? marketBars[marketBars.length - 1].close
+    : numberFromPrice(symbolExecutions[0]?.price ?? '$100');
   const selectedTimeframe = TIMEFRAMES.find((item) => item.id === timeframe) ?? TIMEFRAMES[0];
-  const generated = useMemo(
-    () => generateMarket(symbol, selectedTimeframe.seconds, referencePrice),
-    [referencePrice, selectedTimeframe.seconds, symbol],
+  const market = useMemo(
+    () => usesApiMarket
+      ? aggregateMarketBars(marketBars ?? [], selectedTimeframe.seconds)
+      : generateMarket(symbol, selectedTimeframe.seconds, referencePrice),
+    [marketBars, referencePrice, selectedTimeframe.seconds, symbol, usesApiMarket],
   );
 
   useEffect(() => {
     const container = frameRef.current;
-    if (!container || navigator.userAgent.toLowerCase().includes('jsdom')) return undefined;
+    if (!container || market.candles.length === 0 || navigator.userAgent.toLowerCase().includes('jsdom')) return undefined;
 
     const colors = getThemeColors(container);
     const chart = createChart(container, {
@@ -183,29 +246,40 @@ export function LiveExecutionChart({
       priceLineVisible: false,
     });
     volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
-    candleSeries.setData(generated.candles);
-    volumeSeries.setData(generated.volumes);
+    candleSeries.setData(market.candles);
+    volumeSeries.setData(market.volumes);
 
-    const markerIndexes = symbolExecutions.map((_, index) => Math.max(12, CANDLE_COUNT - 22 - (index * 18)));
-    const markers: SeriesMarker<Time>[] = symbolExecutions.map((execution, index) => ({
-      time: generated.candles[markerIndexes[index]].time,
-      position: execution.side === '매수' ? 'belowBar' : 'aboveBar',
-      color: execution.side === '매수' ? colors.buy : colors.sell,
-      shape: execution.side === '매수' ? 'arrowUp' : 'arrowDown',
-      text: `${execution.side} ${execution.quantity}`,
-    }));
+    const markerIndexes = symbolExecutions.map((_, index) => Math.max(0, market.candles.length - 22 - (index * 18)));
+    const markers: SeriesMarker<Time>[] = symbolExecutions.map((execution, index) => {
+      const executionTime = execution.timestamp ? marketTimestamp(execution.timestamp) : null;
+      const nearest = executionTime === null
+        ? market.candles[markerIndexes[index]]
+        : market.candles.reduce((closest, candle) => (
+          Math.abs(Number(candle.time) - executionTime) < Math.abs(Number(closest.time) - executionTime)
+            ? candle
+            : closest
+        ));
+      return {
+        time: nearest.time,
+        position: execution.side === '매수' ? 'belowBar' : 'aboveBar',
+        color: execution.side === '매수' ? colors.buy : colors.sell,
+        shape: execution.side === '매수' ? 'arrowUp' : 'arrowDown',
+        text: `${execution.side} ${execution.quantity}`,
+      };
+    });
     createSeriesMarkers(candleSeries, markers, { autoScale: true });
     chart.timeScale().fitContent();
 
     let tick = 0;
-    let lastCandle = { ...generated.candles[generated.candles.length - 1] } as CandlestickData<UTCTimestamp>;
-    let lastVolume = { ...generated.volumes[generated.volumes.length - 1] } as HistogramData<UTCTimestamp>;
+    let lastCandle = { ...market.candles[market.candles.length - 1] } as CandlestickData<UTCTimestamp>;
+    let lastVolume = { ...market.volumes[market.volumes.length - 1] } as HistogramData<UTCTimestamp>;
     const initialClose = lastCandle.close;
     setLivePrice(initialClose);
-    setLiveChange(((initialClose / referencePrice) - 1) * 100);
+    const firstOpen = market.candles[0].open;
+    setLiveChange(((initialClose / firstOpen) - 1) * 100);
     const random = seededRandom(hashSeed(`${botName}-${symbol}-${timeframe}-live`));
 
-    const timer = window.setInterval(() => {
+    const timer = usesApiMarket ? null : window.setInterval(() => {
       tick += 1;
       const startNewBar = tick % 6 === 0;
       const time = (startNewBar
@@ -248,17 +322,19 @@ export function LiveExecutionChart({
     themeObserver?.observe(themeRoot!, { attributes: true, attributeFilter: ['class'] });
 
     return () => {
-      window.clearInterval(timer);
+      if (timer !== null) window.clearInterval(timer);
       themeObserver?.disconnect();
       chart.remove();
       chartRef.current = null;
     };
-  }, [botName, generated, referencePrice, selectedTimeframe.seconds, symbol, symbolExecutions, timeframe]);
+  }, [botName, market, referencePrice, selectedTimeframe.seconds, symbol, symbolExecutions, timeframe, usesApiMarket]);
 
   return <section className="bots-live-chart" role="region" aria-label={`${botName} 실시간 체결 차트`}>
     <header className="bots-live-chart-head">
       <div>
-        <span className="bots-live-kicker"><i aria-hidden="true" />실시간 데모</span>
+        <span className="bots-live-kicker"><i aria-hidden="true" />{
+          usesApiMarket ? market.candles.length > 0 ? '실시간 API' : '시세 데이터 대기' : '실시간 데모'
+        }</span>
         <h3>{symbol} 실시간 차트</h3>
         <small>체결 판단과 시세 흐름을 한 화면에서 확인합니다.</small>
       </div>
@@ -295,7 +371,12 @@ export function LiveExecutionChart({
       </div>
     </div>
 
-    <div ref={frameRef} className="bots-live-chart-frame" data-testid="live-candlestick-canvas" />
+    <div
+      ref={frameRef}
+      className="bots-live-chart-frame"
+      data-testid="live-candlestick-canvas"
+      data-market-source={usesApiMarket ? market.candles.length > 0 ? 'api' : 'api-pending' : 'demo'}
+    />
 
     <footer className="bots-live-chart-foot">
       <div className="bots-live-markers" aria-label={`${symbol} 차트 체결 표시`}>

@@ -4,6 +4,7 @@ import { describe, expect, test, vi } from 'vitest';
 import { RoomsView } from './views/OperationsViews';
 import { BotsView } from './views/BotsView';
 import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
+import type { BotOperationsClient } from './api/botOperations';
 
 /* The page opens on 실시간 so the live chart costs no clicks; the standing
    figures moved to their own 개요 tab, which these tests have to open. */
@@ -11,6 +12,81 @@ const openOverview = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('tab', { name: /개요/ }));
 
 describe('Bot operations', () => {
+  test('polls live operation state and appends judgment events once by sequence', async () => {
+    const firstEvent = {
+      eventId: '40000000-0000-4000-8000-000000000001',
+      sequence: 8,
+      eventType: 'BOT_EVALUATED',
+      occurredAt: '2026-08-01T12:01:00Z',
+      summary: {
+        side: 'BUY', symbol: 'AAPL', quantity: 2, price: 100, rule: '돌파 조건 충족',
+        open: 99, high: 101, low: 98, close: 100, volume: 1200,
+      },
+    };
+    const secondEvent = {
+      eventId: '40000000-0000-4000-8000-000000000002',
+      sequence: 9,
+      eventType: 'BOT_EVALUATED',
+      occurredAt: '2026-08-01T12:02:00Z',
+      summary: { side: 'SELL', symbol: 'MSFT', quantity: 1, price: 200, rule: '청산 조건 충족' },
+    };
+    const client: BotOperationsClient = {
+      listOperations: vi.fn().mockResolvedValue([{
+        botId: '30000000-0000-4000-8000-000000000001',
+        name: 'Atlas 07',
+        state: 'data-degraded',
+        lifecycleChangedAt: '2026-08-01T12:00:00Z',
+        executionBlockedAt: '2026-08-01T12:01:00Z',
+        executionBlockReasonCode: 'MARKET_DATA_STALE',
+        lastEventSequence: 9,
+      }]),
+      listJudgments: vi.fn()
+        .mockResolvedValueOnce({ entries: [firstEvent], nextAfterSequence: 8, hasMore: false })
+        .mockResolvedValueOnce({ entries: [firstEvent, secondEvent], nextAfterSequence: 9, hasMore: false })
+        .mockResolvedValue({ entries: [], nextAfterSequence: 9, hasMore: false }),
+    };
+    const user = userEvent.setup();
+
+    render(<BotsView operationsClient={client} pollIntervalMs={20} />);
+
+    await waitFor(() => expect(screen.getAllByText('데이터 저하').length).toBeGreaterThan(0));
+    expect(screen.getByText('실행 차단 사유: MARKET_DATA_STALE')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('실시간 API')).toBeInTheDocument());
+    await user.click(screen.getByRole('tab', { name: /판단 기록/ }));
+    await waitFor(() => expect(screen.getByText('MSFT 1주 · $200')).toBeInTheDocument());
+    expect(screen.getAllByText('AAPL 2주 · $100')).toHaveLength(1);
+    expect(client.listJudgments).toHaveBeenCalledWith(
+      '30000000-0000-4000-8000-000000000001',
+      8,
+      100,
+      expect.any(AbortSignal),
+    );
+  });
+
+  test('keeps the last successful operation state when a later poll fails', async () => {
+    const client: BotOperationsClient = {
+      listOperations: vi.fn()
+        .mockResolvedValueOnce([{
+          botId: '30000000-0000-4000-8000-000000000001',
+          name: 'Atlas 07',
+          state: 'action-required',
+          lifecycleChangedAt: '2026-08-01T12:00:00Z',
+          executionBlockedAt: '2026-08-01T12:01:00Z',
+          executionBlockReasonCode: 'UNRECOVERABLE_STATE',
+          lastEventSequence: 0,
+        }])
+        .mockRejectedValue(new Error('offline')),
+      listJudgments: vi.fn().mockResolvedValue({ entries: [], nextAfterSequence: 0, hasMore: false }),
+    };
+
+    render(<BotsView operationsClient={client} pollIntervalMs={20} />);
+
+    await waitFor(() => expect(screen.getAllByText('조치 필요').length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getByText(/마지막으로 확인한 상태를 유지합니다/)).toBeInTheDocument());
+    expect(screen.getAllByText('조치 필요').length).toBeGreaterThan(0);
+    expect(screen.getByText('실행 차단 사유: UNRECOVERABLE_STATE')).toBeInTheDocument();
+  });
+
   test('carries no page-level launch or refresh action', () => {
     render(<BotsView />);
 
