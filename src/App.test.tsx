@@ -523,6 +523,12 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('heading', { name: '블록' })).not.toBeInTheDocument();
   });
 
+  test('lets the strategy list shrink to the rendered rows', () => {
+    const strategyRowsRule = balancedStyles.match(/\.strategy-rows\s*\{([^}]*)\}/)?.[1] ?? '';
+
+    expect(strategyRowsRule).not.toMatch(/(?:min-)?height\s*:/);
+  });
+
   test('keeps market status out of navigation and uses topbar notifications', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);

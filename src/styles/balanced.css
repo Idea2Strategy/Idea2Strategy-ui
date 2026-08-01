@@ -98,7 +98,6 @@
 .strategy-filter-group button.active { color: var(--accent); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
 .strategy-filter-group.is-secondary { padding-left: 10px; border-left: 1px solid var(--line); }
 
-.strategy-rows { min-height: 274px; }
 .strategy-row {
   min-height: 88px;
   display: grid;
