@@ -1,6 +1,14 @@
 schema_version: 1
 workspace_id: workspace.ui
 commands:
+  - id: command.test-suite
+    kind: test
+    argv: [pnpm, test, --run]
+    timeout_seconds: 600
+  - id: command.pr-checks
+    kind: review
+    argv: [gh, pr, checks]
+    timeout_seconds: 120
   - id: command.develop-integration
     kind: integration
     argv: [git, merge-base, --is-ancestor, HEAD, origin/develop]
