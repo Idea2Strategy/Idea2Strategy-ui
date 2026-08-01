@@ -4429,6 +4429,7 @@
 .bots-detail-head > div > span { letter-spacing: 0; font-family: var(--font-sans); font-weight: 500; }
 .bots-list-head h2, .bots-detail-head h2 { margin: 0; font-size: var(--fs-card); }
 .bots-detail-head h2 { font-size: var(--fs-section); }
+.bots-detail-actions { display: flex; align-items: center; gap: var(--space-2); }
 .bots-filter { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); }
 .bots-filter button {
   min-height: 28px;

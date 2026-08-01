@@ -12,6 +12,36 @@ const openOverview = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('tab', { name: /개요/ }));
 
 describe('Bot operations', () => {
+  test('permanently stops a running owned bot through the live command API', async () => {
+    const running = {
+      botId: '30000000-0000-4000-8000-000000000001',
+      name: 'Atlas 07',
+      state: 'running' as const,
+      lifecycleChangedAt: '2026-08-01T12:00:00Z',
+      executionBlockedAt: null,
+      executionBlockReasonCode: null,
+      lastEventSequence: 0,
+    };
+    const client: BotOperationsClient = {
+      listOperations: vi.fn()
+        .mockResolvedValueOnce([running])
+        .mockResolvedValue([{ ...running, state: 'stopping' as const }]),
+      listJudgments: vi.fn().mockResolvedValue({ entries: [], nextAfterSequence: 0, hasMore: false }),
+      stopBot: vi.fn().mockResolvedValue(undefined),
+      runBot: vi.fn().mockResolvedValue(undefined),
+    };
+    const user = userEvent.setup();
+
+    render(<BotsView operationsClient={client} pollIntervalMs={60_000} />);
+
+    await user.click(await screen.findByRole('button', { name: 'Atlas 07 영구 중단' }));
+    await waitFor(() => expect(client.stopBot).toHaveBeenCalledWith(
+      running.botId,
+      'USER_REQUESTED',
+    ));
+    await waitFor(() => expect(screen.getAllByText('중지 중').length).toBeGreaterThan(0));
+  });
+
   test('polls live operation state and appends judgment events once by sequence', async () => {
     const firstEvent = {
       eventId: '40000000-0000-4000-8000-000000000001',
@@ -44,6 +74,8 @@ describe('Bot operations', () => {
         .mockResolvedValueOnce({ entries: [firstEvent], nextAfterSequence: 8, hasMore: false })
         .mockResolvedValueOnce({ entries: [firstEvent, secondEvent], nextAfterSequence: 9, hasMore: false })
         .mockResolvedValue({ entries: [], nextAfterSequence: 9, hasMore: false }),
+      runBot: vi.fn().mockResolvedValue(undefined),
+      stopBot: vi.fn().mockResolvedValue(undefined),
     };
     const user = userEvent.setup();
 
@@ -77,6 +109,8 @@ describe('Bot operations', () => {
         }])
         .mockRejectedValue(new Error('offline')),
       listJudgments: vi.fn().mockResolvedValue({ entries: [], nextAfterSequence: 0, hasMore: false }),
+      runBot: vi.fn().mockResolvedValue(undefined),
+      stopBot: vi.fn().mockResolvedValue(undefined),
     };
 
     render(<BotsView operationsClient={client} pollIntervalMs={20} />);
