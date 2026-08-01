@@ -10690,17 +10690,27 @@ small.dashboard-bot-scope {
   font-weight: 500;
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-facts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: var(--space-4);
   margin: 0;
   padding: var(--space-2) var(--space-5) var(--space-4);
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-facts > div {
-  min-width: 0;
+  min-width: 120px;
+  flex: 1 1 150px;
   display: grid;
   gap: var(--space-1);
   align-content: start;
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-facts > div[data-fact-width="wide"] {
+  min-width: 200px;
+  flex: 2 1 240px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-detail-facts > div[data-fact-width="compact"] {
+  min-width: 80px;
+  flex: 0 1 112px;
 }
 .variant-balanced[data-design="signal-studio"] .competition-detail-facts dt {
   color: var(--text-faint);

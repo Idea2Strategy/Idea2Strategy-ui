@@ -14,6 +14,18 @@ const balancedStyles = readFileSync('src/styles/balanced.css', 'utf8');
   이어진다. 보기 축은 모집 중 / 진행 중 / 참여 중 셋 중 하나다.
 */
 describe('Competition lobby', () => {
+  test('sizes competition facts by content instead of equal columns', () => {
+    const factsRule = balancedStyles.match(
+      /\.variant-balanced\[data-design="signal-studio"\] \.competition-detail-facts \{([^}]*)\}/,
+    )?.[1] ?? '';
+
+    expect(factsRule).toContain('display: flex');
+    expect(factsRule).toContain('flex-wrap: wrap');
+    expect(factsRule).not.toContain('grid-template-columns');
+    expect(balancedStyles).toMatch(/\.competition-detail-facts > div\[data-fact-width="wide"\]/);
+    expect(balancedStyles).toMatch(/\.competition-detail-facts > div\[data-fact-width="compact"\]/);
+  });
+
   test('lets the metric selector escape the short leaderboard frame', () => {
     const singleLeaderboardRule = balancedStyles.match(
       /\.variant-balanced\[data-design="signal-studio"\] \.competition-leaderboard\.is-single \{([^}]*)\}/,
@@ -222,6 +234,10 @@ describe('Competition lobby', () => {
     ['운영자', '기간', '참여 봇', '시작 자본', '종목 범위', '수수료', '슬리피지'].forEach((label) => {
       expect(within(facts).getByText(label)).toBeInTheDocument();
     });
+    expect(within(facts).getByText('기간').closest('div')).toHaveAttribute('data-fact-width', 'wide');
+    expect(within(facts).getByText('종목 범위').closest('div')).toHaveAttribute('data-fact-width', 'wide');
+    expect(within(facts).getByText('참여 봇').closest('div')).toHaveAttribute('data-fact-width', 'compact');
+    expect(within(facts).getByText('수수료').closest('div')).toHaveAttribute('data-fact-width', 'compact');
     expect(within(facts).getByRole('progressbar', { name: 'I2S Summer League 진행률' })).toHaveAttribute('aria-valuenow', '5');
     expect(within(detail).getAllByRole('progressbar')).toHaveLength(1);
   });
