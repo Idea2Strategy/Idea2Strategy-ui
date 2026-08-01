@@ -9,6 +9,7 @@ commands:
     kind: review
     argv: [gh, pr, checks]
     timeout_seconds: 120
+    environment: [APPDATA, LOCALAPPDATA]
   - id: command.develop-integration
     kind: integration
     argv: [git, merge-base, --is-ancestor, HEAD, origin/develop]
