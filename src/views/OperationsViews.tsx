@@ -2222,11 +2222,15 @@ export function RoomsView({
       ? `${detailUniverse.base} · ${detailUniverse.exclude.length}종목 제외`
       : detailUniverse.base;
   const detailFacts = selectedRoom ? [
-    { label: '운영자', value: selectedRoom.host },
-    { label: '기간', value: `${selectedRoom.start} – ${selectedRoom.end}` },
-    { label: '참여 봇', value: `${selectedRoom.official ? selectedRoom.bots : selectedRoom.joined}개` },
-    { label: '종목 범위', value: detailUniverseValue },
-    ...competitionConditions.map(({ label, value }) => ({ label, value })),
+    { label: '운영자', value: selectedRoom.host, width: 'standard' },
+    { label: '기간', value: `${selectedRoom.start} – ${selectedRoom.end}`, width: 'wide' },
+    { label: '참여 봇', value: `${selectedRoom.official ? selectedRoom.bots : selectedRoom.joined}개`, width: 'compact' },
+    { label: '종목 범위', value: detailUniverseValue, width: 'wide' },
+    ...competitionConditions.map(({ label, value }) => ({
+      label,
+      value,
+      width: label === '시작 자본' ? 'standard' : 'compact',
+    })),
   ] : [];
   const closeEntryDialog = () => {
     setEntryDialogStep('closed');
@@ -2361,7 +2365,7 @@ export function RoomsView({
             <small>시작 자본·수수료는 모든 참가 봇에게 동일해요</small>
           </button>
           {factsOpen && <dl id="competition-detail-facts" className="competition-detail-facts" aria-label={`${selectedRoom.name} 대회 조건`}>
-            {detailFacts.map((fact) => <div key={fact.label}>
+            {detailFacts.map((fact) => <div key={fact.label} data-fact-width={fact.width}>
               <dt>{fact.label}</dt>
               <dd className={fact.label === '종목 범위' ? 'is-universe' : undefined}>
                 {fact.value}
