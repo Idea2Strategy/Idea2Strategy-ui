@@ -14,6 +14,15 @@ const balancedStyles = readFileSync('src/styles/balanced.css', 'utf8');
   이어진다. 보기 축은 모집 중 / 진행 중 / 참여 중 셋 중 하나다.
 */
 describe('Competition lobby', () => {
+  test('lets the metric selector escape the short leaderboard frame', () => {
+    const singleLeaderboardRule = balancedStyles.match(
+      /\.variant-balanced\[data-design="signal-studio"\] \.competition-leaderboard\.is-single \{([^}]*)\}/,
+    )?.[1] ?? '';
+
+    expect(singleLeaderboardRule).toContain('overflow: visible');
+    expect(singleLeaderboardRule).not.toContain('overflow: hidden');
+  });
+
   test('uses the shared primary-page heading rhythm and divider', () => {
     const competitionHeadingRule = balancedStyles.match(
       /\.variant-balanced\[data-design="signal-studio"\] \.competition-lobby-page > \.page-heading \{([\s\S]*?)\}/,
