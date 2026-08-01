@@ -171,6 +171,9 @@
 .strategy-create-dialog header div { display: grid; gap: 6px; }
 .strategy-create-dialog header p { margin: 0; color: var(--text-faint); font-size: 11px; }
 .strategy-create-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px; }
+.strategy-create-options > .field { grid-column: 1 / -1; display: grid; gap: 6px; color: var(--text-faint); font-size: 11px; }
+.strategy-create-options > .field input { width: 100%; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface-raised); color: var(--text); padding: 10px 12px; font: inherit; font-size: 13px; outline: none; }
+.strategy-create-options > .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .strategy-create-options > button {
   min-height: 138px;
   display: grid;

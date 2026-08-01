@@ -26,8 +26,8 @@ import {
   getStrategyCanvasWheelZoom,
 } from '../lib/strategyCanvasLayout';
 import type { CanvasPoint, CanvasSize, CardMoveGesture } from '../lib/strategyCanvasLayout';
-import { defaultStrategyLibraryClient } from '../api/strategies';
-import type { StrategyLibraryClient, StrategyLibraryItem } from '../api/strategies';
+import { defaultStrategyAuthoringClient, defaultStrategyLibraryClient, StrategyApiError } from '../api/strategies';
+import type { StrategyAuthoringClient, StrategyLibraryClient, StrategyLibraryItem } from '../api/strategies';
 
 type EditorMode = 'basic' | 'pro';
 type Side = 'buy' | 'sell' | 'risk';
@@ -262,13 +262,18 @@ interface BlockRuleInput {
 const statusTone = (state: string) => state === '출시 가능' ? 'positive' : 'warning';
 
 interface StrategyHomeProps {
-  openEditor: (mode: EditorMode, blank?: boolean) => void;
+  openEditor: (mode: EditorMode, blank?: boolean, strategyId?: string) => void;
   client?: StrategyLibraryClient | null;
+  authoringClient?: StrategyAuthoringClient | null;
 }
 
 const automaticStrategyLibraryClient = import.meta.env.MODE === 'test'
   ? null
   : defaultStrategyLibraryClient;
+
+const automaticStrategyAuthoringClient = import.meta.env.MODE === 'test'
+  ? null
+  : defaultStrategyAuthoringClient;
 
 const strategyListItem = (item: StrategyLibraryItem): StrategyListItem => ({
   id: item.id,
@@ -281,7 +286,7 @@ const strategyListItem = (item: StrategyLibraryItem): StrategyListItem => ({
   symbols: [],
 });
 
-export function StrategyHome({ openEditor, client = automaticStrategyLibraryClient }: StrategyHomeProps) {
+export function StrategyHome({ openEditor, client = automaticStrategyLibraryClient, authoringClient = automaticStrategyAuthoringClient }: StrategyHomeProps) {
   const [items, setItems] = useState<StrategyListItem[]>(() => strategies.map((strategy, index) => ({
     ...strategy,
     id: `strategy-${index}`,
@@ -294,6 +299,9 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
   const [showImport, setShowImport] = useState(false);
   const [draggedStrategyId, setDraggedStrategyId] = useState<string | null>(null);
   const [libraryError, setLibraryError] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState('새 Basic 전략');
+  const [createPending, setCreatePending] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!client) return undefined;
@@ -341,6 +349,25 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
     setDraggedStrategyId(null);
   };
 
+  const beginBasicStrategy = async () => {
+    if (!authoringClient) {
+      setShowCreate(false);
+      openEditor('basic', true);
+      return;
+    }
+    setCreatePending(true);
+    setCreateError(null);
+    try {
+      const created = await authoringClient.createBasic(draftName.trim() || '새 Basic 전략');
+      setShowCreate(false);
+      openEditor('basic', true, created.id);
+    } catch {
+      setCreateError('새 전략을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setCreatePending(false);
+    }
+  };
+
   return <Localized><div className="page balanced-strategy-home">
     <PageHeading
       eyebrow="STRATEGY DESK / PRIVATE"
@@ -384,7 +411,7 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
             <span className="strategy-mode-label">{strategy.mode}</span>
             <Status tone={statusTone(strategy.state)}>{strategy.state}</Status>
             <div className="strategy-row-actions">
-              <button aria-label={`${strategy.name} 열기`} title="열기" onClick={(event) => { event.stopPropagation(); openEditor(strategy.mode.toLowerCase() as EditorMode); }}><ChevronRight size={17} /></button>
+              <button aria-label={`${strategy.name} 열기`} title="열기" onClick={(event) => { event.stopPropagation(); openEditor(strategy.mode.toLowerCase() as EditorMode, false, strategy.id); }}><ChevronRight size={17} /></button>
             </div>
           </article>)}
           {filteredItems.length === 0 && <div className="strategy-empty"><Search size={20} /><strong>조건에 맞는 전략이 없습니다.</strong><button onClick={() => { setQuery(''); setMode('all'); setState('all'); }}>필터 초기화</button></div>}
@@ -397,10 +424,12 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
       <section role="dialog" aria-modal="true" aria-label="새 전략 선택" className="strategy-create-dialog" onMouseDown={(event) => event.stopPropagation()}>
         <header><div><h2>{showImport ? '기존 전략 가져오기' : '새 전략'}</h2><p>{showImport ? '가져올 전략을 선택하세요.' : '새로 만들거나 기존 전략에서 시작하세요.'}</p></div><button aria-label="새 전략 선택 닫기" onClick={() => { setShowCreate(false); setShowImport(false); }}><X size={18} /></button></header>
         {!showImport ? <div className="strategy-create-options">
-          <button aria-label="Basic으로 시작" onClick={() => { setShowCreate(false); openEditor('basic', true); }}><span className="create-icon is-basic"><Boxes size={20} /></span><span><strong>Basic</strong><small>편집기에서 블록으로 구성</small></span><ChevronRight size={18} /></button>
+          <label className="field"><span>전략 이름</span><input aria-label="전략 이름" value={draftName} onChange={(event) => setDraftName(event.target.value)} /></label>
+          {createError && <p role="alert" className="bots-decision-note">{createError}</p>}
+          <button aria-label="Basic으로 시작" disabled={createPending} onClick={() => { void beginBasicStrategy(); }}><span className="create-icon is-basic"><Boxes size={20} /></span><span><strong>{createPending ? '만드는 중…' : 'Basic'}</strong><small>편집기에서 블록으로 구성</small></span><ChevronRight size={18} /></button>
           <button aria-label="Pro로 시작" onClick={() => { setShowCreate(false); openEditor('pro', true); }}><span className="create-icon is-pro"><GitBranch size={20} /></span><span><strong>Pro</strong><small>편집기에서 노드로 구성</small></span><ChevronRight size={18} /></button>
           <button className="create-import-option" aria-label="기존 전략 가져오기" onClick={() => setShowImport(true)}><span className="create-icon is-import"><Import size={20} /></span><span><strong>기존 전략 가져오기</strong><small>원본은 그대로 두고 새 초안 생성</small></span><ChevronRight size={18} /></button>
-        </div> : <div className="strategy-import-list">{items.map((strategy) => <button key={strategy.id} aria-label={`${strategy.name} 가져오기`} onClick={() => { setShowCreate(false); setShowImport(false); openEditor(strategy.mode.toLowerCase() as EditorMode); }}><span className={`strategy-mode-icon mode-${strategy.mode.toLowerCase()}`}>{strategy.mode[0]}</span><span><strong>{strategy.name}</strong><small>{strategy.mode} · {strategy.symbols.join(', ')}</small></span><Import size={16} /></button>)}</div>}
+        </div> : <div className="strategy-import-list">{items.map((strategy) => <button key={strategy.id} aria-label={`${strategy.name} 가져오기`} onClick={() => { setShowCreate(false); setShowImport(false); openEditor(strategy.mode.toLowerCase() as EditorMode, false, strategy.id); }}><span className={`strategy-mode-icon mode-${strategy.mode.toLowerCase()}`}>{strategy.mode[0]}</span><span><strong>{strategy.name}</strong><small>{strategy.mode} · {strategy.symbols.join(', ')}</small></span><Import size={16} /></button>)}</div>}
       </section>
     </div>}
   </div></Localized>;
@@ -528,6 +557,58 @@ const getBasicBlockIcon = (label: string, tone: BlockTone): LucideIcon => {
   if (tone === 'order') return CircleDollarSign;
   if (tone === 'indicator') return Sparkles;
   return CandlestickChart;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> => (
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+);
+
+const serializeBasicEditorSnapshot = (snapshot: BasicEditorSnapshot): Record<string, unknown> => (
+  JSON.parse(JSON.stringify(snapshot)) as Record<string, unknown>
+);
+
+const readBasicEditorSnapshot = (presentation: Record<string, unknown>): BasicEditorSnapshot | null => {
+  const editor = presentation.basicEditor;
+  if (!isRecord(editor) || editor.version !== 1 || !isRecord(editor.snapshot)) return null;
+  const snapshot = editor.snapshot;
+  if (!Array.isArray(snapshot.sections)
+    || !isRecord(snapshot.cardBlocks)
+    || !isRecord(snapshot.cardMeta)
+    || !isRecord(snapshot.buySettings)
+    || !isRecord(snapshot.sellSettings)
+    || !isRecord(snapshot.symbolLimits)) return null;
+  if (!snapshot.sections.every((section) => isRecord(section)
+    && isRecord(section.cards)
+    && Array.isArray(section.cards.buy)
+    && Array.isArray(section.cards.sell)
+    && Array.isArray(section.cards.risk)
+    && Array.isArray(section.cardOrder)
+    && isRecord(section.cardPositions))) return null;
+  if (!Object.values(snapshot.cardBlocks).every((blocks) => Array.isArray(blocks)
+    && blocks.every((block) => isRecord(block)
+      && typeof block.id === 'string'
+      && typeof block.label === 'string'
+      && typeof block.tone === 'string'))) return null;
+  try {
+    const parsed = cloneBasicEditorSnapshot(snapshot as unknown as BasicEditorSnapshot);
+    parsed.cardBlocks = Object.fromEntries(Object.entries(parsed.cardBlocks).map(([cardId, blocks]) => [
+      cardId,
+      blocks.map((block) => ({ ...block, icon: getBasicBlockIcon(block.label, block.tone) })),
+    ]));
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const readBasicEditorViewport = (presentation: Record<string, unknown>): { pan: CanvasPoint; zoom: number } | null => {
+  const editor = presentation.basicEditor;
+  if (!isRecord(editor) || !isRecord(editor.viewport) || !isRecord(editor.viewport.pan)) return null;
+  const { x, y } = editor.viewport.pan;
+  const { zoom } = editor.viewport;
+  return typeof x === 'number' && typeof y === 'number' && typeof zoom === 'number'
+    ? { pan: { x, y }, zoom }
+    : null;
 };
 
 const createBlocksFromDefinitions = (cardId: string, definitions: StrategyTemplateBlock[]): BasicBlock[] => definitions.map((definition, index) => ({
@@ -1083,12 +1164,14 @@ export const ReadOnlyStrategyBlock = ({
 
 interface BasicEditorProps {
   goBack: () => void;
-  openEditor?: (mode: EditorMode, blank?: boolean) => void;
+  openEditor?: (mode: EditorMode, blank?: boolean, strategyId?: string) => void;
   onLaunchBot?: (bot: { name: string; description: string }) => void;
   blank?: boolean;
+  strategyId?: string;
+  authoringClient?: StrategyAuthoringClient | null;
 }
 
-export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: BasicEditorProps) {
+export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, strategyId, authoringClient = automaticStrategyAuthoringClient }: BasicEditorProps) {
   const [activeSectionId, setActiveSectionId] = useState('section-1');
   const [selectedCardId, setSelectedCardId] = useState<string | null>(blank ? null : 'primary-buy');
   const [sections, setSections] = useState<StrategySection[]>(blank ? createBlankStrategySections : INITIAL_STRATEGY_SECTIONS);
@@ -1131,6 +1214,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
   const [cardSizes, setCardSizes] = useState<Record<string, CanvasSize>>({});
   const [announcement, setAnnouncement] = useState('');
   const [saveFeedback, setSaveFeedback] = useState<SaveFeedback | null>(null);
+  const [documentPending, setDocumentPending] = useState(Boolean(strategyId && authoringClient));
+  const [savePending, setSavePending] = useState(false);
+  const leaseTokenRef = useRef<string | null>(null);
+  const editSequenceRef = useRef(0);
+  const semanticDocumentRef = useRef<Record<string, unknown>>({ mode: 'BASIC', groups: [] });
+  const presentationDocumentRef = useRef<Record<string, unknown>>({});
   // Two-phase dismissal so the toast can slide back down (mirroring its entry)
   // instead of vanishing instantly.
   const [saveFeedbackClosing, setSaveFeedbackClosing] = useState(false);
@@ -1338,6 +1427,67 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
     });
   };
 
+  useEffect(() => {
+    if (!strategyId || !authoringClient) return undefined;
+    const controller = new AbortController();
+    let disposed = false;
+    let heartbeatTimer: number | undefined;
+    let grantedLeaseToken: string | null = null;
+
+    void authoringClient.acquireLease(strategyId, controller.signal).then(async (lease) => {
+      grantedLeaseToken = lease.leaseToken;
+      const document = await authoringClient.getDocument(strategyId, controller.signal);
+      if (disposed) {
+        await authoringClient.releaseLease(strategyId, lease.leaseToken).catch(() => undefined);
+        grantedLeaseToken = null;
+        return;
+      }
+      leaseTokenRef.current = lease.leaseToken;
+      editSequenceRef.current = document.editSequence;
+      semanticDocumentRef.current = document.semanticDocument;
+      presentationDocumentRef.current = document.presentationDocument;
+      const snapshot = readBasicEditorSnapshot(document.presentationDocument);
+      if (snapshot) restoreEditorSnapshot(snapshot);
+      const viewport = readBasicEditorViewport(document.presentationDocument);
+      if (viewport) {
+        setPan(viewport.pan);
+        setZoom(viewport.zoom);
+      }
+      setDocumentPending(false);
+      heartbeatTimer = window.setInterval(() => {
+        const token = leaseTokenRef.current;
+        if (!token) return;
+        void authoringClient.heartbeatLease(strategyId, token).catch(() => {
+          leaseTokenRef.current = null;
+          setSaveFeedback({ tone: 'warning', title: '편집 연결이 만료되었습니다.', detail: '목록으로 돌아가 전략을 다시 열어 주세요.' });
+        });
+      }, 60_000);
+    }).catch((error) => {
+      if (grantedLeaseToken) {
+        void authoringClient.releaseLease(strategyId, grantedLeaseToken).catch(() => undefined);
+        grantedLeaseToken = null;
+      }
+      if (disposed || (error instanceof DOMException && error.name === 'AbortError')) return;
+      setDocumentPending(false);
+      setSaveFeedback({
+        tone: 'warning',
+        title: error instanceof StrategyApiError && error.status === 409 ? '다른 곳에서 편집 중입니다.' : '전략을 불러오지 못했습니다.',
+        detail: error instanceof StrategyApiError && error.status === 409 ? '다른 편집을 마친 뒤 다시 열어 주세요.' : '목록으로 돌아가 다시 시도해 주세요.',
+      });
+    });
+
+    return () => {
+      disposed = true;
+      controller.abort();
+      if (heartbeatTimer !== undefined) window.clearInterval(heartbeatTimer);
+      const token = leaseTokenRef.current;
+      leaseTokenRef.current = null;
+      const tokenToRelease = token ?? grantedLeaseToken;
+      grantedLeaseToken = null;
+      if (tokenToRelease) void authoringClient.releaseLease(strategyId, tokenToRelease).catch(() => undefined);
+    };
+  }, [authoringClient, strategyId]);
+
   const rememberEditorChange = () => {
     const snapshot = captureEditorSnapshot();
     setUndoStack((current) => [...current.slice(-39), snapshot]);
@@ -1454,7 +1604,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
     return () => window.clearTimeout(removeTimer);
   }, [saveFeedbackClosing]);
 
-  const saveStrategy = () => {
+  const saveStrategy = async () => {
     const nextFeedback: SaveFeedback = isLaunchable
       ? {
         tone: 'positive',
@@ -1466,8 +1616,51 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
         title: '미완성 상태로 저장했습니다.',
         detail: '모든 전략 카드의 조건을 완성하면 출시할 수 있습니다.',
       };
-    setSaveFeedback(nextFeedback);
-    setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
+    if (!strategyId || !authoringClient) {
+      setSaveFeedback(nextFeedback);
+      setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
+      return;
+    }
+    const leaseToken = leaseTokenRef.current;
+    if (!leaseToken) {
+      const unavailable = { tone: 'warning' as const, title: '지금은 저장할 수 없습니다.', detail: '편집 연결을 다시 열어 주세요.' };
+      setSaveFeedback(unavailable);
+      setAnnouncement(`${unavailable.title} ${unavailable.detail}`);
+      return;
+    }
+    setSavePending(true);
+    try {
+      const presentationDocument = {
+        ...presentationDocumentRef.current,
+        basicEditor: {
+          version: 1,
+          snapshot: serializeBasicEditorSnapshot(captureEditorSnapshot()),
+          viewport: { pan, zoom },
+        },
+      };
+      const saved = await authoringClient.saveDocument(strategyId, {
+        expectedEditSequence: editSequenceRef.current,
+        leaseToken,
+        semanticDocument: semanticDocumentRef.current,
+        presentationDocument,
+      });
+      editSequenceRef.current = saved.editSequence;
+      semanticDocumentRef.current = saved.semanticDocument;
+      presentationDocumentRef.current = saved.presentationDocument;
+      setSaveFeedback(nextFeedback);
+      setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
+    } catch (error) {
+      const conflict = error instanceof StrategyApiError && error.status === 409;
+      const failed = {
+        tone: 'warning' as const,
+        title: conflict ? '다른 변경사항과 충돌했습니다.' : '전략을 저장하지 못했습니다.',
+        detail: conflict ? '목록으로 돌아가 최신 전략을 다시 열어 주세요.' : '잠시 후 다시 시도해 주세요.',
+      };
+      setSaveFeedback(failed);
+      setAnnouncement(`${failed.title} ${failed.detail}`);
+    } finally {
+      setSavePending(false);
+    }
   };
 
   const closeLaunchDialog = () => {
@@ -2704,7 +2897,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false }: 
         >
           {isLaunchable ? '완성' : `미완성 · 오류 ${validationIssues.length}`}
         </Button>
-        <Button className="floating-editor-button" icon={Save} onClick={saveStrategy}>저장</Button>
+        <Button className="floating-editor-button" icon={Save} disabled={documentPending || savePending} onClick={() => { void saveStrategy(); }}>{savePending ? '저장 중…' : '저장'}</Button>
         <div className="editor-launch-action">
           <Button
             className={`floating-editor-button ${isLaunchable ? '' : 'is-unavailable'}`}

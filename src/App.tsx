@@ -254,12 +254,13 @@ function ProductApp() {
   const setPage: SetPage = (next) => {
     navigate(pagePaths[next] ?? pagePaths.home);
   };
-  const openEditor = (mode: 'basic' | 'pro', blank = false) => {
-    navigate(`/strategies/new/${mode}`, { state: { blank } });
+  const openEditor = (mode: 'basic' | 'pro', blank = false, strategyId?: string) => {
+    navigate(`/strategies/new/${mode}`, { state: { blank, strategyId } });
   };
   // A freshly created strategy opens on a blank canvas; opening an existing one
   // (or landing on the URL directly) keeps the seeded editor.
-  const editorBlank = Boolean((location.state as { blank?: boolean } | null)?.blank);
+  const editorState = location.state as { blank?: boolean; strategyId?: string } | null;
+  const editorBlank = Boolean(editorState?.blank);
   const changeBotIcon = (botName: string, selection: BotIconSelection) => {
     setBotIcons((current) => ({ ...current, [botName]: selection }));
   };
@@ -274,7 +275,7 @@ function ProductApp() {
     <Route path="/" element={<DashboardView setPage={setPage} botIcons={botIcons} />} />
     <Route path="/landing" element={<LandingView setPage={setPage} />} />
     <Route path="/strategies" element={<StrategyHome openEditor={openEditor} />} />
-    <Route path="/strategies/new/basic" element={<BasicEditor blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
+    <Route path="/strategies/new/basic" element={<BasicEditor strategyId={editorState?.strategyId} blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
     <Route path="/strategies/new/pro" element={<ProEditor blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
     <Route path="/bots" element={<BotsView key={requestedBot ?? 'bots'} botIcons={botIcons} onBotIconChange={changeBotIcon} initialBot={requestedBot} />} />
     <Route path="/backtests" element={<BacktestView client={defaultBacktestClient} />} />
