@@ -39,6 +39,8 @@ export interface BotOperationsClient {
     limit?: number,
     signal?: AbortSignal,
   ): Promise<BotJudgmentLogPage>;
+  runBot(botId: string, signal?: AbortSignal): Promise<void>;
+  stopBot(botId: string, reasonCode: string, signal?: AbortSignal): Promise<void>;
 }
 
 interface ClientOptions {
@@ -64,13 +66,20 @@ export function createBotOperationsClient({
 }: ClientOptions = {}): BotOperationsClient {
   const root = baseUrl.replace(/\/$/, '');
 
-  const request = async (path: string, signal?: AbortSignal): Promise<unknown> => {
+  const request = async (
+    path: string,
+    signal?: AbortSignal,
+    init: RequestInit = {},
+  ): Promise<unknown> => {
     const token = getAccessToken?.();
     const response = await fetchImpl(`${root}${path}`, {
+      ...init,
       credentials: 'include',
       headers: {
         Accept: 'application/json',
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init.headers,
       },
       signal,
     });
@@ -99,6 +108,19 @@ export function createBotOperationsClient({
         signal,
       );
       return readJudgmentPage(payload);
+    },
+
+    async runBot(botId, signal) {
+      await request(`/api/v1/bots/${encodeURIComponent(botId)}/run`, signal, {
+        method: 'POST',
+      });
+    },
+
+    async stopBot(botId, reasonCode, signal) {
+      await request(`/api/v1/bots/${encodeURIComponent(botId)}/stop`, signal, {
+        method: 'POST',
+        body: JSON.stringify({ reasonCode }),
+      });
     },
   };
 }

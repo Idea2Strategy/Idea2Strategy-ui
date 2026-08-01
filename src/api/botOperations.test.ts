@@ -59,4 +59,34 @@ describe('bot operations API client', () => {
     await expect(createBotOperationsClient({ fetchImpl }).listOperations())
       .rejects.toThrow('Bot operations request failed (503)');
   });
+
+  it('issues versioned run and permanent stop commands', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ created: true }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ created: true }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' },
+      }));
+    const client = createBotOperationsClient({ baseUrl: 'https://api.example.com', fetchImpl });
+
+    await client.runBot('30000000-0000-4000-8000-000000000001');
+    await client.stopBot('30000000-0000-4000-8000-000000000001', 'USER_REQUESTED');
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      'https://api.example.com/api/v1/bots/30000000-0000-4000-8000-000000000001/run',
+      expect.objectContaining({ method: 'POST', credentials: 'include' }),
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      'https://api.example.com/api/v1/bots/30000000-0000-4000-8000-000000000001/stop',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ reasonCode: 'USER_REQUESTED' }),
+      }),
+    );
+  });
 });

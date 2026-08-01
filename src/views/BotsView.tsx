@@ -992,6 +992,8 @@ export function BotsView({
   const [judgmentsByBot, setJudgmentsByBot] = useState<Record<string, BotJudgmentLogEntry[]>>({});
   const [operationsError, setOperationsError] = useState<string | null>(null);
   const [judgmentsError, setJudgmentsError] = useState<string | null>(null);
+  const [commandPending, setCommandPending] = useState(false);
+  const [commandMessage, setCommandMessage] = useState<string | null>(null);
   const cursorByBot = useRef<Record<string, number>>({});
   const activeBots = useMemo(
     () => operations === null ? staticBotList : mergeBotOperations(operations),
@@ -1055,6 +1057,29 @@ export function BotsView({
     : null;
   const attention = activeBots.filter((bot) => ['action-required', 'data-degraded', 'settlement-failed'].includes(bot.operationState ?? ''));
   const healthyCount = activeBots.filter((bot) => !bot.operationState || ['waiting', 'running'].includes(bot.operationState)).length;
+
+  const issueBotCommand = async (command: 'run' | 'stop') => {
+    if (!operationsClient || !selected?.id || commandPending) return;
+    setCommandPending(true);
+    setCommandMessage(null);
+    try {
+      if (command === 'run') {
+        await operationsClient.runBot(selected.id);
+      } else {
+        await operationsClient.stopBot(selected.id, 'USER_REQUESTED');
+      }
+      const next = await operationsClient.listOperations();
+      setOperations(next);
+      setOperationsError(null);
+      setCommandMessage(command === 'run' ? '봇 실행 명령을 전달했습니다.' : '영구 중단 절차를 시작했습니다.');
+    } catch {
+      setCommandMessage(command === 'run'
+        ? '봇 실행 명령을 전달하지 못했습니다.'
+        : '영구 중단 명령을 전달하지 못했습니다.');
+    } finally {
+      setCommandPending(false);
+    }
+  };
 
   useEffect(() => {
     if (!operationsClient || !selected?.id) return undefined;
@@ -1333,8 +1358,22 @@ export function BotsView({
             </span>
             <h2>{selected.name}</h2>
           </div>
-          <Status tone={botTone(selected.state)}>{selected.state}</Status>
+          <div className="bots-detail-actions">
+            {selectedOperations?.state === 'waiting' && <Button
+              icon={Play}
+              disabled={commandPending}
+              aria-label={`${selected.name} 실행`}
+              onClick={() => void issueBotCommand('run')}
+            >실행</Button>}
+            {selectedOperations && ['running', 'action-required', 'data-degraded', 'settlement-failed'].includes(selectedOperations.state) && <Button
+              disabled={commandPending}
+              aria-label={`${selected.name} 영구 중단`}
+              onClick={() => void issueBotCommand('stop')}
+            >영구 중단</Button>}
+            <Status tone={botTone(selected.state)}>{selected.state}</Status>
+          </div>
         </header>
+        {commandMessage && <p className="bots-decision-note" role="status">{commandMessage}</p>}
         {selectedOperations?.executionBlockReasonCode && <p className="bots-decision-note" role="status">
           {`실행 차단 사유: ${selectedOperations.executionBlockReasonCode}`}
         </p>}

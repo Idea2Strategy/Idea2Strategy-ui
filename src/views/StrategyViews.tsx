@@ -26,6 +26,8 @@ import {
   getStrategyCanvasWheelZoom,
 } from '../lib/strategyCanvasLayout';
 import type { CanvasPoint, CanvasSize, CardMoveGesture } from '../lib/strategyCanvasLayout';
+import { defaultStrategyLibraryClient } from '../api/strategies';
+import type { StrategyLibraryClient, StrategyLibraryItem } from '../api/strategies';
 
 type EditorMode = 'basic' | 'pro';
 type Side = 'buy' | 'sell' | 'risk';
@@ -261,9 +263,25 @@ const statusTone = (state: string) => state === '출시 가능' ? 'positive' : '
 
 interface StrategyHomeProps {
   openEditor: (mode: EditorMode, blank?: boolean) => void;
+  client?: StrategyLibraryClient | null;
 }
 
-export function StrategyHome({ openEditor }: StrategyHomeProps) {
+const automaticStrategyLibraryClient = import.meta.env.MODE === 'test'
+  ? null
+  : defaultStrategyLibraryClient;
+
+const strategyListItem = (item: StrategyLibraryItem): StrategyListItem => ({
+  id: item.id,
+  name: item.name,
+  mode: item.mode === 'BASIC' ? 'Basic' : 'Pro',
+  state: item.validationStatus === 'VALID' ? '출시 가능' : '미완성',
+  updated: item.updatedAt.slice(0, 10),
+  blocks: 0,
+  backtest: item.backtestStatus === 'AVAILABLE' ? '가능' : '데이터 확인',
+  symbols: [],
+});
+
+export function StrategyHome({ openEditor, client = automaticStrategyLibraryClient }: StrategyHomeProps) {
   const [items, setItems] = useState<StrategyListItem[]>(() => strategies.map((strategy, index) => ({
     ...strategy,
     id: `strategy-${index}`,
@@ -275,6 +293,23 @@ export function StrategyHome({ openEditor }: StrategyHomeProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [draggedStrategyId, setDraggedStrategyId] = useState<string | null>(null);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!client) return undefined;
+    const controller = new AbortController();
+    void client.list(50, undefined, controller.signal)
+      .then((page) => {
+        setItems(page.items.map(strategyListItem));
+        setLibraryError(null);
+      })
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setLibraryError('전략 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+        }
+      });
+    return () => controller.abort();
+  }, [client]);
 
   const filteredItems = useMemo(() => items.filter((strategy) => {
     const matchesQuery = strategy.name.toLowerCase().includes(query.trim().toLowerCase());
@@ -316,6 +351,7 @@ export function StrategyHome({ openEditor }: StrategyHomeProps) {
 
     <div className="balanced-strategy-grid is-list-only">
       <section className="strategy-library panel">
+        {libraryError && <p className="bots-decision-note" role="status">{libraryError}</p>}
         <header className="strategy-library-head">
           <div className="strategy-title-group"><div><h2>내 전략</h2><span>{filteredItems.length}</span></div><div className="strategy-counts" data-testid="strategy-counts"><span>전체 <b>{items.length}</b></span><span>출시 가능 <b>{launchableCount}</b></span><span>미완성 <b>{incompleteCount}</b></span></div></div>
           <label className="strategy-search"><Search size={16} /><input type="search" aria-label="전략 검색" placeholder="이름으로 검색" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
@@ -344,7 +380,7 @@ export function StrategyHome({ openEditor }: StrategyHomeProps) {
           >
             <GripVertical className="strategy-drag-handle" size={16} aria-hidden="true" />
             <span className={`strategy-mode-icon mode-${strategy.mode.toLowerCase()}`} aria-hidden="true">{strategy.mode[0]}</span>
-            <div className="strategy-row-main"><strong>{strategy.name}</strong><span>{strategy.symbols.join(' · ')} · {strategy.updated}</span></div>
+            <div className="strategy-row-main"><strong>{strategy.name}</strong><span>{[strategy.symbols.join(' · '), strategy.updated].filter(Boolean).join(' · ')}</span></div>
             <span className="strategy-mode-label">{strategy.mode}</span>
             <Status tone={statusTone(strategy.state)}>{strategy.state}</Status>
             <div className="strategy-row-actions">
