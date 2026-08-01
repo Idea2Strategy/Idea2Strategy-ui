@@ -35,6 +35,18 @@ describe('Competition lobby', () => {
     expect(singleLeaderboardRule).not.toContain('overflow: hidden');
   });
 
+  test('keeps the metric selector at a stable anchored size', () => {
+    const metricEditorRule = balancedStyles.match(
+      /\.variant-balanced\[data-design="signal-studio"\] \.competition-metric-editor \{([^}]*)\}/,
+    )?.[1] ?? '';
+
+    expect(metricEditorRule).toContain('right: 0');
+    expect(metricEditorRule).toContain('width: 220px');
+    expect(metricEditorRule).toContain('height: min(320px, calc(100vh - 32px))');
+    expect(metricEditorRule).toContain('box-sizing: border-box');
+    expect(metricEditorRule).toContain('overflow-y: auto');
+  });
+
   test('uses the shared primary-page heading rhythm and divider', () => {
     const competitionHeadingRule = balancedStyles.match(
       /\.variant-balanced\[data-design="signal-studio"\] \.competition-lobby-page > \.page-heading \{([\s\S]*?)\}/,
