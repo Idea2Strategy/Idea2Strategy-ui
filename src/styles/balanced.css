@@ -11416,7 +11416,7 @@ small.dashboard-bot-scope {
   display: grid;
   gap: 0;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 .variant-balanced[data-design="signal-studio"] .competition-leaderboard.is-single > header {
   padding: var(--space-4);
