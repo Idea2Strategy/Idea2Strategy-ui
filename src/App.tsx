@@ -22,6 +22,8 @@ import type { AccountClient } from './api/account';
 import { defaultAccountOperationsClient } from './api/accountOperations';
 import type { AccountOperationsClient } from './api/accountOperations';
 import { OperatorCaseWorkspace } from './components/CaseApiPanels';
+import { defaultNotificationClient } from './api/notifications';
+import type { NotificationClient } from './api/notifications';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
@@ -227,7 +229,7 @@ const paletteTemplates: PaletteTemplate[] = [
   { id: 'rose', label: '로즈', dark: '#f79ab0', light: '#b42a52' },
 ];
 
-function ProductApp({ accountClient, operationsClient }: { accountClient: AccountClient; operationsClient: AccountOperationsClient }) {
+function ProductApp({ accountClient, operationsClient, notificationClient }: { accountClient: AccountClient; operationsClient: AccountOperationsClient; notificationClient: NotificationClient }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [theme, setTheme] = useState<Theme>('dark');
@@ -286,7 +288,7 @@ function ProductApp({ accountClient, operationsClient }: { accountClient: Accoun
     <Route path="/backtests" element={<BacktestView client={defaultBacktestClient} />} />
     <Route path="/competition" element={<RoomsView openBot={openBot} />} />
     <Route path="/competition-v2" element={<RoomsView visualVariant="image" openBot={openBot} />} />
-    <Route path="/notifications" element={<NotificationsView setPage={setPage} />} />
+    <Route path="/notifications" element={<NotificationsView setPage={setPage} client={notificationClient} />} />
     <Route path="/operations/cases" element={<OperatorCaseWorkspace client={operationsClient} />} />
     <Route path="/help" element={<HelpView />} />
     <Route path="/account" element={<AccountView
@@ -300,6 +302,7 @@ function ProductApp({ accountClient, operationsClient }: { accountClient: Accoun
       setUpdown={setUpdown}
       accountClient={accountClient}
       operationsClient={operationsClient}
+      notificationClient={notificationClient}
     />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;
@@ -344,9 +347,9 @@ function ProductApp({ accountClient, operationsClient }: { accountClient: Accoun
   `initialVariant` is a legacy entry point kept for the test suite: both former
   variants resolve to the same Signal product shell, so the value is unused.
 */
-export function App({ accountClient = defaultAccountClient, operationsClient = defaultAccountOperationsClient }: { initialVariant?: string; accountClient?: AccountClient; operationsClient?: AccountOperationsClient } = {}) {
+export function App({ accountClient = defaultAccountClient, operationsClient = defaultAccountOperationsClient, notificationClient = defaultNotificationClient }: { initialVariant?: string; accountClient?: AccountClient; operationsClient?: AccountOperationsClient; notificationClient?: NotificationClient } = {}) {
   return <LanguageProvider><BrowserRouter><Routes>
     <Route path="/concepts/*" element={<DesignConceptLab />} />
-    <Route path="*" element={<ProductApp accountClient={accountClient} operationsClient={operationsClient} />} />
+    <Route path="*" element={<ProductApp accountClient={accountClient} operationsClient={operationsClient} notificationClient={notificationClient} />} />
   </Routes></BrowserRouter></LanguageProvider>;
 }

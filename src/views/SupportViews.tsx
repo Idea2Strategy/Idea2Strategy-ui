@@ -26,6 +26,8 @@ import type { AccountClient } from '../api/account';
 import type { AccountOperationsClient } from '../api/accountOperations';
 import { AccountApiPanels } from '../components/AccountApiPanels';
 import { UserCasePanel } from '../components/CaseApiPanels';
+import type { NotificationClient } from '../api/notifications';
+import { NotificationCenter, NotificationPreferencesPanel } from '../components/NotificationApiViews';
 
 type Severity = NotificationItem['severity'];
 type SeverityFilterId = Severity | 'all';
@@ -64,9 +66,14 @@ const severityFilters: SeverityFilter[] = [
 */
 interface NotificationsViewProps {
   setPage?: (page: PageId) => void;
+  client?: NotificationClient;
 }
 
-export function NotificationsView({ setPage }: NotificationsViewProps) {
+export function NotificationsView({ setPage, client }: NotificationsViewProps) {
+  return client ? <Localized><NotificationCenter client={client} /></Localized> : <MockNotificationsView setPage={setPage} />;
+}
+
+function MockNotificationsView({ setPage }: NotificationsViewProps) {
   const [items, setItems] = useState<NotificationItem[]>(seedNotifications);
   const [severity, setSeverity] = useState<SeverityFilterId>('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
@@ -312,9 +319,10 @@ interface AccountViewProps {
   setUpdown?: (updown: Updown) => void;
   accountClient?: AccountClient;
   operationsClient?: AccountOperationsClient;
+  notificationClient?: NotificationClient;
 }
 
-export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMotion, setReduceMotion, updown = 'kr', setUpdown = () => {}, accountClient, operationsClient }: AccountViewProps) {
+export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMotion, setReduceMotion, updown = 'kr', setUpdown = () => {}, accountClient, operationsClient, notificationClient }: AccountViewProps) {
   const { language, setLanguage } = useLanguage();
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [actionAlerts, setActionAlerts] = useState(true);
@@ -330,6 +338,7 @@ export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMoti
     <div className="settings-grid">
       {accountClient && <AccountApiPanels client={accountClient} />}
       {operationsClient && <UserCasePanel client={operationsClient} />}
+      {notificationClient && <NotificationPreferencesPanel client={notificationClient} />}
       <Panel title="프로필">
         <div className="settings-rows">
           <div className="settings-row">

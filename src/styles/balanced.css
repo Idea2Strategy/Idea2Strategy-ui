@@ -4088,6 +4088,10 @@
 .operator-case-row > span { display: grid; gap: 3px; }
 .operator-case-detail { display: grid; gap: 14px; }
 .case-api-confirm { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--warning); border-radius: var(--radius-sm); background: var(--warning-soft); }
+.notification-api-state { display: flex; align-items: center; gap: 9px; padding: 20px; color: var(--text-soft); }
+.notification-api-actions { display: grid; justify-items: end; gap: 8px; }
+.notification-api-footer { display: flex; justify-content: center; padding: 14px; border-top: 1px solid var(--line); }
+.notification-preferences-api .settings-row { grid-template-columns: auto 1fr auto auto; }
 .operator-case-detail label { display: grid; gap: 6px; }
 .operator-case-detail input { min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); background: var(--surface-2); }
 @keyframes account-api-spin { to { transform: rotate(360deg); } }

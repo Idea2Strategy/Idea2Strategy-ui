@@ -1,3 +1,5 @@
+import { getSessionAccessToken } from './sessionAccessToken';
+
 export type UserCaseType = 'INQUIRY' | 'REPORT' | 'APPEAL';
 export type UserCaseStatus = 'OPEN' | 'NEEDS_INFORMATION' | 'UNDER_REVIEW' | 'RESOLVED' | 'REJECTED';
 export type OperatorCaseAction =
@@ -318,5 +320,5 @@ async function sha256(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-export const defaultAccountOperationsClient = createAccountOperationsClient({ baseUrl: import.meta.env.VITE_API_BASE_URL ?? '' });
+export const defaultAccountOperationsClient = createAccountOperationsClient({ baseUrl: import.meta.env.VITE_API_BASE_URL ?? '', getAccessToken: getSessionAccessToken });
 export const defaultAdminMcpClient = createAdminMcpClient({ baseUrl: import.meta.env.VITE_ADMIN_MCP_BASE_URL ?? '' });

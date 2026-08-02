@@ -1,3 +1,5 @@
+import { getSessionAccessToken, setSessionAccessToken } from './sessionAccessToken';
+
 export type ThemePreference = 'LIGHT' | 'DARK' | 'SYSTEM';
 export type AccountLifecycleStatus = 'ACTIVE' | 'DORMANT' | 'CLOSING' | 'CLOSED';
 
@@ -229,4 +231,6 @@ function nullableString(value: unknown): string | null {
 
 export const defaultAccountClient = createAccountClient({
   baseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
+  getAccessToken: getSessionAccessToken,
+  setAccessToken: setSessionAccessToken,
 });
