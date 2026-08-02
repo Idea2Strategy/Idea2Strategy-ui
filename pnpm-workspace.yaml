@@ -1,2 +1,7 @@
+allowBuilds:
+  # msw's postinstall only copies the browser service worker into a public
+  # directory. The backtest tests drive it through `msw/node`, so the script has
+  # nothing to do here.
+  msw: false
 minimumReleaseAgeExclude:
   - '@vitejs/plugin-react@6.0.4'

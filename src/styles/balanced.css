@@ -11654,8 +11654,30 @@ small.dashboard-bot-scope {
   display: grid;
   gap: 2px;
 }
-.variant-balanced[data-design="signal-studio"] .backtest-live-trades {
+.variant-balanced[data-design="signal-studio"] .backtest-live-counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-counters li {
+  display: inline-flex;
+  padding: 2px var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  font-size: 12px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-trades,
+.variant-balanced[data-design="signal-studio"] .backtest-live-attempts {
   overflow-x: auto;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-attempts {
+  margin-top: var(--space-3);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-provenance {
+  margin: var(--space-3) 0 0;
+  color: var(--text-faint);
+  font-size: 12px;
 }
 
 @media (max-width: 860px) {

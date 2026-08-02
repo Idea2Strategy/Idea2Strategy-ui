@@ -1,104 +1,262 @@
-import { describe, expect, it, vi } from 'vitest';
-import { createBacktestClient } from './backtests';
+import { setupServer } from 'msw/node';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import {
+  BACKTEST_API_BASE,
+  CONFIGURATION_HASH,
+  MONTHLY_SUMMARIES,
+  OTHER_OWNER_RUN_ID,
+  OTHER_OWNER_TOKEN,
+  OWNER_TOKEN,
+  RESULT_HASH,
+  RUN_ID,
+  UNAVAILABLE_RUN,
+  UNKNOWN_RUN_ID,
+  backtestHandlers,
+  runPayload,
+} from '../test/backtestApi';
+import { BacktestApiError, BacktestContractError, createBacktestClient } from './backtests';
 
-const json = (value: unknown) => new Response(JSON.stringify(value), {
-  status: 200,
-  headers: { 'Content-Type': 'application/json' },
+/*
+  These run against request-level handlers that serve the rebuilt engine's own
+  payloads, so a path the server does not route or a field it does not publish fails
+  here instead of at runtime. `onUnhandledRequest: 'error'` is the part that catches a
+  wrong path: the pre-rebuild client asked for `/monthly-judgments`, which no version
+  of this server has ever served.
+*/
+const server = setupServer(...backtestHandlers());
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+const client = (token: string | null = OWNER_TOKEN) => createBacktestClient({
+  baseUrl: BACKTEST_API_BASE,
+  getAccessToken: () => token,
 });
 
 describe('backtest results API client', () => {
-  it('loads owner runs, overview, performance, ET judgments, and monthly trades', async () => {
-    const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(json([{
-        run_id: '10000000-0000-4000-8000-000000000001',
-        strategy_version_id: '20000000-0000-4000-8000-000000000001',
-        status: 'COMPLETE',
-        requested_at: '2026-07-31T12:00:00Z',
-      }]))
-      .mockResolvedValueOnce(json({
-        run_id: '10000000-0000-4000-8000-000000000001',
-        strategy_version_id: '20000000-0000-4000-8000-000000000001',
-        status: 'COMPLETE',
-        requested_at: '2026-07-31T12:00:00Z',
-        started_at: '2026-07-31T12:01:00Z',
-        finished_at: '2026-07-31T12:05:00Z',
-        reason_code: null,
-        missing_requirements: [],
-        result_manifest_id: '30000000-0000-4000-8000-000000000001',
-      }))
-      .mockResolvedValueOnce(json({
-        run_snapshot_id: 'a'.repeat(64),
-        order_count: 4,
-        fill_count: 2,
-        cancellation_count: 1,
-        rejection_count: 1,
-        total_fees: '2.20',
-        total_slippage: '0.50',
-        realized_pnl: '123.45',
-        initial_cash: '10000',
-        ending_cash: '10123.45',
-        ending_positions: [],
-      }))
-      .mockResolvedValueOnce(json([{
-        summary_id: '40000000-0000-4000-8000-000000000001',
-        et_month: '2026-07',
-        timezone_id: 'America/New_York',
-        failure_counts: [{ mode: 'BASIC', scope_id: 'flow-1', condition_id: 'rsi', count: 3 }],
-        trade_record_ids: ['50000000-0000-4000-8000-000000000001'],
-      }]))
-      .mockResolvedValueOnce(json([{
-        record_id: '50000000-0000-4000-8000-000000000001',
-        occurred_at: '2026-07-31T14:31:00Z',
-        kind: 'FILL',
-        order_id: '60000000-0000-4000-8000-000000000001',
-        instrument_id: '70000000-0000-4000-8000-000000000001',
-        order_status: 'FILLED',
-        cash_after: '9897.80',
-        reason_code: null,
-        fill_id: '80000000-0000-4000-8000-000000000001',
-        quantity: '1',
-        price: '100.05',
-        fee: '2.20',
-        realized_pnl: '0',
-      }]));
-    const client = createBacktestClient({ baseUrl: 'https://api.example.com/', fetchImpl });
+  it('reads the owner run page the server actually returns', async () => {
+    const page = await client().listRuns();
 
-    const runs = await client.listRuns();
-    const overview = await client.getOverview(runs[0].runId);
-    const performance = await client.getPerformance(runs[0].runId);
-    const judgments = await client.listMonthlyJudgments(runs[0].runId);
-    const trades = await client.listMonthlyTrades(runs[0].runId, judgments[0].etMonth);
-
-    expect(overview.status).toBe('COMPLETE');
-    expect(performance.realizedPnl).toBe('123.45');
-    expect(judgments[0].failureCounts[0].conditionId).toBe('rsi');
-    expect(trades[0].orderStatus).toBe('FILLED');
-    expect(fetchImpl).toHaveBeenNthCalledWith(
-      5,
-      'https://api.example.com/api/v1/backtests/10000000-0000-4000-8000-000000000001/monthly-trades?et_month=2026-07',
-      expect.objectContaining({ credentials: 'include' }),
-    );
+    expect(page.limit).toBe(50);
+    expect(page.offset).toBe(0);
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0].backtestRunId).toBe('f876f259-4158-5a9a-8973-db21764024dc');
+    expect(page.items[0].botId).toBe('00000000-0000-4000-8000-000000000201');
+    expect(page.items[0].status).toBe('COMPLETED');
+    expect(page.items[0].queuedAt).toBe('2026-07-31T12:00:00Z');
+    expect(page.items[0].slippageRateBps).toBe(5);
+    expect(page.items[0].initialCashAmount).toBe('100000.00000000');
+    expect(page.items[0].configurationHash).toBe(CONFIGURATION_HASH);
+    // The list endpoint always reports 0 here; see the note in the handlers. The screen
+    // reads /attempts rather than this field, so the defect stays visible instead of
+    // being papered over with a client-side guess.
+    expect(page.items[0].attemptCount).toBe(0);
   });
 
-  it('rejects unknown run states instead of rendering them as healthy', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(json([{
-      run_id: '10000000-0000-4000-8000-000000000001',
-      strategy_version_id: '20000000-0000-4000-8000-000000000001',
-      status: 'MYSTERY',
-      requested_at: '2026-07-31T12:00:00Z',
-    }]));
+  it('reads one run, including the terminal timestamps and the result hash', async () => {
+    const run = await client().getRun(RUN_ID);
 
-    await expect(createBacktestClient({ fetchImpl }).listRuns())
-      .rejects.toThrow('Unsupported backtest status');
+    expect(run.status).toBe('COMPLETED');
+    expect(run.startedAt).toBe('2026-07-31T12:05:00Z');
+    expect(run.completedAt).toBe('2026-07-31T12:30:00Z');
+    expect(run.resultHash).toBe(RESULT_HASH);
+    expect(run.failureCode).toBeNull();
+    expect(run.evaluationStart).toBe('2026-07-01');
+    expect(run.evaluationEnd).toBe('2026-10-01');
+    expect(run.precisionRulesVersion).toBe('precision:1.0.0');
   });
 
-  it('surfaces transport failures and malformed payloads', async () => {
-    const unavailable = vi.fn().mockResolvedValue(new Response('unavailable', { status: 503 }));
-    const malformed = vi.fn().mockResolvedValue(json({ runs: [] }));
+  it('surfaces the UNAVAILABLE reason the server stores in failureCode', async () => {
+    server.use(...backtestHandlers({ runs: [UNAVAILABLE_RUN], performance: null }));
 
-    await expect(createBacktestClient({ fetchImpl: unavailable }).listRuns())
-      .rejects.toThrow('Backtest request failed (503)');
-    await expect(createBacktestClient({ fetchImpl: malformed }).listRuns())
-      .rejects.toThrow('Invalid backtest run list');
+    const run = await client().getRun(RUN_ID);
+
+    expect(run.status).toBe('UNAVAILABLE');
+    expect(run.failureCode).toBe('MARKET_DATA_GAP');
+    expect(run.completedAt).toBe('2026-07-31T12:07:00Z');
+  });
+
+  it('refuses the pre-rebuild COMPLETE token', async () => {
+    // Spec 2.2: the canonical `backtest.run_status` success token is COMPLETED.
+    server.use(...backtestHandlers({ runs: [runPayload({ status: 'COMPLETE' })] }));
+
+    await expect(client().getRun(RUN_ID)).rejects.toThrow('Unsupported backtest run status: COMPLETE');
+  });
+
+  it('reads the durable attempt history', async () => {
+    const attempts = await client().listAttempts(RUN_ID);
+
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0].attemptNumber).toBe(1);
+    expect(attempts[0].status).toBe('SUCCEEDED');
+    expect(attempts[0].workerExecutionKey).toBe('worker-execution-1');
+    expect(attempts[0].startedAt).toBe('2026-07-31T12:05:00Z');
+    expect(attempts[0].completedAt).toBe('2026-07-31T12:30:00Z');
+    expect(attempts[0].failureCode).toBeNull();
+  });
+
+  it('reads the metrics document without flattening money into a float', async () => {
+    const performance = await client().getPerformance(RUN_ID);
+
+    expect(performance.metricCatalogVersion).toBe('metrics:1.0.0');
+    expect(performance.calculationRulesVersion).toBe('metric-rules:1.0.0');
+    expect(performance.metrics.totalReturnPct).toBe(2.9996);
+    expect(performance.metrics.maxDrawdownPct).toBe(-1);
+    expect(performance.metrics.sharpe).toBe(9.16515139);
+    expect(performance.metrics.winRatePct).toBe(37.5);
+    expect(performance.metrics.realizedPnl).toBe('123.45000000');
+    expect(performance.metrics.totalFees).toBe('2.00100000');
+    expect(performance.metrics.endingEquity).toBe('10299.96000000');
+    expect(performance.metrics.fillCount).toBe(12);
+    expect(performance.metrics.valuationBasis).toBe('MARK_TO_MARKET');
+    expect(performance.calculatedAt).toBe('2026-07-31T12:29:00Z');
+  });
+
+  it('keeps an undefined metric null rather than inventing a zero', async () => {
+    server.use(...backtestHandlers({
+      performance: {
+        backtestRunId: RUN_ID,
+        metricCatalogVersion: 'metrics:1.0.0',
+        metricsDocument: {
+          totalReturnPct: 1,
+          maxDrawdownPct: 0,
+          sharpe: null,
+          annualizedVolatilityPct: null,
+          winRatePct: null,
+          startingEquity: '10000.00000000',
+          endingEquity: '10100.00000000',
+          endingCash: '10100.00000000',
+          realizedPnl: '0.00000000',
+          totalFees: '0.00000000',
+          totalSlippage: '0.00000000',
+          fillCount: 0,
+          closingTradeCount: 0,
+          winningTradeCount: 0,
+          losingTradeCount: 0,
+          valuationPointCount: 2,
+          metricCatalogVersion: 'metrics:1.0.0',
+          calculationRulesVersion: 'metric-rules:1.0.0',
+          valuationBasis: 'MARK_TO_MARKET',
+          valuationBasisRuleId: 'equity.valuation:mark_to_market:1.0.0',
+          valuationPeriodicity: 'DAILY',
+          metricRules: {},
+        },
+        calculationRulesVersion: 'metric-rules:1.0.0',
+        sourceSetHash: `sha256:${'b'.repeat(64)}`,
+        inputHash: `sha256:${'c'.repeat(64)}`,
+        resultHash: RESULT_HASH,
+        calculatedAt: '2026-07-31T12:29:00Z',
+      },
+    }));
+
+    const performance = await client().getPerformance(RUN_ID);
+
+    expect(performance.metrics.sharpe).toBeNull();
+    expect(performance.metrics.winRatePct).toBeNull();
+  });
+
+  it('is a 404, not an empty summary, until performance is published', async () => {
+    server.use(...backtestHandlers({ performance: null }));
+
+    const error = await client().getPerformance(RUN_ID).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(BacktestApiError);
+    expect((error as BacktestApiError).status).toBe(404);
+  });
+
+  it('reads the six monthly counters plus the first-failure tally inside summaryDocument', async () => {
+    const summaries = await client().listMonthlySummaries(RUN_ID);
+
+    expect(summaries.map((item) => item.etYearMonth)).toEqual(['2026-07', '2026-08']);
+    const july = summaries[0];
+    expect(july.evaluationCount).toBe(21);
+    expect(july.activeBranchCount).toBe(2);
+    expect(july.tradeEventCount).toBe(2);
+    expect(july.dataGapCount).toBe(1);
+    expect(july.triggeredCount).toBe(2);
+    expect(july.rejectedCount).toBe(1);
+    expect(july.timezoneId).toBe('America/New_York');
+    expect(july.summaryHash).toBe('d'.repeat(64));
+    expect(july.firstFailureCounts).toEqual([{
+      mode: 'BASIC',
+      flowOrBranchKey: 'BASIC',
+      firstFailureConditionKey: 'rsi-below-30',
+      occurrenceCount: 3,
+    }]);
+    expect(july.tradeRecordIds).toEqual([
+      '50000000-0000-4000-8000-000000000001',
+      '50000000-0000-4000-8000-000000000002',
+    ]);
+    expect(summaries[1].firstFailureCounts).toEqual([]);
+  });
+
+  it('rejects a monthly summary whose document disagrees with its own column', async () => {
+    const drifted = structuredClone(MONTHLY_SUMMARIES[0]) as Record<string, unknown>;
+    (drifted.summaryDocument as Record<string, unknown>).et_year_month = '2026-06';
+    server.use(...backtestHandlers({ monthlySummaries: [drifted] }));
+
+    await expect(client().listMonthlySummaries(RUN_ID))
+      .rejects.toBeInstanceOf(BacktestContractError);
+  });
+
+  it('reads detail manifests on their ET Monday week boundary', async () => {
+    const manifests = await client().listDetailManifests(RUN_ID);
+
+    expect(manifests).toHaveLength(3);
+    expect(manifests[0].recordType).toBe('TRADE_DETAIL');
+    expect(manifests[0].weekStartDate).toBe('2026-07-20');
+    expect(manifests[0].partNumber).toBe(1);
+    expect(manifests[0].rowCount).toBe(2);
+    expect(manifests[1].weekStartDate).toBe('2026-07-27');
+    expect(manifests[2].recordType).toBe('POSITION_SNAPSHOT');
+    expect(manifests[2].supersedesManifestId).toBeNull();
+  });
+
+  it('reports a missing credential as 401 rather than as a transport failure', async () => {
+    const error = await client(null).listRuns().catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(BacktestApiError);
+    expect((error as BacktestApiError).status).toBe(401);
+    expect((error as BacktestApiError).unauthorized).toBe(true);
+  });
+
+  it('reports another account run as 403, and an unknown id as 404', async () => {
+    const forbidden = await client().getRun(OTHER_OWNER_RUN_ID).catch((cause: unknown) => cause);
+    const missing = await client().getRun(UNKNOWN_RUN_ID).catch((cause: unknown) => cause);
+
+    expect((forbidden as BacktestApiError).status).toBe(403);
+    expect((forbidden as BacktestApiError).unauthorized).toBe(true);
+    expect((missing as BacktestApiError).status).toBe(404);
+    expect((missing as BacktestApiError).unauthorized).toBe(false);
+  });
+
+  it('rejects a malformed body instead of rendering a half-parsed run', async () => {
+    server.use(...backtestHandlers({ runs: [{ backtestRunId: RUN_ID }] }));
+
+    const error = await client().getRun(RUN_ID).catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(BacktestContractError);
+  });
+
+  it('sends the bearer credential the server requires', async () => {
+    const seen: Array<string | null> = [];
+    server.events.on('request:start', ({ request }) => {
+      seen.push(request.headers.get('Authorization'));
+    });
+
+    await client().listRuns({ limit: 10, offset: 0 });
+
+    expect(seen).toContain(`Bearer ${OWNER_TOKEN}`);
+    server.events.removeAllListeners();
+  });
+
+  it('scopes the list to the caller, so another account sees nothing', async () => {
+    const page = await createBacktestClient({
+      baseUrl: BACKTEST_API_BASE,
+      getAccessToken: () => OTHER_OWNER_TOKEN,
+    }).listRuns();
+
+    expect(page.items).toEqual([]);
   });
 });
