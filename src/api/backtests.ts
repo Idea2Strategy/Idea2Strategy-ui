@@ -9,10 +9,21 @@
   * the payloads are camelCase, and a run is identified by `backtestRunId` + `botId`;
     there is no `strategy_version_id`,
   * the terminal success token is `COMPLETED` (`backtest.run_status`), never `COMPLETE`,
-  * the per-ET-month endpoint is `monthly-summaries`, and the only per-month detail the
-    server publishes is `detail-manifests` — object manifests on an ET Monday week
-    boundary. There is no endpoint that returns individual trade records.
+  * the per-ET-month endpoint is `monthly-summaries`, and `detail-manifests` describes
+    the evidence *objects* — Parquet parts on an ET Monday week boundary.
+
+  Individual trade records come from `GET /monthly-trades?et_month=YYYY-MM`, which is
+  served by `result_query.BacktestResultQueryService` rather than the write model. Two
+  consequences that are not cosmetic, both taken from the engine's own tests:
+
+  * a foreign run answers **404, not 403** there. Trade rows are a run's evidence, and
+    a 403 would confirm that the id exists and that somebody else finished it;
+  * every evidence route answers **409 `BACKTEST_RESULT_NOT_READY`** while the run has
+    not reached `COMPLETED`. That is "come back later", not "no such run", and it is
+    never used to mean "the answer is empty": a completed run that traded nothing in a
+    month is `200 {"items": []}`.
 */
+import { browserSessionStore } from '../lib/session';
 
 export type BacktestRunStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'UNAVAILABLE';
 
@@ -153,6 +164,65 @@ export interface BacktestDetailManifest {
   createdAt: string;
 }
 
+/** `ResultRecordKind`. A trade detail row is one of exactly these four. */
+export type BacktestTradeKind = 'ORDER' | 'FILL' | 'CANCELLATION' | 'REJECTION';
+
+/** `execution_model.OrderStatus`. */
+export type BacktestOrderStatus =
+  | 'ACCEPTED'
+  | 'PARTIALLY_FILLED'
+  | 'FILLED'
+  | 'CANCELLED'
+  | 'EXPIRED'
+  | 'REJECTED';
+
+/** One holding as of a trade record, from `result_snapshot.PositionAfter`. */
+export interface BacktestPositionAfter {
+  instrumentId: string;
+  quantity: string;
+  costBasis: string;
+}
+
+/**
+ * One row of `_trade_payload` — a single order, fill, cancellation or rejection.
+ *
+ * Every amount stays a `numeric(24,8)` string. JSON has one number type and it is
+ * binary floating point, so parsing `"100.05000000"` into a `number` here would be
+ * this client taking a rounding decision on the engine's behalf.
+ *
+ * The nullable fields are the nine FILL-only columns plus `reasonCode`: an ORDER or a
+ * REJECTION carries no quantity, price or fee, and `null` is the true answer for them
+ * rather than a zero that would total up wrong.
+ */
+export interface BacktestTrade {
+  recordId: string;
+  /** UTC instant. An ET month is not a UTC month; render it in `America/New_York`. */
+  occurredAt: string;
+  kind: BacktestTradeKind;
+  orderId: string;
+  instrumentId: string;
+  orderStatus: BacktestOrderStatus;
+  cashAfter: string;
+  positionsAfter: BacktestPositionAfter[];
+  reasonCode: string | null;
+  fillId: string | null;
+  quantity: string | null;
+  basePrice: string | null;
+  price: string | null;
+  grossAmount: string | null;
+  slippageAmount: string | null;
+  fee: string | null;
+  costBasis: string | null;
+  realizedPnl: string | null;
+}
+
+/** The `monthly-trades` envelope. `etMonth` echoes the month the server answered. */
+export interface BacktestMonthlyTrades {
+  backtestRunId: string;
+  etMonth: string;
+  items: BacktestTrade[];
+}
+
 export interface ListRunsOptions {
   limit?: number;
   offset?: number;
@@ -165,25 +235,61 @@ export interface BacktestClient {
   getPerformance(runId: string, signal?: AbortSignal): Promise<BacktestPerformanceSummary>;
   listMonthlySummaries(runId: string, signal?: AbortSignal): Promise<BacktestMonthlySummary[]>;
   listDetailManifests(runId: string, signal?: AbortSignal): Promise<BacktestDetailManifest[]>;
+  listMonthlyTrades(
+    runId: string,
+    etMonth: string,
+    signal?: AbortSignal,
+  ): Promise<BacktestMonthlyTrades>;
 }
 
 /**
- * A response the server refused. The status is kept so the screen can tell a
- * credential problem (401/403) from a run that has no summary yet (404) from
- * everything else, instead of collapsing all three into "something went wrong".
+ * The reason code every evidence route carries with its 409. One token for the UI to
+ * branch on; mirrors `api.RESULT_NOT_READY_REASON`.
+ */
+export const RESULT_NOT_READY_REASON = 'BACKTEST_RESULT_NOT_READY';
+
+/**
+ * A response the server refused. The status is kept so the screen can tell the four
+ * apart instead of collapsing them into "something went wrong":
+ *
+ * * **401** — no usable credential. Signing in again is the fix.
+ * * **403** — a valid credential on somebody else's run. Signing in again is not.
+ * * **404** — no such run, or it is not yours (the evidence routes answer this for a
+ *   foreign run on purpose).
+ * * **409 + `BACKTEST_RESULT_NOT_READY`** — the run is yours and the evidence has not
+ *   been published yet. Come back, do not give up.
  */
 export class BacktestApiError extends Error {
-  constructor(readonly status: number, operation: string) {
+  constructor(
+    readonly status: number,
+    operation: string,
+    /** `detail.reasonCode` when the server published one. */
+    readonly reasonCode: string | null = null,
+  ) {
     super(`${operation} failed (${status})`);
     this.name = 'BacktestApiError';
   }
 
+  /** The request carried no credential the server would accept. */
+  get unauthenticated(): boolean {
+    return this.status === 401;
+  }
+
+  /** The credential is good; the run belongs to another account. */
+  get forbidden(): boolean {
+    return this.status === 403;
+  }
+
   get unauthorized(): boolean {
-    return this.status === 401 || this.status === 403;
+    return this.unauthenticated || this.forbidden;
   }
 
   get notFound(): boolean {
     return this.status === 404;
+  }
+
+  get resultNotReady(): boolean {
+    return this.status === 409 && this.reasonCode === RESULT_NOT_READY_REASON;
   }
 }
 
@@ -218,6 +324,38 @@ const ATTEMPT_STATUSES = new Set<BacktestAttemptStatus>([
   'SKIPPED',
 ]);
 
+const TRADE_KINDS = new Set<BacktestTradeKind>(['ORDER', 'FILL', 'CANCELLATION', 'REJECTION']);
+
+const ORDER_STATUSES = new Set<BacktestOrderStatus>([
+  'ACCEPTED',
+  'PARTIALLY_FILLED',
+  'FILLED',
+  'CANCELLED',
+  'EXPIRED',
+  'REJECTED',
+]);
+
+/**
+ * Pull `detail.reasonCode` off a refused response, if it published one.
+ *
+ * FastAPI nests an `HTTPException` detail under `detail`, and only the structured
+ * details carry a code — a plain-string detail, an HTML error page from a proxy, or
+ * an empty body all have to come back `null` rather than throw a second error on top
+ * of the first.
+ */
+async function reasonCodeOf(response: Response): Promise<string | null> {
+  try {
+    const body: unknown = await response.json();
+    if (typeof body !== 'object' || body === null) return null;
+    const detail = (body as { detail?: unknown }).detail;
+    if (typeof detail !== 'object' || detail === null) return null;
+    const code = (detail as { reasonCode?: unknown }).reasonCode;
+    return typeof code === 'string' && code.length > 0 ? code : null;
+  } catch {
+    return null;
+  }
+}
+
 export function createBacktestClient({
   baseUrl = '',
   fetchImpl = fetch,
@@ -235,7 +373,9 @@ export function createBacktestClient({
       },
       signal,
     });
-    if (!response.ok) throw new BacktestApiError(response.status, operation);
+    if (!response.ok) {
+      throw new BacktestApiError(response.status, operation, await reasonCodeOf(response));
+    }
     return response.json();
   };
 
@@ -291,6 +431,33 @@ export function createBacktestClient({
       );
       return items(object(payload, 'detail manifest list'), 'detail manifest list')
         .map(readDetailManifest);
+    },
+
+    async listMonthlyTrades(runId, etMonth, signal) {
+      const query = new URLSearchParams({ et_month: etMonth });
+      const payload = object(
+        await request(
+          `${runPath(runId)}/monthly-trades?${query.toString()}`,
+          'Backtest monthly trade request',
+          signal,
+        ),
+        'monthly trade list',
+      );
+      const answered = month(payload.etMonth);
+      // The month is a required query parameter and the server echoes the one it
+      // parsed. A different month back is a different question answered, and putting
+      // those rows under the tab that was pressed would be a quiet lie about when a
+      // trade happened.
+      if (answered !== etMonth) {
+        throw new BacktestContractError(
+          `monthly-trades answered etMonth ${answered} for the requested ${etMonth}`,
+        );
+      }
+      return {
+        backtestRunId: string(payload.backtestRunId, 'backtestRunId'),
+        etMonth: answered,
+        items: items(payload, 'monthly trade list').map(readTrade),
+      };
     },
   };
 }
@@ -438,6 +605,52 @@ function readDetailManifest(value: unknown): BacktestDetailManifest {
   };
 }
 
+function readTrade(value: unknown): BacktestTrade {
+  const item = object(value, 'trade detail record');
+  const kind = string(item.kind, 'kind');
+  if (!TRADE_KINDS.has(kind as BacktestTradeKind)) {
+    throw new BacktestContractError(`Unsupported trade record kind: ${kind}`);
+  }
+  const orderStatus = string(item.orderStatus, 'orderStatus');
+  if (!ORDER_STATUSES.has(orderStatus as BacktestOrderStatus)) {
+    throw new BacktestContractError(`Unsupported order status: ${orderStatus}`);
+  }
+  if (!Array.isArray(item.positionsAfter)) {
+    throw new BacktestContractError('Invalid positionsAfter');
+  }
+  return {
+    recordId: string(item.recordId, 'recordId'),
+    occurredAt: string(item.occurredAt, 'occurredAt'),
+    kind: kind as BacktestTradeKind,
+    orderId: string(item.orderId, 'orderId'),
+    instrumentId: string(item.instrumentId, 'instrumentId'),
+    orderStatus: orderStatus as BacktestOrderStatus,
+    // Cash after the record is the one amount every kind carries; a rejected order
+    // still states the balance it left behind.
+    cashAfter: decimal(item.cashAfter, 'cashAfter'),
+    positionsAfter: item.positionsAfter.map(readPositionAfter),
+    reasonCode: nullableString(item.reasonCode, 'reasonCode'),
+    fillId: nullableString(item.fillId, 'fillId'),
+    quantity: nullableDecimal(item.quantity, 'quantity'),
+    basePrice: nullableDecimal(item.basePrice, 'basePrice'),
+    price: nullableDecimal(item.price, 'price'),
+    grossAmount: nullableDecimal(item.grossAmount, 'grossAmount'),
+    slippageAmount: nullableDecimal(item.slippageAmount, 'slippageAmount'),
+    fee: nullableDecimal(item.fee, 'fee'),
+    costBasis: nullableDecimal(item.costBasis, 'costBasis'),
+    realizedPnl: nullableDecimal(item.realizedPnl, 'realizedPnl'),
+  };
+}
+
+function readPositionAfter(value: unknown): BacktestPositionAfter {
+  const item = object(value, 'position after');
+  return {
+    instrumentId: string(item.instrumentId, 'positionsAfter.instrumentId'),
+    quantity: decimal(item.quantity, 'positionsAfter.quantity'),
+    costBasis: decimal(item.costBasis, 'positionsAfter.costBasis'),
+  };
+}
+
 function items(payload: Record<string, unknown>, label: string): unknown[] {
   if (!Array.isArray(payload.items)) throw new BacktestContractError(`Invalid ${label}`);
   return payload.items;
@@ -524,6 +737,13 @@ function month(value: unknown): string {
   return parsed;
 }
 
+/*
+  The shipped client. Its credential comes from the session this tab holds and from
+  nowhere else: no token is compiled into the bundle, and when nobody is signed in
+  `accessToken()` is `null`, the `Authorization` header is omitted, and the server
+  answers 401 — which the screen shows as "sign in", not as a broken backtest.
+*/
 export const defaultBacktestClient = createBacktestClient({
   baseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
+  getAccessToken: () => browserSessionStore.accessToken(),
 });

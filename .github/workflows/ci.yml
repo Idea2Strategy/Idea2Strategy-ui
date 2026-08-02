@@ -34,3 +34,16 @@ jobs:
         run: pnpm exec vitest run
       - name: Build
         run: pnpm build
+      # Chromium only: the suite drives one browser against a mock of the backtest
+      # engine's HTTP contract, so a second engine would cost minutes and prove the
+      # same thing twice.
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+      - name: End-to-end
+        run: pnpm e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

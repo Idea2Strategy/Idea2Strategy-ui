@@ -1,12 +1,18 @@
+import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   BACKTEST_API_BASE,
   CONFIGURATION_HASH,
+  INSTRUMENT_ID,
+  JULY_FILL_RECORD_ID,
+  JULY_REJECTION_RECORD_ID,
+  JULY_TRADES,
   MONTHLY_SUMMARIES,
   OTHER_OWNER_RUN_ID,
   OTHER_OWNER_TOKEN,
   OWNER_TOKEN,
+  QUEUED_RUN,
   RESULT_HASH,
   RUN_ID,
   UNAVAILABLE_RUN,
@@ -211,6 +217,111 @@ describe('backtest results API client', () => {
     expect(manifests[1].weekStartDate).toBe('2026-07-27');
     expect(manifests[2].recordType).toBe('POSITION_SNAPSHOT');
     expect(manifests[2].supersedesManifestId).toBeNull();
+  });
+
+  it('reads one ET month of individual trade records', async () => {
+    const page = await client().listMonthlyTrades(RUN_ID, '2026-07');
+
+    expect(page.backtestRunId).toBe(RUN_ID);
+    expect(page.etMonth).toBe('2026-07');
+    expect(page.items.map((item) => item.recordId)).toEqual([
+      JULY_FILL_RECORD_ID,
+      JULY_REJECTION_RECORD_ID,
+    ]);
+
+    const [fill, rejection] = page.items;
+    expect(fill.kind).toBe('FILL');
+    expect(fill.orderStatus).toBe('FILLED');
+    expect(fill.occurredAt).toBe('2026-08-01T03:30:00Z');
+    // Money stays the engine's `numeric(24,8)` text; parsing it into a float here
+    // would be this client rounding on the engine's behalf.
+    expect(fill.price).toBe('100.05000000');
+    expect(fill.fee).toBe('2.20000000');
+    expect(fill.cashAfter).toBe('9897.80000000');
+    expect(fill.positionsAfter).toEqual([
+      { instrumentId: INSTRUMENT_ID, quantity: '1.00000000', costBasis: '100.05000000' },
+    ]);
+
+    // A rejected order has none of the nine FILL-only columns, and null is the answer.
+    expect(rejection.kind).toBe('REJECTION');
+    expect(rejection.reasonCode).toBe('INSUFFICIENT_BUYING_POWER');
+    expect(rejection.fillId).toBeNull();
+    expect(rejection.quantity).toBeNull();
+    expect(rejection.fee).toBeNull();
+    expect(rejection.realizedPnl).toBeNull();
+    expect(rejection.cashAfter).toBe('9997.85000000');
+  });
+
+  it('sends et_month as the required query parameter', async () => {
+    const seen: string[] = [];
+    server.events.on('request:start', ({ request }) => seen.push(request.url));
+
+    await client().listMonthlyTrades(RUN_ID, '2026-07');
+
+    expect(seen.at(-1)).toContain('/monthly-trades?et_month=2026-07');
+    server.events.removeAllListeners();
+  });
+
+  it('is an empty month, not an error, when the run traded nothing that month', async () => {
+    const page = await client().listMonthlyTrades(RUN_ID, '2026-08');
+
+    expect(page.items).toEqual([]);
+    expect(page.etMonth).toBe('2026-08');
+  });
+
+  it('refuses an answer about a month other than the one asked for', async () => {
+    server.use(http.get(
+      `${BACKTEST_API_BASE}/api/v1/backtests/:runId/monthly-trades`,
+      () => HttpResponse.json({ backtestRunId: RUN_ID, etMonth: '2026-06', items: [] }),
+    ));
+
+    await expect(client().listMonthlyTrades(RUN_ID, '2026-07'))
+      .rejects.toBeInstanceOf(BacktestContractError);
+  });
+
+  it('rejects a trade record whose kind the engine does not publish', async () => {
+    server.use(...backtestHandlers({
+      monthlyTrades: { '2026-07': [{ ...JULY_TRADES[0], kind: 'TRADE' }] },
+    }));
+
+    await expect(client().listMonthlyTrades(RUN_ID, '2026-07'))
+      .rejects.toThrow('Unsupported trade record kind: TRADE');
+  });
+
+  it('rejects a trade whose amount arrived as a JSON number', async () => {
+    // The whole reason these columns are text. A float here is a value that has
+    // already lost precision by the time this client sees it.
+    server.use(...backtestHandlers({
+      monthlyTrades: { '2026-07': [{ ...JULY_TRADES[0], price: 100.05 }] },
+    }));
+
+    await expect(client().listMonthlyTrades(RUN_ID, '2026-07'))
+      .rejects.toBeInstanceOf(BacktestContractError);
+  });
+
+  it('reports an unfinished run as 409 not-ready rather than as a missing run', async () => {
+    server.use(...backtestHandlers({ runs: [QUEUED_RUN], performance: null }));
+
+    const error = await client().listMonthlyTrades(RUN_ID, '2026-07')
+      .catch((cause: unknown) => cause);
+
+    expect(error).toBeInstanceOf(BacktestApiError);
+    expect((error as BacktestApiError).status).toBe(409);
+    expect((error as BacktestApiError).reasonCode).toBe('BACKTEST_RESULT_NOT_READY');
+    expect((error as BacktestApiError).resultNotReady).toBe(true);
+    expect((error as BacktestApiError).notFound).toBe(false);
+  });
+
+  it('reports a foreign run 404 on the evidence route, which never says 403', async () => {
+    // `result_query` fails closed: a 403 here would confirm the run exists and that
+    // another account finished it.
+    const error = await createBacktestClient({
+      baseUrl: BACKTEST_API_BASE,
+      getAccessToken: () => OTHER_OWNER_TOKEN,
+    }).listMonthlyTrades(RUN_ID, '2026-07').catch((cause: unknown) => cause);
+
+    expect((error as BacktestApiError).status).toBe(404);
+    expect((error as BacktestApiError).forbidden).toBe(false);
   });
 
   it('reports a missing credential as 401 rather than as a transport failure', async () => {
