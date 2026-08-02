@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
 import { Button, DataTable, EmptyState, PageHeading, Status, TabPanel, Tabs } from '../components/common';
+import type { DataTableColumn } from '../components/common';
 import { EquityChart } from '../components/EquityChart';
 import { LiveExecutionChart } from '../components/LiveExecutionChart';
 import type { LiveMarketBar } from '../components/LiveExecutionChart';
@@ -32,16 +33,8 @@ import type {
   BotOrder,
   BotPosition,
   BotStopSettlementAction,
+  BotTradingClient,
 } from '../api/botTrading';
-
-/** The five remaining canonical surfaces, loaded together for the selected bot. */
-interface LiveTrading {
-  orders: BotOrder[];
-  fills: BotFill[];
-  budget: BotBudget;
-  reasons: BotDecisionReason[];
-  stopSettlement: BotStopSettlementAction[];
-}
 import type {
   BotJudgmentLogEntry,
   BotOperationsClient,
@@ -52,7 +45,7 @@ import type {
 /* ---------- Types ----------------------------------------------------------- */
 
 type FilterId = 'personal' | 'competition';
-type TabId = 'live' | 'overview' | 'positions' | 'decisions';
+type TabId = 'live' | 'overview' | 'positions' | 'orders' | 'decisions';
 type StepTone = 'universe' | 'data' | 'indicator' | 'condition' | 'risk' | 'order' | 'portfolio' | 'time';
 type LogScope = 'fills' | 'all';
 type LogPeriod = 'all' | 'today' | 'week' | 'month';
@@ -83,6 +76,36 @@ interface Position {
   share: string;
 }
 
+/* One order of the bot, as the 주문 table shows it. Every quantity stays the
+   string the ledger sent. */
+interface OrderRow {
+  orderId: string;
+  symbol: string;
+  side: string;
+  kind: string;
+  quantity: string;
+  remaining: string;
+  status: string;
+  acceptedAt: string;
+}
+
+interface PartitionBudgetRow {
+  partitionId: string;
+  partition: string;
+  cap: string;
+  reserved: string;
+  invested: string;
+}
+
+interface StopSettlementRow {
+  actionId: string;
+  symbol: string;
+  reason: string;
+  quantity: string;
+  intent: string;
+  createdAt: string;
+}
+
 /*
   The decision log is the single timeline: fills are the decisions that
   produced orders (attributed to the partition whose strategy created them),
@@ -90,7 +113,7 @@ interface Position {
 */
 type LogEvent =
   | { kind: 'fill'; eventId?: string; sequence?: number; timestamp?: string; time: string; side: '매수' | '매도'; symbol: string; quantity: string; price: string; partition: string; rule: string }
-  | { kind: 'note'; eventId?: string; sequence?: number; tone: 'positive' | 'neutral' | 'muted'; time: string; title: string; detail: string };
+  | { kind: 'note'; eventId?: string; sequence?: number; timestamp?: string; tone: 'positive' | 'neutral' | 'muted'; time: string; title: string; detail: string };
 
 interface SnapshotBlock {
   tone: StepTone;
@@ -350,11 +373,35 @@ const LOG_PERIODS: Array<{ id: LogPeriod; label: string }> = [
 ];
 const PERIOD_DAYS: Record<LogPeriod, number> = { all: Number.POSITIVE_INFINITY, today: 0, week: 7, month: 30 };
 
-/* Event times are 'MM.DD HH:MM ET' strings; the sample "today" is 07.23. */
-const eventDaysAgo = (time: string): number => {
-  const match = time.match(/^(\d{2})\.(\d{2})/);
+const utcDayStart = (value: number): number => {
+  const at = new Date(value);
+  return Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate());
+};
+
+/*
+  How long ago an event happened, in whole days.
+
+  A real record carries its own instant, so it is counted against today. Only
+  the sample content falls back to reading 'MM.DD HH:MM ET' off the label
+  against the sample's own "today" of 07.23 — measuring a live fill against a
+  fixed date in the past put every one of them under 오늘.
+*/
+const eventDaysAgo = (event: LogEvent): number => {
+  if (event.timestamp) {
+    const at = Date.parse(event.timestamp);
+    if (!Number.isNaN(at)) {
+      return Math.round((utcDayStart(Date.now()) - utcDayStart(at)) / 86400000);
+    }
+  }
+  const match = event.time.match(/^(\d{2})\.(\d{2})/);
   if (!match) return 0;
   return Math.round((SAMPLE_END_DATE - Date.UTC(2026, Number(match[1]) - 1, Number(match[2]))) / 86400000);
+};
+
+/* Newest first, the way the read APIs order every one of these surfaces. */
+const eventInstant = (event: LogEvent): number => {
+  const at = event.timestamp ? Date.parse(event.timestamp) : Number.NaN;
+  return Number.isNaN(at) ? 0 : at;
 };
 
 const botOperationFilters: Array<{ id: FilterId; label: string }> = [
@@ -385,6 +432,10 @@ const OPERATION_STATE_LABELS: Record<BotOperationsState, string> = {
 const automaticBotOperationsClient = import.meta.env.MODE === 'test'
   ? null
   : defaultBotOperationsClient;
+
+const automaticBotTradingClient = import.meta.env.MODE === 'test'
+  ? null
+  : defaultBotTradingClient;
 
 const mergeBotOperations = (operations: BotOperationsView[]): BotRecord[] => operations.map((operation) => {
   const existing = staticBotList.find((bot) => bot.name === operation.name);
@@ -471,20 +522,142 @@ const toPositionRow = (position: BotPosition): Position => {
   };
 };
 
-interface BudgetRow {
-  label: string;
-  amount: string;
-}
+/**
+ * An exact decimal, made readable without ever becoming a number.
+ *
+ * The server sends `250.00000000`; the screen should say `250`. Dropping the trailing zeros is a
+ * string edit, so every remaining digit is the one the ledger wrote — `Number()` would have
+ * rounded a twenty-digit cost basis to whatever binary float sits nearest.
+ */
+const trimAmount = (value: string): string => {
+  if (!value.includes('.')) return value;
+  const trimmed = value.replace(/\.?0+$/, '');
+  return trimmed === '' || trimmed === '-' || trimmed === '-0' ? '0' : trimmed;
+};
 
-/** The budget projection as rows, currency stated once rather than per line. */
-const budgetRows = (budget: BotBudget): BudgetRow[] => {
-  const currency = budget.currencyCode ?? '';
-  const money = (value: string | null) => (value === null ? UNVALUED : `${value} ${currency}`.trim());
-  return [
-    { label: '가용 현금', amount: money(budget.availableCashAmount) },
-    { label: '예약 중', amount: money(budget.activeReservationAmount) },
-    { label: '투자 중', amount: money(budget.investedAmount) },
-  ];
+const amountLabel = (currencyCode: string | null, value: string | null): string => {
+  if (value === null) return UNVALUED;
+  return currencyCode === null ? trimAmount(value) : `${currencyCode} ${trimAmount(value)}`;
+};
+
+/* Enough of an identifier to tell two rows apart and to match one against the
+   record it names, without a UUID taking a whole column. */
+const shortId = (id: string): string => `#${id.slice(0, 8)}`;
+
+const ORDER_SIDE_LABELS: Record<string, string> = { BUY: '매수', SELL: '매도' };
+
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  PENDING: '접수됨',
+  OPEN: '대기 중',
+  FILLED: '체결 완료',
+  CANCELLED: '취소됨',
+  EXPIRED: '만료됨',
+  REJECTED: '거절됨',
+};
+
+/*
+  Every intent this surface returns was refused or cut down — an intent that
+  went through whole carries no reason. So APPROVED here means approved for
+  less than was asked for, which is a reduction and reads as one.
+*/
+const DECISION_LABELS: Record<string, string> = {
+  APPROVED: '수량 축소',
+  REJECTED: '주문 거절',
+  REDUCED: '수량 축소',
+  NETTED: '수량 상계',
+  CONFLICTED: '충돌 보류',
+};
+
+const STOP_REASON_LABELS: Record<string, string> = {
+  RISK_LIMIT_BREACH: '위험 한도 초과',
+  BOT_STOP: '봇 중단',
+  COMPETITION_END: '대회 종료',
+  DATA_INTEGRITY_BLOCK: '데이터 무결성 차단',
+};
+
+const VALUATION_LABELS: Record<string, string> = { UNVALUED: '평가 없음' };
+
+const toOrderRow = (item: BotOrder): OrderRow => ({
+  orderId: item.orderId,
+  symbol: tickerLabel(item.symbol, item.currentSymbol),
+  side: ORDER_SIDE_LABELS[item.side] ?? item.side,
+  kind: `${item.orderType} · ${item.timeInForce}`,
+  quantity: `${trimAmount(item.filledQuantity)} / ${trimAmount(item.requestedQuantity)}`,
+  remaining: trimAmount(item.remainingQuantity),
+  status: ORDER_STATUS_LABELS[item.status] ?? item.status,
+  acceptedAt: formatRuntimeTime(item.acceptedAt),
+});
+
+const toPartitionBudgetRow = (
+  item: BotBudget['partitions'][number],
+  currencyCode: string | null,
+): PartitionBudgetRow => ({
+  partitionId: item.partitionId,
+  partition: shortId(item.partitionId),
+  cap: amountLabel(currencyCode, item.budgetCapAmount),
+  reserved: amountLabel(currencyCode, item.activeReservationAmount),
+  invested: amountLabel(currencyCode, item.investedAmount),
+});
+
+const toStopSettlementRow = (item: BotStopSettlementAction): StopSettlementRow => ({
+  actionId: item.actionId,
+  symbol: tickerLabel(item.symbol, item.currentSymbol),
+  reason: STOP_REASON_LABELS[item.reasonType] ?? item.reasonType,
+  quantity: trimAmount(item.requestedQuantity),
+  intent: shortId(item.generatedIntentId),
+  createdAt: formatRuntimeTime(item.createdAt),
+});
+
+/**
+ * Which way a fill went.
+ *
+ * <p>A fill row carries no side of its own; the order it belongs to does, so that answers whenever
+ * the order is loaded. Otherwise the settlement cash movement answers: cash out bought, cash in
+ * sold. Only the leading sign of the string is read, so the amount is never parsed.
+ */
+const fillSide = (item: BotFill, orderSide: string | undefined): '매수' | '매도' => {
+  if (orderSide === 'BUY') return '매수';
+  if (orderSide === 'SELL') return '매도';
+  return item.settlementCashDelta.trimStart().startsWith('-') ? '매수' : '매도';
+};
+
+const fillToLogEvent = (
+  item: BotFill,
+  orderSide: string | undefined,
+): Extract<LogEvent, { kind: 'fill' }> => ({
+  kind: 'fill',
+  eventId: item.fillId,
+  timestamp: item.occurredAt,
+  time: formatRuntimeTime(item.occurredAt),
+  side: fillSide(item, orderSide),
+  symbol: tickerLabel(item.symbol, item.currentSymbol),
+  quantity: `${trimAmount(item.quantity)}주`,
+  price: trimAmount(item.fillPrice),
+  partition: `주문 ${shortId(item.orderId)}`,
+  /* The settlement delta is the figure that actually moved the ledger, so it
+     is stated rather than left to be inferred from the gross and the fee. */
+  rule: `체결금액 ${trimAmount(item.grossAmount)} · 수수료 ${trimAmount(item.feeAmount)} · 현금 증감 ${trimAmount(item.settlementCashDelta)}`,
+});
+
+/*
+  A refusal or a reduction is a decision that produced no order, or a smaller
+  one than the strategy asked for, so it belongs in the log as a record rather
+  than a fill. The requested against the final quantity is what makes a
+  reduction legible instead of merely reported.
+*/
+const decisionReasonToLogEvent = (item: BotDecisionReason): LogEvent => {
+  const quantities = item.requestedQuantity !== null && item.finalQuantity !== null
+    ? ` · 요청 수량 ${trimAmount(item.requestedQuantity)} → 확정 수량 ${trimAmount(item.finalQuantity)}`
+    : '';
+  return {
+    kind: 'note',
+    eventId: item.intentId,
+    timestamp: item.batchFinalizedAt ?? undefined,
+    tone: item.decision === 'REJECTED' || item.decision === 'CONFLICTED' ? 'muted' : 'neutral',
+    time: item.batchFinalizedAt === null ? UNVALUED : formatRuntimeTime(item.batchFinalizedAt),
+    title: `${tickerLabel(item.symbol, item.currentSymbol)} ${DECISION_LABELS[item.decision] ?? item.decision}`,
+    detail: `사유 ${item.reasonCode}${quantities}`,
+  };
 };
 
 const judgmentToLogEvent = (entry: BotJudgmentLogEntry): LogEvent => {
@@ -1021,6 +1194,9 @@ interface BotsViewProps {
   botIcons?: BotIconMap;
   onBotIconChange?: (botName: string, selection: BotIconSelection) => void;
   operationsClient?: BotOperationsClient | null;
+  /* The trading and ledger record is read only, so it needs no polling: the
+     six surfaces load once per selected bot. */
+  tradingClient?: BotTradingClient | null;
   pollIntervalMs?: number;
   /* 대회 리더보드에서 내 봇을 눌러 들어오는 경로(#54). 그 봇이 보이는
      운용 유형으로 필터까지 맞춰 열어야 목록에서 사라지지 않는다. */
@@ -1031,6 +1207,7 @@ export function BotsView({
   botIcons: controlledBotIcons,
   onBotIconChange,
   operationsClient = automaticBotOperationsClient,
+  tradingClient = automaticBotTradingClient,
   pollIntervalMs = 5000,
   initialBot,
 }: BotsViewProps = {}): ReactNode {
@@ -1054,10 +1231,15 @@ export function BotsView({
   const [logScope, setLogScope] = useState<LogScope>('fills');
   const [logPeriod, setLogPeriod] = useState<LogPeriod>('all');
   const [decisionSymbol, setDecisionSymbol] = useState('');
-  /* Real canonical positions for the selected bot. Null until one has loaded,
-     which is what keeps the sample content in place on the demo screens. */
+  /* The selected bot's real trading and ledger record. Each surface is null
+     until it has loaded, which is what keeps the sample content in place on
+     the demo screens and lets one surface fail without blanking the rest. */
   const [livePositions, setLivePositions] = useState<BotPosition[] | null>(null);
-  const [liveTrading, setLiveTrading] = useState<LiveTrading | null>(null);
+  const [liveOrders, setLiveOrders] = useState<BotOrder[] | null>(null);
+  const [liveFills, setLiveFills] = useState<BotFill[] | null>(null);
+  const [liveBudget, setLiveBudget] = useState<BotBudget | null>(null);
+  const [liveDecisionReasons, setLiveDecisionReasons] = useState<BotDecisionReason[] | null>(null);
+  const [liveStopSettlement, setLiveStopSettlement] = useState<BotStopSettlementAction[] | null>(null);
   const [operations, setOperations] = useState<BotOperationsView[] | null>(null);
   const [judgmentsByBot, setJudgmentsByBot] = useState<Record<string, BotJudgmentLogEntry[]>>({});
   const [operationsError, setOperationsError] = useState<string | null>(null);
@@ -1114,14 +1296,24 @@ export function BotsView({
 
   const visibleBots = activeBots.filter((bot) => matchesBotFilter(bot, filter));
   const selected = visibleBots.find((bot) => bot.name === selectedName) ?? visibleBots[0] ?? null;
+  /* Fills and refusals join the one timeline the decision log already is, so
+     the same moment is never told in two places. */
+  const tradingLogEvents = useMemo(() => {
+    const sideByOrder = new Map((liveOrders ?? []).map((item) => [item.orderId, item.side]));
+    return [
+      ...(liveFills ?? []).map((item) => fillToLogEvent(item, sideByOrder.get(item.orderId))),
+      ...(liveDecisionReasons ?? []).map(decisionReasonToLogEvent),
+    ];
+  }, [liveDecisionReasons, liveFills, liveOrders]);
   const detail = useMemo(() => {
     if (!selected) return null;
     const base = botDetails[selected.name] ?? emptyBotDetail(selected.name);
     const liveEntries = selected.id ? judgmentsByBot[selected.id] : undefined;
-    return liveEntries === undefined
-      ? base
-      : { ...base, events: liveEntries.map(judgmentToLogEvent) };
-  }, [judgmentsByBot, selected]);
+    if (liveEntries === undefined && tradingLogEvents.length === 0) return base;
+    const events = [...(liveEntries ?? []).map(judgmentToLogEvent), ...tradingLogEvents]
+      .sort((left, right) => eventInstant(right) - eventInstant(left));
+    return { ...base, events };
+  }, [judgmentsByBot, selected, tradingLogEvents]);
   const selectedOperations = selected?.id
     ? operations?.find((item) => item.botId === selected.id) ?? null
     : null;
@@ -1200,60 +1392,48 @@ export function BotsView({
     };
   }, [operationsClient, pollIntervalMs, selected?.id]);
 
-  /* The bot's real holdings. Canonical keeps quantity and cost basis and no
-     valuation, so this fills the columns it can and leaves the rest blank
-     rather than inventing a price. */
-  useEffect(() => {
-    if (!operationsClient || !selected?.id) {
-      setLivePositions(null);
-      return undefined;
-    }
-    const botId = selected.id;
-    const controller = new AbortController();
-    let cancelled = false;
-    defaultBotTradingClient
-      .listPositions(botId, controller.signal)
-      .then((positions) => {
-        if (!cancelled) setLivePositions(positions);
-      })
-      .catch(() => {
-        if (!cancelled) setLivePositions(null);
-      });
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [operationsClient, selected?.id]);
+  /*
+    The bot's real trading and ledger record: orders, fills, holdings, the
+    strategy budget, refused or reduced intents, and what a forced stop
+    liquidated.
 
-  /* The remaining five surfaces. Loaded as one set so a tab never shows half a
-     picture, and dropped whole if any of them fails. */
+    They are read together and they fail apart — a gateway that drops the
+    orders must not blank the holdings that arrived, so each surface keeps its
+    own null and its own empty state. Canonical keeps quantity and cost basis
+    and no valuation, so what has no price behind it reads blank rather than
+    invented.
+  */
   useEffect(() => {
-    if (!operationsClient || !selected?.id) {
-      setLiveTrading(null);
+    if (!tradingClient || !selected?.id) {
+      setLivePositions(null);
+      setLiveOrders(null);
+      setLiveFills(null);
+      setLiveBudget(null);
+      setLiveDecisionReasons(null);
+      setLiveStopSettlement(null);
       return undefined;
     }
     const botId = selected.id;
     const controller = new AbortController();
-    const signal = controller.signal;
     let cancelled = false;
-    Promise.all([
-      defaultBotTradingClient.listOrders(botId, undefined, signal),
-      defaultBotTradingClient.listFills(botId, undefined, signal),
-      defaultBotTradingClient.getBudget(botId, signal),
-      defaultBotTradingClient.listDecisionReasons(botId, undefined, signal),
-      defaultBotTradingClient.listStopSettlement(botId, signal),
-    ])
-      .then(([orders, fills, budget, reasons, stopSettlement]) => {
-        if (!cancelled) setLiveTrading({ orders, fills, budget, reasons, stopSettlement });
-      })
-      .catch(() => {
-        if (!cancelled) setLiveTrading(null);
-      });
+    const load = <T,>(read: Promise<T>, apply: (value: T | null) => void) => {
+      read
+        .then((value) => { if (!cancelled) apply(value); })
+        .catch(() => { if (!cancelled) apply(null); });
+    };
+
+    load(tradingClient.listPositions(botId, controller.signal), setLivePositions);
+    load(tradingClient.listOrders(botId, undefined, controller.signal), setLiveOrders);
+    load(tradingClient.listFills(botId, undefined, controller.signal), setLiveFills);
+    load(tradingClient.getBudget(botId, controller.signal), setLiveBudget);
+    load(tradingClient.listDecisionReasons(botId, undefined, controller.signal), setLiveDecisionReasons);
+    load(tradingClient.listStopSettlement(botId, controller.signal), setLiveStopSettlement);
+
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [operationsClient, selected?.id]);
+  }, [selected?.id, tradingClient]);
   const fillEvents = useMemo(
     () => (detail?.events ?? []).filter((event): event is Extract<LogEvent, { kind: 'fill' }> => event.kind === 'fill'),
     [detail],
@@ -1313,7 +1493,7 @@ export function BotsView({
 
   const visibleEvents = (detail?.events ?? []).filter((event) => {
     if (logScope === 'fills' && event.kind !== 'fill') return false;
-    if (eventDaysAgo(event.time) > PERIOD_DAYS[logPeriod]) return false;
+    if (eventDaysAgo(event) > PERIOD_DAYS[logPeriod]) return false;
     const query = logQuery.trim().toLowerCase();
     if (!query) return true;
     const haystack = event.kind === 'fill'
@@ -1322,54 +1502,37 @@ export function BotsView({
     return haystack.toLowerCase().includes(query);
   });
 
-  /* Every instrument name goes through tickerLabel: the ticker of the moment
-     with today's in brackets only when it changed. Amounts are printed as the
-     server sent them — they are exact decimals and reformatting them through a
-     JavaScript number would round a fee. */
-  const orderColumns = [
-    { key: 'symbol', label: '종목', render: (row: BotOrder) => <strong>{tickerLabel(row.symbol, row.currentSymbol)}</strong> },
-    { key: 'side', label: '구분', render: (row: BotOrder) => row.side },
-    { key: 'orderType', label: '유형', render: (row: BotOrder) => row.orderType },
-    { key: 'requestedQuantity', label: '주문 수량', render: (row: BotOrder) => row.requestedQuantity },
-    { key: 'filledQuantity', label: '체결 수량', render: (row: BotOrder) => row.filledQuantity },
-    { key: 'status', label: '상태', render: (row: BotOrder) => row.status },
-  ];
-
-  const fillColumns = [
-    { key: 'symbol', label: '종목', render: (row: BotFill) => <strong>{tickerLabel(row.symbol, row.currentSymbol)}</strong> },
-    { key: 'quantity', label: '수량', render: (row: BotFill) => row.quantity },
-    { key: 'fillPrice', label: '체결가', render: (row: BotFill) => row.fillPrice },
-    { key: 'feeAmount', label: '수수료', render: (row: BotFill) => row.feeAmount },
-    { key: 'settlementCashDelta', label: '현금 증감', render: (row: BotFill) => row.settlementCashDelta },
-  ];
-
-  const reasonColumns = [
-    { key: 'symbol', label: '종목', render: (row: BotDecisionReason) => <strong>{tickerLabel(row.symbol, row.currentSymbol)}</strong> },
-    { key: 'decision', label: '결정', render: (row: BotDecisionReason) => row.decision },
-    { key: 'reasonCode', label: '사유', render: (row: BotDecisionReason) => row.reasonCode },
-    /* Requested against final is what makes a reduction legible rather than
-       merely reported. */
-    { key: 'requestedQuantity', label: '요청 수량', render: (row: BotDecisionReason) => row.requestedQuantity ?? UNVALUED },
-    { key: 'finalQuantity', label: '최종 수량', render: (row: BotDecisionReason) => row.finalQuantity ?? UNVALUED },
-  ];
-
-  const stopColumns = [
-    { key: 'symbol', label: '종목', render: (row: BotStopSettlementAction) => <strong>{tickerLabel(row.symbol, row.currentSymbol)}</strong> },
-    { key: 'reasonType', label: '사유', render: (row: BotStopSettlementAction) => row.reasonType },
-    { key: 'requestedQuantity', label: '정산 수량', render: (row: BotStopSettlementAction) => row.requestedQuantity },
-  ];
-
-  const budgetColumns = [
-    { key: 'label', label: '항목', render: (row: BudgetRow) => <strong>{row.label}</strong> },
-    { key: 'amount', label: '금액', render: (row: BudgetRow) => row.amount },
-  ];
-
   const positionColumns: PositionColumn[] = [
     { key: 'symbol', label: '종목', render: (row) => <strong>{row.symbol}</strong> },
     { key: 'qty', label: '수량' }, { key: 'avg', label: '평균가' }, { key: 'price', label: '현재가' },
     { key: 'pnl', label: '평가손익', render: (row) => <span className={row.pnl.startsWith('+') ? 'positive' : 'negative'}>{row.pnl}</span> },
     { key: 'rate', label: '수익률', render: (row) => <span className={row.rate.startsWith('+') ? 'positive' : 'negative'}>{row.rate}</span> },
     { key: 'share', label: '비중' },
+  ];
+
+  const orderColumns: Array<DataTableColumn<OrderRow>> = [
+    { key: 'symbol', label: '종목', render: (row) => <strong>{row.symbol}</strong> },
+    { key: 'side', label: '매매 방향' },
+    { key: 'kind', label: '유형' },
+    { key: 'quantity', label: '체결 / 요청' },
+    { key: 'remaining', label: '잔여' },
+    { key: 'status', label: '상태' },
+    { key: 'acceptedAt', label: '접수 시각' },
+  ];
+
+  const partitionBudgetColumns: Array<DataTableColumn<PartitionBudgetRow>> = [
+    { key: 'partition', label: '구획', render: (row) => <strong>{row.partition}</strong> },
+    { key: 'cap', label: '예산 상한' },
+    { key: 'reserved', label: '예약 중' },
+    { key: 'invested', label: '투자 중' },
+  ];
+
+  const stopSettlementColumns: Array<DataTableColumn<StopSettlementRow>> = [
+    { key: 'symbol', label: '종목', render: (row) => <strong>{row.symbol}</strong> },
+    { key: 'reason', label: '사유' },
+    { key: 'quantity', label: '수량' },
+    { key: 'intent', label: '생성 지시' },
+    { key: 'createdAt', label: '생성 시각' },
   ];
 
   // Up to 30 days of the selected bot's curve, shown as P&L with the rate in
@@ -1553,7 +1716,8 @@ export function BotsView({
             items={[
               { id: 'live', label: '실시간' },
               { id: 'overview', label: '개요' },
-              { id: 'positions', label: '포지션', count: detail.positions.length },
+              { id: 'positions', label: '포지션', count: livePositions?.length ?? detail.positions.length },
+              { id: 'orders', label: '주문 기록', count: liveOrders?.length },
               { id: 'decisions', label: '판단 기록', count: detail.events.length },
             ]}
           />
@@ -1577,13 +1741,41 @@ export function BotsView({
         </TabPanel>}
 
         {tab === 'overview' && <TabPanel id="overview">
-          <div className="bots-overview-figures">
-            <div><span>총자산</span><strong>{selected.capital}</strong><small>{`${signedMoney(botProfit[botProfit.length - 1])} · ${percent(detail.monthReturn)}`}</small></div>
-            <div><span>투자 중</span><strong>{detail.invested}</strong></div>
-            {/* Cash IS the buying power here — the product has no margin, so a
-                separate buying-power figure would just repeat this number. */}
-            <div><span>현금</span><strong>{detail.cash}</strong><small>주문 가능 금액</small></div>
-          </div>
+          {/* The real strategy budget, when it has loaded. 총자산 stays blank
+              on purpose: the budget API reports cash, reservations and the
+              invested amount and no total, and available cash already excludes
+              segregated short proceeds and collateral, so adding the two would
+              produce a number that is not the bot's equity. */}
+          {liveBudget !== null
+            ? <div className="bots-overview-figures is-live" role="group" aria-label={`${selected.name} 예산 현황`}>
+              <div><span>총자산</span><strong>{UNVALUED}</strong><small>예산 API에 총액 없음</small></div>
+              <div>
+                <span>투자 중</span>
+                <strong>{amountLabel(liveBudget.currencyCode, liveBudget.investedAmount)}</strong>
+                <small>{liveBudget.valuationAt === null
+                  ? (VALUATION_LABELS[liveBudget.valuationStatus] ?? liveBudget.valuationStatus)
+                  : `${VALUATION_LABELS[liveBudget.valuationStatus] ?? liveBudget.valuationStatus} · ${formatRuntimeTime(liveBudget.valuationAt)}`}</small>
+              </div>
+              {/* Cash IS the buying power here — the product has no margin, so a
+                  separate buying-power figure would just repeat this number. */}
+              <div>
+                <span>현금</span>
+                <strong>{amountLabel(liveBudget.currencyCode, liveBudget.availableCashAmount)}</strong>
+                <small>주문 가능 금액</small>
+              </div>
+              <div>
+                <span>예약 중</span>
+                <strong>{amountLabel(liveBudget.currencyCode, liveBudget.activeReservationAmount)}</strong>
+                <small>미체결 주문 예약</small>
+              </div>
+            </div>
+            : <div className="bots-overview-figures">
+              <div><span>총자산</span><strong>{selected.capital}</strong><small>{`${signedMoney(botProfit[botProfit.length - 1])} · ${percent(detail.monthReturn)}`}</small></div>
+              <div><span>투자 중</span><strong>{detail.invested}</strong></div>
+              {/* Cash IS the buying power here — the product has no margin, so a
+                  separate buying-power figure would just repeat this number. */}
+              <div><span>현금</span><strong>{detail.cash}</strong><small>주문 가능 금액</small></div>
+            </div>}
           <div className="bots-overview-timing">
             <span><Timer size={14} aria-hidden="true" />{startLabel}</span>
             <strong>{selected.startedAt}</strong>
@@ -1603,19 +1795,37 @@ export function BotsView({
             />
           </div>
 
-          {/* The strategy budget, as the canonical projection holds it. A bot
-              that has not traded yet answers UNVALUED rather than nothing, so
-              the absence of a figure is stated instead of shown as zero. */}
-          {liveTrading && <section className="bots-budget" aria-label={`${selected.name} 전략 예산`}>
-            <h3>전략 예산</h3>
-            {liveTrading.budget.valuationStatus === 'UNVALUED'
-              ? <p className="bots-budget-empty">아직 거래가 없어 예산이 산정되지 않았습니다.</p>
-              : <DataTable
-                columns={budgetColumns}
-                rows={budgetRows(liveTrading.budget)}
-                rowKey="label"
+          {/* What each strategy partition is allowed to spend, and what it has
+              spent. The partition is named by its identifier because canonical
+              gives the budget no other name. */}
+          {liveBudget !== null && <div className="bots-budget-partitions">
+            <h3>전략 구획 예산</h3>
+            {liveBudget.partitions.length > 0
+              ? <DataTable
+                label="전략 구획 예산"
+                columns={partitionBudgetColumns}
+                rows={liveBudget.partitions.map((item) => toPartitionBudgetRow(item, liveBudget.currencyCode))}
+                rowKey="partitionId"
+              />
+              : <EmptyState
+                icon={Coins}
+                title="구획 예산이 아직 없습니다."
+                detail="봇이 전략 구획에 예산을 잡으면 상한과 예약, 투자 중 금액이 여기에 남습니다."
               />}
-          </section>}
+          </div>}
+
+          {/* A forced stop liquidates what the bot was holding. The result is
+              part of where the bot stands now, not a filter away in the log,
+              and it is absent entirely when nothing was liquidated. */}
+          {liveStopSettlement !== null && liveStopSettlement.length > 0 && <div className="bots-stop-settlement">
+            <h3>중단 정산 결과</h3>
+            <DataTable
+              label="중단 정산 결과"
+              columns={stopSettlementColumns}
+              rows={liveStopSettlement.map(toStopSettlementRow)}
+              rowKey="actionId"
+            />
+          </div>}
         </TabPanel>}
 
         {tab === 'positions' && <TabPanel id="positions">
@@ -1671,6 +1881,26 @@ export function BotsView({
               detail="이 봇은 현재 전액을 현금으로 보유하고 있습니다."
             />}
             </>}
+        </TabPanel>}
+
+        {/* Every order the bot placed, and what became of it. There is no
+            control here and there is not meant to be: policy.user.no-direct-
+            orders says a user cannot submit an order or an order intention
+            outside their locked strategy, so this is a record, not a ticket. */}
+        {tab === 'orders' && <TabPanel id="orders">
+          {liveOrders === null
+            ? <EmptyState
+              icon={CircleDollarSign}
+              title="주문 기록을 아직 불러오지 못했습니다."
+              detail="실행 중인 봇을 선택하면 서버에서 주문 기록을 불러옵니다."
+            />
+            : (liveOrders.length > 0
+              ? <DataTable label="주문 기록" columns={orderColumns} rows={liveOrders.map(toOrderRow)} rowKey="orderId" />
+              : <EmptyState
+                icon={CircleDollarSign}
+                title="아직 주문이 없습니다."
+                detail="봇이 주문을 내면 접수 시각과 체결 상태가 여기에 남습니다."
+              />)}
         </TabPanel>}
 
         {tab === 'decisions' && <TabPanel id="decisions">
@@ -1729,32 +1959,6 @@ export function BotsView({
             action={<Button onClick={() => { setLogQuery(''); setLogScope('all'); setLogPeriod('all'); }}>필터 초기화</Button>}
           />}
           <p className="bots-decision-note">전체 기록을 선택하면 주문으로 이어지지 않은 판단도 최초 실패 조건과 함께 남깁니다. 예산 상한 보류는 정상 동작이며 다음 평가에서 자동으로 재시도합니다.</p>
-
-          {/* The canonical record behind the timeline above: what was ordered,
-              what actually filled, what was refused or cut down, and what a
-              forced stop liquidated. Each table appears only when the bot has
-              that kind of record. */}
-          {liveTrading && <>
-            {liveTrading.orders.length > 0 && <section aria-label={`${selected.name} 주문`}>
-              <h3>주문</h3>
-              <DataTable columns={orderColumns} rows={liveTrading.orders} rowKey="orderId" />
-            </section>}
-
-            {liveTrading.fills.length > 0 && <section aria-label={`${selected.name} 개별 체결`}>
-              <h3>개별 체결</h3>
-              <DataTable columns={fillColumns} rows={liveTrading.fills} rowKey="fillId" />
-            </section>}
-
-            {liveTrading.reasons.length > 0 && <section aria-label={`${selected.name} 거절·축소 이유`}>
-              <h3>거절·축소 이유</h3>
-              <DataTable columns={reasonColumns} rows={liveTrading.reasons} rowKey="intentId" />
-            </section>}
-
-            {liveTrading.stopSettlement.length > 0 && <section aria-label={`${selected.name} 중단 정산`}>
-              <h3>중단 정산</h3>
-              <DataTable columns={stopColumns} rows={liveTrading.stopSettlement} rowKey="actionId" />
-            </section>}
-          </>}
         </TabPanel>}
 
       </section> : null}
