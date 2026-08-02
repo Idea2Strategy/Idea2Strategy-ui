@@ -11668,8 +11668,40 @@ small.dashboard-bot-scope {
   font-size: 12px;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-live-trades,
+.variant-balanced[data-design="signal-studio"] .backtest-live-trade-rows,
 .variant-balanced[data-design="signal-studio"] .backtest-live-attempts {
   overflow-x: auto;
+}
+/* The individual trades of the selected ET month. Wider than the evidence-object
+   table below it, and the primary answer on this panel, so it keeps the margin. */
+.variant-balanced[data-design="signal-studio"] .backtest-live-trade-rows {
+  margin-top: var(--space-3);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-trade-rows td {
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-trade-kind {
+  display: inline-flex;
+  padding: 1px var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-trade-kind.kind-fill {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-trade-kind.kind-rejection,
+.variant-balanced[data-design="signal-studio"] .backtest-live-trade-kind.kind-cancellation {
+  color: var(--text-soft);
+}
+/* The signed-out stop. It replaces the whole workspace, so it gets the panel's
+   breathing room rather than sitting flush under the heading like an inline error. */
+.variant-balanced[data-design="signal-studio"] .backtest-live-session-gate {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-live-attempts {
   margin-top: var(--space-3);

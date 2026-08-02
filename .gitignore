@@ -2,6 +2,11 @@ node_modules/
 .pnpm-store/
 dist/
 
+# Playwright run artifacts
+test-results/
+playwright-report/
+blob-report/
+
 *.log
 .DS_Store
 
