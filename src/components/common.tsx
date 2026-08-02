@@ -96,13 +96,16 @@ export interface DataTableProps<Row extends object> {
   rows: Row[];
   rowKey?: string;
   className?: string;
+  /* Names the table for assistive technology, and for anyone picking one of
+     several tables out of the same panel. */
+  label?: string;
 }
 
-export function DataTable<Row extends object>({ columns, rows, rowKey = 'name', className = '' }: DataTableProps<Row>) {
+export function DataTable<Row extends object>({ columns, rows, rowKey = 'name', className = '', label }: DataTableProps<Row>) {
   const cell = (row: Row, key: string) => (row as Record<string, unknown>)[key];
   return (
     <Localized><div className={`table-wrap ${className}`}>
-      <table>
+      <table aria-label={label}>
         <thead><tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr></thead>
         <tbody>{rows.map((row, index) => <tr key={String(cell(row, rowKey) ?? index)} className={cell(row, 'mine') ? 'is-mine' : ''}>{columns.map((column) => <td key={column.key}>{column.render ? column.render(row) : (cell(row, column.key) as ReactNode)}</td>)}</tr>)}</tbody>
       </table>

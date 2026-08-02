@@ -4635,6 +4635,8 @@
   padding: var(--space-4);
   border-left: 1px solid var(--line);
 }
+/* The live budget adds 예약 중 to the three standing figures. */
+.bots-overview-figures.is-live { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .bots-overview-figures > div:first-child { border-left: 0; }
 .bots-overview-figures span { color: var(--text-faint); font-size: var(--fs-caption); font-weight: 600; }
 .bots-overview-figures strong { font: 700 20px/1.15 var(--font-mono); }
@@ -4680,6 +4682,13 @@
 .bots-overview-chart > header > span.positive { color: var(--gain); }
 .bots-overview-chart > header > span.negative { color: var(--loss); }
 .bots-overview-chart .dashboard-chart-frame { height: 180px; }
+
+/* Ledger sections under the standing figures: per-partition budget, and what
+   a forced stop liquidated. Both are tables, so they carry only a heading. */
+.bots-budget-partitions,
+.bots-stop-settlement { padding: var(--space-4) var(--space-4) var(--space-3); }
+.bots-budget-partitions h3,
+.bots-stop-settlement h3 { margin: 0 0 var(--space-2); color: var(--text-soft); font-size: var(--fs-caption); font-weight: 650; }
 
 /* What the equity is made of right now: a stacked composition bar with a
    numeric legend, so colour is never the only signal. */
@@ -5749,7 +5758,8 @@
 }
 @media (max-width: 800px) {
   .bots-list-head { align-items: flex-start; flex-direction: column; }
-  .bots-overview-figures { grid-template-columns: 1fr; }
+  .bots-overview-figures,
+  .bots-overview-figures.is-live { grid-template-columns: 1fr; }
   .bots-overview-figures > div { border-left: 0; border-top: 1px solid var(--line); }
   .bots-overview-figures > div:first-child { border-top: 0; }
   .bots-live-chart { margin: var(--space-3); }
