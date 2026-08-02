@@ -24,6 +24,8 @@ import {
 } from '../lib/strategyCanvasLayout';
 import { ReadOnlyStrategyBlock } from './StrategyViews';
 import { defaultBotOperationsClient } from '../api/botOperations';
+import { defaultBotTradingClient, tickerLabel } from '../api/botTrading';
+import type { BotPosition } from '../api/botTrading';
 import type {
   BotJudgmentLogEntry,
   BotOperationsClient,
@@ -419,6 +421,38 @@ const displayValue = (value: unknown, fallback: string): string => {
   if (typeof value === 'string' && value.trim()) return value;
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   return fallback;
+};
+
+/** Blank rather than zero: a column with no source is unknown, not nought. */
+const UNVALUED = '—';
+
+/**
+ * A canonical position as the holdings table shows it.
+ *
+ * Quantity and cost basis are what trading.flow_position_projections holds, so the average cost is
+ * real and the current price, unrealised P&L, return and share of equity are not: every one of
+ * them needs a market price the trading record does not carry. They read blank until a valuation
+ * source is decided.
+ *
+ * The API reports long and short separately. A flow holding both is rare and netting them here
+ * would hide it, so the side actually held is the one shown.
+ */
+const toPositionRow = (position: BotPosition): Position => {
+  const long = Number(position.longQuantity);
+  const short = Number(position.shortQuantity);
+  const isShort = short > long;
+  const held = isShort ? short : long;
+  const cost = Number(position.costBasisAmount);
+  return {
+    symbol: tickerLabel(null, position.currentSymbol),
+    qty: isShort ? `-${position.shortQuantity}` : position.longQuantity,
+    avg: held > 0 ? (cost / held).toFixed(2) : UNVALUED,
+    price: UNVALUED,
+    pnl: UNVALUED,
+    rate: UNVALUED,
+    shareValue: 0,
+    share: UNVALUED,
+  };
 };
 
 const judgmentToLogEvent = (entry: BotJudgmentLogEntry): LogEvent => {
@@ -988,6 +1022,9 @@ export function BotsView({
   const [logScope, setLogScope] = useState<LogScope>('fills');
   const [logPeriod, setLogPeriod] = useState<LogPeriod>('all');
   const [decisionSymbol, setDecisionSymbol] = useState('');
+  /* Real canonical positions for the selected bot. Null until one has loaded,
+     which is what keeps the sample content in place on the demo screens. */
+  const [livePositions, setLivePositions] = useState<BotPosition[] | null>(null);
   const [operations, setOperations] = useState<BotOperationsView[] | null>(null);
   const [judgmentsByBot, setJudgmentsByBot] = useState<Record<string, BotJudgmentLogEntry[]>>({});
   const [operationsError, setOperationsError] = useState<string | null>(null);
@@ -1129,6 +1166,31 @@ export function BotsView({
       window.clearInterval(timer);
     };
   }, [operationsClient, pollIntervalMs, selected?.id]);
+
+  /* The bot's real holdings. Canonical keeps quantity and cost basis and no
+     valuation, so this fills the columns it can and leaves the rest blank
+     rather than inventing a price. */
+  useEffect(() => {
+    if (!operationsClient || !selected?.id) {
+      setLivePositions(null);
+      return undefined;
+    }
+    const botId = selected.id;
+    const controller = new AbortController();
+    let cancelled = false;
+    defaultBotTradingClient
+      .listPositions(botId, controller.signal)
+      .then((positions) => {
+        if (!cancelled) setLivePositions(positions);
+      })
+      .catch(() => {
+        if (!cancelled) setLivePositions(null);
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [operationsClient, selected?.id]);
   const fillEvents = useMemo(
     () => (detail?.events ?? []).filter((event): event is Extract<LogEvent, { kind: 'fill' }> => event.kind === 'fill'),
     [detail],
@@ -1438,6 +1500,24 @@ export function BotsView({
         </TabPanel>}
 
         {tab === 'positions' && <TabPanel id="positions">
+          {/* Real holdings, when the bot has any. Canonical records quantity
+              and cost basis and no valuation, so the composition bar and the
+              price columns have nothing behind them here: a share of equity
+              needs a current price, and inventing one would be worse than
+              leaving it out. Those arrive with the valuation card. */}
+          {livePositions !== null
+            ? (livePositions.length > 0
+              ? <DataTable
+                columns={positionColumns}
+                rows={livePositions.map(toPositionRow)}
+                rowKey="symbol"
+              />
+              : <EmptyState
+                icon={Coins}
+                title="보유 중인 포지션이 없습니다."
+                detail="이 봇은 현재 전액을 현금으로 보유하고 있습니다."
+              />)
+            : <>
           {/* What the equity is made of right now: each holding's share of the
               bot, plus cash. The legend carries the numbers so colour is never
               the only signal. */}
@@ -1471,6 +1551,7 @@ export function BotsView({
               title="보유 중인 포지션이 없습니다."
               detail="이 봇은 현재 전액을 현금으로 보유하고 있습니다."
             />}
+            </>}
         </TabPanel>}
 
         {tab === 'decisions' && <TabPanel id="decisions">
