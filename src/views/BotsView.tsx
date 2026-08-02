@@ -25,7 +25,23 @@ import {
 import { ReadOnlyStrategyBlock } from './StrategyViews';
 import { defaultBotOperationsClient } from '../api/botOperations';
 import { defaultBotTradingClient, tickerLabel } from '../api/botTrading';
-import type { BotPosition } from '../api/botTrading';
+import type {
+  BotBudget,
+  BotDecisionReason,
+  BotFill,
+  BotOrder,
+  BotPosition,
+  BotStopSettlementAction,
+} from '../api/botTrading';
+
+/** The five remaining canonical surfaces, loaded together for the selected bot. */
+interface LiveTrading {
+  orders: BotOrder[];
+  fills: BotFill[];
+  budget: BotBudget;
+  reasons: BotDecisionReason[];
+  stopSettlement: BotStopSettlementAction[];
+}
 import type {
   BotJudgmentLogEntry,
   BotOperationsClient,
@@ -453,6 +469,22 @@ const toPositionRow = (position: BotPosition): Position => {
     shareValue: 0,
     share: UNVALUED,
   };
+};
+
+interface BudgetRow {
+  label: string;
+  amount: string;
+}
+
+/** The budget projection as rows, currency stated once rather than per line. */
+const budgetRows = (budget: BotBudget): BudgetRow[] => {
+  const currency = budget.currencyCode ?? '';
+  const money = (value: string | null) => (value === null ? UNVALUED : `${value} ${currency}`.trim());
+  return [
+    { label: '가용 현금', amount: money(budget.availableCashAmount) },
+    { label: '예약 중', amount: money(budget.activeReservationAmount) },
+    { label: '투자 중', amount: money(budget.investedAmount) },
+  ];
 };
 
 const judgmentToLogEvent = (entry: BotJudgmentLogEntry): LogEvent => {
@@ -1025,6 +1057,7 @@ export function BotsView({
   /* Real canonical positions for the selected bot. Null until one has loaded,
      which is what keeps the sample content in place on the demo screens. */
   const [livePositions, setLivePositions] = useState<BotPosition[] | null>(null);
+  const [liveTrading, setLiveTrading] = useState<LiveTrading | null>(null);
   const [operations, setOperations] = useState<BotOperationsView[] | null>(null);
   const [judgmentsByBot, setJudgmentsByBot] = useState<Record<string, BotJudgmentLogEntry[]>>({});
   const [operationsError, setOperationsError] = useState<string | null>(null);
@@ -1191,6 +1224,36 @@ export function BotsView({
       controller.abort();
     };
   }, [operationsClient, selected?.id]);
+
+  /* The remaining five surfaces. Loaded as one set so a tab never shows half a
+     picture, and dropped whole if any of them fails. */
+  useEffect(() => {
+    if (!operationsClient || !selected?.id) {
+      setLiveTrading(null);
+      return undefined;
+    }
+    const botId = selected.id;
+    const controller = new AbortController();
+    const signal = controller.signal;
+    let cancelled = false;
+    Promise.all([
+      defaultBotTradingClient.listOrders(botId, undefined, signal),
+      defaultBotTradingClient.listFills(botId, undefined, signal),
+      defaultBotTradingClient.getBudget(botId, signal),
+      defaultBotTradingClient.listDecisionReasons(botId, undefined, signal),
+      defaultBotTradingClient.listStopSettlement(botId, signal),
+    ])
+      .then(([orders, fills, budget, reasons, stopSettlement]) => {
+        if (!cancelled) setLiveTrading({ orders, fills, budget, reasons, stopSettlement });
+      })
+      .catch(() => {
+        if (!cancelled) setLiveTrading(null);
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [operationsClient, selected?.id]);
   const fillEvents = useMemo(
     () => (detail?.events ?? []).filter((event): event is Extract<LogEvent, { kind: 'fill' }> => event.kind === 'fill'),
     [detail],
@@ -1258,6 +1321,48 @@ export function BotsView({
       : `${event.title} ${event.detail}`;
     return haystack.toLowerCase().includes(query);
   });
+
+  /* Every instrument name goes through tickerLabel: the ticker of the moment
+     with today's in brackets only when it changed. Amounts are printed as the
+     server sent them — they are exact decimals and reformatting them through a
+     JavaScript number would round a fee. */
+  const orderColumns = [
+    { key: 'symbol', label: '종목', render: (row: BotOrder) => <strong>{tickerLabel(row.symbol, row.currentSymbol)}</strong> },
+    { key: 'side', label: '구분', render: (row: BotOrder) => row.side },
+    { key: 'orderType', label: '유형', render: (row: BotOrder) => row.orderType },
+    { key: 'requestedQuantity', label: '주문 수량', render: (row: BotOrder) => row.requestedQuantity },
+    { key: 'filledQuantity', label: '체결 수량', render: (row: BotOrder) => row.filledQuantity },
+    { key: 'status', label: '상태', render: (row: BotOrder) => row.status },
+  ];
+
+  const fillColumns = [
+    { key: 'symbol', label: '종목', render: (row: BotFill) => <strong>{tickerLabel(row.symbol, row.currentSymbol)}</strong> },
+    { key: 'quantity', label: '수량', render: (row: BotFill) => row.quantity },
+    { key: 'fillPrice', label: '체결가', render: (row: BotFill) => row.fillPrice },
+    { key: 'feeAmount', label: '수수료', render: (row: BotFill) => row.feeAmount },
+    { key: 'settlementCashDelta', label: '현금 증감', render: (row: BotFill) => row.settlementCashDelta },
+  ];
+
+  const reasonColumns = [
+    { key: 'symbol', label: '종목', render: (row: BotDecisionReason) => <strong>{tickerLabel(row.symbol, row.currentSymbol)}</strong> },
+    { key: 'decision', label: '결정', render: (row: BotDecisionReason) => row.decision },
+    { key: 'reasonCode', label: '사유', render: (row: BotDecisionReason) => row.reasonCode },
+    /* Requested against final is what makes a reduction legible rather than
+       merely reported. */
+    { key: 'requestedQuantity', label: '요청 수량', render: (row: BotDecisionReason) => row.requestedQuantity ?? UNVALUED },
+    { key: 'finalQuantity', label: '최종 수량', render: (row: BotDecisionReason) => row.finalQuantity ?? UNVALUED },
+  ];
+
+  const stopColumns = [
+    { key: 'symbol', label: '종목', render: (row: BotStopSettlementAction) => <strong>{tickerLabel(row.symbol, row.currentSymbol)}</strong> },
+    { key: 'reasonType', label: '사유', render: (row: BotStopSettlementAction) => row.reasonType },
+    { key: 'requestedQuantity', label: '정산 수량', render: (row: BotStopSettlementAction) => row.requestedQuantity },
+  ];
+
+  const budgetColumns = [
+    { key: 'label', label: '항목', render: (row: BudgetRow) => <strong>{row.label}</strong> },
+    { key: 'amount', label: '금액', render: (row: BudgetRow) => row.amount },
+  ];
 
   const positionColumns: PositionColumn[] = [
     { key: 'symbol', label: '종목', render: (row) => <strong>{row.symbol}</strong> },
@@ -1497,6 +1602,20 @@ export function BotsView({
               ariaLabel={`${selected.name} 손익과 수익률 차트`}
             />
           </div>
+
+          {/* The strategy budget, as the canonical projection holds it. A bot
+              that has not traded yet answers UNVALUED rather than nothing, so
+              the absence of a figure is stated instead of shown as zero. */}
+          {liveTrading && <section className="bots-budget" aria-label={`${selected.name} 전략 예산`}>
+            <h3>전략 예산</h3>
+            {liveTrading.budget.valuationStatus === 'UNVALUED'
+              ? <p className="bots-budget-empty">아직 거래가 없어 예산이 산정되지 않았습니다.</p>
+              : <DataTable
+                columns={budgetColumns}
+                rows={budgetRows(liveTrading.budget)}
+                rowKey="label"
+              />}
+          </section>}
         </TabPanel>}
 
         {tab === 'positions' && <TabPanel id="positions">
@@ -1610,6 +1729,32 @@ export function BotsView({
             action={<Button onClick={() => { setLogQuery(''); setLogScope('all'); setLogPeriod('all'); }}>필터 초기화</Button>}
           />}
           <p className="bots-decision-note">전체 기록을 선택하면 주문으로 이어지지 않은 판단도 최초 실패 조건과 함께 남깁니다. 예산 상한 보류는 정상 동작이며 다음 평가에서 자동으로 재시도합니다.</p>
+
+          {/* The canonical record behind the timeline above: what was ordered,
+              what actually filled, what was refused or cut down, and what a
+              forced stop liquidated. Each table appears only when the bot has
+              that kind of record. */}
+          {liveTrading && <>
+            {liveTrading.orders.length > 0 && <section aria-label={`${selected.name} 주문`}>
+              <h3>주문</h3>
+              <DataTable columns={orderColumns} rows={liveTrading.orders} rowKey="orderId" />
+            </section>}
+
+            {liveTrading.fills.length > 0 && <section aria-label={`${selected.name} 개별 체결`}>
+              <h3>개별 체결</h3>
+              <DataTable columns={fillColumns} rows={liveTrading.fills} rowKey="fillId" />
+            </section>}
+
+            {liveTrading.reasons.length > 0 && <section aria-label={`${selected.name} 거절·축소 이유`}>
+              <h3>거절·축소 이유</h3>
+              <DataTable columns={reasonColumns} rows={liveTrading.reasons} rowKey="intentId" />
+            </section>}
+
+            {liveTrading.stopSettlement.length > 0 && <section aria-label={`${selected.name} 중단 정산`}>
+              <h3>중단 정산</h3>
+              <DataTable columns={stopColumns} rows={liveTrading.stopSettlement} rowKey="actionId" />
+            </section>}
+          </>}
         </TabPanel>}
 
       </section> : null}
