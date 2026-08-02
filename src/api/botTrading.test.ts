@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createBotTradingClient } from './botTrading';
+import { createBotTradingClient, tickerLabel } from './botTrading';
 
 const BOT = '30000000-0000-4000-8000-00000000000a';
 
@@ -17,6 +17,8 @@ describe('bot trading API client', () => {
           orderId: '39000000-0000-4000-8000-00000000000a',
           partitionId: '31000000-0000-4000-8000-00000000000a',
           instrumentId: '36000000-0000-4000-8000-00000000000a',
+          symbol: 'OLDT',
+          currentSymbol: 'NEWT',
           side: 'BUY',
           orderType: 'MARKET',
           timeInForce: 'DAY',
@@ -46,6 +48,7 @@ describe('bot trading API client', () => {
     const fills = await client.listFills(BOT, 10);
 
     expect(orders[0].status).toBe('FILLED');
+    expect(tickerLabel(orders[0].symbol, orders[0].currentSymbol)).toBe('OLDT (NEWT)');
     expect(fills[0].settlementCashDelta).toBe('-30.06000000');
     expect(fetchImpl).toHaveBeenNthCalledWith(
       1,
@@ -173,6 +176,19 @@ describe('bot trading API client', () => {
     const client = createBotTradingClient({ fetchImpl });
 
     await expect(client.listOrders(BOT)).rejects.toThrow(/Invalid orderId/);
+  });
+
+  /**
+   * The record is read as of when it happened, so the ticker of that moment leads. Showing the
+   * current one only when it differs is what makes a rename read as one instrument renamed, and
+   * keeps every unrenamed row free of a redundant bracket.
+   */
+  it('writes a ticker with the current one only when it changed', () => {
+    expect(tickerLabel('OLDT', 'NEWT')).toBe('OLDT (NEWT)');
+    expect(tickerLabel('AAPL', 'AAPL')).toBe('AAPL');
+    expect(tickerLabel(null, 'NEWT')).toBe('NEWT');
+    expect(tickerLabel('OLDT', null)).toBe('OLDT');
+    expect(tickerLabel(null, null)).toBe('—');
   });
 
   it('surfaces a failed request', async () => {

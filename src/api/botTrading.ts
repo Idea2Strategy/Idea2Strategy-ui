@@ -2,6 +2,8 @@ export interface BotOrder {
   orderId: string;
   partitionId: string | null;
   instrumentId: string | null;
+  symbol: string | null;
+  currentSymbol: string | null;
   side: string;
   orderType: string;
   timeInForce: string;
@@ -16,6 +18,8 @@ export interface BotFill {
   fillId: string;
   orderId: string;
   instrumentId: string | null;
+  symbol: string | null;
+  currentSymbol: string | null;
   quantity: string;
   fillPrice: string;
   grossAmount: string;
@@ -28,6 +32,8 @@ export interface BotPosition {
   flowId: string;
   partitionId: string;
   instrumentId: string;
+  /** A projection sums many lots, so it carries only today's ticker. */
+  currentSymbol: string | null;
   longQuantity: string;
   shortQuantity: string;
   costBasisAmount: string;
@@ -57,6 +63,8 @@ export interface BotDecisionReason {
   partitionId: string;
   flowId: string;
   instrumentId: string;
+  symbol: string | null;
+  currentSymbol: string | null;
   decision: string;
   reasonCode: string;
   requestedQuantity: string | null;
@@ -69,6 +77,8 @@ export interface BotStopSettlementAction {
   partitionId: string;
   flowId: string;
   instrumentId: string;
+  symbol: string | null;
+  currentSymbol: string | null;
   reasonType: string;
   requestedQuantity: string;
   generatedIntentId: string;
@@ -212,6 +222,8 @@ function readOrder(value: unknown): BotOrder {
     orderId: string(item.orderId, 'orderId'),
     partitionId: nullableString(item.partitionId, 'partitionId'),
     instrumentId: nullableString(item.instrumentId, 'instrumentId'),
+    symbol: nullableString(item.symbol, 'symbol'),
+    currentSymbol: nullableString(item.currentSymbol, 'currentSymbol'),
     side: string(item.side, 'side'),
     orderType: string(item.orderType, 'orderType'),
     timeInForce: string(item.timeInForce, 'timeInForce'),
@@ -229,6 +241,8 @@ function readFill(value: unknown): BotFill {
     fillId: string(item.fillId, 'fillId'),
     orderId: string(item.orderId, 'orderId'),
     instrumentId: nullableString(item.instrumentId, 'instrumentId'),
+    symbol: nullableString(item.symbol, 'symbol'),
+    currentSymbol: nullableString(item.currentSymbol, 'currentSymbol'),
     quantity: decimal(item.quantity, 'quantity'),
     fillPrice: decimal(item.fillPrice, 'fillPrice'),
     grossAmount: decimal(item.grossAmount, 'grossAmount'),
@@ -244,6 +258,7 @@ function readPosition(value: unknown): BotPosition {
     flowId: string(item.flowId, 'flowId'),
     partitionId: string(item.partitionId, 'partitionId'),
     instrumentId: string(item.instrumentId, 'instrumentId'),
+    currentSymbol: nullableString(item.currentSymbol, 'currentSymbol'),
     longQuantity: decimal(item.longQuantity, 'longQuantity'),
     shortQuantity: decimal(item.shortQuantity, 'shortQuantity'),
     costBasisAmount: decimal(item.costBasisAmount, 'costBasisAmount'),
@@ -289,6 +304,8 @@ function readDecisionReason(value: unknown): BotDecisionReason {
     partitionId: string(item.partitionId, 'partitionId'),
     flowId: string(item.flowId, 'flowId'),
     instrumentId: string(item.instrumentId, 'instrumentId'),
+    symbol: nullableString(item.symbol, 'symbol'),
+    currentSymbol: nullableString(item.currentSymbol, 'currentSymbol'),
     decision: string(item.decision, 'decision'),
     reasonCode: string(item.reasonCode, 'reasonCode'),
     requestedQuantity: nullableDecimal(item.requestedQuantity, 'requestedQuantity'),
@@ -304,11 +321,31 @@ function readStopSettlementAction(value: unknown): BotStopSettlementAction {
     partitionId: string(item.partitionId, 'partitionId'),
     flowId: string(item.flowId, 'flowId'),
     instrumentId: string(item.instrumentId, 'instrumentId'),
+    symbol: nullableString(item.symbol, 'symbol'),
+    currentSymbol: nullableString(item.currentSymbol, 'currentSymbol'),
     reasonType: string(item.reasonType, 'reasonType'),
     requestedQuantity: decimal(item.requestedQuantity, 'requestedQuantity'),
     generatedIntentId: string(item.generatedIntentId, 'generatedIntentId'),
     createdAt: string(item.createdAt, 'createdAt'),
   };
+}
+
+/**
+ * How a ticker is written on screen.
+ *
+ * <p>A trading record is read as of when it happened, so the ticker of that moment leads. The
+ * current one follows in brackets only when it differs, which is what makes a rename read as one
+ * instrument renamed instead of two instruments — and keeps the common case free of noise.
+ */
+export function tickerLabel(
+  atTheTime: string | null,
+  current: string | null,
+): string {
+  const then = atTheTime ?? current;
+  if (then === null) {
+    return '—';
+  }
+  return current === null || current === then ? then : `${then} (${current})`;
 }
 
 export const defaultBotTradingClient = createBotTradingClient({
