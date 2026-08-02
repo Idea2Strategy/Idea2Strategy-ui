@@ -17,6 +17,8 @@ import { DesignConceptLab } from './views/DesignConceptLab';
 import { BOT_ICON_STORAGE_KEY, loadBotIcons } from './components/BotGlyph';
 import type { BotIconMap, BotIconSelection } from './components/BotGlyph';
 import { defaultBacktestClient } from './api/backtests';
+import { defaultAccountClient } from './api/account';
+import type { AccountClient } from './api/account';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
@@ -222,7 +224,7 @@ const paletteTemplates: PaletteTemplate[] = [
   { id: 'rose', label: '로즈', dark: '#f79ab0', light: '#b42a52' },
 ];
 
-function ProductApp() {
+function ProductApp({ accountClient }: { accountClient: AccountClient }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [theme, setTheme] = useState<Theme>('dark');
@@ -292,6 +294,7 @@ function ProductApp() {
       setReduceMotion={setReduceMotion}
       updown={updown}
       setUpdown={setUpdown}
+      accountClient={accountClient}
     />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;
@@ -336,9 +339,9 @@ function ProductApp() {
   `initialVariant` is a legacy entry point kept for the test suite: both former
   variants resolve to the same Signal product shell, so the value is unused.
 */
-export function App(_props: { initialVariant?: string } = {}) {
+export function App({ accountClient = defaultAccountClient }: { initialVariant?: string; accountClient?: AccountClient } = {}) {
   return <LanguageProvider><BrowserRouter><Routes>
     <Route path="/concepts/*" element={<DesignConceptLab />} />
-    <Route path="*" element={<ProductApp />} />
+    <Route path="*" element={<ProductApp accountClient={accountClient} />} />
   </Routes></BrowserRouter></LanguageProvider>;
 }

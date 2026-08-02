@@ -22,6 +22,8 @@ import type { NotificationItem } from '../data/mockData';
 import type { PageId } from '../lib/navigation';
 import { Localized, useLanguage } from '../lib/i18n';
 import type { Language } from '../lib/i18n';
+import type { AccountClient } from '../api/account';
+import { AccountApiPanels } from '../components/AccountApiPanels';
 
 type Severity = NotificationItem['severity'];
 type SeverityFilterId = Severity | 'all';
@@ -306,9 +308,10 @@ interface AccountViewProps {
   setReduceMotion: (reduceMotion: boolean) => void;
   updown?: Updown;
   setUpdown?: (updown: Updown) => void;
+  accountClient?: AccountClient;
 }
 
-export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMotion, setReduceMotion, updown = 'kr', setUpdown = () => {} }: AccountViewProps) {
+export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMotion, setReduceMotion, updown = 'kr', setUpdown = () => {}, accountClient }: AccountViewProps) {
   const { language, setLanguage } = useLanguage();
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [actionAlerts, setActionAlerts] = useState(true);
@@ -322,6 +325,7 @@ export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMoti
     />
 
     <div className="settings-grid">
+      {accountClient && <AccountApiPanels client={accountClient} />}
       <Panel title="프로필">
         <div className="settings-rows">
           <div className="settings-row">
