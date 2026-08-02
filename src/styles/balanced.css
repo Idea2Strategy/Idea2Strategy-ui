@@ -4029,6 +4029,16 @@
 .settings-switch > span { display: grid; gap: 3px; }
 .settings-switch strong { font-size: var(--fs-control); }
 .settings-switch small { color: var(--text-faint); font-size: var(--fs-caption); line-height: 1.5; }
+.account-api-state > div,
+.account-api-error { display: flex; align-items: center; gap: 12px; }
+.account-api-state [role="status"] { color: var(--text-soft); }
+.account-api-state [role="status"] svg { animation: account-api-spin 1s linear infinite; }
+.account-api-error { color: var(--text-soft); }
+.account-api-error > div { display: grid; gap: 3px; flex: 1; }
+.account-api-error small { display: block; color: var(--text-faint); }
+.account-api-fields { margin-bottom: 14px; }
+.account-api-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+@keyframes account-api-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 800px) {
   .notification-tools { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
