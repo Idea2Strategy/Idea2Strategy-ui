@@ -19,6 +19,9 @@ import type { BotIconMap, BotIconSelection } from './components/BotGlyph';
 import { defaultBacktestClient } from './api/backtests';
 import { defaultAccountClient } from './api/account';
 import type { AccountClient } from './api/account';
+import { defaultAccountOperationsClient } from './api/accountOperations';
+import type { AccountOperationsClient } from './api/accountOperations';
+import { OperatorCaseWorkspace } from './components/CaseApiPanels';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
@@ -224,7 +227,7 @@ const paletteTemplates: PaletteTemplate[] = [
   { id: 'rose', label: '로즈', dark: '#f79ab0', light: '#b42a52' },
 ];
 
-function ProductApp({ accountClient }: { accountClient: AccountClient }) {
+function ProductApp({ accountClient, operationsClient }: { accountClient: AccountClient; operationsClient: AccountOperationsClient }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [theme, setTheme] = useState<Theme>('dark');
@@ -284,6 +287,7 @@ function ProductApp({ accountClient }: { accountClient: AccountClient }) {
     <Route path="/competition" element={<RoomsView openBot={openBot} />} />
     <Route path="/competition-v2" element={<RoomsView visualVariant="image" openBot={openBot} />} />
     <Route path="/notifications" element={<NotificationsView setPage={setPage} />} />
+    <Route path="/operations/cases" element={<OperatorCaseWorkspace client={operationsClient} />} />
     <Route path="/help" element={<HelpView />} />
     <Route path="/account" element={<AccountView
       theme={theme}
@@ -295,6 +299,7 @@ function ProductApp({ accountClient }: { accountClient: AccountClient }) {
       updown={updown}
       setUpdown={setUpdown}
       accountClient={accountClient}
+      operationsClient={operationsClient}
     />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;
@@ -339,9 +344,9 @@ function ProductApp({ accountClient }: { accountClient: AccountClient }) {
   `initialVariant` is a legacy entry point kept for the test suite: both former
   variants resolve to the same Signal product shell, so the value is unused.
 */
-export function App({ accountClient = defaultAccountClient }: { initialVariant?: string; accountClient?: AccountClient } = {}) {
+export function App({ accountClient = defaultAccountClient, operationsClient = defaultAccountOperationsClient }: { initialVariant?: string; accountClient?: AccountClient; operationsClient?: AccountOperationsClient } = {}) {
   return <LanguageProvider><BrowserRouter><Routes>
     <Route path="/concepts/*" element={<DesignConceptLab />} />
-    <Route path="*" element={<ProductApp accountClient={accountClient} />} />
+    <Route path="*" element={<ProductApp accountClient={accountClient} operationsClient={operationsClient} />} />
   </Routes></BrowserRouter></LanguageProvider>;
 }

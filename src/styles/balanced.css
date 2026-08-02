@@ -4038,6 +4038,58 @@
 .account-api-error small { display: block; color: var(--text-faint); }
 .account-api-fields { margin-bottom: 14px; }
 .account-api-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.case-api-form textarea {
+  min-height: 92px;
+  padding: 10px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface-2);
+  font: inherit;
+}
+.case-api-form .span-2 { grid-column: 1 / -1; }
+.case-api-panel .account-api-actions > input {
+  min-width: 220px;
+  flex: 1;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface-2);
+}
+.case-api-feedback, .case-api-receipt, .case-api-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  background: var(--surface-2);
+}
+.case-api-receipt > div, .case-api-error > div, .operator-case-detail > div:first-child { display: grid; gap: 3px; flex: 1; }
+.case-api-error small, .case-api-receipt span, .operator-case-row small, .operator-case-detail small { color: var(--text-faint); }
+.operator-case-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.operator-case-row > span { display: grid; gap: 3px; }
+.operator-case-detail { display: grid; gap: 14px; }
+.case-api-confirm { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--warning); border-radius: var(--radius-sm); background: var(--warning-soft); }
+.operator-case-detail label { display: grid; gap: 6px; }
+.operator-case-detail input { min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); background: var(--surface-2); }
 @keyframes account-api-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 800px) {
