@@ -1,0 +1,232 @@
+export type ThemePreference = 'LIGHT' | 'DARK' | 'SYSTEM';
+export type AccountLifecycleStatus = 'ACTIVE' | 'DORMANT' | 'CLOSING' | 'CLOSED';
+
+export interface AccountPreferences {
+  accountId: string;
+  languageCode: string;
+  timezoneName: string;
+  themePreference: ThemePreference;
+}
+
+export interface SessionView {
+  id: string;
+  deviceLabel: string | null;
+  createdAt: string;
+  lastSeenAt: string | null;
+  expiresAt: string;
+  current: boolean;
+}
+
+export interface LoginResult {
+  accountId: string;
+  sessionId: string;
+  sessionToken: string;
+  expiresAt: string;
+}
+
+export interface LifecycleResult {
+  accountId: string;
+  status: AccountLifecycleStatus;
+  version: number;
+  withdrawalRequestedAt: string | null;
+  cancellationDeadlineAt: string | null;
+  applied: boolean;
+}
+
+export class AccountApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    public readonly correlationId: string | null,
+  ) {
+    super(code);
+    this.name = 'AccountApiError';
+  }
+}
+
+interface AccountClientOptions {
+  baseUrl?: string;
+  fetchImpl?: typeof fetch;
+  getAccessToken?: () => string | null;
+  setAccessToken?: (token: string | null) => void;
+  createCorrelationId?: () => string;
+}
+
+export interface AccountClient {
+  signup(email: string, password: string, signal?: AbortSignal): Promise<{ accountId: string; verificationExpiresAt: string }>;
+  verifyEmail(verificationToken: string, signal?: AbortSignal): Promise<void>;
+  login(email: string, password: string, deviceLabel?: string, signal?: AbortSignal): Promise<LoginResult>;
+  sessions(signal?: AbortSignal): Promise<SessionView[]>;
+  logoutCurrent(signal?: AbortSignal): Promise<void>;
+  preferences(signal?: AbortSignal): Promise<AccountPreferences>;
+  updatePreferences(input: Pick<AccountPreferences, 'languageCode' | 'timezoneName' | 'themePreference'>, signal?: AbortSignal): Promise<AccountPreferences>;
+  requestWithdrawal(email: string, password: string, idempotencyKey: string, signal?: AbortSignal): Promise<LifecycleResult>;
+  cancelWithdrawal(email: string, password: string, idempotencyKey: string, signal?: AbortSignal): Promise<LifecycleResult>;
+  reactivateWithPassword(email: string, password: string, acceptedPolicyDocumentIds: string[], idempotencyKey: string, signal?: AbortSignal): Promise<LifecycleResult>;
+}
+
+export function createAccountClient({
+  baseUrl = '',
+  fetchImpl = fetch,
+  getAccessToken,
+  setAccessToken,
+  createCorrelationId = () => crypto.randomUUID(),
+}: AccountClientOptions = {}): AccountClient {
+  const root = baseUrl.replace(/\/$/, '');
+  const request = async (path: string, init: RequestInit = {}) => {
+    const correlationId = createCorrelationId();
+    const token = getAccessToken?.();
+    const response = await fetchImpl(`${root}${path}`, {
+      credentials: 'include',
+      ...init,
+      headers: {
+        Accept: 'application/json',
+        'X-Correlation-Id': correlationId,
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init.headers,
+      },
+    });
+    if (!response.ok) throw await readError(response, correlationId);
+    return response;
+  };
+  const lifecycle = async (
+    path: string,
+    email: string,
+    password: string,
+    acceptedPolicyDocumentIds: string[],
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ) => readLifecycle(await (await request(path, {
+    method: 'POST', signal,
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({ email, password, acceptedPolicyDocumentIds }),
+  })).json());
+
+  return {
+    async signup(email, password, signal) {
+      const value = object(await (await request('/api/v1/auth/signup', {
+        method: 'POST', signal, body: JSON.stringify({ email, password }),
+      })).json());
+      return {
+        accountId: string(value.accountId, 'accountId'),
+        verificationExpiresAt: string(value.verificationExpiresAt, 'verificationExpiresAt'),
+      };
+    },
+    async verifyEmail(verificationToken, signal) {
+      await request('/api/v1/auth/verify-email', {
+        method: 'POST', signal, body: JSON.stringify({ verificationToken }),
+      });
+    },
+    async login(email, password, deviceLabel, signal) {
+      const value = object(await (await request('/api/v1/auth/login', {
+        method: 'POST', signal, body: JSON.stringify({ email, password, deviceLabel: deviceLabel ?? null }),
+      })).json());
+      const result = {
+        accountId: string(value.accountId, 'accountId'),
+        sessionId: string(value.sessionId, 'sessionId'),
+        sessionToken: string(value.sessionToken, 'sessionToken'),
+        expiresAt: string(value.expiresAt, 'expiresAt'),
+      };
+      setAccessToken?.(result.sessionToken);
+      return result;
+    },
+    async sessions(signal) {
+      const value = await (await request('/api/v1/auth/sessions', { signal })).json();
+      if (!Array.isArray(value)) throw new Error('Invalid sessions response');
+      return value.map(readSession);
+    },
+    async logoutCurrent(signal) {
+      await request('/api/v1/auth/sessions/current', { method: 'DELETE', signal });
+      setAccessToken?.(null);
+    },
+    async preferences(signal) {
+      return readPreferences(await (await request('/api/v1/account/preferences', { signal })).json());
+    },
+    async updatePreferences(input, signal) {
+      return readPreferences(await (await request('/api/v1/account/preferences', {
+        method: 'PATCH', signal, body: JSON.stringify(input),
+      })).json());
+    },
+    requestWithdrawal(email, password, idempotencyKey, signal) {
+      return lifecycle('/api/v1/account/withdrawal-requests', email, password, [], idempotencyKey, signal);
+    },
+    cancelWithdrawal(email, password, idempotencyKey, signal) {
+      return lifecycle('/api/v1/account/withdrawal-cancellations', email, password, [], idempotencyKey, signal);
+    },
+    reactivateWithPassword(email, password, acceptedPolicyDocumentIds, idempotencyKey, signal) {
+      return lifecycle('/api/v1/account/reactivations/password', email, password, acceptedPolicyDocumentIds, idempotencyKey, signal);
+    },
+  };
+}
+
+async function readError(response: Response, fallbackCorrelationId: string): Promise<AccountApiError> {
+  let body: Record<string, unknown> = {};
+  try { body = object(await response.json()); } catch { /* non-JSON failure */ }
+  const code = typeof body.code === 'string'
+    ? body.code
+    : response.status === 401 ? 'AUTHENTICATION_REQUIRED'
+      : response.status === 403 ? 'FORBIDDEN' : 'REQUEST_FAILED';
+  const correlationId = typeof body.correlationId === 'string'
+    ? body.correlationId
+    : response.headers.get('X-Correlation-Id') ?? fallbackCorrelationId;
+  return new AccountApiError(response.status, code, correlationId);
+}
+
+function readPreferences(value: unknown): AccountPreferences {
+  const result = object(value);
+  const theme = string(result.themePreference, 'themePreference');
+  if (!['LIGHT', 'DARK', 'SYSTEM'].includes(theme)) throw new Error('Invalid themePreference');
+  return {
+    accountId: string(result.accountId, 'accountId'),
+    languageCode: string(result.languageCode, 'languageCode'),
+    timezoneName: string(result.timezoneName, 'timezoneName'),
+    themePreference: theme as ThemePreference,
+  };
+}
+
+function readSession(value: unknown): SessionView {
+  const result = object(value);
+  return {
+    id: string(result.id, 'session id'),
+    deviceLabel: nullableString(result.deviceLabel),
+    createdAt: string(result.createdAt, 'createdAt'),
+    lastSeenAt: nullableString(result.lastSeenAt),
+    expiresAt: string(result.expiresAt, 'expiresAt'),
+    current: Boolean(result.current),
+  };
+}
+
+function readLifecycle(value: unknown): LifecycleResult {
+  const result = object(value);
+  const status = string(result.status, 'status');
+  if (!['ACTIVE', 'DORMANT', 'CLOSING', 'CLOSED'].includes(status)) throw new Error('Invalid lifecycle status');
+  if (!Number.isSafeInteger(result.version) || (result.version as number) <= 0) throw new Error('Invalid lifecycle version');
+  if (typeof result.applied !== 'boolean') throw new Error('Invalid lifecycle applied');
+  return {
+    accountId: string(result.accountId, 'accountId'),
+    status: status as AccountLifecycleStatus,
+    version: result.version as number,
+    withdrawalRequestedAt: nullableString(result.withdrawalRequestedAt),
+    cancellationDeadlineAt: nullableString(result.cancellationDeadlineAt),
+    applied: result.applied,
+  };
+}
+
+function object(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('Invalid API response');
+  return value as Record<string, unknown>;
+}
+
+function string(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !value) throw new Error(`Invalid ${label}`);
+  return value;
+}
+
+function nullableString(value: unknown): string | null {
+  return value === null || value === undefined ? null : string(value, 'string');
+}
+
+export const defaultAccountClient = createAccountClient({
+  baseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
+});
