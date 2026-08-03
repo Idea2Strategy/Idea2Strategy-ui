@@ -40,6 +40,9 @@ export function AccountApiPanels({
   const [lifecycleState, setLifecycleState] = useState<ActionState>({ kind: 'idle' });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginPending, setLoginPending] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -116,6 +119,18 @@ export function AccountApiPanels({
   if (loadState.kind === 'error') {
     return <Panel className="span-2 account-api-state" title="계정 서버 연결">
       <ApiErrorState error={loadState.error} onRetry={() => setLoadAttempt((attempt) => attempt + 1)} />
+      {loadState.error.status === 401 && <form className="account-login-form" onSubmit={(event) => {
+        event.preventDefault();
+        setLoginPending(true);
+        void client.login(loginEmail, loginPassword, 'Web browser')
+          .then(() => { setLoginPassword(''); setLoadAttempt((attempt) => attempt + 1); })
+          .catch((cause) => setLoadState({ kind: 'error', error: fallbackError(cause) }))
+          .finally(() => setLoginPending(false));
+      }}>
+        <label><span>이메일</span><input aria-label="로그인 이메일" type="email" value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} /></label>
+        <label><span>비밀번호</span><input aria-label="로그인 비밀번호" type="password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} /></label>
+        <Button kind="primary" type="submit" disabled={!loginEmail || !loginPassword || loginPending}>{loginPending ? '로그인 중' : '로그인'}</Button>
+      </form>}
     </Panel>;
   }
 

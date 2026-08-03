@@ -75,6 +75,9 @@ export function createAccountClient({
   createCorrelationId = () => crypto.randomUUID(),
 }: AccountClientOptions = {}): AccountClient {
   const root = baseUrl.replace(/\/$/, '');
+  const requireSession = () => {
+    if (!getAccessToken?.()) throw new AccountApiError(401, 'AUTHENTICATION_REQUIRED', createCorrelationId());
+  };
   const request = async (path: string, init: RequestInit = {}) => {
     const correlationId = createCorrelationId();
     const token = getAccessToken?.();
@@ -134,18 +137,22 @@ export function createAccountClient({
       return result;
     },
     async sessions(signal) {
+      requireSession();
       const value = await (await request('/api/v1/auth/sessions', { signal })).json();
       if (!Array.isArray(value)) throw new Error('Invalid sessions response');
       return value.map(readSession);
     },
     async logoutCurrent(signal) {
+      requireSession();
       await request('/api/v1/auth/sessions/current', { method: 'DELETE', signal });
       setAccessToken?.(null);
     },
     async preferences(signal) {
+      requireSession();
       return readPreferences(await (await request('/api/v1/account/preferences', { signal })).json());
     },
     async updatePreferences(input, signal) {
+      requireSession();
       return readPreferences(await (await request('/api/v1/account/preferences', {
         method: 'PATCH', signal, body: JSON.stringify(input),
       })).json());

@@ -87,6 +87,23 @@ describe('AccountApiPanels', () => {
     expect(sessions).toHaveBeenCalledTimes(2);
   });
 
+  it('logs in through the exact email session endpoint and reloads protected account data', async () => {
+    const user = userEvent.setup();
+    const sessions = vi.fn()
+      .mockRejectedValueOnce(new AccountApiError(401, 'AUTHENTICATION_REQUIRED', 'corr-auth'))
+      .mockResolvedValueOnce([session]);
+    const login = vi.fn().mockResolvedValue({ accountId: 'account-1', sessionId: 'session-1', sessionToken: 'token', expiresAt: session.expiresAt });
+    render(<AccountApiPanels client={client({ sessions, login })} />);
+
+    await user.type(await screen.findByLabelText('로그인 이메일'), 'user@example.com');
+    await user.type(screen.getByLabelText('로그인 비밀번호'), 'password');
+    await user.click(screen.getByRole('button', { name: '로그인' }));
+
+    await screen.findByText('Chrome');
+    expect(login).toHaveBeenCalledWith('user@example.com', 'password', 'Web browser');
+    expect(sessions).toHaveBeenCalledTimes(2);
+  });
+
   it('renders a 403 action error with correlation evidence and retries safely', async () => {
     const user = userEvent.setup();
     const requestWithdrawal = vi.fn()

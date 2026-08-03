@@ -46,7 +46,7 @@ describe('account API client', () => {
       code: 'STEP_UP_REQUIRED', correlationId: 'server-correlation',
     }), { status: 401 }));
 
-    await expect(createAccountClient({ fetchImpl }).preferences())
+    await expect(createAccountClient({ fetchImpl, getAccessToken: () => 'session-token' }).preferences())
       .rejects.toEqual(expect.objectContaining<Partial<AccountApiError>>({
         status: 401, code: 'STEP_UP_REQUIRED', correlationId: 'server-correlation',
       }));
@@ -56,8 +56,15 @@ describe('account API client', () => {
     const setAccessToken = vi.fn();
     const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
 
-    await createAccountClient({ fetchImpl, setAccessToken }).logoutCurrent();
+    await createAccountClient({ fetchImpl, getAccessToken: () => 'session-token', setAccessToken }).logoutCurrent();
 
     expect(setAccessToken).toHaveBeenCalledWith(null);
+  });
+
+  it('fails closed before protected requests when no bearer session exists', async () => {
+    const fetchImpl = vi.fn();
+    await expect(createAccountClient({ fetchImpl, getAccessToken: () => null, createCorrelationId: () => 'corr-auth' }).sessions())
+      .rejects.toEqual(expect.objectContaining({ status: 401, code: 'AUTHENTICATION_REQUIRED', correlationId: 'corr-auth' }));
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
