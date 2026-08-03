@@ -86,6 +86,50 @@ describe('bot trading API client', () => {
     expect(typeof positions[0].costBasisAmount).toBe('string');
   });
 
+  /**
+   * The v1 mark valuation rides on the position row: currentPrice, unrealisedPnl and returnPct
+   * arrive as exact decimal strings, and each is null exactly when its input does not exist —
+   * no fill has ever marked the instrument, or the basis is zero.
+   */
+  it('carries the v1 mark valuation as exact decimals, or null without a mark', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(json([
+      {
+        flowId: '32000000-0000-4000-8000-00000000000a',
+        partitionId: '31000000-0000-4000-8000-00000000000a',
+        instrumentId: '36000000-0000-4000-8000-00000000000a',
+        longQuantity: '3.00000000',
+        shortQuantity: '0.00000000',
+        costBasisAmount: '30.06000000',
+        currentPrice: '12.00000000',
+        unrealisedPnl: '5.9400000000000000',
+        returnPct: '19.76047904',
+        lastEventSequence: 4,
+      },
+      {
+        flowId: '32000000-0000-4000-8000-00000000000b',
+        partitionId: '31000000-0000-4000-8000-00000000000a',
+        instrumentId: '36000000-0000-4000-8000-00000000000b',
+        longQuantity: '1.00000000',
+        shortQuantity: '0.00000000',
+        costBasisAmount: '5.00000000',
+        currentPrice: null,
+        unrealisedPnl: null,
+        returnPct: null,
+        lastEventSequence: 4,
+      },
+    ]));
+    const client = createBotTradingClient({ fetchImpl });
+
+    const [marked, unmarked] = await client.listPositions(BOT);
+
+    expect(marked.currentPrice).toBe('12.00000000');
+    expect(marked.unrealisedPnl).toBe('5.9400000000000000');
+    expect(marked.returnPct).toBe('19.76047904');
+    expect(unmarked.currentPrice).toBeNull();
+    expect(unmarked.unrealisedPnl).toBeNull();
+    expect(unmarked.returnPct).toBeNull();
+  });
+
   it('reports long and short separately rather than netting them', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(json([
       {

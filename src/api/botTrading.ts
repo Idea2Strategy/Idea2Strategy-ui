@@ -37,6 +37,16 @@ export interface BotPosition {
   longQuantity: string;
   shortQuantity: string;
   costBasisAmount: string;
+  /**
+   * The v1 mark: the latest canonical fill reference price for the instrument, engine-wide,
+   * before the read instant. Null when no fill has ever touched the instrument — the derived
+   * figures below are null with it, and the screen keeps its dash.
+   */
+  currentPrice: string | null;
+  /** Net exposure at the mark against the remaining cost basis. */
+  unrealisedPnl: string | null;
+  /** The unrealised gain over the basis, in percent; null when the basis is zero. */
+  returnPct: string | null;
   lastEventSequence: number;
 }
 
@@ -262,6 +272,9 @@ function readPosition(value: unknown): BotPosition {
     longQuantity: decimal(item.longQuantity, 'longQuantity'),
     shortQuantity: decimal(item.shortQuantity, 'shortQuantity'),
     costBasisAmount: decimal(item.costBasisAmount, 'costBasisAmount'),
+    currentPrice: nullableDecimal(item.currentPrice, 'currentPrice'),
+    unrealisedPnl: nullableDecimal(item.unrealisedPnl, 'unrealisedPnl'),
+    returnPct: nullableDecimal(item.returnPct, 'returnPct'),
     lastEventSequence: nonNegativeInteger(item.lastEventSequence, 'lastEventSequence'),
   };
 }

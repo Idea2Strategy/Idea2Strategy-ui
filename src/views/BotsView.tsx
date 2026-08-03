@@ -496,31 +496,81 @@ const UNVALUED = '—';
 /**
  * A canonical position as the holdings table shows it.
  *
- * Quantity and cost basis are what trading.flow_position_projections holds, so the average cost is
- * real and the current price, unrealised P&L, return and share of equity are not: every one of
- * them needs a market price the trading record does not carry. They read blank until a valuation
- * source is decided.
+ * Quantity and cost basis are what trading.flow_position_projections holds, and the current
+ * price, unrealised P&L and return now ride along on the same row: the API marks every position
+ * at the latest canonical fill reference price in the engine — the v1 mark the live performance
+ * producers share — so those columns show the mark's verdict, not an invented quote. A position
+ * whose instrument no fill has ever touched has no mark, and its columns stay blank.
+ *
+ * The share of equity is the one figure derived here: this position's value over everything the
+ * bot holds plus its cash, which needs the budget projection. Without a valued budget there is no
+ * denominator, and the column stays blank rather than guessing one.
  *
  * The API reports long and short separately. A flow holding both is rare and netting them here
  * would hide it, so the side actually held is the one shown.
  */
-const toPositionRow = (position: BotPosition): Position => {
+const toPositionRow = (position: BotPosition, equity: number | null): Position => {
   const long = Number(position.longQuantity);
   const short = Number(position.shortQuantity);
   const isShort = short > long;
   const held = isShort ? short : long;
   const cost = Number(position.costBasisAmount);
+  const share = equity !== null && position.currentPrice !== null
+    ? (((long - short) * Number(position.currentPrice)) / equity) * 100
+    : null;
   return {
     symbol: tickerLabel(null, position.currentSymbol),
     qty: isShort ? `-${position.shortQuantity}` : position.longQuantity,
     avg: held > 0 ? (cost / held).toFixed(2) : UNVALUED,
-    price: UNVALUED,
-    pnl: UNVALUED,
-    rate: UNVALUED,
-    shareValue: 0,
-    share: UNVALUED,
+    price: position.currentPrice === null ? UNVALUED : trimAmount(position.currentPrice),
+    pnl: position.unrealisedPnl === null ? UNVALUED : signedAmount(position.unrealisedPnl),
+    rate: position.returnPct === null ? UNVALUED : percentLabel(position.returnPct),
+    shareValue: share ?? 0,
+    share: share === null ? UNVALUED : `${share.toFixed(1)}%`,
   };
 };
+
+/** The whole holdings table at once, so every row shares the same equity denominator. */
+const toPositionRows = (positions: BotPosition[], budget: BotBudget | null): Position[] => {
+  const equity = liveEquity(positions, budget);
+  return positions.map((position) => toPositionRow(position, equity));
+};
+
+/**
+ * What the bot is worth right now: every marked position at the v1 mark, plus available cash.
+ *
+ * The cash comes from the budget projection, so an unvalued budget means no equity and no share
+ * column. A position without a mark contributes nothing — its own share is blank anyway — and a
+ * total that is not a positive number cannot be a denominator.
+ */
+const liveEquity = (positions: BotPosition[], budget: BotBudget | null): number | null => {
+  if (budget === null || budget.availableCashAmount === null) return null;
+  let total = Number(budget.availableCashAmount);
+  for (const position of positions) {
+    if (position.currentPrice === null) continue;
+    const net = Number(position.longQuantity) - Number(position.shortQuantity);
+    total += net * Number(position.currentPrice);
+  }
+  return Number.isFinite(total) && total > 0 ? total : null;
+};
+
+/** `+` leads a gain the way `-` already leads a loss; zero is neither and carries no sign. */
+const signedAmount = (value: string): string => {
+  const trimmed = trimAmount(value);
+  return trimmed.startsWith('-') || trimmed === '0' ? trimmed : `+${trimmed}`;
+};
+
+/** A return for the screen: two decimals, signed like the amounts. */
+const percentLabel = (value: string): string => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return UNVALUED;
+  const fixed = numeric.toFixed(2);
+  return numeric > 0 ? `+${fixed}%` : `${fixed}%`;
+};
+
+/** Colour follows the sign, and an unvalued or flat figure is neither gain nor loss. */
+const signTone = (value: string): string | undefined =>
+  value.startsWith('+') ? 'positive' : value.startsWith('-') ? 'negative' : undefined;
 
 /**
  * An exact decimal, made readable without ever becoming a number.
@@ -1505,8 +1555,8 @@ export function BotsView({
   const positionColumns: PositionColumn[] = [
     { key: 'symbol', label: '종목', render: (row) => <strong>{row.symbol}</strong> },
     { key: 'qty', label: '수량' }, { key: 'avg', label: '평균가' }, { key: 'price', label: '현재가' },
-    { key: 'pnl', label: '평가손익', render: (row) => <span className={row.pnl.startsWith('+') ? 'positive' : 'negative'}>{row.pnl}</span> },
-    { key: 'rate', label: '수익률', render: (row) => <span className={row.rate.startsWith('+') ? 'positive' : 'negative'}>{row.rate}</span> },
+    { key: 'pnl', label: '평가손익', render: (row) => <span className={signTone(row.pnl)}>{row.pnl}</span> },
+    { key: 'rate', label: '수익률', render: (row) => <span className={signTone(row.rate)}>{row.rate}</span> },
     { key: 'share', label: '비중' },
   ];
 
@@ -1829,16 +1879,15 @@ export function BotsView({
         </TabPanel>}
 
         {tab === 'positions' && <TabPanel id="positions">
-          {/* Real holdings, when the bot has any. Canonical records quantity
-              and cost basis and no valuation, so the composition bar and the
-              price columns have nothing behind them here: a share of equity
-              needs a current price, and inventing one would be worse than
-              leaving it out. Those arrive with the valuation card. */}
+          {/* Real holdings, when the bot has any. The price columns carry the
+              v1 mark the API now sends with each position; the share of
+              equity additionally needs the budget's cash, so it stays blank
+              until the budget projection is valued. */}
           {livePositions !== null
             ? (livePositions.length > 0
               ? <DataTable
                 columns={positionColumns}
-                rows={livePositions.map(toPositionRow)}
+                rows={toPositionRows(livePositions, liveBudget)}
                 rowKey="symbol"
               />
               : <EmptyState
