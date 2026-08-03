@@ -5,6 +5,32 @@
   grid-template-columns: 72px minmax(0, 1fr);
 }
 
+/* Operator RBAC reads remain a compact, read-only workspace. Visibility is
+   derived from /operations/me, while the server remains the authorization
+   boundary for every catalog and assignment request. */
+.operator-rbac-page { display: grid; gap: 20px; }
+.operator-rbac-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.operator-rbac-tabs button {
+  min-height: 36px; padding: 0 14px; border: 1px solid var(--line);
+  border-radius: var(--radius-sm); color: var(--text-muted); background: var(--surface-2);
+}
+.operator-rbac-tabs button[aria-current="page"] { color: var(--text); border-color: var(--accent); background: var(--surface-3); }
+.operator-rbac-loading { display: flex; align-items: center; gap: 8px; color: var(--text-muted); }
+.operator-rbac-grid { align-items: start; }
+.operator-rbac-definition-list, .operator-rbac-list, .operator-rbac-chip-list { margin: 0; padding: 0; list-style: none; }
+.operator-rbac-definition-list { display: grid; gap: 10px; }
+.operator-rbac-definition-list div, .operator-rbac-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.operator-rbac-definition-list dt, .operator-rbac-list span, .operator-rbac-list small { color: var(--text-faint); }
+.operator-rbac-definition-list dd { margin: 0; overflow-wrap: anywhere; text-align: right; }
+.operator-rbac-list { display: grid; gap: 10px; }
+.operator-rbac-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.operator-rbac-list li:last-child { border-bottom: 0; }
+.operator-rbac-list li > span { display: grid; gap: 3px; }
+.operator-rbac-list li > span:first-child { color: var(--text); }
+.operator-rbac-chip-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.operator-rbac-chip-list li { padding: 6px 9px; border-radius: var(--radius-sm); color: var(--text-muted); background: var(--surface-3); }
+.operator-rbac-target { color: var(--text-muted); overflow-wrap: anywhere; }
+
 /* One container width for every page: 1280px, the Tailwind max-w-7xl standard.
    It leaves margins on a 1366px laptop and calm gutters at 1920. Declared once
    here and mirrored below for signal-studio — never fork it per page. */
