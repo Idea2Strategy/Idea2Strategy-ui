@@ -74,10 +74,6 @@ jobs:
           node-version: 24
           cache: pnpm
           cache-dependency-path: ui/pnpm-lock.yaml
-      - uses: actions/cache@v4
-        with:
-          path: ui/.harness/gradle-cache
-          key: a23-real-api-gradle-${{ runner.os }}-65e6426b-${{ hashFiles('backend/**/*.gradle.kts', 'backend/gradle/libs.versions.toml', 'backend/gradle/wrapper/gradle-wrapper.properties') }}
       - name: Install UI dependencies
         working-directory: ui
         run: pnpm install --frozen-lockfile
@@ -89,7 +85,6 @@ jobs:
         env:
           A23_BACKEND_DIR: ${{ github.workspace }}/backend
           A23_ROOT_DIR: ${{ github.workspace }}/root
-          A23_GRADLE_CACHE_DIR: ${{ github.workspace }}/ui/.harness/gradle-cache
         run: pnpm e2e:real-api
       - if: failure()
         uses: actions/upload-artifact@v4

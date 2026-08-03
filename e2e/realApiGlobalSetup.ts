@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { hasActiveProjectRun, interpretDockerInspect, isDockerContainerNameConflict, shouldReapContainer, shouldReapNetwork } from './dockerResourcePolicy';
@@ -106,7 +106,6 @@ export default async function globalSetup(): Promise<() => void> {
 
     docker('run', '-d', '--name', backend, '--network', network,
       '--label', projectLabel, '--label', runLabel,
-      ...containerUserArguments(),
       '-p', `127.0.0.1:${backendPort}:8080`, '-v', `${backendDir}:/workspace`,
       '-v', `${gradleCache}:/home/gradle/.gradle`, '-w', '/workspace',
       '-e', 'SERVER_PORT=8080', '-e', 'SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/a23',
@@ -135,23 +134,13 @@ export default async function globalSetup(): Promise<() => void> {
   };
 }
 
-function containerUserArguments(): string[] {
-  if (process.platform === 'win32' || process.getuid === undefined || process.getgid === undefined) return [];
-  return ['--user', `${process.getuid()}:${process.getgid()}`];
-}
-
 function gradleCacheSource(): string {
-  if (process.platform === 'win32') {
-    const volume = 'a23-real-api-gradle-cache';
-    if (!resourceExists('volume', volume)) {
-      docker('volume', 'create', '--label', projectLabel,
-        '--label', 'com.idea2strategy.a23-real-api.cache=true', volume);
-    }
-    return volume;
+  const volume = 'a23-real-api-gradle-cache';
+  if (!resourceExists('volume', volume)) {
+    docker('volume', 'create', '--label', projectLabel,
+      '--label', 'com.idea2strategy.a23-real-api.cache=true', volume);
   }
-  const directory = path.resolve(process.env.A23_GRADLE_CACHE_DIR ?? path.join('.harness', 'gradle-cache'));
-  mkdirSync(directory, { recursive: true });
-  return directory;
+  return volume;
 }
 
 function exactCleanRepository(value: string, revision: string, variable: string): string {

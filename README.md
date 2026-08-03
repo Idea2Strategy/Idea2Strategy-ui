@@ -41,6 +41,8 @@ DB 비밀번호와 네 가지 용도별 HMAC/암호화 키는 실행마다 별�
 active-run lock으로 실행을 직렬화하며, 두 번째 실행은 첫 실행을 삭제하지 않고 즉시 실패합니다. 정상 종료·process
 exit·SIGINT·SIGTERM에서는 자기 컨테이너와 network만 제거합니다. 정상 teardown의 inspect나
 삭제 실패는 테스트 실패로 보고합니다.
+Gradle cache는 host UID나 bind mount에 의존하지 않는 Docker named volume에만 저장합니다.
+이 cache volume은 실행 간 재사용하도록 의도적으로 유지하며, 비밀번호·암호화 키 등 실행 secret은 저장하지 않습니다.
 신뢰된 servlet principal과 MFA를 수립하는 gateway가 준비되기 전까지 operator 경로는
 의도적으로 제외합니다.
 
