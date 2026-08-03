@@ -17,6 +17,13 @@ import { DesignConceptLab } from './views/DesignConceptLab';
 import { BOT_ICON_STORAGE_KEY, loadBotIcons } from './components/BotGlyph';
 import type { BotIconMap, BotIconSelection } from './components/BotGlyph';
 import { defaultBacktestClient } from './api/backtests';
+import { defaultAccountClient } from './api/account';
+import type { AccountClient } from './api/account';
+import { defaultAccountOperationsClient } from './api/accountOperations';
+import type { AccountOperationsClient } from './api/accountOperations';
+import { OperatorCaseWorkspace } from './components/CaseApiPanels';
+import { defaultNotificationClient } from './api/notifications';
+import type { NotificationClient } from './api/notifications';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
@@ -222,7 +229,7 @@ const paletteTemplates: PaletteTemplate[] = [
   { id: 'rose', label: '로즈', dark: '#f79ab0', light: '#b42a52' },
 ];
 
-function ProductApp() {
+function ProductApp({ accountClient, operationsClient, notificationClient, operatorCaseAccessVerified }: { accountClient: AccountClient; operationsClient: AccountOperationsClient; notificationClient: NotificationClient; operatorCaseAccessVerified: boolean }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [theme, setTheme] = useState<Theme>('dark');
@@ -281,7 +288,10 @@ function ProductApp() {
     <Route path="/backtests" element={<BacktestView client={defaultBacktestClient} />} />
     <Route path="/competition" element={<RoomsView openBot={openBot} />} />
     <Route path="/competition-v2" element={<RoomsView visualVariant="image" openBot={openBot} />} />
-    <Route path="/notifications" element={<NotificationsView setPage={setPage} />} />
+    <Route path="/notifications" element={<NotificationsView setPage={setPage} client={notificationClient} />} />
+    <Route path="/operations/cases" element={operatorCaseAccessVerified
+      ? <OperatorCaseWorkspace client={operationsClient} />
+      : <Navigate to="/" replace />} />
     <Route path="/help" element={<HelpView />} />
     <Route path="/account" element={<AccountView
       theme={theme}
@@ -292,6 +302,9 @@ function ProductApp() {
       setReduceMotion={setReduceMotion}
       updown={updown}
       setUpdown={setUpdown}
+      accountClient={accountClient}
+      operationsClient={operationsClient}
+      notificationClient={notificationClient}
     />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;
@@ -336,9 +349,9 @@ function ProductApp() {
   `initialVariant` is a legacy entry point kept for the test suite: both former
   variants resolve to the same Signal product shell, so the value is unused.
 */
-export function App(_props: { initialVariant?: string } = {}) {
+export function App({ accountClient = defaultAccountClient, operationsClient = defaultAccountOperationsClient, notificationClient = defaultNotificationClient, operatorCaseAccessVerified = false }: { initialVariant?: string; accountClient?: AccountClient; operationsClient?: AccountOperationsClient; notificationClient?: NotificationClient; operatorCaseAccessVerified?: boolean } = {}) {
   return <LanguageProvider><BrowserRouter><Routes>
     <Route path="/concepts/*" element={<DesignConceptLab />} />
-    <Route path="*" element={<ProductApp />} />
+    <Route path="*" element={<ProductApp accountClient={accountClient} operationsClient={operationsClient} notificationClient={notificationClient} operatorCaseAccessVerified={operatorCaseAccessVerified} />} />
   </Routes></BrowserRouter></LanguageProvider>;
 }

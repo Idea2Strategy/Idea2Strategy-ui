@@ -4029,6 +4029,83 @@
 .settings-switch > span { display: grid; gap: 3px; }
 .settings-switch strong { font-size: var(--fs-control); }
 .settings-switch small { color: var(--text-faint); font-size: var(--fs-caption); line-height: 1.5; }
+.account-api-state > div,
+.account-api-error { display: flex; align-items: center; gap: 12px; }
+.account-api-state [role="status"] { color: var(--text-soft); }
+.account-api-state [role="status"] svg { animation: account-api-spin 1s linear infinite; }
+.account-api-error { color: var(--text-soft); }
+.account-api-error > div { display: grid; gap: 3px; flex: 1; }
+.account-api-error small { display: block; color: var(--text-faint); }
+.account-api-fields { margin-bottom: 14px; }
+.account-api-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.account-login-form { width: 100%; display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 10px; margin-top: 12px; }
+.account-login-form label { display: grid; gap: 5px; }
+.account-login-form input { min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); background: var(--surface-2); }
+.account-auth-alternatives { width: 100%; margin-top: 12px; }
+.account-auth-alternatives summary { cursor: pointer; color: var(--text-soft); }
+.account-auth-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+.account-auth-fields label { display: grid; gap: 5px; }
+.account-auth-fields input { min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); background: var(--surface-2); }
+@media (max-width: 760px) {
+  .account-auth-fields { grid-template-columns: 1fr; }
+}
+.case-api-form textarea {
+  min-height: 92px;
+  padding: 10px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface-2);
+  font: inherit;
+}
+.case-api-form .span-2 { grid-column: 1 / -1; }
+.case-api-panel .account-api-actions > input {
+  min-width: 220px;
+  flex: 1;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface-2);
+}
+.case-api-feedback, .case-api-receipt, .case-api-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text-soft);
+  background: var(--surface-2);
+}
+.case-api-receipt > div, .case-api-error > div, .operator-case-detail > div:first-child { display: grid; gap: 3px; flex: 1; }
+.case-api-error small, .case-api-receipt span, .operator-case-row small, .operator-case-detail small { color: var(--text-faint); }
+.operator-case-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.operator-case-row > span { display: grid; gap: 3px; }
+.operator-case-detail { display: grid; gap: 14px; }
+.case-api-confirm { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--warning); border-radius: var(--radius-sm); background: var(--warning-soft); }
+.notification-api-state { display: flex; align-items: center; gap: 9px; padding: 20px; color: var(--text-soft); }
+.notification-api-actions { display: grid; justify-items: end; gap: 8px; }
+.notification-api-footer { display: flex; justify-content: center; padding: 14px; border-top: 1px solid var(--line); }
+.notification-preferences-api .settings-row { grid-template-columns: auto 1fr auto auto; }
+.operator-case-detail label { display: grid; gap: 6px; }
+.operator-case-detail input { min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); background: var(--surface-2); }
+@keyframes account-api-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 800px) {
   .notification-tools { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
