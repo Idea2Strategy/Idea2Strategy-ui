@@ -4,10 +4,10 @@ export type ThemePreference = 'LIGHT' | 'DARK' | 'SYSTEM';
 export type AccountLifecycleStatus = 'ACTIVE' | 'DORMANT' | 'CLOSING' | 'CLOSED';
 
 export interface AccountPreferences {
-  accountId: string;
   languageCode: string;
   timezoneName: string;
   themePreference: ThemePreference;
+  updatedAt: string;
 }
 
 export interface SessionView {
@@ -235,10 +235,10 @@ function readPreferences(value: unknown): AccountPreferences {
   const theme = string(result.themePreference, 'themePreference');
   if (!['LIGHT', 'DARK', 'SYSTEM'].includes(theme)) throw new Error('Invalid themePreference');
   return {
-    accountId: string(result.accountId, 'accountId'),
     languageCode: string(result.languageCode, 'languageCode'),
     timezoneName: string(result.timezoneName, 'timezoneName'),
     themePreference: theme as ThemePreference,
+    updatedAt: string(result.updatedAt, 'updatedAt'),
   };
 }
 
