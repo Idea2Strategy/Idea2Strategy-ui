@@ -67,4 +67,35 @@ describe('account API client', () => {
       .rejects.toEqual(expect.objectContaining({ status: 401, code: 'AUTHENTICATION_REQUIRED', correlationId: 'corr-auth' }));
     expect(fetchImpl).not.toHaveBeenCalled();
   });
+
+  it('decodes the exact backend sessionId and issuedAt contract', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify([{
+      sessionId: 'session-1', deviceLabel: 'browser', issuedAt: '2026-08-01T00:00:00Z',
+      lastSeenAt: null, expiresAt: '2026-08-03T00:00:00Z', current: true,
+    }]), { status: 200 }));
+
+    await expect(createAccountClient({ fetchImpl, getAccessToken: () => 'session-token' }).sessions())
+      .resolves.toEqual([expect.objectContaining({ sessionId: 'session-1', issuedAt: '2026-08-01T00:00:00Z' })]);
+  });
+
+  it('rotates the exact backend session contract and replaces the in-memory token', async () => {
+    const setAccessToken = vi.fn();
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      sessionId: 'session-2', sessionToken: 'rotated-token', expiresAt: '2026-08-04T00:00:00Z',
+    }), { status: 200 }));
+    await expect(createAccountClient({ fetchImpl, getAccessToken: () => 'old-token', setAccessToken }).rotateSession())
+      .resolves.toEqual({ sessionId: 'session-2', sessionToken: 'rotated-token', expiresAt: '2026-08-04T00:00:00Z' });
+    expect(setAccessToken).toHaveBeenCalledWith('rotated-token');
+  });
+
+  it('uses non-enumerating password recovery request and reset contracts', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ accepted: true }), { status: 202 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const client = createAccountClient({ fetchImpl });
+    await expect(client.requestPasswordReset('user@example.com')).resolves.toBe(true);
+    await expect(client.resetPassword('reset-token', 'new-password')).resolves.toBeUndefined();
+    expect(fetchImpl.mock.calls[0][0]).toBe('/api/v1/auth/password-reset-requests');
+    expect(fetchImpl.mock.calls[1][0]).toBe('/api/v1/auth/password-resets');
+  });
 });

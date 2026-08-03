@@ -6,9 +6,9 @@ import type { AccountClient, AccountPreferences, LifecycleResult, SessionView } 
 import { AccountApiPanels } from './AccountApiPanels';
 
 const session: SessionView = {
-  id: 'session-1',
+  sessionId: 'session-1',
   deviceLabel: 'Chrome',
-  createdAt: '2026-08-01T00:00:00Z',
+  issuedAt: '2026-08-01T00:00:00Z',
   lastSeenAt: '2026-08-02T00:00:00Z',
   expiresAt: '2026-08-03T00:00:00Z',
   current: true,
@@ -44,9 +44,15 @@ function client(overrides: Partial<AccountClient> = {}): AccountClient {
   return {
     signup: vi.fn(),
     verifyEmail: vi.fn(),
+    resendVerification: vi.fn(),
     login: vi.fn(),
+    requestPasswordReset: vi.fn(),
+    resetPassword: vi.fn(),
     sessions: vi.fn().mockResolvedValue([session]),
+    rotateSession: vi.fn(),
     logoutCurrent: vi.fn(),
+    logoutSession: vi.fn(),
+    logoutAll: vi.fn(),
     preferences: vi.fn().mockResolvedValue(preferences),
     updatePreferences: vi.fn().mockResolvedValue(preferences),
     requestWithdrawal: vi.fn().mockResolvedValue(lifecycle),
@@ -102,6 +108,30 @@ describe('AccountApiPanels', () => {
     await screen.findByText('Chrome');
     expect(login).toHaveBeenCalledWith('user@example.com', 'password', 'Web browser');
     expect(sessions).toHaveBeenCalledTimes(2);
+  });
+
+  it('offers signup, verification, and non-enumerating recovery while signed out', async () => {
+    const user = userEvent.setup();
+    const signup = vi.fn().mockResolvedValue({ accountId: 'account-1', verificationExpiresAt: '2026-08-04T00:00:00Z' });
+    const verifyEmail = vi.fn().mockResolvedValue({ accountId: 'account-1', status: 'ACTIVE' });
+    const requestPasswordReset = vi.fn().mockResolvedValue(undefined);
+    const sessions = vi.fn().mockRejectedValue(new AccountApiError(401, 'AUTHENTICATION_REQUIRED', null));
+    render(<AccountApiPanels client={client({ sessions, signup, verifyEmail, requestPasswordReset })} />);
+
+    await user.click(await screen.findByText('가입 · 이메일 인증 · 비밀번호 복구'));
+    await user.type(screen.getByLabelText('인증 이메일'), 'user@example.com');
+    await user.type(screen.getByLabelText('인증 비밀번호'), 'strong-password');
+    await user.click(screen.getByRole('button', { name: '가입' }));
+    expect(signup).toHaveBeenCalledWith('user@example.com', 'strong-password');
+
+    await user.clear(screen.getByLabelText('인증 토큰'));
+    await user.type(screen.getByLabelText('인증 토큰'), 'verify-token');
+    await user.click(screen.getByRole('button', { name: '이메일 인증' }));
+    expect(verifyEmail).toHaveBeenCalledWith('verify-token');
+
+    await user.click(screen.getByRole('button', { name: '재설정 요청' }));
+    expect(requestPasswordReset).toHaveBeenCalledWith('user@example.com');
+    expect(screen.getByRole('status')).toHaveTextContent('계정 존재 여부와 관계없이 복구 요청을 접수했습니다.');
   });
 
   it('renders a 403 action error with correlation evidence and retries safely', async () => {

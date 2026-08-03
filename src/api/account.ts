@@ -11,9 +11,9 @@ export interface AccountPreferences {
 }
 
 export interface SessionView {
-  id: string;
+  sessionId: string;
   deviceLabel: string | null;
-  createdAt: string;
+  issuedAt: string;
   lastSeenAt: string | null;
   expiresAt: string;
   current: boolean;
@@ -57,9 +57,15 @@ interface AccountClientOptions {
 export interface AccountClient {
   signup(email: string, password: string, signal?: AbortSignal): Promise<{ accountId: string; verificationExpiresAt: string }>;
   verifyEmail(verificationToken: string, signal?: AbortSignal): Promise<void>;
+  resendVerification(accountId: string, signal?: AbortSignal): Promise<{ verificationRequired: boolean; verificationExpiresAt: string }>;
   login(email: string, password: string, deviceLabel?: string, signal?: AbortSignal): Promise<LoginResult>;
+  requestPasswordReset(email: string, signal?: AbortSignal): Promise<boolean>;
+  resetPassword(resetToken: string, newPassword: string, signal?: AbortSignal): Promise<void>;
   sessions(signal?: AbortSignal): Promise<SessionView[]>;
+  rotateSession(signal?: AbortSignal): Promise<{ sessionId: string; sessionToken: string; expiresAt: string }>;
   logoutCurrent(signal?: AbortSignal): Promise<void>;
+  logoutSession(sessionId: string, signal?: AbortSignal): Promise<void>;
+  logoutAll(signal?: AbortSignal): Promise<void>;
   preferences(signal?: AbortSignal): Promise<AccountPreferences>;
   updatePreferences(input: Pick<AccountPreferences, 'languageCode' | 'timezoneName' | 'themePreference'>, signal?: AbortSignal): Promise<AccountPreferences>;
   requestWithdrawal(email: string, password: string, idempotencyKey: string, signal?: AbortSignal): Promise<LifecycleResult>;
@@ -123,6 +129,16 @@ export function createAccountClient({
         method: 'POST', signal, body: JSON.stringify({ verificationToken }),
       });
     },
+    async resendVerification(accountId, signal) {
+      const value = object(await (await request('/api/v1/auth/resend-verification', {
+        method: 'POST', signal, body: JSON.stringify({ accountId }),
+      })).json());
+      if (typeof value.verificationRequired !== 'boolean') throw new Error('Invalid verificationRequired');
+      return {
+        verificationRequired: value.verificationRequired,
+        verificationExpiresAt: string(value.verificationExpiresAt, 'verificationExpiresAt'),
+      };
+    },
     async login(email, password, deviceLabel, signal) {
       const value = object(await (await request('/api/v1/auth/login', {
         method: 'POST', signal, body: JSON.stringify({ email, password, deviceLabel: deviceLabel ?? null }),
@@ -136,15 +152,47 @@ export function createAccountClient({
       setAccessToken?.(result.sessionToken);
       return result;
     },
+    async requestPasswordReset(email, signal) {
+      const value = object(await (await request('/api/v1/auth/password-reset-requests', {
+        method: 'POST', signal, body: JSON.stringify({ email }),
+      })).json());
+      if (typeof value.accepted !== 'boolean') throw new Error('Invalid reset acceptance');
+      return value.accepted;
+    },
+    async resetPassword(resetToken, newPassword, signal) {
+      await request('/api/v1/auth/password-resets', {
+        method: 'POST', signal, body: JSON.stringify({ resetToken, newPassword }),
+      });
+    },
     async sessions(signal) {
       requireSession();
       const value = await (await request('/api/v1/auth/sessions', { signal })).json();
       if (!Array.isArray(value)) throw new Error('Invalid sessions response');
       return value.map(readSession);
     },
+    async rotateSession(signal) {
+      requireSession();
+      const value = object(await (await request('/api/v1/auth/sessions/rotate', { method: 'POST', signal })).json());
+      const rotated = {
+        sessionId: string(value.sessionId, 'sessionId'),
+        sessionToken: string(value.sessionToken, 'sessionToken'),
+        expiresAt: string(value.expiresAt, 'expiresAt'),
+      };
+      setAccessToken?.(rotated.sessionToken);
+      return rotated;
+    },
     async logoutCurrent(signal) {
       requireSession();
       await request('/api/v1/auth/sessions/current', { method: 'DELETE', signal });
+      setAccessToken?.(null);
+    },
+    async logoutSession(sessionId, signal) {
+      requireSession();
+      await request(`/api/v1/auth/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE', signal });
+    },
+    async logoutAll(signal) {
+      requireSession();
+      await request('/api/v1/auth/sessions', { method: 'DELETE', signal });
       setAccessToken?.(null);
     },
     async preferences(signal) {
@@ -197,9 +245,9 @@ function readPreferences(value: unknown): AccountPreferences {
 function readSession(value: unknown): SessionView {
   const result = object(value);
   return {
-    id: string(result.id, 'session id'),
+    sessionId: string(result.sessionId, 'sessionId'),
     deviceLabel: nullableString(result.deviceLabel),
-    createdAt: string(result.createdAt, 'createdAt'),
+    issuedAt: string(result.issuedAt, 'issuedAt'),
     lastSeenAt: nullableString(result.lastSeenAt),
     expiresAt: string(result.expiresAt, 'expiresAt'),
     current: Boolean(result.current),

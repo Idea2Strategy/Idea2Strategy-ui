@@ -33,16 +33,20 @@ describe('UserCasePanel', () => {
   });
 
   it('shows a correlation code and retry action for retryable failures', async () => {
+    const createIdempotencyKey = vi.fn(() => 'idem-lost-response');
     const submitCase = vi.fn()
       .mockRejectedValueOnce(new AccountOperationsApiError(503, 'CASE_SERVICE_UNAVAILABLE', 'corr-case'))
       .mockResolvedValueOnce(userCase);
-    render(<UserCasePanel client={client({ submitCase })} createIdempotencyKey={() => 'idem'} />);
+    render(<UserCasePanel client={client({ submitCase })} createIdempotencyKey={createIdempotencyKey} />);
     await userEvent.type(screen.getByLabelText('케이스 제목'), '문의');
     await userEvent.type(screen.getByLabelText('케이스 설명'), '내용');
     await userEvent.click(screen.getByRole('button', { name: '접수하기' }));
     expect(await screen.findByText('문의 코드 corr-case')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: '다시 시도' }));
     await screen.findByText('추적 번호 case-1 · 버전 1');
+    expect(createIdempotencyKey).toHaveBeenCalledTimes(1);
+    expect(submitCase).toHaveBeenNthCalledWith(1, expect.any(Object), 'idem-lost-response');
+    expect(submitCase).toHaveBeenNthCalledWith(2, expect.any(Object), 'idem-lost-response');
   });
 });
 

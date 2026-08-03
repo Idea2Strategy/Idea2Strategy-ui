@@ -229,7 +229,7 @@ const paletteTemplates: PaletteTemplate[] = [
   { id: 'rose', label: '로즈', dark: '#f79ab0', light: '#b42a52' },
 ];
 
-function ProductApp({ accountClient, operationsClient, notificationClient }: { accountClient: AccountClient; operationsClient: AccountOperationsClient; notificationClient: NotificationClient }) {
+function ProductApp({ accountClient, operationsClient, notificationClient, operatorCaseAccessVerified }: { accountClient: AccountClient; operationsClient: AccountOperationsClient; notificationClient: NotificationClient; operatorCaseAccessVerified: boolean }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [theme, setTheme] = useState<Theme>('dark');
@@ -289,7 +289,9 @@ function ProductApp({ accountClient, operationsClient, notificationClient }: { a
     <Route path="/competition" element={<RoomsView openBot={openBot} />} />
     <Route path="/competition-v2" element={<RoomsView visualVariant="image" openBot={openBot} />} />
     <Route path="/notifications" element={<NotificationsView setPage={setPage} client={notificationClient} />} />
-    <Route path="/operations/cases" element={<OperatorCaseWorkspace client={operationsClient} />} />
+    <Route path="/operations/cases" element={operatorCaseAccessVerified
+      ? <OperatorCaseWorkspace client={operationsClient} />
+      : <Navigate to="/" replace />} />
     <Route path="/help" element={<HelpView />} />
     <Route path="/account" element={<AccountView
       theme={theme}
@@ -347,9 +349,9 @@ function ProductApp({ accountClient, operationsClient, notificationClient }: { a
   `initialVariant` is a legacy entry point kept for the test suite: both former
   variants resolve to the same Signal product shell, so the value is unused.
 */
-export function App({ accountClient = defaultAccountClient, operationsClient = defaultAccountOperationsClient, notificationClient = defaultNotificationClient }: { initialVariant?: string; accountClient?: AccountClient; operationsClient?: AccountOperationsClient; notificationClient?: NotificationClient } = {}) {
+export function App({ accountClient = defaultAccountClient, operationsClient = defaultAccountOperationsClient, notificationClient = defaultNotificationClient, operatorCaseAccessVerified = false }: { initialVariant?: string; accountClient?: AccountClient; operationsClient?: AccountOperationsClient; notificationClient?: NotificationClient; operatorCaseAccessVerified?: boolean } = {}) {
   return <LanguageProvider><BrowserRouter><Routes>
     <Route path="/concepts/*" element={<DesignConceptLab />} />
-    <Route path="*" element={<ProductApp accountClient={accountClient} operationsClient={operationsClient} notificationClient={notificationClient} />} />
+    <Route path="*" element={<ProductApp accountClient={accountClient} operationsClient={operationsClient} notificationClient={notificationClient} operatorCaseAccessVerified={operatorCaseAccessVerified} />} />
   </Routes></BrowserRouter></LanguageProvider>;
 }

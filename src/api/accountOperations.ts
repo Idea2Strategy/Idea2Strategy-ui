@@ -80,6 +80,7 @@ interface ClientOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
   getAccessToken?: () => string | null;
+  getOperatorAccessToken?: () => string | null;
   createCorrelationId?: () => string;
 }
 
@@ -106,11 +107,11 @@ export interface AccountOperationsClient {
 }
 
 export function createAccountOperationsClient({
-  baseUrl = '', fetchImpl = fetch, getAccessToken, createCorrelationId = () => crypto.randomUUID(),
+  baseUrl = '', fetchImpl = fetch, getAccessToken, getOperatorAccessToken,
+  createCorrelationId = () => crypto.randomUUID(),
 }: ClientOptions = {}): AccountOperationsClient {
   const root = baseUrl.replace(/\/$/, '');
-  const request = async (path: string, init: RequestInit = {}, correlationId = createCorrelationId()) => {
-    const token = getAccessToken?.();
+  const request = async (path: string, init: RequestInit = {}, correlationId = createCorrelationId(), token = getAccessToken?.()) => {
     let response: Response;
     try {
       response = await fetchImpl(`${root}${path}`, {
@@ -126,6 +127,11 @@ export function createAccountOperationsClient({
     }
     if (!response.ok) throw await readError(response, correlationId);
     return response;
+  };
+  const operatorRequest = (path: string, init: RequestInit = {}, correlationId = createCorrelationId()) => {
+    const token = getOperatorAccessToken?.();
+    if (!token) throw new AccountOperationsApiError(403, 'OPERATOR_CONTEXT_REQUIRED', correlationId);
+    return request(path, init, correlationId, token);
   };
   const commandBody = async (input: Record<string, unknown>, idempotencyKey: string) => {
     const correlationId = createCorrelationId();
@@ -153,13 +159,13 @@ export function createAccountOperationsClient({
       if (query.assigneeOperatorId) params.set('assigneeOperatorId', query.assigneeOperatorId);
       if (query.cursor) params.set('cursor', query.cursor);
       params.set('limit', String(query.limit ?? 50));
-      return readOperatorPage(await json(await request(`/api/v1/operations/cases?${params}`, { signal })));
+      return readOperatorPage(await json(await operatorRequest(`/api/v1/operations/cases?${params}`, { signal })));
     },
     async operatorCase(caseId, signal) {
-      return readOperatorDetail(await json(await request(`/api/v1/operations/cases/${encodeURIComponent(caseId)}`, { signal })));
+      return readOperatorDetail(await json(await operatorRequest(`/api/v1/operations/cases/${encodeURIComponent(caseId)}`, { signal })));
     },
     async commandCase(caseId, action, input, idempotencyKey, signal) {
-      return readReceipt(await json(await request(`/api/v1/operations/cases/${encodeURIComponent(caseId)}/commands/${action}`, {
+      return readReceipt(await json(await operatorRequest(`/api/v1/operations/cases/${encodeURIComponent(caseId)}/commands/${action}`, {
         method: 'POST', signal, headers: { 'Idempotency-Key': idempotencyKey },
         body: JSON.stringify({
           expectedVersion: input.expectedVersion, assigneeOperatorId: input.assigneeOperatorId ?? null,
@@ -171,25 +177,25 @@ export function createAccountOperationsClient({
     },
     async grantOperator(input, idempotencyKey, signal) {
       const body = await commandBody({ ...input, expiresAt: input.expiresAt ?? null }, idempotencyKey);
-      return readReceipt(await json(await request('/api/v1/operations/rbac/assignments/grants', {
+      return readReceipt(await json(await operatorRequest('/api/v1/operations/rbac/assignments/grants', {
         method: 'POST', signal, body: JSON.stringify(body),
       }, String(body.correlationId))));
     },
     async revokeOperator(input, idempotencyKey, signal) {
       const body = await commandBody(input, idempotencyKey);
-      return readReceipt(await json(await request('/api/v1/operations/rbac/assignments/revocations', {
+      return readReceipt(await json(await operatorRequest('/api/v1/operations/rbac/assignments/revocations', {
         method: 'POST', signal, body: JSON.stringify(body),
       }, String(body.correlationId))));
     },
     async applySanction(accountId, input, idempotencyKey, signal) {
       const body = await commandBody({ ...input, expiresAt: input.expiresAt ?? null, sourceCaseId: input.sourceCaseId ?? null }, idempotencyKey);
-      return readReceipt(await json(await request(`/api/v1/operations/accounts/${encodeURIComponent(accountId)}/sanctions`, {
+      return readReceipt(await json(await operatorRequest(`/api/v1/operations/accounts/${encodeURIComponent(accountId)}/sanctions`, {
         method: 'POST', signal, body: JSON.stringify(body),
       }, String(body.correlationId))));
     },
     async liftSanction(accountId, sanctionId, input, idempotencyKey, signal) {
       const body = await commandBody(input, idempotencyKey);
-      return readReceipt(await json(await request(`/api/v1/operations/accounts/${encodeURIComponent(accountId)}/sanctions/${encodeURIComponent(sanctionId)}:lift`, {
+      return readReceipt(await json(await operatorRequest(`/api/v1/operations/accounts/${encodeURIComponent(accountId)}/sanctions/${encodeURIComponent(sanctionId)}:lift`, {
         method: 'POST', signal, body: JSON.stringify(body),
       }, String(body.correlationId))));
     },
@@ -207,7 +213,8 @@ export function createAdminMcpClient(options: ClientOptions = {}): AdminMcpClien
   return {
     async invoke(toolName, input, idempotencyKey, signal) {
       const correlationId = correlation();
-      const token = options.getAccessToken?.();
+      const token = options.getOperatorAccessToken?.();
+      if (!token) throw new AccountOperationsApiError(403, 'OPERATOR_CONTEXT_REQUIRED', correlationId);
       let response: Response;
       try {
         response = await fetchImpl(`${root}/mcp/v1/tools/${encodeURIComponent(toolName)}:invoke`, {

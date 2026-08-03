@@ -131,6 +131,7 @@ export function AccountApiPanels({
         <label><span>비밀번호</span><input aria-label="로그인 비밀번호" type="password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} /></label>
         <Button kind="primary" type="submit" disabled={!loginEmail || !loginPassword || loginPending}>{loginPending ? '로그인 중' : '로그인'}</Button>
       </form>}
+      {loadState.error.status === 401 && <UnauthenticatedAccountActions client={client} />}
     </Panel>;
   }
 
@@ -195,6 +196,35 @@ export function AccountApiPanels({
       {lifecycleState.kind === 'error' && <ApiErrorState error={lifecycleState.error} onRetry={lifecycleState.retry} />}
     </Panel>
   </>;
+}
+
+function UnauthenticatedAccountActions({ client }: { client: AccountClient }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [token, setToken] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+  const [failure, setFailure] = useState<AccountApiError | null>(null);
+  const run = async (action: () => Promise<unknown>, success: string) => {
+    setFailure(null); setMessage(null);
+    try { await action(); setMessage(success); }
+    catch (cause) { setFailure(fallbackError(cause)); }
+  };
+  return <details className="account-auth-alternatives">
+    <summary>가입 · 이메일 인증 · 비밀번호 복구</summary>
+    <div className="account-auth-fields">
+      <label><span>이메일</span><input aria-label="인증 이메일" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+      <label><span>비밀번호 / 새 비밀번호</span><input aria-label="인증 비밀번호" type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+      <label><span>이메일 인증 또는 재설정 토큰</span><input aria-label="인증 토큰" value={token} onChange={(event) => setToken(event.target.value)} /></label>
+    </div>
+    <div className="account-api-actions">
+      <Button disabled={!email || !password} onClick={() => void run(() => client.signup(email, password), '가입 요청을 접수했습니다. 이메일 인증을 완료하세요.')}>가입</Button>
+      <Button disabled={!token} onClick={() => void run(() => client.verifyEmail(token), '이메일 인증을 완료했습니다.')}>이메일 인증</Button>
+      <Button disabled={!email} onClick={() => void run(() => client.requestPasswordReset(email), '계정 존재 여부와 관계없이 복구 요청을 접수했습니다.')}>재설정 요청</Button>
+      <Button disabled={!token || !password} onClick={() => void run(() => client.resetPassword(token, password), '비밀번호를 재설정했습니다. 다시 로그인하세요.')}>비밀번호 재설정</Button>
+    </div>
+    {message && <p role="status">{message}</p>}
+    {failure && <div role="alert"><strong>{failure.code}</strong>{failure.correlationId && <small> · {failure.correlationId}</small>}</div>}
+  </details>;
 }
 
 function ApiErrorState({ error, onRetry }: { error: AccountApiError; onRetry: () => void }) {
