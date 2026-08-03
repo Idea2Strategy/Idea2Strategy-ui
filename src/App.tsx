@@ -23,7 +23,6 @@ import { defaultAccountOperationsClient } from './api/accountOperations';
 import type { AccountOperationsClient } from './api/accountOperations';
 import { OperatorCaseWorkspace } from './components/CaseApiPanels';
 import { OperatorRbacWorkspace } from './components/OperatorRbacViews';
-import { defaultOperatorRbacClient } from './api/operatorRbac';
 import type { OperatorRbacClient } from './api/operatorRbac';
 import { defaultNotificationClient } from './api/notifications';
 import type { NotificationClient } from './api/notifications';
@@ -236,7 +235,7 @@ function ProductApp({ accountClient, operationsClient, notificationClient, opera
   accountClient: AccountClient;
   operationsClient: AccountOperationsClient;
   notificationClient: NotificationClient;
-  operatorRbacClient: OperatorRbacClient;
+  operatorRbacClient?: OperatorRbacClient;
   operatorCaseAccessVerified: boolean;
   catalogReadPermissionId?: string;
   assignmentReadPermissionId?: string;
@@ -303,11 +302,13 @@ function ProductApp({ accountClient, operationsClient, notificationClient, opera
     <Route path="/operations/cases" element={operatorCaseAccessVerified
       ? <OperatorCaseWorkspace client={operationsClient} />
       : <Navigate to="/" replace />} />
-    <Route path="/operations/rbac" element={<OperatorRbacWorkspace
-      client={operatorRbacClient}
-      catalogReadPermissionId={catalogReadPermissionId}
-      assignmentReadPermissionId={assignmentReadPermissionId}
-    />} />
+    <Route path="/operations/rbac" element={operatorRbacClient
+      ? <OperatorRbacWorkspace
+        client={operatorRbacClient}
+        catalogReadPermissionId={catalogReadPermissionId}
+        assignmentReadPermissionId={assignmentReadPermissionId}
+      />
+      : <Navigate to="/" replace />} />
     <Route path="/help" element={<HelpView />} />
     <Route path="/account" element={<AccountView
       theme={theme}
@@ -369,7 +370,7 @@ export function App({
   accountClient = defaultAccountClient,
   operationsClient = defaultAccountOperationsClient,
   notificationClient = defaultNotificationClient,
-  operatorRbacClient = defaultOperatorRbacClient,
+  operatorRbacClient,
   operatorCaseAccessVerified = false,
   catalogReadPermissionId = import.meta.env.VITE_OPERATOR_RBAC_CATALOG_READ_PERMISSION_ID,
   assignmentReadPermissionId = import.meta.env.VITE_OPERATOR_RBAC_ASSIGNMENT_READ_PERMISSION_ID,

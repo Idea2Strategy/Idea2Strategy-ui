@@ -184,5 +184,3 @@ function array<T>(value: unknown, read: (value: unknown) => T, label: string) { 
 function enumeration<T extends string>(value: unknown, allowed: readonly T[], label: string): T {
   const result = text(value, label); if (!allowed.includes(result as T)) throw new Error(`Invalid ${label}`); return result as T;
 }
-
-export const defaultOperatorRbacClient = createOperatorRbacClient({ baseUrl: import.meta.env.VITE_API_BASE_URL ?? '' });
