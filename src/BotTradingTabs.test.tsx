@@ -91,6 +91,21 @@ const order = (overrides: Partial<BotOrder> = {}): BotOrder => ({
   ...overrides,
 });
 
+const position = (overrides: Partial<BotPosition> = {}): BotPosition => ({
+  flowId: 'a0000000-0000-4000-8000-000000000001',
+  partitionId: '60000000-0000-4000-8000-000000000001',
+  instrumentId: '70000000-0000-4000-8000-000000000001',
+  currentSymbol: 'AAPL',
+  longQuantity: '6',
+  shortQuantity: '0',
+  costBasisAmount: '1284.48',
+  currentPrice: null,
+  unrealisedPnl: null,
+  returnPct: null,
+  lastEventSequence: 3,
+  ...overrides,
+});
+
 const fill = (overrides: Partial<BotFill> = {}): BotFill => ({
   fillId: '80000000-0000-4000-8000-000000000001',
   orderId: '50000000-0000-4000-8000-000000000001',
@@ -322,19 +337,77 @@ describe('Bot trading and ledger surfaces', () => {
     expect(within(panel).queryAllByRole('combobox')).toHaveLength(0);
   });
 
+  /*
+    The v1 mark (F93): a position is valued at the latest canonical fill
+    reference price in the engine, and the share of equity divides this
+    position's value by everything held plus the budget's cash.
+    6 × 216.42 = 1298.52 against a basis of 1284.48 is +14.04, and with
+    1000 cash the position is 1298.52 / 2298.52 of the bot.
+  */
+  test('values a position at the v1 mark against its basis and cash', async () => {
+    const user = userEvent.setup();
+    renderBots(tradingClient({
+      positions: [position({
+        currentPrice: '216.42000000',
+        unrealisedPnl: '14.04000000',
+        returnPct: '1.09305751',
+      })],
+      budget: {
+        currencyCode: 'USD',
+        availableCashAmount: '1000.00000000',
+        activeReservationAmount: '0',
+        investedAmount: '1284.48000000',
+        valuationAt: '2026-08-01T13:31:00Z',
+        valuationStatus: 'VALUED',
+        lastEventSequence: 4,
+        partitions: [],
+      },
+    }));
+
+    await user.click(await screen.findByRole('tab', { name: /포지션/ }));
+    const table = await screen.findByRole('table');
+
+    expect(within(table).getByText('216.42')).toBeInTheDocument();
+    expect(within(table).getByText('+14.04')).toBeInTheDocument();
+    expect(within(table).getByText('+1.09%')).toBeInTheDocument();
+    expect(within(table).getByText('56.5%')).toBeInTheDocument();
+  });
+
+  /* An instrument no fill has ever touched has no mark, and nothing derived from one. */
+  test('keeps every valuation column blank when the position has no mark', async () => {
+    const user = userEvent.setup();
+    renderBots(tradingClient({ positions: [position()] }));
+
+    await user.click(await screen.findByRole('tab', { name: /포지션/ }));
+    const table = await screen.findByRole('table');
+
+    // The average cost is real; the current price, P&L, return and share are not.
+    expect(within(table).getByText('214.08')).toBeInTheDocument();
+    expect(within(table).getAllByText('—')).toHaveLength(4);
+  });
+
+  /* The share needs the budget's cash for its denominator; the mark alone is not enough. */
+  test('leaves only the share blank while the budget is unvalued', async () => {
+    const user = userEvent.setup();
+    renderBots(tradingClient({
+      positions: [position({
+        currentPrice: '216.42000000',
+        unrealisedPnl: '14.04000000',
+        returnPct: '1.09305751',
+      })],
+    }));
+
+    await user.click(await screen.findByRole('tab', { name: /포지션/ }));
+    const table = await screen.findByRole('table');
+
+    expect(within(table).getByText('+14.04')).toBeInTheDocument();
+    expect(within(table).getAllByText('—')).toHaveLength(1);
+  });
+
   test('counts the live rows on the tabs instead of the sample ones', async () => {
     renderBots(tradingClient({
       orders: [order(), order({ orderId: '50000000-0000-4000-8000-000000000003' })],
-      positions: [{
-        flowId: 'a0000000-0000-4000-8000-000000000001',
-        partitionId: '60000000-0000-4000-8000-000000000001',
-        instrumentId: '70000000-0000-4000-8000-000000000001',
-        currentSymbol: 'AAPL',
-        longQuantity: '6',
-        shortQuantity: '0',
-        costBasisAmount: '1284.48',
-        lastEventSequence: 3,
-      }],
+      positions: [position()],
     }));
 
     const orders = await screen.findByRole('tab', { name: /주문/ });
