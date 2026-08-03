@@ -22,6 +22,8 @@ import type { AccountClient } from './api/account';
 import { defaultAccountOperationsClient } from './api/accountOperations';
 import type { AccountOperationsClient } from './api/accountOperations';
 import { OperatorCaseWorkspace } from './components/CaseApiPanels';
+import { OperatorRbacWorkspace } from './components/OperatorRbacViews';
+import type { OperatorRbacClient } from './api/operatorRbac';
 import { defaultNotificationClient } from './api/notifications';
 import type { NotificationClient } from './api/notifications';
 import './styles/tokens.css';
@@ -229,7 +231,15 @@ const paletteTemplates: PaletteTemplate[] = [
   { id: 'rose', label: '로즈', dark: '#f79ab0', light: '#b42a52' },
 ];
 
-function ProductApp({ accountClient, operationsClient, notificationClient, operatorCaseAccessVerified }: { accountClient: AccountClient; operationsClient: AccountOperationsClient; notificationClient: NotificationClient; operatorCaseAccessVerified: boolean }) {
+function ProductApp({ accountClient, operationsClient, notificationClient, operatorRbacClient, operatorCaseAccessVerified, catalogReadPermissionId, assignmentReadPermissionId }: {
+  accountClient: AccountClient;
+  operationsClient: AccountOperationsClient;
+  notificationClient: NotificationClient;
+  operatorRbacClient?: OperatorRbacClient;
+  operatorCaseAccessVerified: boolean;
+  catalogReadPermissionId?: string;
+  assignmentReadPermissionId?: string;
+}) {
   const location = useLocation();
   const navigate = useNavigate();
   const [theme, setTheme] = useState<Theme>('dark');
@@ -292,6 +302,13 @@ function ProductApp({ accountClient, operationsClient, notificationClient, opera
     <Route path="/operations/cases" element={operatorCaseAccessVerified
       ? <OperatorCaseWorkspace client={operationsClient} />
       : <Navigate to="/" replace />} />
+    <Route path="/operations/rbac" element={operatorRbacClient
+      ? <OperatorRbacWorkspace
+        client={operatorRbacClient}
+        catalogReadPermissionId={catalogReadPermissionId}
+        assignmentReadPermissionId={assignmentReadPermissionId}
+      />
+      : <Navigate to="/" replace />} />
     <Route path="/help" element={<HelpView />} />
     <Route path="/account" element={<AccountView
       theme={theme}
@@ -349,9 +366,34 @@ function ProductApp({ accountClient, operationsClient, notificationClient, opera
   `initialVariant` is a legacy entry point kept for the test suite: both former
   variants resolve to the same Signal product shell, so the value is unused.
 */
-export function App({ accountClient = defaultAccountClient, operationsClient = defaultAccountOperationsClient, notificationClient = defaultNotificationClient, operatorCaseAccessVerified = false }: { initialVariant?: string; accountClient?: AccountClient; operationsClient?: AccountOperationsClient; notificationClient?: NotificationClient; operatorCaseAccessVerified?: boolean } = {}) {
+export function App({
+  accountClient = defaultAccountClient,
+  operationsClient = defaultAccountOperationsClient,
+  notificationClient = defaultNotificationClient,
+  operatorRbacClient,
+  operatorCaseAccessVerified = false,
+  catalogReadPermissionId = import.meta.env.VITE_OPERATOR_RBAC_CATALOG_READ_PERMISSION_ID,
+  assignmentReadPermissionId = import.meta.env.VITE_OPERATOR_RBAC_ASSIGNMENT_READ_PERMISSION_ID,
+}: {
+  initialVariant?: string;
+  accountClient?: AccountClient;
+  operationsClient?: AccountOperationsClient;
+  notificationClient?: NotificationClient;
+  operatorRbacClient?: OperatorRbacClient;
+  operatorCaseAccessVerified?: boolean;
+  catalogReadPermissionId?: string;
+  assignmentReadPermissionId?: string;
+} = {}) {
   return <LanguageProvider><BrowserRouter><Routes>
     <Route path="/concepts/*" element={<DesignConceptLab />} />
-    <Route path="*" element={<ProductApp accountClient={accountClient} operationsClient={operationsClient} notificationClient={notificationClient} operatorCaseAccessVerified={operatorCaseAccessVerified} />} />
+    <Route path="*" element={<ProductApp
+      accountClient={accountClient}
+      operationsClient={operationsClient}
+      notificationClient={notificationClient}
+      operatorRbacClient={operatorRbacClient}
+      operatorCaseAccessVerified={operatorCaseAccessVerified}
+      catalogReadPermissionId={catalogReadPermissionId}
+      assignmentReadPermissionId={assignmentReadPermissionId}
+    />} />
   </Routes></BrowserRouter></LanguageProvider>;
 }
