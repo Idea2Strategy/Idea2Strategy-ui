@@ -15,10 +15,10 @@ const session: SessionView = {
 };
 
 const preferences: AccountPreferences = {
-  accountId: 'account-1',
   languageCode: 'ko',
   timezoneName: 'Asia/Seoul',
   themePreference: 'SYSTEM',
+  updatedAt: '2026-08-02T00:00:00Z',
 };
 
 const lifecycle: LifecycleResult = {

@@ -52,6 +52,19 @@ describe('account API client', () => {
       }));
   });
 
+  it('decodes the exact backend preferences contract without inventing an account id', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      languageCode: 'ko', timezoneName: 'Asia/Seoul', themePreference: 'SYSTEM',
+      updatedAt: '2026-08-03T00:00:00Z',
+    }), { status: 200 }));
+
+    await expect(createAccountClient({ fetchImpl, getAccessToken: () => 'session-token' }).preferences())
+      .resolves.toEqual({
+        languageCode: 'ko', timezoneName: 'Asia/Seoul', themePreference: 'SYSTEM',
+        updatedAt: '2026-08-03T00:00:00Z',
+      });
+  });
+
   it('clears the local session only after logout succeeds', async () => {
     const setAccessToken = vi.fn();
     const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));

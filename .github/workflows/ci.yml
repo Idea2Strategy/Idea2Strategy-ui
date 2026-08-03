@@ -47,3 +47,53 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  real-account-api:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ui
+      - uses: actions/checkout@v4
+        with:
+          repository: Idea2Strategy/Idea2Strategy-backend
+          ref: 65e6426bc73a7b7105aff74b1c97565d90e7215d
+          path: backend
+      - uses: actions/checkout@v4
+        with:
+          repository: Idea2Strategy/Idea2Strategy
+          ref: e259a8370daef020763a47ea5228098bca1194b7
+          path: root
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+      - uses: actions/cache@v4
+        with:
+          path: ui/.harness/gradle-cache
+          key: a23-real-api-gradle-${{ runner.os }}-65e6426b-${{ hashFiles('backend/**/*.gradle.kts', 'backend/gradle/libs.versions.toml', 'backend/gradle/wrapper/gradle-wrapper.properties') }}
+      - name: Install UI dependencies
+        working-directory: ui
+        run: pnpm install --frozen-lockfile
+      - name: Install Chromium
+        working-directory: ui
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Real account API journey
+        working-directory: ui
+        env:
+          A23_BACKEND_DIR: ${{ github.workspace }}/backend
+          A23_ROOT_DIR: ${{ github.workspace }}/root
+          A23_GRADLE_CACHE_DIR: ${{ github.workspace }}/ui/.harness/gradle-cache
+        run: pnpm e2e:real-api
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-account-api-playwright-report
+          path: ui/playwright-report/
+          retention-days: 7
