@@ -81,7 +81,7 @@ export function createOperatorRbacClient({
     try {
       response = await fetchImpl(`${root}${path}`, {
         signal,
-        credentials: 'include',
+        credentials: 'omit',
         headers: {
           Accept: 'application/json',
           'X-Correlation-Id': correlationId,

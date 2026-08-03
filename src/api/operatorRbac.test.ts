@@ -32,11 +32,12 @@ describe('operator RBAC read client', () => {
     expect(result.view).not.toHaveProperty('subjectHmac');
     expect(result.view).not.toHaveProperty('accessToken');
     expect(fetchImpl).toHaveBeenCalledWith('/api/v1/operations/me', expect.objectContaining({
-      credentials: 'include',
+      credentials: 'omit',
       headers: expect.objectContaining({ Authorization: 'Bearer operator-token', 'X-Correlation-Id': 'client-corr' }),
     }));
     const headers = fetchImpl.mock.calls[0][1]?.headers as Record<string, string>;
     expect(Object.keys(headers).filter((name) => /^x-(operator|user|amzn-oidc)/i.test(name))).toEqual([]);
+    expect(Object.keys(headers).sort()).toEqual(['Accept', 'Authorization', 'X-Correlation-Id'].sort());
   });
 
   it('fails closed without a dedicated operator bearer token', async () => {
