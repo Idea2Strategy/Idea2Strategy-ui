@@ -3,7 +3,6 @@ import type { CSSProperties } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Bell, CircleHelp, Moon, Palette, Settings, Sun, X } from 'lucide-react';
 import i2sLogo from './assets/i2s-logo.svg';
-import { notifications } from './data/mockData';
 import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation';
 import type { PageId } from './lib/navigation';
 import { LanguageProvider, Localized, useLanguage } from './lib/i18n';
@@ -25,8 +24,8 @@ import type { AccountOperationsClient } from './api/accountOperations';
 import { OperatorCaseWorkspace } from './components/CaseApiPanels';
 import { OperatorRbacWorkspace } from './components/OperatorRbacViews';
 import type { OperatorRbacClient } from './api/operatorRbac';
-import { defaultNotificationClient } from './api/notifications';
-import type { NotificationClient } from './api/notifications';
+import { defaultNotificationClient, NotificationApiError } from './api/notifications';
+import type { NotificationClient, NotificationRecord } from './api/notifications';
 import type { CompetitionRoomsClient } from './api/competitionRooms';
 import { PRO_EDITOR_AVAILABLE } from './lib/proEditorAccess';
 import './styles/tokens.css';
@@ -47,7 +46,14 @@ interface TopbarProps {
   setPage: SetPage;
   updown: Updown;
   setUpdown: (updown: Updown) => void;
+  notificationClient: NotificationClient;
 }
+
+type TopbarNotificationState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'ready'; items: NotificationRecord[] }
+  | { kind: 'error'; error: NotificationApiError };
 
 // Flag geometry adapted from lipis/flag-icons (MIT),
 // Copyright (c) 2013 Panayiotis Lipiridis.
@@ -93,12 +99,34 @@ function MarketFlag({ country }: { country: Updown }) {
   </svg>;
 }
 
-function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarProps) {
+function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificationClient }: TopbarProps) {
   const { language, setLanguage } = useLanguage();
   const [openPanel, setOpenPanel] = useState<string | null>(null);
+  const [notificationState, setNotificationState] = useState<TopbarNotificationState>({ kind: 'idle' });
+  const [notificationReload, setNotificationReload] = useState(0);
   const labels: Partial<Record<PageId, string>> = { home: 'HOME', strategy: 'STRATEGIES', bots: 'BOTS', backtest: 'BACKTEST', rooms: 'COMPETITION' };
   const togglePanel = (panel: string) => setOpenPanel((current) => current === panel ? null : panel);
-  const unreadCount = notifications.filter((item) => item.unread).length;
+  const unreadCount = notificationState.kind === 'ready'
+    ? notificationState.items.filter((item) => item.readAt === null).length
+    : 0;
+
+  useEffect(() => {
+    if (openPanel !== 'notifications') return undefined;
+
+    const controller = new AbortController();
+    setNotificationState({ kind: 'loading' });
+    void notificationClient.list(null, 3, controller.signal).then((page) => {
+      if (!controller.signal.aborted) setNotificationState({ kind: 'ready', items: page.items });
+    }).catch((cause: unknown) => {
+      if (controller.signal.aborted) return;
+      const error = cause instanceof NotificationApiError
+        ? cause
+        : new NotificationApiError(0, 'NETWORK_ERROR', null);
+      setNotificationState({ kind: 'error', error });
+    });
+
+    return () => controller.abort();
+  }, [notificationClient, notificationReload, openPanel]);
 
   /*
     A press outside the open panel closes it. `.topbar-popover-anchor` wraps
@@ -140,13 +168,27 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown }: TopbarPro
       <div className="topbar-popover-anchor">
         <button className="icon-button has-count" aria-label="알림" onClick={() => togglePanel('notifications')}><Bell size={17} />{unreadCount > 0 && <b>{unreadCount}</b>}</button>
         {openPanel === 'notifications' && <section className="topbar-popover notifications-popover" role="dialog" aria-label="최근 알림">
-          <header><div><strong>최근 알림</strong><span>읽지 않음 {unreadCount}개</span></div><button aria-label="알림 닫기" onClick={() => setOpenPanel(null)}><X size={15} /></button></header>
-          <div>{notifications.slice(0, 3).map((item) => <button
-            className={item.unread ? 'unread' : ''}
-            key={item.title}
-            aria-label={`${item.title} 알림 열기`}
-            onClick={() => { setOpenPanel(null); setPage('notifications'); }}
-          ><i /><span><strong>{item.title}</strong><small>{item.time}</small></span></button>)}</div>
+          <header><div><strong>최근 알림</strong><span>{notificationState.kind === 'loading'
+            ? '동기화 중'
+            : notificationState.kind === 'error'
+              ? notificationState.error.authenticationRequired ? '로그인 필요' : '불러오기 실패'
+              : `읽지 않음 ${unreadCount}개`}</span></div><button aria-label="알림 닫기" onClick={() => setOpenPanel(null)}><X size={15} /></button></header>
+          <div>{notificationState.kind === 'loading'
+            ? <div role="status">알림을 불러오는 중입니다.</div>
+            : notificationState.kind === 'error'
+              ? <div role="alert">
+                <strong>{notificationState.error.authenticationRequired ? '로그인이 필요합니다.' : '알림을 불러오지 못했습니다.'}</strong>
+                <small>{notificationState.error.code}</small>
+                <button type="button" onClick={() => setNotificationReload((value) => value + 1)}>다시 시도</button>
+              </div>
+              : notificationState.kind === 'ready' && notificationState.items.length === 0
+                ? <div role="status">새 알림이 없습니다.</div>
+                : notificationState.kind === 'ready' && notificationState.items.map((item) => <button
+                  className={item.readAt === null ? 'unread' : ''}
+                  key={item.id}
+                  aria-label={`${item.typeCode} 알림 열기`}
+                  onClick={() => { setOpenPanel(null); setPage('notifications'); }}
+                ><i /><span><strong>{item.typeCode}</strong><small>{new Date(item.createdAt).toLocaleString()}</small></span></button>)}</div>
           <footer><button onClick={() => { setOpenPanel(null); setPage('notifications'); }}>알림 전체 보기<ArrowRight size={13} aria-hidden="true" /></button></footer>
         </section>}
       </div>
@@ -343,7 +385,7 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     className={`app-shell variant-balanced signal-product theme-${theme}${reduceMotion ? ' reduce-motion' : ''}`}
   >
     <div className="app-main">
-      <Topbar theme={theme} setTheme={setTheme} page={page} setPage={setPage} updown={updown} setUpdown={setUpdown} />
+      <Topbar theme={theme} setTheme={setTheme} page={page} setPage={setPage} updown={updown} setUpdown={setUpdown} notificationClient={notificationClient} />
       {isStrategyEditor
         ? <div className="strategy-editor-surface" data-testid="strategy-editor-surface">
           <div className="page-scroll strategy-editor-scroll">{content}</div>

@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, test } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { App } from './App';
+import { NotificationApiError } from './api/notifications';
+import type { NotificationClient } from './api/notifications';
 import { ProEditor } from './views/StrategyViews';
 
 const balancedStyles = readFileSync(resolve(process.cwd(), 'src/styles/balanced.css'), 'utf8');
@@ -278,6 +280,53 @@ describe('Signal product UI', () => {
     expect(screen.getByRole('dialog', { name: '최근 알림' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
     expect(screen.queryByRole('dialog', { name: '최근 알림' })).not.toBeInTheDocument();
+  });
+
+  test('loads the top-bar notification summary from the authenticated API without sample fallback', async () => {
+    const user = userEvent.setup();
+    const list = vi.fn().mockResolvedValue({
+      items: [{
+        id: 'server-notification-1',
+        typeCode: 'SECURITY_EVENT',
+        mandatory: true,
+        templateVersion: 'v1',
+        locale: 'ko-KR',
+        templateArguments: { device: 'new-browser' },
+        createdAt: '2026-08-04T10:00:00Z',
+        readAt: null,
+      }],
+      nextCreatedAt: null,
+      nextId: null,
+    });
+    const notificationClient: NotificationClient = {
+      list,
+      markRead: vi.fn(),
+      preferences: vi.fn(),
+      replacePreference: vi.fn(),
+    };
+    render(<App notificationClient={notificationClient} />);
+
+    await user.click(screen.getByRole('button', { name: '알림' }));
+    const dialog = screen.getByRole('dialog', { name: '최근 알림' });
+    expect(await within(dialog).findByText('SECURITY_EVENT')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Atlas 07/)).not.toBeInTheDocument();
+    expect(list).toHaveBeenCalledWith(null, 3, expect.any(AbortSignal));
+  });
+
+  test('shows the top-bar authentication boundary instead of stale notifications', async () => {
+    const user = userEvent.setup();
+    const notificationClient: NotificationClient = {
+      list: vi.fn().mockRejectedValue(new NotificationApiError(401, 'AUTHENTICATION_REQUIRED', 'corr-topbar')),
+      markRead: vi.fn(),
+      preferences: vi.fn(),
+      replacePreference: vi.fn(),
+    };
+    render(<App notificationClient={notificationClient} />);
+
+    await user.click(screen.getByRole('button', { name: '알림' }));
+    const dialog = screen.getByRole('dialog', { name: '최근 알림' });
+    await waitFor(() => expect(within(dialog).getByRole('alert')).toHaveTextContent('AUTHENTICATION_REQUIRED'));
+    expect(within(dialog).queryByText(/Atlas 07/)).not.toBeInTheDocument();
   });
 
   test('the top navigation reads and behaves as a row of buttons', () => {
