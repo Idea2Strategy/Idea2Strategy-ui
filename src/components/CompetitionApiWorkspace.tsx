@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Bot, CalendarDays, Check, LoaderCircle, Plus, RotateCcw, Search, Trophy, X } from 'lucide-react';
 import type {
   CompetitionRoomsClient, CreateRoomInput, JoinRoomInput, LeaderboardItem,
-  LeaderboardPage, PostEvaluationAction, PostEvaluationChoice, PublicRoom,
+  LeaderboardPage, PostEvaluationAction, PostEvaluationChoice, PublicRoom, RoomInputCatalog,
+  CurrentStrategyValidationPage,
 } from '../api/competitionRooms';
 import { CompetitionApiError } from '../api/competitionRooms';
 import { Button, PageHeading } from './common';
@@ -96,13 +97,67 @@ function DialogShell({ title, onClose, children }: { title: string; onClose: () 
 
 const dateTime = (days: number) => { const date = new Date(Date.now() + days * 86400000); date.setUTCMinutes(0, 0, 0); return date.toISOString().slice(0, 16); };
 function CreateRoomDialog({ client, onClose, onCreated }: { client: CompetitionRoomsClient; onClose: () => void; onCreated: () => void }) {
+  const [catalog, setCatalog] = useState<{ state: LoadState; value: RoomInputCatalog | null; error: unknown }>({ state: 'loading', value: null, error: null });
+  const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState(''); const [saving, setSaving] = useState(false);
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); setSaving(true); setError(''); const iso = (name: string) => new Date(String(form.get(name))).toISOString(); const input: CreateRoomInput = { name: String(form.get('name')), accessType: 'PUBLIC', scoringTemplateVersionId: String(form.get('scoringTemplateVersionId')), scoringAdjustments: {}, initialCashAmount: 10000, botParticipationLimit: 25, perAccountBotLimit: 2, stoppedBotSlotPolicy: 'RELEASE_SLOT', minimumOperationSeconds: 0, minimumFillCount: 0, feePolicyId: String(form.get('feePolicyId')), buyingPowerBufferPolicyId: String(form.get('buyingPowerBufferPolicyId')), recruitmentOpensAt: iso('recruitmentOpensAt'), participationOpensAt: iso('participationOpensAt'), evaluationStartsAt: iso('evaluationStartsAt'), participationClosesAt: iso('participationClosesAt'), evaluationEndsAt: iso('evaluationEndsAt'), finalizationDeadlineAt: iso('finalizationDeadlineAt'), timezoneName: 'Asia/Seoul' }; try { await client.createRoom(input); onCreated(); } catch (cause) { setError(cause instanceof CompetitionApiError && cause.forbidden ? '대회를 만들 권한이 없습니다.' : '대회를 만들지 못했습니다. 입력과 로그인 상태를 확인해 주세요.'); setSaving(false); } };
-  return <DialogShell title="대회 만들기" onClose={onClose}><form className="competition-api-form" onSubmit={submit}><label>대회 이름<input name="name" aria-label="대회 이름" required /></label><div className="competition-api-form-grid"><label>모집 시작<input name="recruitmentOpensAt" type="datetime-local" defaultValue={dateTime(0)} required /></label><label>참가 시작<input name="participationOpensAt" type="datetime-local" defaultValue={dateTime(1)} required /></label><label>평가 시작<input name="evaluationStartsAt" type="datetime-local" defaultValue={dateTime(3)} required /></label><label>참가 마감<input name="participationClosesAt" type="datetime-local" defaultValue={dateTime(3)} required /></label><label>평가 종료<input name="evaluationEndsAt" type="datetime-local" defaultValue={dateTime(10)} required /></label><label>최종 확정 시한<input name="finalizationDeadlineAt" type="datetime-local" defaultValue={dateTime(11)} required /></label></div><details><summary>서버 정책 ID</summary><label>채점 템플릿 버전 ID<input name="scoringTemplateVersionId" aria-label="채점 템플릿 버전 ID" required /></label><label>수수료 정책 ID<input name="feePolicyId" aria-label="수수료 정책 ID" required /></label><label>구매력 버퍼 정책 ID<input name="buyingPowerBufferPolicyId" aria-label="구매력 버퍼 정책 ID" required /></label></details>{error && <p role="alert">{error}</p>}<footer><button type="button" className="button button-secondary" onClick={onClose}>취소</button><button type="submit" className="button button-primary" disabled={saving}>{saving ? '생성 중…' : '대회 생성'}</button></footer></form></DialogShell>;
+  useEffect(() => {
+    const controller = new AbortController(); setCatalog({ state: 'loading', value: null, error: null });
+    client.roomInputCatalog(controller.signal)
+      .then((value) => setCatalog({ state: 'ready', value, error: null }))
+      .catch((cause) => { if ((cause as { name?: string }).name !== 'AbortError') setCatalog({ state: 'error', value: null, error: cause }); });
+    return () => controller.abort();
+  }, [client, reloadKey]);
+  const complete = catalog.state === 'ready' && Boolean(catalog.value?.scoringTemplates.length && catalog.value.feePolicies.length && catalog.value.buyingPowerBufferPolicies.length);
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); if (!complete) return;
+    const form = new FormData(event.currentTarget); setSaving(true); setError(''); const iso = (name: string) => new Date(String(form.get(name))).toISOString();
+    const input: CreateRoomInput = { name: String(form.get('name')), accessType: 'PUBLIC', scoringTemplateVersionId: String(form.get('scoringTemplateVersionId')), scoringAdjustments: {}, initialCashAmount: 10000, botParticipationLimit: 25, perAccountBotLimit: 2, stoppedBotSlotPolicy: 'RELEASE_SLOT', minimumOperationSeconds: 0, minimumFillCount: 0, feePolicyId: String(form.get('feePolicyId')), buyingPowerBufferPolicyId: String(form.get('buyingPowerBufferPolicyId')), recruitmentOpensAt: iso('recruitmentOpensAt'), participationOpensAt: iso('participationOpensAt'), evaluationStartsAt: iso('evaluationStartsAt'), participationClosesAt: iso('participationClosesAt'), evaluationEndsAt: iso('evaluationEndsAt'), finalizationDeadlineAt: iso('finalizationDeadlineAt'), timezoneName: 'Asia/Seoul' };
+    try { await client.createRoom(input); onCreated(); } catch (cause) { setError(cause instanceof CompetitionApiError && cause.forbidden ? '대회를 만들 권한이 없습니다.' : '대회를 만들지 못했습니다. 입력과 로그인 상태를 확인해 주세요.'); setSaving(false); }
+  };
+  const catalogError = catalog.error instanceof CompetitionApiError && catalog.error.unauthenticated ? '로그인 후 대회 생성 정책을 확인할 수 있습니다.'
+    : catalog.error instanceof CompetitionApiError && catalog.error.forbidden ? '대회 생성 정책을 조회할 권한이 없습니다.' : '대회 생성 정책을 불러오지 못했습니다.';
+  return <DialogShell title="대회 만들기" onClose={onClose}><form className="competition-api-form" onSubmit={submit}>
+    <label>대회 이름<input name="name" aria-label="대회 이름" required /></label>
+    <div className="competition-api-form-grid"><label>모집 시작<input name="recruitmentOpensAt" type="datetime-local" defaultValue={dateTime(0)} required /></label><label>참가 시작<input name="participationOpensAt" type="datetime-local" defaultValue={dateTime(1)} required /></label><label>평가 시작<input name="evaluationStartsAt" type="datetime-local" defaultValue={dateTime(3)} required /></label><label>참가 마감<input name="participationClosesAt" type="datetime-local" defaultValue={dateTime(3)} required /></label><label>평가 종료<input name="evaluationEndsAt" type="datetime-local" defaultValue={dateTime(10)} required /></label><label>최종 확정 시한<input name="finalizationDeadlineAt" type="datetime-local" defaultValue={dateTime(11)} required /></label></div>
+    {catalog.state === 'loading' && <p role="status">대회 생성 입력을 불러오는 중입니다.</p>}
+    {catalog.state === 'error' && <div role="alert"><p>{catalogError}</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>정책 다시 불러오기</button></div>}
+    {catalog.state === 'ready' && !complete && <p role="alert">운영 정책 카탈로그가 준비되지 않아 대회를 만들 수 없습니다.</p>}
+    {complete && <div className="competition-api-form-grid">
+      <label>채점 템플릿<select name="scoringTemplateVersionId" aria-label="채점 템플릿" required>{catalog.value!.scoringTemplates.map((item) => <option key={item.id} value={item.id}>{item.templateCode} · {item.version}</option>)}</select></label>
+      <label>수수료 정책<select name="feePolicyId" aria-label="수수료 정책" required>{catalog.value!.feePolicies.map((item) => <option key={item.id} value={item.id}>{item.policyCode} · {item.version} · {item.feeRateBps}bps</option>)}</select></label>
+      <label>구매력 버퍼 정책<select name="buyingPowerBufferPolicyId" aria-label="구매력 버퍼 정책" required>{catalog.value!.buyingPowerBufferPolicies.map((item) => <option key={item.id} value={item.id}>{item.policyCode} · {item.version} · {item.bufferBps}bps</option>)}</select></label>
+    </div>}
+    {error && <p role="alert">{error}</p>}<footer><button type="button" className="button button-secondary" onClick={onClose}>취소</button><button type="submit" className="button button-primary" disabled={saving || !complete}>{saving ? '생성 중…' : '대회 생성'}</button></footer>
+  </form></DialogShell>;
 }
 
 function JoinRoomDialog({ client, room, onClose, onJoined }: { client: CompetitionRoomsClient; room: PublicRoom; onClose: () => void; onJoined: () => void }) {
+  const [validations, setValidations] = useState<{ state: LoadState; value: CurrentStrategyValidationPage | null; error: unknown }>({ state: 'loading', value: null, error: null });
+  const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState(''); const [saving, setSaving] = useState(false);
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); const input: JoinRoomInput = { validationRunId: String(form.get('validationRunId')), anonymousAlias: String(form.get('anonymousAlias')), languageVersion: 'v1', schemaVersion: 'v1', catalogVersion: 'v1', budgetCapBps: 10000, brokerRulesVersion: 'v1', accountingRulesVersion: 'v1', candidateConflictPolicy: {} }; setSaving(true); setError(''); try { await client.joinRoom(room.id, input); onJoined(); } catch (cause) { setError(cause instanceof CompetitionApiError && cause.unauthenticated ? '로그인 후 참가할 수 있습니다.' : cause instanceof CompetitionApiError && cause.forbidden ? '이 대회에 참가할 권한이 없습니다.' : cause instanceof CompetitionApiError && cause.conflict ? cause.detail || '참가 조건을 충족하지 못했습니다.' : '참가 요청을 완료하지 못했습니다.'); setSaving(false); } };
-  return <DialogShell title="대회 참가" onClose={onClose}><form className="competition-api-form" onSubmit={submit}><p>{room.name}에는 검증 완료된 전략 실행만 제출할 수 있습니다.</p><label>검증 실행 ID<input name="validationRunId" aria-label="검증 실행 ID" required /></label><label>익명 봇 별칭<input name="anonymousAlias" aria-label="익명 봇 별칭" placeholder="다른 참가자에게 표시될 별칭" required /></label><p className="competition-api-privacy"><Check size={14} aria-hidden="true" />계정 이름과 전략 내부는 공개되지 않습니다.</p>{error && <p role="alert">{error}</p>}<footer><button type="button" className="button button-secondary" onClick={onClose}>취소</button><button type="submit" className="button button-primary" disabled={saving}>{saving ? '참가 중…' : '참가 확정'}</button></footer></form></DialogShell>;
+  useEffect(() => {
+    const controller = new AbortController(); setValidations({ state: 'loading', value: null, error: null });
+    client.currentStrategyValidations(controller.signal)
+      .then((value) => setValidations({ state: 'ready', value, error: null }))
+      .catch((cause) => { if ((cause as { name?: string }).name !== 'AbortError') setValidations({ state: 'error', value: null, error: cause }); });
+    return () => controller.abort();
+  }, [client, reloadKey]);
+  const available = validations.state === 'ready' && Boolean(validations.value?.items.length);
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); if (!available) return;
+    const form = new FormData(event.currentTarget); const input: JoinRoomInput = { validationRunId: String(form.get('validationRunId')), anonymousAlias: String(form.get('anonymousAlias')), languageVersion: 'v1', schemaVersion: 'v1', catalogVersion: 'v1', budgetCapBps: 10000, brokerRulesVersion: 'v1', accountingRulesVersion: 'v1', candidateConflictPolicy: {} }; setSaving(true); setError('');
+    try { await client.joinRoom(room.id, input); onJoined(); } catch (cause) { setError(cause instanceof CompetitionApiError && cause.unauthenticated ? '로그인 후 참가할 수 있습니다.' : cause instanceof CompetitionApiError && cause.forbidden ? '이 대회에 참가할 권한이 없습니다.' : cause instanceof CompetitionApiError && cause.conflict ? cause.detail || '참가 조건을 충족하지 못했습니다.' : '참가 요청을 완료하지 못했습니다.'); setSaving(false); }
+  };
+  const validationError = validations.error instanceof CompetitionApiError && validations.error.unauthenticated ? '로그인 후 검증 완료 전략을 확인할 수 있습니다.'
+    : validations.error instanceof CompetitionApiError && validations.error.forbidden ? '검증 완료 전략을 조회할 권한이 없습니다.' : '검증 완료 전략을 불러오지 못했습니다.';
+  return <DialogShell title="대회 참가" onClose={onClose}><form className="competition-api-form" onSubmit={submit}>
+    <p>{room.name}에는 검증 완료된 전략 실행만 제출할 수 있습니다.</p>
+    {validations.state === 'loading' && <p role="status">검증 완료 전략을 불러오는 중입니다.</p>}
+    {validations.state === 'error' && <div role="alert"><p>{validationError}</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>전략 다시 불러오기</button></div>}
+    {validations.state === 'ready' && !available && <p role="alert">현재 제출 가능한 검증 완료 전략이 없습니다.</p>}
+    {available && <label>검증 완료 전략<select name="validationRunId" aria-label="검증 완료 전략" required>{validations.value!.items.map((item) => <option key={item.validationRunId} value={item.validationRunId}>{item.strategyName} · 편집 {item.requestedEditSequence} · {dateLabel(item.completedAt)}</option>)}</select></label>}
+    <label>익명 봇 별칭<input name="anonymousAlias" aria-label="익명 봇 별칭" placeholder="다른 참가자에게 표시될 별칭" required /></label>
+    <p className="competition-api-privacy"><Check size={14} aria-hidden="true" />계정 이름과 전략 내부는 공개되지 않습니다.</p>{error && <p role="alert">{error}</p>}
+    <footer><button type="button" className="button button-secondary" onClick={onClose}>취소</button><button type="submit" className="button button-primary" disabled={saving || !available}>{saving ? '참가 중…' : '참가 확정'}</button></footer>
+  </form></DialogShell>;
 }
