@@ -5,7 +5,7 @@ import {
   ChevronDown,
   Trophy,
 } from 'lucide-react';
-import { Status } from '../components/common';
+import { ErrorState, Status } from '../components/common';
 import { BotGlyph, DEFAULT_BOT_ICONS, FALLBACK_BOT_ICON } from '../components/BotGlyph';
 import type { BotIconMap } from '../components/BotGlyph';
 import { EquityChart } from '../components/EquityChart';
@@ -34,6 +34,7 @@ interface BotRecord {
 interface DashboardViewProps {
   setPage: (page: PageId) => void;
   botIcons?: BotIconMap;
+  dataSource?: 'sample' | 'unavailable';
 }
 
 const botList = bots as BotRecord[];
@@ -93,7 +94,24 @@ const botTone = (state: string): 'positive' | 'info' | 'warning' =>
 const isBotInScope = (bot: BotRecord, scope: PerformanceScope): boolean =>
   scope === 'personal' ? bot.room === '개인 봇' : bot.room !== '개인 봇';
 
-export function DashboardView({ setPage, botIcons = DEFAULT_BOT_ICONS }: DashboardViewProps): ReactNode {
+export function DashboardView({
+  setPage,
+  botIcons = DEFAULT_BOT_ICONS,
+  dataSource = import.meta.env.MODE === 'test' ? 'sample' : 'unavailable',
+}: DashboardViewProps): ReactNode {
+  if (dataSource === 'unavailable') {
+    return <Localized><div className="page dashboard-page">
+      <ErrorState
+        title="운영 대시보드 데이터를 아직 제공할 수 없습니다."
+        detail="현재 API에는 계정 단위 자산 이력, 현금 흐름을 제거한 수익률, 대회 참여 요약 계약이 없습니다. 확인되지 않은 샘플 성과는 운영 데이터처럼 표시하지 않습니다."
+      />
+    </div></Localized>;
+  }
+
+  return <SampleDashboard setPage={setPage} botIcons={botIcons} />;
+}
+
+function SampleDashboard({ setPage, botIcons = DEFAULT_BOT_ICONS }: Omit<DashboardViewProps, 'dataSource'>): ReactNode {
   const [period, setPeriod] = useState<PeriodKey>('lifetime');
   const [performanceScope, setPerformanceScope] = useState<PerformanceScope>('personal');
   const [included, setIncluded] = useState<Set<string>>(
