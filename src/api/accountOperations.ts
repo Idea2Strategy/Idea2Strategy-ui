@@ -111,11 +111,17 @@ export function createAccountOperationsClient({
   createCorrelationId = () => crypto.randomUUID(),
 }: ClientOptions = {}): AccountOperationsClient {
   const root = baseUrl.replace(/\/$/, '');
-  const request = async (path: string, init: RequestInit = {}, correlationId = createCorrelationId(), token = getAccessToken?.()) => {
+  const request = async (
+    path: string,
+    init: RequestInit = {},
+    correlationId = createCorrelationId(),
+    token = getAccessToken?.(),
+    credentials: RequestCredentials = 'include',
+  ) => {
     let response: Response;
     try {
       response = await fetchImpl(`${root}${path}`, {
-        credentials: 'include', ...init,
+        ...init, credentials,
         headers: {
           Accept: 'application/json', 'X-Correlation-Id': correlationId,
           ...(init.body ? { 'Content-Type': 'application/json' } : {}),
@@ -131,7 +137,7 @@ export function createAccountOperationsClient({
   const operatorRequest = (path: string, init: RequestInit = {}, correlationId = createCorrelationId()) => {
     const token = getOperatorAccessToken?.();
     if (!token) throw new AccountOperationsApiError(403, 'OPERATOR_CONTEXT_REQUIRED', correlationId);
-    return request(path, init, correlationId, token);
+    return request(path, init, correlationId, token, 'omit');
   };
   const commandBody = async (input: Record<string, unknown>, idempotencyKey: string) => {
     const correlationId = createCorrelationId();

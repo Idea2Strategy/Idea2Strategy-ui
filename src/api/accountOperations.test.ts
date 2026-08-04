@@ -31,6 +31,10 @@ describe('account operations API client', () => {
     expect(url).toContain('type=APPEAL');
     expect(url).toContain('status=OPEN');
     expect(url).toContain('limit=25');
+    expect(fetchImpl.mock.calls[0][1]).toEqual(expect.objectContaining({
+      credentials: 'omit',
+      headers: expect.objectContaining({ Authorization: 'Bearer operator-token' }),
+    }));
   });
 
   it('sends case commands with server-owned request hashing and surfaces the receipt', async () => {
