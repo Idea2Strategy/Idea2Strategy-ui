@@ -20,7 +20,7 @@ const ROUTES: Array<{ path: string; marker: () => HTMLElement }> = [
   { path: '/landing', marker: () => screen.getByRole('heading', { name: /Ideas, into strategies/i }) },
   { path: '/strategies', marker: () => screen.getByRole('heading', { name: /^Strategies$/i }) },
   { path: '/strategies/new/basic', marker: () => screen.getByTestId('basic-editor-workspace') },
-  { path: '/strategies/new/pro', marker: () => screen.getByTestId('pro-editor-workspace') },
+  { path: '/strategies/new/pro', marker: () => screen.getByRole('heading', { name: /Pro editor is being prepared/i }) },
   { path: '/bots', marker: () => screen.getByRole('heading', { name: /Bot operations/i }) },
   { path: '/backtests', marker: () => screen.getByRole('heading', { name: /Bots Backtest/i }) },
   { path: '/competition', marker: () => screen.getByRole('heading', { name: /^Competition$/i }) },

@@ -8,6 +8,7 @@ import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from 
 import type { PageId } from './lib/navigation';
 import { LanguageProvider, Localized, useLanguage } from './lib/i18n';
 import { BasicEditor, ProEditor, StrategyHome } from './views/StrategyViews';
+import { ProEditorUnavailableView } from './views/ProEditorUnavailableView';
 import { LandingView } from './views/LandingView';
 import { BacktestView, RoomsView } from './views/OperationsViews';
 import { BotsView } from './views/BotsView';
@@ -27,6 +28,7 @@ import type { OperatorRbacClient } from './api/operatorRbac';
 import { defaultNotificationClient } from './api/notifications';
 import type { NotificationClient } from './api/notifications';
 import type { CompetitionRoomsClient } from './api/competitionRooms';
+import { PRO_EDITOR_AVAILABLE } from './lib/proEditorAccess';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
@@ -295,7 +297,9 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/landing" element={<LandingView setPage={setPage} />} />
     <Route path="/strategies" element={<StrategyHome openEditor={openEditor} />} />
     <Route path="/strategies/new/basic" element={<BasicEditor strategyId={editorState?.strategyId} blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
-    <Route path="/strategies/new/pro" element={<ProEditor blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
+    <Route path="/strategies/new/pro" element={PRO_EDITOR_AVAILABLE
+      ? <ProEditor blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />
+      : <ProEditorUnavailableView goBack={() => navigate(pagePaths.strategy)} />} />
     <Route path="/bots" element={<BotsView key={requestedBot ?? 'bots'} botIcons={botIcons} onBotIconChange={changeBotIcon} initialBot={requestedBot} />} />
     <Route path="/backtests" element={<BacktestView client={defaultBacktestClient} />} />
     <Route path="/competition" element={<RoomsView client={competitionRoomsClient} openBot={openBot} />} />

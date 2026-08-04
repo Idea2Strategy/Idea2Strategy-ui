@@ -4,6 +4,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test } from 'vitest';
 import { App } from './App';
+import { ProEditor } from './views/StrategyViews';
 
 const balancedStyles = readFileSync(resolve(process.cwd(), 'src/styles/balanced.css'), 'utf8');
 const baseStyles = readFileSync(resolve(process.cwd(), 'src/styles/base.css'), 'utf8');
@@ -35,7 +36,7 @@ describe('Signal product UI', () => {
     expect(screen.getByRole('heading', { name: '봇 백테스트' })).toBeInTheDocument();
   });
 
-  test('gives Basic and Pro editors stable direct URLs', async () => {
+  test('gives Basic a stable direct URL and blocks direct Pro editor access', async () => {
     const user = userEvent.setup();
     const { unmount } = render(<App />);
 
@@ -54,9 +55,26 @@ describe('Signal product UI', () => {
     unmount();
     window.history.replaceState({}, '', '/strategies/new/pro');
     render(<App />);
-    // The Pro command bar is as clean as Basic's: navigation and actions only.
-    expect(screen.getByRole('toolbar', { name: 'Pro 편집 작업' })).toBeInTheDocument();
-    expect(screen.queryByText(/샘플 데이터/)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Pro 편집기는 준비 중입니다' })).toBeInTheDocument();
+    expect(screen.queryByRole('toolbar', { name: 'Pro 편집 작업' })).not.toBeInTheDocument();
+  });
+
+  test('marks every Pro strategy entry point unavailable', async () => {
+    const user = userEvent.setup();
+    window.history.replaceState({}, '', '/strategies');
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: '새 전략' }));
+    expect(screen.getByRole('button', { name: 'Pro로 시작 (준비 중)' })).toBeDisabled();
+    expect(screen.getByText('현재 사용할 수 없습니다')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '새 전략 선택 닫기' }));
+    const proRow = screen.getByTestId('strategy-row-Pair Spread Monitor');
+    expect(within(proRow).getByRole('button', { name: 'Pair Spread Monitor 열기 (Pro 준비 중)' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: '새 전략' }));
+    await user.click(screen.getByRole('button', { name: '기존 전략 가져오기' }));
+    expect(screen.getByRole('button', { name: 'Pair Spread Monitor 가져오기 (Pro 준비 중)' })).toBeDisabled();
   });
 
   test('moves to bot operations after launching a personal bot', async () => {
@@ -439,9 +457,9 @@ describe('Signal product UI', () => {
   });
 
   test('opens a typed compatible-node picker where a Pro connection is released', () => {
-    // The create flow now opens a blank canvas, so reach the seeded editor directly.
-    window.history.replaceState({}, '', '/strategies/new/pro');
-    render(<App initialVariant="terminal" />);
+    // The production route is locked, while the editor component keeps its
+    // own regression suite so work can continue behind the release gate.
+    render(<ProEditor goBack={() => {}} />);
     fireEvent.pointerDown(screen.getByTestId('true-output'), { clientX: 438, clientY: 276, pointerId: 4, button: 0 });
     fireEvent.pointerUp(screen.getByTestId('true-output'), { clientX: 438, clientY: 276, pointerId: 4 });
     const picker = screen.getByRole('dialog', { name: '호환 노드 선택' });
