@@ -1,3 +1,5 @@
+import { getSessionAccessToken } from './sessionAccessToken';
+
 export type BotOperationsState =
   | 'waiting'
   | 'running'
@@ -62,7 +64,7 @@ const STATES = new Set<BotOperationsState>([
 export function createBotOperationsClient({
   baseUrl = '',
   fetchImpl = fetch,
-  getAccessToken,
+  getAccessToken = getSessionAccessToken,
 }: ClientOptions = {}): BotOperationsClient {
   const root = baseUrl.replace(/\/$/, '');
 

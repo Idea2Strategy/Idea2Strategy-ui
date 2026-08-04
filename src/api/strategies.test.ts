@@ -1,7 +1,23 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createStrategyAuthoringClient, createStrategyCatalogClient, createStrategyLibraryClient, StrategyApiError } from './strategies';
+import { setSessionAccessToken } from './sessionAccessToken';
 
 describe('strategy library API client', () => {
+  afterEach(() => setSessionAccessToken(null));
+
+  it('uses the authenticated browser session when no token provider is overridden', async () => {
+    setSessionAccessToken('browser-session-token');
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      items: [], nextCursor: null, hasMore: false,
+    }), { status: 200 }));
+
+    await createStrategyLibraryClient({ fetchImpl }).list();
+
+    expect(fetchImpl).toHaveBeenCalledWith('/api/v1/strategies?limit=50', expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: 'Bearer browser-session-token' }),
+    }));
+  });
+
   it('loads the owner strategy library from the versioned API', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       items: [{

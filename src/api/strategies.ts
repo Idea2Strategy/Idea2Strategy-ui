@@ -1,3 +1,5 @@
+import { getSessionAccessToken } from './sessionAccessToken';
+
 export type StrategyMode = 'BASIC' | 'PRO';
 
 export interface StrategyLibraryItem {
@@ -124,7 +126,7 @@ const KINDS = new Set<StrategyLibraryItem['kind']>(['draft', 'released', 'packag
 export function createStrategyLibraryClient({
   baseUrl = '',
   fetchImpl = fetch,
-  getAccessToken,
+  getAccessToken = getSessionAccessToken,
 }: ClientOptions = {}): StrategyLibraryClient {
   const root = baseUrl.replace(/\/$/, '');
   return {
@@ -151,7 +153,7 @@ export function createStrategyLibraryClient({
 export function createStrategyAuthoringClient({
   baseUrl = '',
   fetchImpl = fetch,
-  getAccessToken,
+  getAccessToken = getSessionAccessToken,
 }: ClientOptions = {}): StrategyAuthoringClient {
   const root = baseUrl.replace(/\/$/, '');
   const request = async (path: string, operation: string, init: RequestInit = {}) => {
@@ -216,7 +218,7 @@ export function createStrategyAuthoringClient({
 export function createStrategyCatalogClient({
   baseUrl = '',
   fetchImpl = fetch,
-  getAccessToken,
+  getAccessToken = getSessionAccessToken,
 }: ClientOptions = {}): StrategyCatalogClient {
   const root = baseUrl.replace(/\/$/, '');
   return {
