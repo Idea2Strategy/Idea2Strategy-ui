@@ -1,3 +1,5 @@
+import { getSessionAccessToken } from './sessionAccessToken';
+
 export interface BotOrder {
   orderId: string;
   partitionId: string | null;
@@ -123,7 +125,7 @@ interface ClientOptions {
 export function createBotTradingClient({
   baseUrl = '',
   fetchImpl = fetch,
-  getAccessToken,
+  getAccessToken = getSessionAccessToken,
 }: ClientOptions = {}): BotTradingClient {
   const root = baseUrl.replace(/\/$/, '');
 

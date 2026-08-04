@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBotTradingClient, tickerLabel } from './botTrading';
+import { setSessionAccessToken } from './sessionAccessToken';
 
 const BOT = '30000000-0000-4000-8000-00000000000a';
 
@@ -10,6 +11,22 @@ const json = (body: unknown, status = 200) =>
   });
 
 describe('bot trading API client', () => {
+  afterEach(() => setSessionAccessToken(null));
+
+  it('uses the authenticated browser session when no token provider is overridden', async () => {
+    setSessionAccessToken('browser-session-token');
+    const fetchImpl = vi.fn().mockResolvedValue(json([]));
+
+    await createBotTradingClient({ fetchImpl }).listPositions(BOT);
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `/api/v1/bots/${BOT}/positions`,
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer browser-session-token' }),
+      }),
+    );
+  });
+
   it('reads orders and fills under the bot', async () => {
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(json([

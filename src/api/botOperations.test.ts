@@ -1,7 +1,21 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBotOperationsClient } from './botOperations';
+import { setSessionAccessToken } from './sessionAccessToken';
 
 describe('bot operations API client', () => {
+  afterEach(() => setSessionAccessToken(null));
+
+  it('uses the authenticated browser session when no token provider is overridden', async () => {
+    setSessionAccessToken('browser-session-token');
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify([]), { status: 200 }));
+
+    await createBotOperationsClient({ fetchImpl }).listOperations();
+
+    expect(fetchImpl).toHaveBeenCalledWith('/api/v1/bots/operations', expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: 'Bearer browser-session-token' }),
+    }));
+  });
+
   it('loads owner bot states and advances the judgment cursor', async () => {
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify([
