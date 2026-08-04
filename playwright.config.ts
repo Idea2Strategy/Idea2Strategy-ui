@@ -19,7 +19,7 @@ import { APP_PORT, APP_URL, MOCK_API_URL } from './e2e/ports';
 export default defineConfig({
   testDir: './e2e',
   testMatch: /.*\.e2e\.ts/,
-  testIgnore: /real-account-api\.e2e\.ts/,
+  testIgnore: [/real-account-api\.e2e\.ts/, /operator-oidc\.e2e\.ts/],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,

@@ -27,6 +27,8 @@ import type { OperatorRbacClient } from './api/operatorRbac';
 import { defaultNotificationClient, NotificationApiError } from './api/notifications';
 import type { NotificationClient, NotificationRecord } from './api/notifications';
 import type { CompetitionRoomsClient } from './api/competitionRooms';
+import { OperatorAuthenticationView } from './components/OperatorAuthenticationView';
+import type { OperatorAuthentication } from './components/OperatorAuthenticationView';
 import { PRO_EDITOR_AVAILABLE } from './lib/proEditorAccess';
 import './styles/tokens.css';
 import './styles/base.css';
@@ -276,13 +278,14 @@ const paletteTemplates: PaletteTemplate[] = [
   { id: 'rose', label: '로즈', dark: '#f79ab0', light: '#b42a52' },
 ];
 
-function ProductApp({ accountClient, operationsClient, notificationClient, competitionRoomsClient, operatorRbacClient, operatorCaseAccessVerified, catalogReadPermissionId, assignmentReadPermissionId }: {
+function ProductApp({ accountClient, operationsClient, notificationClient, competitionRoomsClient, operatorRbacClient, operatorCaseAccessVerified, operatorAuthentication, catalogReadPermissionId, assignmentReadPermissionId }: {
   accountClient: AccountClient;
   operationsClient: AccountOperationsClient;
   notificationClient: NotificationClient;
   competitionRoomsClient?: CompetitionRoomsClient;
   operatorRbacClient?: OperatorRbacClient;
   operatorCaseAccessVerified: boolean;
+  operatorAuthentication?: OperatorAuthentication;
   catalogReadPermissionId?: string;
   assignmentReadPermissionId?: string;
 }) {
@@ -347,16 +350,26 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/competition" element={<RoomsView client={competitionRoomsClient} openBot={openBot} />} />
     <Route path="/competition-v2" element={<RoomsView client={competitionRoomsClient} visualVariant="image" openBot={openBot} />} />
     <Route path="/notifications" element={<NotificationsView setPage={setPage} client={notificationClient} />} />
+    <Route path="/operations/login" element={operatorAuthentication
+      ? <OperatorAuthenticationView authentication={operatorAuthentication} />
+      : <Navigate to="/" replace />} />
+    <Route path="/operations/callback" element={operatorAuthentication
+      ? <OperatorAuthenticationView authentication={operatorAuthentication} />
+      : <Navigate to="/" replace />} />
     <Route path="/operations/cases" element={operatorCaseAccessVerified
       ? <OperatorCaseWorkspace client={operationsClient} />
-      : <Navigate to="/" replace />} />
+      : operatorAuthentication
+        ? <Navigate to="/operations/login" state={{ returnTo: location.pathname }} replace />
+        : <Navigate to="/" replace />} />
     <Route path="/operations/rbac" element={operatorRbacClient
       ? <OperatorRbacWorkspace
         client={operatorRbacClient}
         catalogReadPermissionId={catalogReadPermissionId}
         assignmentReadPermissionId={assignmentReadPermissionId}
       />
-      : <Navigate to="/" replace />} />
+      : operatorAuthentication
+        ? <Navigate to="/operations/login" state={{ returnTo: location.pathname }} replace />
+        : <Navigate to="/" replace />} />
     <Route path="/help" element={<HelpView />} />
     <Route path="/account" element={<AccountView
       theme={theme}
@@ -386,6 +399,11 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
   >
     <div className="app-main">
       <Topbar theme={theme} setTheme={setTheme} page={page} setPage={setPage} updown={updown} setUpdown={setUpdown} notificationClient={notificationClient} />
+      {operatorAuthentication?.snapshot.kind === 'authenticated' && <button
+        className="operator-logout-button"
+        type="button"
+        onClick={operatorAuthentication.logout}
+      >Operator logout</button>}
       {isStrategyEditor
         ? <div className="strategy-editor-surface" data-testid="strategy-editor-surface">
           <div className="page-scroll strategy-editor-scroll">{content}</div>
@@ -421,6 +439,7 @@ export function App({
   competitionRoomsClient,
   operatorRbacClient,
   operatorCaseAccessVerified = false,
+  operatorAuthentication,
   catalogReadPermissionId = import.meta.env.VITE_OPERATOR_RBAC_CATALOG_READ_PERMISSION_ID,
   assignmentReadPermissionId = import.meta.env.VITE_OPERATOR_RBAC_ASSIGNMENT_READ_PERMISSION_ID,
 }: {
@@ -431,6 +450,7 @@ export function App({
   competitionRoomsClient?: CompetitionRoomsClient;
   operatorRbacClient?: OperatorRbacClient;
   operatorCaseAccessVerified?: boolean;
+  operatorAuthentication?: OperatorAuthentication;
   catalogReadPermissionId?: string;
   assignmentReadPermissionId?: string;
 } = {}) {
@@ -443,6 +463,7 @@ export function App({
       competitionRoomsClient={competitionRoomsClient}
       operatorRbacClient={operatorRbacClient}
       operatorCaseAccessVerified={operatorCaseAccessVerified}
+      operatorAuthentication={operatorAuthentication}
       catalogReadPermissionId={catalogReadPermissionId}
       assignmentReadPermissionId={assignmentReadPermissionId}
     />} />

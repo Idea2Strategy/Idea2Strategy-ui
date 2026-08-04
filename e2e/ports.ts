@@ -8,6 +8,8 @@
 */
 export const APP_PORT = 4318;
 export const MOCK_API_PORT = 4319;
+export const MOCK_IDP_PORT = 4320;
 
 export const APP_URL = `http://127.0.0.1:${APP_PORT}`;
 export const MOCK_API_URL = `http://127.0.0.1:${MOCK_API_PORT}`;
+export const MOCK_IDP_URL = `http://127.0.0.1:${MOCK_IDP_PORT}`;
