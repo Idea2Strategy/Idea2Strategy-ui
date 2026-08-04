@@ -10,7 +10,7 @@ import type {
   WheelEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Activity, ArrowDown, ArrowLeft, ArrowUp, BarChart3, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, CircleDot, Gauge, GitBranch, Grid3X3, GripVertical, History, Import, Layers3, LayoutGrid, Link2, Minus, Mouse, MousePointer2, Pencil, Play, Plus, Redo2, RefreshCw, Repeat2, Rocket, Save, Scale, Search, Settings2, ShieldCheck, Sparkles, Split, Star, Target, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, Undo2, X } from 'lucide-react';
+import { Activity, ArrowDown, ArrowLeft, ArrowUp, BarChart3, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, CircleDot, Gauge, GitBranch, Grid3X3, GripVertical, History, Import, Layers3, LayoutGrid, Link2, LockKeyhole, Minus, Mouse, MousePointer2, Pencil, Play, Plus, Redo2, RefreshCw, Repeat2, Rocket, Save, Scale, Search, Settings2, ShieldCheck, Sparkles, Split, Star, Target, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, Undo2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { strategies } from '../data/mockData';
 import type { StrategySummary } from '../data/mockData';
@@ -19,6 +19,7 @@ import { StrategyPreviewChart } from '../components/StrategyPreviewChart';
 import { splitPartitionSymbols } from '../lib/strategyPreview';
 import type { PreviewFlow } from '../lib/strategyPreview';
 import { Localized } from '../lib/i18n';
+import { PRO_EDITOR_AVAILABLE } from '../lib/proEditorAccess';
 import {
   getBasicSectionLayout,
   getDefaultBasicCardPosition,
@@ -417,7 +418,12 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
             <span className="strategy-mode-label">{strategy.mode}</span>
             <Status tone={statusTone(strategy.state)}>{strategy.state}</Status>
             <div className="strategy-row-actions">
-              <button aria-label={`${strategy.name} 열기`} title="열기" onClick={(event) => { event.stopPropagation(); openEditor(strategy.mode.toLowerCase() as EditorMode, false, strategy.id); }}><ChevronRight size={17} /></button>
+              <button
+                aria-label={strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? `${strategy.name} 열기 (Pro 준비 중)` : `${strategy.name} 열기`}
+                title={strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? 'Pro 편집기는 준비 중입니다' : '열기'}
+                disabled={strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE}
+                onClick={(event) => { event.stopPropagation(); openEditor(strategy.mode.toLowerCase() as EditorMode, false, strategy.id); }}
+              >{strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? <LockKeyhole size={15} /> : <ChevronRight size={17} />}</button>
             </div>
           </article>)}
           {filteredItems.length === 0 && <div className="strategy-empty"><Search size={20} /><strong>조건에 맞는 전략이 없습니다.</strong><button onClick={() => { setQuery(''); setMode('all'); setState('all'); }}>필터 초기화</button></div>}
@@ -433,9 +439,12 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
           <label className="field"><span>전략 이름</span><input aria-label="전략 이름" value={draftName} onChange={(event) => setDraftName(event.target.value)} /></label>
           {createError && <p role="alert" className="bots-decision-note">{createError}</p>}
           <button aria-label="Basic으로 시작" disabled={createPending} onClick={() => { void beginBasicStrategy(); }}><span className="create-icon is-basic"><Boxes size={20} /></span><span><strong>{createPending ? '만드는 중…' : 'Basic'}</strong><small>편집기에서 블록으로 구성</small></span><ChevronRight size={18} /></button>
-          <button aria-label="Pro로 시작" onClick={() => { setShowCreate(false); openEditor('pro', true); }}><span className="create-icon is-pro"><GitBranch size={20} /></span><span><strong>Pro</strong><small>편집기에서 노드로 구성</small></span><ChevronRight size={18} /></button>
+          <button aria-label="Pro로 시작 (준비 중)" disabled={!PRO_EDITOR_AVAILABLE}><span className="create-icon is-pro"><GitBranch size={20} /></span><span><strong>Pro</strong><small>현재 사용할 수 없습니다</small></span><LockKeyhole size={18} /></button>
           <button className="create-import-option" aria-label="기존 전략 가져오기" onClick={() => setShowImport(true)}><span className="create-icon is-import"><Import size={20} /></span><span><strong>기존 전략 가져오기</strong><small>원본은 그대로 두고 새 초안 생성</small></span><ChevronRight size={18} /></button>
-        </div> : <div className="strategy-import-list">{items.map((strategy) => <button key={strategy.id} aria-label={`${strategy.name} 가져오기`} onClick={() => { setShowCreate(false); setShowImport(false); openEditor(strategy.mode.toLowerCase() as EditorMode, false, strategy.id); }}><span className={`strategy-mode-icon mode-${strategy.mode.toLowerCase()}`}>{strategy.mode[0]}</span><span><strong>{strategy.name}</strong><small>{strategy.mode} · {strategy.symbols.join(', ')}</small></span><Import size={16} /></button>)}</div>}
+        </div> : <div className="strategy-import-list">{items.map((strategy) => {
+          const proLocked = strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE;
+          return <button key={strategy.id} aria-label={proLocked ? `${strategy.name} 가져오기 (Pro 준비 중)` : `${strategy.name} 가져오기`} disabled={proLocked} onClick={() => { setShowCreate(false); setShowImport(false); openEditor(strategy.mode.toLowerCase() as EditorMode, false, strategy.id); }}><span className={`strategy-mode-icon mode-${strategy.mode.toLowerCase()}`}>{strategy.mode[0]}</span><span><strong>{strategy.name}</strong><small>{proLocked ? 'Pro · 현재 사용할 수 없습니다' : `${strategy.mode} · ${strategy.symbols.join(', ')}`}</small></span>{proLocked ? <LockKeyhole size={16} /> : <Import size={16} />}</button>;
+        })}</div>}
       </section>
     </div>}
   </div></Localized>;
