@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle2, LoaderCircle, RefreshCw, ShieldCheck } fro
 import { Button, EmptyState, PageHeading, Panel, Status } from './common';
 import { AccountOperationsApiError } from '../api/accountOperations';
 import type {
-  AccountOperationsClient, OperatorCaseDetail, OperatorCaseSummary, UserCaseType, UserCaseView,
+  AccountOperationsClient, OperatorCaseAction, OperatorCaseDetail, OperatorCaseSummary, SanctionType, UserCaseType, UserCaseView,
 } from '../api/accountOperations';
 
 type AsyncState<T> = { kind: 'idle' } | { kind: 'loading' } | { kind: 'ready'; value: T } | { kind: 'error'; error: AccountOperationsApiError };
@@ -63,14 +63,23 @@ export function UserCasePanel({ client, createIdempotencyKey = () => crypto.rand
   </Panel>;
 }
 
-export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => crypto.randomUUID() }: {
+const HIGH_RISK_ACTIONS = new Set<OperatorCaseAction>(['RESOLVE', 'REJECT', 'APPLY_SANCTION', 'RELEASE_SANCTION']);
+
+export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => crypto.randomUUID(), createSanctionId = () => crypto.randomUUID() }: {
   client: AccountOperationsClient;
   createIdempotencyKey?: () => string;
+  createSanctionId?: () => string;
 }) {
   const [queue, setQueue] = useState<AsyncState<OperatorCaseSummary[]>>({ kind: 'loading' });
   const [detail, setDetail] = useState<AsyncState<OperatorCaseDetail>>({ kind: 'idle' });
   const [reasonCode, setReasonCode] = useState('REVIEW_COMPLETED');
-  const [pendingAction, setPendingAction] = useState<'START_REVIEW' | 'RESOLVE' | 'REJECT' | null>(null);
+  const [assigneeOperatorId, setAssigneeOperatorId] = useState('');
+  const [sanctionId, setSanctionId] = useState('');
+  const [sanctionType, setSanctionType] = useState<SanctionType>('SUSPENSION');
+  const [sanctionExpiresAt, setSanctionExpiresAt] = useState('');
+  const [expectedSanctionVersion, setExpectedSanctionVersion] = useState('0');
+  const [confirmation, setConfirmation] = useState('');
+  const [pendingAction, setPendingAction] = useState<OperatorCaseAction | null>(null);
   const [commandState, setCommandState] = useState<{ kind: 'idle' | 'processing' } | { kind: 'succeeded'; code: string; correlationId: string } | { kind: 'error'; error: AccountOperationsApiError }>({ kind: 'idle' });
   const loadQueue = async () => {
     setQueue({ kind: 'loading' });
@@ -81,6 +90,9 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
   };
   useEffect(() => { void loadQueue(); }, [client]);
   const select = async (caseId: string) => {
+    setPendingAction(null);
+    setConfirmation('');
+    setCommandState({ kind: 'idle' });
     setDetail({ kind: 'loading' });
     try { setDetail({ kind: 'ready', value: await client.operatorCase(caseId) }); }
     catch (cause) { setDetail({ kind: 'error', error: error(cause) }); }
@@ -89,12 +101,21 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
     if (detail.kind !== 'ready' || pendingAction === null) return;
     const current = detail.value;
     const action = pendingAction;
+    const common = { expectedVersion: current.version, reasonCode: reasonCode.trim() };
+    const input = action === 'ASSIGN' || action === 'REASSIGN'
+      ? { ...common, assigneeOperatorId: assigneeOperatorId.trim() }
+      : action === 'APPLY_SANCTION'
+        ? { ...common, sanctionId: sanctionId || createSanctionId(), sanctionType, sanctionExpiresAt: sanctionExpiresAt ? new Date(sanctionExpiresAt).toISOString() : null, expectedSanctionVersion: Number(expectedSanctionVersion) }
+        : action === 'RELEASE_SANCTION'
+          ? { ...common, sanctionId: sanctionId.trim(), expectedSanctionVersion: Number(expectedSanctionVersion) }
+          : common;
     setCommandState({ kind: 'processing' });
     try {
-      const receipt = await client.commandCase(current.caseId, action, { expectedVersion: current.version, reasonCode }, createIdempotencyKey());
+      const receipt = await client.commandCase(current.caseId, action, input, createIdempotencyKey());
       setDetail({ kind: 'ready', value: await client.operatorCase(current.caseId) });
       await loadQueue();
       setPendingAction(null);
+      setConfirmation('');
       setCommandState({ kind: 'succeeded', code: receipt.code, correlationId: receipt.correlationId });
     } catch (cause) { setCommandState({ kind: 'error', error: error(cause) }); }
   };
@@ -116,24 +137,109 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
         {detail.kind === 'error' && <CaseError error={detail.error} />}
         {detail.kind === 'ready' && <div className="operator-case-detail">
           <div><strong>{detail.value.type} · {detail.value.status}</strong><span>버전 {detail.value.version}</span></div>
-          <label><span>사유 코드</span><input aria-label="운영 사유 코드" value={reasonCode} onChange={(event) => setReasonCode(event.target.value)} /></label>
+          <label><span>사유 코드</span><input aria-label="Operation reason code" value={reasonCode} onChange={(event) => setReasonCode(event.target.value)} /></label>
+          <label><span>담당 운영자 ID</span><input aria-label="Assignee operator ID" placeholder="operator UUID" value={assigneeOperatorId} onChange={(event) => setAssigneeOperatorId(event.target.value)} /></label>
+          <div className="settings-fields case-api-form operator-command-fields">
+            <label><span>제재 ID</span><input aria-label="Sanction ID" placeholder="적용 시 비워두면 새 UUID 생성" value={sanctionId} onChange={(event) => setSanctionId(event.target.value)} /></label>
+            <label><span>제재 유형</span><select aria-label="Sanction type" value={sanctionType} onChange={(event) => setSanctionType(event.target.value as SanctionType)}><option value="SUSPENSION">SUSPENSION</option><option value="PERMANENT">PERMANENT</option></select></label>
+            <label><span>제재 만료 시각</span><input aria-label="Sanction expiry" type="datetime-local" value={sanctionExpiresAt} onChange={(event) => setSanctionExpiresAt(event.target.value)} /></label>
+            <label><span>현재 제재 버전</span><input aria-label="Expected sanction version" type="number" min="0" value={expectedSanctionVersion} onChange={(event) => setExpectedSanctionVersion(event.target.value)} /></label>
+          </div>
           <div className="account-api-actions">
             <Button disabled={!reasonCode.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('START_REVIEW')}>검토 시작</Button>
+            <Button aria-label="Assign case" disabled={!reasonCode.trim() || !assigneeOperatorId.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction(detail.value.assigneeOperatorId ? 'REASSIGN' : 'ASSIGN')}>케이스 배정</Button>
+            <Button aria-label="Unassign case" disabled={!reasonCode.trim() || !detail.value.assigneeOperatorId || commandState.kind === 'processing'} onClick={() => setPendingAction('UNASSIGN')}>배정 해제</Button>
+            <Button aria-label="Request information" disabled={!reasonCode.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('REQUEST_INFORMATION')}>정보 요청</Button>
             <Button disabled={!reasonCode.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('RESOLVE')}>해결</Button>
             <Button disabled={!reasonCode.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('REJECT')}>기각</Button>
+            <Button aria-label="Apply sanction" disabled={!reasonCode.trim() || !validSanctionVersion(expectedSanctionVersion) || commandState.kind === 'processing'} onClick={() => { if (!sanctionId) setSanctionId(createSanctionId()); setPendingAction('APPLY_SANCTION'); }}>제재 적용</Button>
+            <Button aria-label="Release sanction" disabled={!reasonCode.trim() || !sanctionId.trim() || !validSanctionVersion(expectedSanctionVersion) || commandState.kind === 'processing'} onClick={() => setPendingAction('RELEASE_SANCTION')}>제재 해제</Button>
           </div>
-          {pendingAction && <div className="case-api-confirm" role="alertdialog" aria-label="운영 명령 확인">
+          {pendingAction && <div className="case-api-confirm" role="alertdialog" aria-label={HIGH_RISK_ACTIONS.has(pendingAction) ? 'Confirm high-risk operation' : '운영 명령 확인'}>
             <strong>{pendingAction} 명령을 실행할까요?</strong><span>현재 버전 {detail.value.version}에만 적용되며, 사유 코드는 감사 기록에 남습니다.</span>
-            <div className="account-api-actions"><Button kind="primary" disabled={commandState.kind === 'processing'} onClick={() => void command()}>확인 후 실행</Button><Button disabled={commandState.kind === 'processing'} onClick={() => setPendingAction(null)}>취소</Button></div>
+            {HIGH_RISK_ACTIONS.has(pendingAction) && <label><span>확인을 위해 {pendingAction} 입력</span><input aria-label={`Type ${pendingAction} to confirm`} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label>}
+            <div className="account-api-actions"><Button kind="primary" aria-label={HIGH_RISK_ACTIONS.has(pendingAction) ? 'Execute high-risk operation' : undefined} disabled={commandState.kind === 'processing' || (HIGH_RISK_ACTIONS.has(pendingAction) && confirmation !== pendingAction)} onClick={() => void command()}>확인 후 실행</Button><Button disabled={commandState.kind === 'processing'} onClick={() => { setPendingAction(null); setConfirmation(''); }}>취소</Button></div>
           </div>}
           {commandState.kind === 'processing' && <div role="status"><LoaderCircle size={16} /> 명령 처리 중</div>}
-          {commandState.kind === 'succeeded' && <div className="case-api-receipt" role="status"><CheckCircle2 size={17} /><div><strong>{commandState.code}</strong><small>문의 코드 {commandState.correlationId}</small></div></div>}
+          {commandState.kind === 'succeeded' && <div className="case-api-receipt" role="status"><CheckCircle2 size={17} /><div><strong>{commandState.code}</strong><small>Correlation {commandState.correlationId}</small></div></div>}
           {commandState.kind === 'error' && <CaseError error={commandState.error} />}
           <small>증거 {detail.value.evidence.length}건 · 소유권 검증 결과는 서버 응답만 표시합니다.</small>
         </div>}
       </Panel>
     </div>
+    <OperatorSanctionPanel client={client} createIdempotencyKey={createIdempotencyKey} createSanctionId={createSanctionId} />
   </div>;
+}
+
+export function OperatorSanctionPanel({ client, createIdempotencyKey = () => crypto.randomUUID(), createSanctionId = () => crypto.randomUUID() }: {
+  client: AccountOperationsClient;
+  createIdempotencyKey?: () => string;
+  createSanctionId?: () => string;
+}) {
+  const [accountId, setAccountId] = useState('');
+  const [sanctionId, setSanctionId] = useState('');
+  const [type, setType] = useState<SanctionType>('SUSPENSION');
+  const [reasonCode, setReasonCode] = useState('POLICY_VIOLATION');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [sourceCaseId, setSourceCaseId] = useState('');
+  const [expectedVersion, setExpectedVersion] = useState('0');
+  const [pending, setPending] = useState<'APPLY' | 'LIFT' | null>(null);
+  const [confirmation, setConfirmation] = useState('');
+  const [state, setState] = useState<{ kind: 'idle' | 'processing' } | { kind: 'succeeded'; code: string; correlationId: string } | { kind: 'error'; error: AccountOperationsApiError }>({ kind: 'idle' });
+  const validVersion = /^\d+$/.test(expectedVersion);
+
+  const prepare = (action: 'APPLY' | 'LIFT') => {
+    if (action === 'APPLY' && !sanctionId) setSanctionId(createSanctionId());
+    setConfirmation('');
+    setPending(action);
+  };
+  const execute = async () => {
+    if (!pending) return;
+    setState({ kind: 'processing' });
+    try {
+      const receipt = pending === 'APPLY'
+        ? await client.applySanction(accountId.trim(), {
+          sanctionId: sanctionId.trim(), type, reasonCode: reasonCode.trim(),
+          expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+          sourceCaseId: sourceCaseId.trim() || null, expectedVersion: Number(expectedVersion),
+        }, createIdempotencyKey())
+        : await client.liftSanction(accountId.trim(), sanctionId.trim(), {
+          reasonCode: reasonCode.trim(), expectedVersion: Number(expectedVersion),
+        }, createIdempotencyKey());
+      setPending(null);
+      setConfirmation('');
+      setState({ kind: 'succeeded', code: receipt.code, correlationId: receipt.correlationId });
+    } catch (cause) { setState({ kind: 'error', error: error(cause) }); }
+  };
+
+  return <Panel className="operator-sanction-panel" title="계정 제재" subtitle="케이스 외 직접 제재도 서버의 현재 버전·권한·MFA 검증을 그대로 거칩니다.">
+    <div className="settings-fields case-api-form">
+      <label><span>계정 ID</span><input aria-label="Sanction account ID" value={accountId} onChange={(event) => setAccountId(event.target.value)} /></label>
+      <label><span>제재 ID</span><input aria-label="Direct sanction ID" placeholder="적용 시 비워두면 새 UUID 생성" value={sanctionId} onChange={(event) => setSanctionId(event.target.value)} /></label>
+      <label><span>유형</span><select aria-label="Direct sanction type" value={type} onChange={(event) => setType(event.target.value as SanctionType)}><option value="SUSPENSION">SUSPENSION</option><option value="PERMANENT">PERMANENT</option></select></label>
+      <label><span>현재 집계 버전</span><input aria-label="Sanction aggregate version" type="number" min="0" value={expectedVersion} onChange={(event) => setExpectedVersion(event.target.value)} /></label>
+      <label><span>사유 코드</span><input aria-label="Sanction reason code" value={reasonCode} onChange={(event) => setReasonCode(event.target.value)} /></label>
+      <label><span>만료 시각</span><input aria-label="Direct sanction expiry" type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></label>
+      <label><span>출처 케이스 ID</span><input aria-label="Source case ID" value={sourceCaseId} onChange={(event) => setSourceCaseId(event.target.value)} /></label>
+    </div>
+    <div className="account-api-actions">
+      <Button aria-label="Apply account sanction" disabled={!accountId.trim() || !reasonCode.trim() || !validVersion || state.kind === 'processing'} onClick={() => prepare('APPLY')}>계정 제재 적용</Button>
+      <Button aria-label="Lift account sanction" disabled={!accountId.trim() || !sanctionId.trim() || !reasonCode.trim() || !validVersion || state.kind === 'processing'} onClick={() => prepare('LIFT')}>계정 제재 해제</Button>
+    </div>
+    {pending && <div className="case-api-confirm" role="alertdialog" aria-label="Confirm account sanction">
+      <strong>{pending} 계정 제재 명령을 실행할까요?</strong>
+      <span>사유와 예상 버전은 감사 요청에 포함되며 성공 후 서버 correlation을 표시합니다.</span>
+      <label><span>확인을 위해 {pending} 입력</span><input aria-label={`Type ${pending} to confirm`} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label>
+      <div className="account-api-actions"><Button kind="primary" aria-label="Execute account sanction" disabled={state.kind === 'processing' || confirmation !== pending} onClick={() => void execute()}>확인 후 실행</Button><Button disabled={state.kind === 'processing'} onClick={() => { setPending(null); setConfirmation(''); }}>취소</Button></div>
+    </div>}
+    {state.kind === 'processing' && <div role="status"><LoaderCircle size={16} /> 제재 명령 처리 중</div>}
+    {state.kind === 'succeeded' && <div className="case-api-receipt" role="status"><CheckCircle2 size={17} /><div><strong>{state.code}</strong><small>Correlation {state.correlationId}</small></div></div>}
+    {state.kind === 'error' && <CaseError error={state.error} />}
+  </Panel>;
+}
+
+function validSanctionVersion(value: string): boolean {
+  return /^\d+$/.test(value);
 }
 
 function CaseError({ error, retry }: { error: AccountOperationsApiError; retry?: () => void | Promise<void> }) {

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { AccountOperationsApiError } from '../api/accountOperations';
 import type { AccountOperationsClient, UserCaseView } from '../api/accountOperations';
-import { OperatorCaseWorkspace, UserCasePanel } from './CaseApiPanels';
+import { OperatorCaseWorkspace, OperatorSanctionPanel, UserCasePanel } from './CaseApiPanels';
 
 const userCase: UserCaseView = {
   id: 'case-1', accountId: 'account-1', type: 'APPEAL', status: 'OPEN', version: 1,
@@ -74,5 +74,84 @@ describe('OperatorCaseWorkspace', () => {
     render(<OperatorCaseWorkspace client={client({ operatorCaseQueue: vi.fn().mockRejectedValue(new AccountOperationsApiError(403, 'OPERATOR_PERMISSION_REQUIRED', 'corr-permission')) })} />);
     expect(await screen.findByText('이 작업에 필요한 로그인 또는 운영 권한이 없습니다.')).toBeInTheDocument();
     expect(screen.getByText('문의 코드 corr-permission')).toBeInTheDocument();
+  });
+
+  it('requires an explicit high-risk confirmation and sends the complete sanction command', async () => {
+    const summary = { caseId: 'case-1', type: 'REPORT' as const, status: 'UNDER_REVIEW' as const, version: 4, assigneeOperatorId: 'operator-1', updatedAt: '2026-08-03T00:00:00Z' };
+    const operatorCaseQueue = vi.fn().mockResolvedValue({ items: [summary], nextCursor: null });
+    const operatorCase = vi.fn()
+      .mockResolvedValueOnce({ ...summary, evidence: [] })
+      .mockResolvedValueOnce({ ...summary, version: 5, evidence: [] });
+    const commandCase = vi.fn().mockResolvedValue({
+      status: 'APPLIED', code: 'CASE_SANCTION_APPLIED', correlationId: 'corr-sanction', caseVersion: 5,
+    });
+    render(<OperatorCaseWorkspace
+      client={client({ operatorCaseQueue, operatorCase, commandCase })}
+      createIdempotencyKey={() => 'idem-sanction'}
+      createSanctionId={() => 'a1420000-0000-4000-8000-000000000002'}
+    />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /REPORT/ }));
+    await screen.findByText('REPORT · UNDER_REVIEW');
+    await userEvent.clear(screen.getByLabelText('Operation reason code'));
+    await userEvent.type(screen.getByLabelText('Operation reason code'), 'POLICY_VIOLATION');
+    await userEvent.click(screen.getByRole('button', { name: 'Apply sanction' }));
+
+    const confirm = screen.getByRole('alertdialog', { name: 'Confirm high-risk operation' });
+    expect(confirm).toHaveTextContent('APPLY_SANCTION');
+    expect(screen.getByRole('button', { name: 'Execute high-risk operation' })).toBeDisabled();
+    await userEvent.type(screen.getByLabelText('Type APPLY_SANCTION to confirm'), 'APPLY_SANCTION');
+    await userEvent.click(screen.getByRole('button', { name: 'Execute high-risk operation' }));
+
+    await waitFor(() => expect(commandCase).toHaveBeenCalledWith('case-1', 'APPLY_SANCTION', {
+      expectedVersion: 4,
+      reasonCode: 'POLICY_VIOLATION',
+      sanctionId: 'a1420000-0000-4000-8000-000000000002',
+      sanctionType: 'SUSPENSION',
+      sanctionExpiresAt: null,
+      expectedSanctionVersion: 0,
+    }, 'idem-sanction'));
+    expect(await screen.findByText('Correlation corr-sanction')).toBeInTheDocument();
+  });
+
+  it('collects assignment and release inputs without inventing server state', async () => {
+    const summary = { caseId: 'case-2', type: 'APPEAL' as const, status: 'OPEN' as const, version: 1, assigneeOperatorId: null, updatedAt: '2026-08-03T00:00:00Z' };
+    const operatorCaseQueue = vi.fn().mockResolvedValue({ items: [summary], nextCursor: null });
+    const operatorCase = vi.fn().mockResolvedValue({ ...summary, evidence: [] });
+    const commandCase = vi.fn().mockResolvedValue({ status: 'APPLIED', code: 'CASE_ASSIGNED', correlationId: 'corr-assign', caseVersion: 2 });
+    render(<OperatorCaseWorkspace client={client({ operatorCaseQueue, operatorCase, commandCase })} createIdempotencyKey={() => 'idem-assign'} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /APPEAL/ }));
+    await userEvent.clear(screen.getByLabelText('Operation reason code'));
+    await userEvent.type(screen.getByLabelText('Operation reason code'), 'ON_CALL');
+    await userEvent.type(screen.getByLabelText('Assignee operator ID'), 'a1420000-0000-4000-8000-000000000003');
+    await userEvent.click(screen.getByRole('button', { name: 'Assign case' }));
+    await userEvent.click(screen.getByRole('button', { name: '확인 후 실행' }));
+
+    await waitFor(() => expect(commandCase).toHaveBeenCalledWith('case-2', 'ASSIGN', {
+      expectedVersion: 1,
+      reasonCode: 'ON_CALL',
+      assigneeOperatorId: 'a1420000-0000-4000-8000-000000000003',
+    }, 'idem-assign'));
+  });
+});
+
+describe('OperatorSanctionPanel', () => {
+  it('requires typed confirmation for a direct account sanction and displays the server correlation', async () => {
+    const applySanction = vi.fn().mockResolvedValue({ code: 'SANCTION_APPLIED', sanctionReference: 'sanction-1', correlationId: 'corr-direct', aggregateVersion: 1 });
+    render(<OperatorSanctionPanel client={client({ applySanction })} createIdempotencyKey={() => 'idem-direct'} createSanctionId={() => 'sanction-1'} />);
+
+    await userEvent.type(screen.getByLabelText('Sanction account ID'), 'account-1');
+    await userEvent.clear(screen.getByLabelText('Sanction reason code'));
+    await userEvent.type(screen.getByLabelText('Sanction reason code'), 'POLICY_VIOLATION');
+    await userEvent.click(screen.getByRole('button', { name: 'Apply account sanction' }));
+    await userEvent.type(screen.getByLabelText('Type APPLY to confirm'), 'APPLY');
+    await userEvent.click(screen.getByRole('button', { name: 'Execute account sanction' }));
+
+    await waitFor(() => expect(applySanction).toHaveBeenCalledWith('account-1', {
+      sanctionId: 'sanction-1', type: 'SUSPENSION', reasonCode: 'POLICY_VIOLATION',
+      expiresAt: null, sourceCaseId: null, expectedVersion: 0,
+    }, 'idem-direct'));
+    expect(await screen.findByText('Correlation corr-direct')).toBeInTheDocument();
   });
 });
