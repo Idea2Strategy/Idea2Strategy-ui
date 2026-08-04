@@ -66,4 +66,29 @@ describe('competition rooms API client', () => {
     const malformed = createCompetitionRoomsClient({ fetchImpl: async () => jsonResponse({ items: [{ ...room, name: '' }], nextCursor: null, hasMore: false }) });
     await expect(malformed.searchRooms()).rejects.toThrow('Invalid room name');
   });
+
+  test('reads the server-owned room input and current validation catalogs', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith('/room-input-catalog')
+      ? jsonResponse({
+        scoringTemplates: [{
+          id: 'score-1', templateCode: 'TOTAL_RETURN', version: '1.0.0', kind: 'SINGLE', calculationRulesVersion: '1.0.0',
+          components: [{ metric: 'TOTAL_RETURN', direction: 'HIGHER_IS_BETTER', coefficient: 1 }],
+          adjustments: [{ code: 'minimumTrades', unit: 'COUNT', minimum: 1, maximum: 20, scale: 0 }], rulesHash: 'a'.repeat(64),
+        }],
+        feePolicies: [{ id: 'fee-1', policyCode: 'OFFICIAL', version: '1.0.0', feeRateBps: 20, calculationRulesVersion: '1.0.0', rulesHash: 'b'.repeat(64), effectiveFrom: '2026-08-04T00:00:00Z', effectiveTo: null, publishedAt: '2026-08-03T00:00:00Z' }],
+        buyingPowerBufferPolicies: [{ id: 'buffer-1', policyCode: 'DEFAULT', version: '1.0.0', bufferBps: 100, roundingRulesVersion: '1.0.0', rulesHash: 'c'.repeat(64), effectiveFrom: '2026-08-04T00:00:00Z', effectiveTo: null, publishedAt: '2026-08-03T00:00:00Z' }],
+      })
+      : jsonResponse({ items: [{ validationRunId: 'validation-1', strategyId: 'strategy-1', strategyName: 'Momentum', requestedEditSequence: 7, semanticHash: 'd'.repeat(64), elementCatalogVersionId: 'catalog-1', completedAt: '2026-08-04T09:59:00Z' }] }));
+    const client = createCompetitionRoomsClient({ fetchImpl });
+
+    await expect(client.roomInputCatalog()).resolves.toMatchObject({
+      scoringTemplates: [{ id: 'score-1', templateCode: 'TOTAL_RETURN' }],
+      feePolicies: [{ id: 'fee-1', feeRateBps: 20 }],
+      buyingPowerBufferPolicies: [{ id: 'buffer-1', bufferBps: 100 }],
+    });
+    await expect(client.currentStrategyValidations()).resolves.toEqual({ items: [expect.objectContaining({ validationRunId: 'validation-1', strategyName: 'Momentum', requestedEditSequence: 7 })] });
+    expect(fetchImpl.mock.calls.map(([url]) => String(url))).toEqual([
+      '/api/v1/competition/room-input-catalog', '/api/v1/strategy-validations/current',
+    ]);
+  });
 });

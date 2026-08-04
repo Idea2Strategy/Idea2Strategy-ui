@@ -31,8 +31,34 @@ export interface JoinRoomInput {
 }
 export interface Participation { id: string; roomId: string; botId: string; anonymousAlias: string; joinedAt: string }
 export interface PostEvaluationChoice { roomId: string; participationId: string; action: PostEvaluationAction; recordedAt: string; lockedAt: string | null }
+export interface ScoringComponent { metric: string; direction: string; coefficient: number }
+export interface ScoringAdjustment { code: string; unit: string; minimum: number; maximum: number; scale: number }
+export interface ScoringTemplateOption {
+  id: string; templateCode: string; version: string; kind: string; calculationRulesVersion: string;
+  components: ScoringComponent[]; adjustments: ScoringAdjustment[]; rulesHash: string;
+}
+export interface FeePolicyOption {
+  id: string; policyCode: string; version: string; feeRateBps: number; calculationRulesVersion: string;
+  rulesHash: string; effectiveFrom: string; effectiveTo: string | null; publishedAt: string;
+}
+export interface BuyingPowerBufferPolicyOption {
+  id: string; policyCode: string; version: string; bufferBps: number; roundingRulesVersion: string;
+  rulesHash: string; effectiveFrom: string; effectiveTo: string | null; publishedAt: string;
+}
+export interface RoomInputCatalog {
+  scoringTemplates: ScoringTemplateOption[];
+  feePolicies: FeePolicyOption[];
+  buyingPowerBufferPolicies: BuyingPowerBufferPolicyOption[];
+}
+export interface CurrentStrategyValidation {
+  validationRunId: string; strategyId: string; strategyName: string; requestedEditSequence: number;
+  semanticHash: string; elementCatalogVersionId: string; completedAt: string;
+}
+export interface CurrentStrategyValidationPage { items: CurrentStrategyValidation[] }
 
 export interface CompetitionRoomsClient {
+  roomInputCatalog(signal?: AbortSignal): Promise<RoomInputCatalog>;
+  currentStrategyValidations(signal?: AbortSignal): Promise<CurrentStrategyValidationPage>;
   searchRooms(options?: { q?: string; cursor?: string; limit?: number }, signal?: AbortSignal): Promise<PublicRoomPage>;
   createRoom(input: CreateRoomInput, signal?: AbortSignal): Promise<{ id: string; accessType: RoomAccessType; status: RoomStatus }>;
   joinRoom(roomId: string, input: JoinRoomInput, signal?: AbortSignal): Promise<Participation>;
@@ -65,6 +91,8 @@ export function createCompetitionRoomsClient({ baseUrl = '', fetchImpl = fetch, 
     return `/api/v1/competition/rooms/${encodeURIComponent(roomId)}/${suffix}?${query}`;
   };
   return {
+    async roomInputCatalog(signal) { return readRoomInputCatalog(await request('/api/v1/competition/room-input-catalog', signal)); },
+    async currentStrategyValidations(signal) { return readCurrentStrategyValidations(await request('/api/v1/strategy-validations/current', signal)); },
     async searchRooms({ q = '', cursor, limit = 20 } = {}, signal) {
       const query = new URLSearchParams({ q, limit: String(limit) }); if (cursor) query.set('cursor', cursor);
       return readPublicPage(await request(`/api/v1/competition/rooms/public?${query}`, signal));
@@ -85,14 +113,53 @@ function readLeaderboard(value: unknown, owned = false): LeaderboardPage { const
 function readEvidence(value: unknown): LeaderboardEvidence { const item = object(value, 'leaderboard evidence'); return { botId: text(item.botId, 'botId'), participationId: text(item.participationId, 'participationId'), performanceSnapshotId: optionalText(item.performanceSnapshotId), backtestAggregateResultId: optionalText(item.backtestAggregateResultId), eligibilityReasonCode: optionalText(item.eligibilityReasonCode) }; }
 function readParticipation(value: unknown): Participation { const item = object(value, 'participation'); return { id: text(item.id, 'participation id'), roomId: text(item.roomId, 'room id'), botId: text(item.botId, 'bot id'), anonymousAlias: text(item.anonymousAlias, 'anonymousAlias'), joinedAt: instant(item.joinedAt, 'joinedAt') }; }
 function readChoice(value: unknown): PostEvaluationChoice { const item = object(value, 'post-evaluation choice'); return { roomId: text(item.roomId, 'roomId'), participationId: text(item.participationId, 'participationId'), action: enumValue(item.action, ['CONTINUE_PRIVATE','STOP_AFTER_EVALUATION'], 'post-evaluation action'), recordedAt: instant(item.recordedAt, 'recordedAt'), lockedAt: optionalInstant(item.lockedAt, 'lockedAt') }; }
+function readRoomInputCatalog(value: unknown): RoomInputCatalog {
+  const catalog = object(value, 'room input catalog');
+  return {
+    scoringTemplates: array(catalog.scoringTemplates, 'scoring templates').map((raw) => {
+      const item = object(raw, 'scoring template');
+      return {
+        id: text(item.id, 'scoring template id'), templateCode: text(item.templateCode, 'templateCode'),
+        version: text(item.version, 'template version'), kind: text(item.kind, 'template kind'),
+        calculationRulesVersion: text(item.calculationRulesVersion, 'calculationRulesVersion'),
+        components: array(item.components, 'scoring components').map((componentRaw) => {
+          const component = object(componentRaw, 'scoring component');
+          return { metric: text(component.metric, 'metric'), direction: text(component.direction, 'direction'), coefficient: requiredDecimal(component.coefficient, 'coefficient') };
+        }),
+        adjustments: array(item.adjustments, 'scoring adjustments').map((adjustmentRaw) => {
+          const adjustment = object(adjustmentRaw, 'scoring adjustment');
+          return { code: text(adjustment.code, 'adjustment code'), unit: text(adjustment.unit, 'adjustment unit'), minimum: requiredDecimal(adjustment.minimum, 'minimum'), maximum: requiredDecimal(adjustment.maximum, 'maximum'), scale: nonNegative(adjustment.scale, 'scale') };
+        }),
+        rulesHash: text(item.rulesHash, 'rulesHash'),
+      };
+    }),
+    feePolicies: array(catalog.feePolicies, 'fee policies').map((raw) => {
+      const item = object(raw, 'fee policy');
+      return { id: text(item.id, 'fee policy id'), policyCode: text(item.policyCode, 'policyCode'), version: text(item.version, 'fee version'), feeRateBps: nonNegative(item.feeRateBps, 'feeRateBps'), calculationRulesVersion: text(item.calculationRulesVersion, 'calculationRulesVersion'), rulesHash: text(item.rulesHash, 'rulesHash'), effectiveFrom: instant(item.effectiveFrom, 'effectiveFrom'), effectiveTo: optionalInstant(item.effectiveTo, 'effectiveTo'), publishedAt: instant(item.publishedAt, 'publishedAt') };
+    }),
+    buyingPowerBufferPolicies: array(catalog.buyingPowerBufferPolicies, 'buying power buffer policies').map((raw) => {
+      const item = object(raw, 'buying power buffer policy');
+      return { id: text(item.id, 'buffer policy id'), policyCode: text(item.policyCode, 'policyCode'), version: text(item.version, 'buffer version'), bufferBps: nonNegative(item.bufferBps, 'bufferBps'), roundingRulesVersion: text(item.roundingRulesVersion, 'roundingRulesVersion'), rulesHash: text(item.rulesHash, 'rulesHash'), effectiveFrom: instant(item.effectiveFrom, 'effectiveFrom'), effectiveTo: optionalInstant(item.effectiveTo, 'effectiveTo'), publishedAt: instant(item.publishedAt, 'publishedAt') };
+    }),
+  };
+}
+function readCurrentStrategyValidations(value: unknown): CurrentStrategyValidationPage {
+  const page = object(value, 'current strategy validations');
+  return { items: array(page.items, 'validation items').map((raw) => {
+    const item = object(raw, 'validation item');
+    return { validationRunId: text(item.validationRunId, 'validationRunId'), strategyId: text(item.strategyId, 'strategyId'), strategyName: text(item.strategyName, 'strategyName'), requestedEditSequence: nonNegative(item.requestedEditSequence, 'requestedEditSequence'), semanticHash: text(item.semanticHash, 'semanticHash'), elementCatalogVersionId: text(item.elementCatalogVersionId, 'elementCatalogVersionId'), completedAt: instant(item.completedAt, 'completedAt') };
+  }) };
+}
 function object(value: unknown, label: string): Record<string, unknown> { if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error(`Invalid ${label}`); return value as Record<string, unknown>; }
 function array(value: unknown, label: string): unknown[] { if (!Array.isArray(value)) throw new Error(`Invalid ${label}`); return value; }
 function text(value: unknown, label: string): string { if (typeof value !== 'string' || !value.trim()) throw new Error(`Invalid ${label}`); return value; }
 function optionalText(value: unknown): string | null { return value == null ? null : text(value, 'optional text'); }
 function bool(value: unknown, label: string): boolean { if (typeof value !== 'boolean') throw new Error(`Invalid ${label}`); return value; }
 function positive(value: unknown, label: string): number { if (!Number.isSafeInteger(value) || Number(value) < 1) throw new Error(`Invalid ${label}`); return Number(value); }
+function nonNegative(value: unknown, label: string): number { if (!Number.isSafeInteger(value) || Number(value) < 0) throw new Error(`Invalid ${label}`); return Number(value); }
 function nullablePositive(value: unknown, label: string): number | null { return value == null ? null : positive(value, label); }
 function decimal(value: unknown, label: string): number | null { if (value == null) return null; const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN; if (!Number.isFinite(parsed)) throw new Error(`Invalid ${label}`); return parsed; }
+function requiredDecimal(value: unknown, label: string): number { const result = decimal(value, label); if (result === null) throw new Error(`Invalid ${label}`); return result; }
 function instant(value: unknown, label: string): string { const result = text(value, label); if (Number.isNaN(Date.parse(result))) throw new Error(`Invalid ${label}`); return result; }
 function optionalInstant(value: unknown, label: string): string | null { return value == null ? null : instant(value, label); }
 function enumValue<T extends string>(value: unknown, values: readonly T[], label: string): T { const result = text(value, label); if (!values.includes(result as T)) throw new Error(`Invalid ${label}`); return result as T; }
