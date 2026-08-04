@@ -14,7 +14,7 @@ import { Activity, ArrowDown, ArrowLeft, ArrowUp, BarChart3, BellRing, Boxes, Ca
 import type { LucideIcon } from 'lucide-react';
 import { strategies } from '../data/mockData';
 import type { StrategySummary } from '../data/mockData';
-import { Button, PageHeading, Panel, Status } from '../components/common';
+import { Button, EmptyState, ErrorState, LoadingState, PageHeading, Panel, Status } from '../components/common';
 import { StrategyPreviewChart } from '../components/StrategyPreviewChart';
 import { splitPartitionSymbols } from '../lib/strategyPreview';
 import type { PreviewFlow } from '../lib/strategyPreview';
@@ -294,11 +294,12 @@ const strategyListItem = (item: StrategyLibraryItem): StrategyListItem => ({
 });
 
 export function StrategyHome({ openEditor, client = automaticStrategyLibraryClient, authoringClient = automaticStrategyAuthoringClient }: StrategyHomeProps) {
-  const [items, setItems] = useState<StrategyListItem[]>(() => strategies.map((strategy, index) => ({
+  const prototypeItems = useMemo<StrategyListItem[]>(() => strategies.map((strategy, index) => ({
     ...strategy,
     id: `strategy-${index}`,
     symbols: index === 0 ? ['AAPL', 'MSFT'] : index === 1 ? ['SPY', 'QQQ'] : ['NVDA'],
-  })));
+  })), []);
+  const [items, setItems] = useState<StrategyListItem[] | null>(() => client ? null : prototypeItems);
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<'all' | 'basic' | 'pro'>('all');
   const [state, setState] = useState<'all' | 'launchable' | 'incomplete'>('all');
@@ -306,27 +307,37 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
   const [showImport, setShowImport] = useState(false);
   const [draggedStrategyId, setDraggedStrategyId] = useState<string | null>(null);
   const [libraryError, setLibraryError] = useState<string | null>(null);
+  const confirmedItemsRef = useRef<StrategyListItem[] | null>(null);
   const [draftName, setDraftName] = useState('새 Basic 전략');
   const [createPending, setCreatePending] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!client) return undefined;
+    if (!client) {
+      setItems(prototypeItems);
+      setLibraryError(null);
+      return undefined;
+    }
+    setItems(confirmedItemsRef.current);
+    setLibraryError(null);
     const controller = new AbortController();
     void client.list(50, undefined, controller.signal)
       .then((page) => {
-        setItems(page.items.map(strategyListItem));
+        const confirmedItems = page.items.map(strategyListItem);
+        confirmedItemsRef.current = confirmedItems;
+        setItems(confirmedItems);
         setLibraryError(null);
       })
       .catch((error) => {
         if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setItems(confirmedItemsRef.current);
           setLibraryError('전략 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
         }
       });
     return () => controller.abort();
-  }, [client]);
+  }, [client, prototypeItems]);
 
-  const filteredItems = useMemo(() => items.filter((strategy) => {
+  const filteredItems = useMemo(() => (items ?? []).filter((strategy) => {
     const matchesQuery = strategy.name.toLowerCase().includes(query.trim().toLowerCase());
     const matchesMode = mode === 'all' || strategy.mode.toLowerCase() === mode;
     const matchesState = state === 'all'
@@ -334,12 +345,13 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
     return matchesQuery && matchesMode && matchesState;
   }), [items, mode, query, state]);
 
-  const launchableCount = items.filter((strategy) => strategy.state === '출시 가능').length;
-  const incompleteCount = items.filter((strategy) => strategy.state === '미완성').length;
+  const launchableCount = (items ?? []).filter((strategy) => strategy.state === '출시 가능').length;
+  const incompleteCount = (items ?? []).filter((strategy) => strategy.state === '미완성').length;
 
   const reorderStrategy = (sourceId: string | null, targetId: string) => {
     if (!sourceId || sourceId === targetId) return;
     setItems((current) => {
+      if (current === null) return current;
       const sourceIndex = current.findIndex((strategy) => strategy.id === sourceId);
       const targetIndex = current.findIndex((strategy) => strategy.id === targetId);
       if (sourceIndex < 0 || targetIndex < 0) return current;
@@ -385,7 +397,12 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
 
     <div className="balanced-strategy-grid is-list-only">
       <section className="strategy-library panel">
-        {libraryError && <p className="bots-decision-note" role="status">{libraryError}</p>}
+        {libraryError && <ErrorState
+          title={items === null ? '전략 목록을 불러오지 못했습니다.' : '마지막으로 확인한 전략 목록을 표시합니다.'}
+          detail={items === null ? '잠시 후 다시 시도해 주세요.' : '최신 목록을 불러오지 못해 이전에 서버에서 확인한 결과를 유지합니다.'}
+        />}
+        {items === null && !libraryError && <LoadingState label="전략 목록을 불러오는 중입니다." />}
+        {items !== null && <>
         <header className="strategy-library-head">
           <div className="strategy-title-group"><div><h2>내 전략</h2><span>{filteredItems.length}</span></div><div className="strategy-counts" data-testid="strategy-counts"><span>전체 <b>{items.length}</b></span><span>출시 가능 <b>{launchableCount}</b></span><span>미완성 <b>{incompleteCount}</b></span></div></div>
           <label className="strategy-search"><Search size={16} /><input type="search" aria-label="전략 검색" placeholder="이름으로 검색" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
@@ -426,8 +443,11 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
               >{strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? <LockKeyhole size={15} /> : <ChevronRight size={17} />}</button>
             </div>
           </article>)}
-          {filteredItems.length === 0 && <div className="strategy-empty"><Search size={20} /><strong>조건에 맞는 전략이 없습니다.</strong><button onClick={() => { setQuery(''); setMode('all'); setState('all'); }}>필터 초기화</button></div>}
+          {filteredItems.length === 0 && (items.length === 0 && !query && mode === 'all' && state === 'all'
+            ? <EmptyState title="아직 만든 전략이 없습니다." detail="새 전략을 만들면 이 목록에 표시됩니다." />
+            : <div className="strategy-empty"><Search size={20} /><strong>조건에 맞는 전략이 없습니다.</strong><button onClick={() => { setQuery(''); setMode('all'); setState('all'); }}>필터 초기화</button></div>)}
         </div>
+        </>}
       </section>
 
     </div>
@@ -441,7 +461,7 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
           <button aria-label="Basic으로 시작" disabled={createPending} onClick={() => { void beginBasicStrategy(); }}><span className="create-icon is-basic"><Boxes size={20} /></span><span><strong>{createPending ? '만드는 중…' : 'Basic'}</strong><small>편집기에서 블록으로 구성</small></span><ChevronRight size={18} /></button>
           <button aria-label="Pro로 시작 (준비 중)" disabled={!PRO_EDITOR_AVAILABLE}><span className="create-icon is-pro"><GitBranch size={20} /></span><span><strong>Pro</strong><small>현재 사용할 수 없습니다</small></span><LockKeyhole size={18} /></button>
           <button className="create-import-option" aria-label="기존 전략 가져오기" onClick={() => setShowImport(true)}><span className="create-icon is-import"><Import size={20} /></span><span><strong>기존 전략 가져오기</strong><small>원본은 그대로 두고 새 초안 생성</small></span><ChevronRight size={18} /></button>
-        </div> : <div className="strategy-import-list">{items.map((strategy) => {
+        </div> : <div className="strategy-import-list">{(items ?? []).map((strategy) => {
           const proLocked = strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE;
           return <button key={strategy.id} aria-label={proLocked ? `${strategy.name} 가져오기 (Pro 준비 중)` : `${strategy.name} 가져오기`} disabled={proLocked} onClick={() => { setShowCreate(false); setShowImport(false); openEditor(strategy.mode.toLowerCase() as EditorMode, false, strategy.id); }}><span className={`strategy-mode-icon mode-${strategy.mode.toLowerCase()}`}>{strategy.mode[0]}</span><span><strong>{strategy.name}</strong><small>{proLocked ? 'Pro · 현재 사용할 수 없습니다' : `${strategy.mode} · ${strategy.symbols.join(', ')}`}</small></span>{proLocked ? <LockKeyhole size={16} /> : <Import size={16} />}</button>;
         })}</div>}

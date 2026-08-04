@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
-import { Button, DataTable, EmptyState, PageHeading, Status, TabPanel, Tabs } from '../components/common';
+import { Button, DataTable, EmptyState, ErrorState, LoadingState, PageHeading, Status, TabPanel, Tabs } from '../components/common';
 import type { DataTableColumn } from '../components/common';
 import { EquityChart } from '../components/EquityChart';
 import { LiveExecutionChart } from '../components/LiveExecutionChart';
@@ -57,7 +57,7 @@ interface BotRecord {
   state: string;
   capital: string;
   change: string;
-  strategies: number;
+  strategies: number | null;
   room: string;
   labels: string[];
   startDaysAgo: number;
@@ -438,16 +438,6 @@ const automaticBotTradingClient = import.meta.env.MODE === 'test'
   : defaultBotTradingClient;
 
 const mergeBotOperations = (operations: BotOperationsView[]): BotRecord[] => operations.map((operation) => {
-  const existing = staticBotList.find((bot) => bot.name === operation.name);
-  if (existing) {
-    return {
-      ...existing,
-      id: operation.botId,
-      operationState: operation.state,
-      state: OPERATION_STATE_LABELS[operation.state],
-    };
-  }
-
   const changedAt = new Date(operation.lifecycleChangedAt);
   const age = Number.isNaN(changedAt.getTime())
     ? 1
@@ -459,9 +449,9 @@ const mergeBotOperations = (operations: BotOperationsView[]): BotRecord[] => ope
     state: OPERATION_STATE_LABELS[operation.state],
     capital: '—',
     change: '—',
-    strategies: 0,
-    room: '개인 봇',
-    labels: ['개인'],
+    strategies: null,
+    room: '운용 유형 미제공',
+    labels: [],
     startDaysAgo: age,
     startedAt: formatRuntimeTime(operation.lifecycleChangedAt),
   };
@@ -1261,12 +1251,13 @@ export function BotsView({
   pollIntervalMs = 5000,
   initialBot,
 }: BotsViewProps = {}): ReactNode {
-  const requestedBot = initialBot && staticBotList.some((bot) => bot.name === initialBot) ? initialBot : null;
+  const prototypeMode = operationsClient === null;
+  const requestedBot = prototypeMode && initialBot && staticBotList.some((bot) => bot.name === initialBot) ? initialBot : null;
   const [filter, setFilter] = useState<FilterId>(() => {
     const bot = requestedBot ? staticBotList.find((item) => item.name === requestedBot) : null;
     return bot && !matchesBotFilter(bot, 'personal') ? 'competition' : 'personal';
   });
-  const [selectedName, setSelectedName] = useState<string>(requestedBot ?? staticBotList[0].name);
+  const [selectedName, setSelectedName] = useState<string>(requestedBot ?? (prototypeMode ? staticBotList[0].name : (initialBot ?? '')));
   const [tab, setTab] = useState<TabId>('live');
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [savedLayouts, setSavedLayouts] = useState<Record<string, SnapshotLayout>>(
@@ -1282,8 +1273,8 @@ export function BotsView({
   const [logPeriod, setLogPeriod] = useState<LogPeriod>('all');
   const [decisionSymbol, setDecisionSymbol] = useState('');
   /* The selected bot's real trading and ledger record. Each surface is null
-     until it has loaded, which is what keeps the sample content in place on
-     the demo screens and lets one surface fail without blanking the rest. */
+     until it has loaded. Prototype mode may render its explicit sample, while
+     runtime mode treats null as unknown and never substitutes sample values. */
   const [livePositions, setLivePositions] = useState<BotPosition[] | null>(null);
   const [liveOrders, setLiveOrders] = useState<BotOrder[] | null>(null);
   const [liveFills, setLiveFills] = useState<BotFill[] | null>(null);
@@ -1293,17 +1284,24 @@ export function BotsView({
   const [operations, setOperations] = useState<BotOperationsView[] | null>(null);
   const [judgmentsByBot, setJudgmentsByBot] = useState<Record<string, BotJudgmentLogEntry[]>>({});
   const [operationsError, setOperationsError] = useState<string | null>(null);
+  const confirmedOperationsRef = useRef<BotOperationsView[] | null>(null);
   const [judgmentsError, setJudgmentsError] = useState<string | null>(null);
   const [commandPending, setCommandPending] = useState(false);
   const [commandMessage, setCommandMessage] = useState<string | null>(null);
   const cursorByBot = useRef<Record<string, number>>({});
   const activeBots = useMemo(
-    () => operations === null ? staticBotList : mergeBotOperations(operations),
-    [operations],
+    () => prototypeMode ? staticBotList : operations === null ? [] : mergeBotOperations(operations),
+    [operations, prototypeMode],
   );
 
   useEffect(() => {
-    if (!operationsClient) return undefined;
+    if (!operationsClient) {
+      setOperations(null);
+      setOperationsError(null);
+      return undefined;
+    }
+    setOperations(confirmedOperationsRef.current);
+    setOperationsError(null);
     const controller = new AbortController();
     let requestInFlight = false;
 
@@ -1312,11 +1310,15 @@ export function BotsView({
       requestInFlight = true;
       try {
         const next = await operationsClient.listOperations(controller.signal);
+        confirmedOperationsRef.current = next;
         setOperations(next);
         setOperationsError(null);
       } catch (error) {
         if (!(error instanceof DOMException && error.name === 'AbortError')) {
-          setOperationsError('실행 상태를 새로 불러오지 못했습니다. 마지막으로 확인한 상태를 유지합니다.');
+          setOperations(confirmedOperationsRef.current);
+          setOperationsError(confirmedOperationsRef.current === null
+            ? '봇 목록을 불러오지 못했습니다.'
+            : '마지막으로 확인한 봇 목록을 표시합니다. 마지막으로 확인한 상태를 유지합니다. 최신 실행 상태를 불러오지 못했습니다.');
         }
       } finally {
         requestInFlight = false;
@@ -1344,7 +1346,7 @@ export function BotsView({
     setLocalBotIcons((current) => ({ ...current, [botName]: selection }));
   };
 
-  const visibleBots = activeBots.filter((bot) => matchesBotFilter(bot, filter));
+  const visibleBots = prototypeMode ? activeBots.filter((bot) => matchesBotFilter(bot, filter)) : activeBots;
   const selected = visibleBots.find((bot) => bot.name === selectedName) ?? visibleBots[0] ?? null;
   /* Fills and refusals join the one timeline the decision log already is, so
      the same moment is never told in two places. */
@@ -1357,13 +1359,13 @@ export function BotsView({
   }, [liveDecisionReasons, liveFills, liveOrders]);
   const detail = useMemo(() => {
     if (!selected) return null;
-    const base = botDetails[selected.name] ?? emptyBotDetail(selected.name);
+    const base = prototypeMode ? (botDetails[selected.name] ?? emptyBotDetail(selected.name)) : emptyBotDetail(selected.name);
     const liveEntries = selected.id ? judgmentsByBot[selected.id] : undefined;
     if (liveEntries === undefined && tradingLogEvents.length === 0) return base;
     const events = [...(liveEntries ?? []).map(judgmentToLogEvent), ...tradingLogEvents]
       .sort((left, right) => eventInstant(right) - eventInstant(left));
     return { ...base, events };
-  }, [judgmentsByBot, selected, tradingLogEvents]);
+  }, [judgmentsByBot, prototypeMode, selected, tradingLogEvents]);
   const selectedOperations = selected?.id
     ? operations?.find((item) => item.botId === selected.id) ?? null
     : null;
@@ -1537,7 +1539,7 @@ export function BotsView({
     setLogQuery('');
     setLogScope('fills');
     setLogPeriod('all');
-    const nextFill = botDetails[bot.name]?.events.find((event) => event.kind === 'fill');
+    const nextFill = prototypeMode ? botDetails[bot.name]?.events.find((event) => event.kind === 'fill') : undefined;
     setDecisionSymbol(nextFill?.symbol ?? '');
   };
 
@@ -1585,11 +1587,10 @@ export function BotsView({
     { key: 'createdAt', label: '생성 시각' },
   ];
 
-  // Up to 30 days of the selected bot's curve, shown as P&L with the rate in
-  // the tooltip. A newer bot starts at its real launch date instead of showing
-  // invented pre-launch history.
+  // The explicit prototype path keeps its seeded 30-day curve. Runtime bots
+  // never enter this calculation because the current API has no equity series.
   const chartDays = selected ? Math.min(30, selected.startDaysAgo) : 30;
-  const series = selected && detail ? walkSeries(selected.name, chartDays, CAPITALS[selected.name] ?? 10000, detail.monthReturn, detail.dailyVol) : [];
+  const series = prototypeMode && selected && detail ? walkSeries(selected.name, chartDays, CAPITALS[selected.name] ?? 10000, detail.monthReturn, detail.dailyVol) : [];
   const botProfit = series.map((value) => value - series[0]);
   const botRates = series.map((value) => (value / series[0] - 1) * 100);
   const chartDates = dateLabels(SAMPLE_END_DATE, chartDays);
@@ -1597,25 +1598,29 @@ export function BotsView({
   const chartTitle = isYoungBot ? `운용 시작 후 ${chartDays}일 손익` : '최근 30일 손익';
   const chartRange = chartDates.length > 0 ? `${chartDates[0]}–${chartDates[chartDates.length - 1]} · ${chartDays}일` : '';
   const isCompetitionBot = selected?.labels.includes('대회') ?? false;
-  const startLabel = isCompetitionBot ? '대회 참가 시간' : '운용 시작 시간';
+  const startLabel = prototypeMode ? (isCompetitionBot ? '대회 참가 시간' : '운용 시작 시간') : '상태 변경 시각';
 
   return <Localized><div className="page bots-page">
     <PageHeading
       eyebrow="LIVE OPERATIONS"
       title="봇 운영 센터"
-      description={attention.length > 0
+      description={!prototypeMode && operations === null
+        ? '서버에서 봇 실행 상태를 확인하고 있습니다.'
+        : attention.length > 0
         ? `봇 ${activeBots.length}개 중 ${healthyCount}개가 정상 실행 중이에요. ${attention.map((bot) => bot.name).join(', ')} 상태를 확인해 주세요.`
         : `봇 ${activeBots.length}개가 정상 상태예요. 확인할 문제가 없습니다.`}
     />
-    {(operationsError || judgmentsError) && <p className="bots-decision-note" role="status">
-      {judgmentsError ?? operationsError}
-    </p>}
+    {operationsError && <ErrorState
+      title={operationsError}
+      detail={operations === null ? '잠시 후 다시 시도해 주세요.' : '이전에 서버에서 확인한 목록은 그대로 유지합니다.'}
+    />}
+    {judgmentsError && <p className="bots-decision-note" role="status">{judgmentsError}</p>}
 
     <div className="bots-workspace">
       <section className="bots-list-panel panel" aria-labelledby="bots-list-title">
         <header className="bots-list-head">
           <div><span>MY BOTS</span><h2 id="bots-list-title">봇 목록</h2></div>
-          <div className="bots-filter" role="group" aria-label="봇 운용 유형 필터">
+          {prototypeMode && <div className="bots-filter" role="group" aria-label="봇 운용 유형 필터">
             {botOperationFilters.map((option) => <button
               key={option.id}
               type="button"
@@ -1623,12 +1628,16 @@ export function BotsView({
               className={filter === option.id ? 'active' : ''}
               onClick={() => setFilter(option.id)}
             >{option.label}</button>)}
-          </div>
+          </div>}
         </header>
         {/* The list item and the control are separate elements: putting
             role="listitem" on the button itself would drop its button semantics,
             so it would no longer be announced as something you can activate. */}
-        {visibleBots.length > 0 ? <div className="bots-list" role="list" aria-label="봇 목록 결과">
+        {!prototypeMode && operations === null && !operationsError
+          ? <LoadingState label="봇 목록을 불러오는 중입니다." />
+          : !prototypeMode && operations === null
+            ? null
+            : visibleBots.length > 0 ? <div className="bots-list" role="list" aria-label="봇 목록 결과">
           {visibleBots.map((bot) => <div role="listitem" key={bot.name}><button
             type="button"
             aria-label={`${bot.name} 상세 보기`}
@@ -1642,17 +1651,17 @@ export function BotsView({
             {/* One template string, not interpolated fragments: Localized
                 translates whole text nodes, and a number in the middle would
                 split this into untranslatable pieces. */}
-            <span className="bots-list-copy"><strong>{bot.name}</strong><small>{`${bot.room} · 전략 ${bot.strategies}개`}</small></span>
-            <span className="bots-list-figures"><b>{bot.capital}</b><em className={bot.change.startsWith('+') ? 'positive' : 'negative'}>{bot.change}</em></span>
+            <span className="bots-list-copy"><strong>{bot.name}</strong><small>{`${bot.room} · 전략 ${bot.strategies === null ? '—' : `${bot.strategies}개`}`}</small></span>
+            <span className="bots-list-figures"><b>{bot.capital}</b><em className={bot.change === '—' ? '' : bot.change.startsWith('+') ? 'positive' : 'negative'}>{bot.change}</em></span>
             <Status tone={botTone(bot.state)}>{bot.state}</Status>
           </button></div>)}
         </div> : <EmptyState
           icon={Bot}
-          title="조건에 맞는 봇이 없습니다."
-          detail="다른 운용 유형을 선택하면 나머지 봇을 확인할 수 있습니다."
-          action={<Button onClick={() => setFilter(filter === 'personal' ? 'competition' : 'personal')}>
+          title={prototypeMode ? '조건에 맞는 봇이 없습니다.' : '운용 중인 봇이 없습니다.'}
+          detail={prototypeMode ? '다른 운용 유형을 선택하면 나머지 봇을 확인할 수 있습니다.' : '봇을 등록하고 실행하면 이 목록에 표시됩니다.'}
+          action={prototypeMode ? <Button onClick={() => setFilter(filter === 'personal' ? 'competition' : 'personal')}>
             {filter === 'personal' ? '대회 참가 봇 보기' : '개인 운용 봇 보기'}
-          </Button>}
+          </Button> : undefined}
         />}
       </section>
 
@@ -1766,14 +1775,14 @@ export function BotsView({
             items={[
               { id: 'live', label: '실시간' },
               { id: 'overview', label: '개요' },
-              { id: 'positions', label: '포지션', count: livePositions?.length ?? detail.positions.length },
+              { id: 'positions', label: '포지션', count: livePositions?.length ?? (prototypeMode ? detail.positions.length : undefined) },
               { id: 'orders', label: '주문 기록', count: liveOrders?.length },
               { id: 'decisions', label: '판단 기록', count: detail.events.length },
             ]}
           />
-          <button type="button" className="bots-layout-open" onClick={() => setLayoutOpen(true)}>
+          {prototypeMode && <button type="button" className="bots-layout-open" onClick={() => setLayoutOpen(true)}>
             <Boxes size={14} aria-hidden="true" />전략 구성 보기
-          </button>
+          </button>}
         </div>
 
         {/* The opening tab is the fills the bot is making right now, drawn on a
@@ -1819,19 +1828,25 @@ export function BotsView({
                 <small>미체결 주문 예약</small>
               </div>
             </div>
-            : <div className="bots-overview-figures">
+            : prototypeMode ? <div className="bots-overview-figures">
               <div><span>총자산</span><strong>{selected.capital}</strong><small>{`${signedMoney(botProfit[botProfit.length - 1])} · ${percent(detail.monthReturn)}`}</small></div>
               <div><span>투자 중</span><strong>{detail.invested}</strong></div>
               {/* Cash IS the buying power here — the product has no margin, so a
                   separate buying-power figure would just repeat this number. */}
               <div><span>현금</span><strong>{detail.cash}</strong><small>주문 가능 금액</small></div>
-            </div>}
+            </div> : <EmptyState
+              icon={Coins}
+              title="예산 현황을 아직 불러오지 못했습니다."
+              detail="서버에서 확인된 예산만 표시하며 샘플 금액으로 대신하지 않습니다."
+            />}
           <div className="bots-overview-timing">
             <span><Timer size={14} aria-hidden="true" />{startLabel}</span>
             <strong>{selected.startedAt}</strong>
-            <small>{isCompetitionBot ? `${selected.room} 참가 ${selected.startDaysAgo}일째` : `${selected.startDaysAgo}일째 운용 중`}</small>
+            <small>{prototypeMode
+              ? (isCompetitionBot ? `${selected.room} 참가 ${selected.startDaysAgo}일째` : `${selected.startDaysAgo}일째 운용 중`)
+              : '운용 유형과 실제 시작 시각은 현재 목록 API에서 제공하지 않습니다.'}</small>
           </div>
-          <div className="bots-overview-chart">
+          {prototypeMode && <div className="bots-overview-chart">
             <header>
               <div><h3>{chartTitle}</h3><small>{chartRange}</small></div>
               <span className={botProfit[botProfit.length - 1] >= 0 ? 'positive' : 'negative'}>{signedMoney(botProfit[botProfit.length - 1])}</span>
@@ -1843,7 +1858,7 @@ export function BotsView({
               format={signedMoney}
               ariaLabel={`${selected.name} 손익과 수익률 차트`}
             />
-          </div>
+          </div>}
 
           {/* What each strategy partition is allowed to spend, and what it has
               spent. The partition is named by its identifier because canonical
@@ -1895,7 +1910,7 @@ export function BotsView({
                 title="보유 중인 포지션이 없습니다."
                 detail="이 봇은 현재 전액을 현금으로 보유하고 있습니다."
               />)
-            : <>
+            : prototypeMode ? <>
           {/* What the equity is made of right now: each holding's share of the
               bot, plus cash. The legend carries the numbers so colour is never
               the only signal. */}
@@ -1929,7 +1944,11 @@ export function BotsView({
               title="보유 중인 포지션이 없습니다."
               detail="이 봇은 현재 전액을 현금으로 보유하고 있습니다."
             />}
-            </>}
+            </> : <EmptyState
+              icon={Coins}
+              title="포지션 정보를 아직 불러오지 못했습니다."
+              detail="서버에서 확인된 보유 내역만 표시하며 샘플 포지션으로 대신하지 않습니다."
+            />}
         </TabPanel>}
 
         {/* Every order the bot placed, and what became of it. There is no
