@@ -35,6 +35,8 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { Button, DataTable, EmptyState, MetricRow, PageHeading, Panel, Status, type DataTableColumn } from '../components/common';
 import type { BacktestClient } from '../api/backtests';
+import type { CompetitionRoomsClient } from '../api/competitionRooms';
+import { CompetitionApiWorkspace } from '../components/CompetitionApiWorkspace';
 import { bots as botRecords, leaderboard, strategies, type LeaderboardEntry } from '../data/mockData';
 import { Localized, useLanguage } from '../lib/i18n';
 import { BacktestLiveView } from './BacktestLiveView';
@@ -1939,14 +1941,23 @@ const competitionViewLabels: Record<CompetitionView, string> = {
   joined: '참여 중',
 };
 
-export function RoomsView({
-  visualVariant = 'default',
-  openBot,
-}: {
+interface RoomsViewProps {
   visualVariant?: 'default' | 'image';
   /* 리더보드의 내 봇을 눌렀을 때 봇 운영 화면으로 넘기는 경로(#54). */
   openBot?: (botName: string) => void;
-}) {
+  client?: CompetitionRoomsClient;
+}
+
+export function RoomsView({ client, ...props }: RoomsViewProps) {
+  return client
+    ? <Localized><CompetitionApiWorkspace client={client} /></Localized>
+    : <StaticRoomsView {...props} />;
+}
+
+function StaticRoomsView({
+  visualVariant = 'default',
+  openBot,
+}: Omit<RoomsViewProps, 'client'>) {
   const [query, setQuery] = useState('');
   const [scoreFilters, setScoreFilters] = useState<string[]>([]);
   const [view, setView] = useState<CompetitionView>('recruiting');

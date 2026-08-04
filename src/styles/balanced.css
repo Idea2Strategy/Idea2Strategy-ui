@@ -5,6 +5,101 @@
   grid-template-columns: 72px minmax(0, 1fr);
 }
 
+/* Real competition API workspace: baseline board geometry with explicit async states. */
+.variant-balanced[data-design="signal-studio"] .competition-api-page,
+.variant-balanced[data-design="signal-studio"] .competition-api-detail {
+  max-width: 1232px;
+  width: calc(100% - 48px);
+  margin-inline: auto;
+}
+
+.variant-balanced[data-design="signal-studio"] .competition-api-toolbar {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin: 18px 0 12px;
+}
+
+.variant-balanced[data-design="signal-studio"] .competition-api-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 420px;
+  padding: 0 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+
+.variant-balanced[data-design="signal-studio"] .competition-api-toolbar input {
+  width: 100%;
+  min-height: 38px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.variant-balanced[data-design="signal-studio"] .competition-api-toolbar > button,
+.variant-balanced[data-design="signal-studio"] .competition-api-state button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: var(--text-primary);
+  background: var(--surface-raised);
+}
+
+.variant-balanced[data-design="signal-studio"] .competition-api-state {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.variant-balanced[data-design="signal-studio"] .competition-api-state.is-error strong,
+.variant-balanced[data-design="signal-studio"] .competition-api-form [role="alert"] { color: var(--negative); }
+.variant-balanced[data-design="signal-studio"] .is-spinning { animation: competition-api-spin .8s linear infinite; }
+@keyframes competition-api-spin { to { transform: rotate(360deg); } }
+
+.variant-balanced[data-design="signal-studio"] .competition-api-detail { padding-block: 24px 56px; }
+.variant-balanced[data-design="signal-studio"] .competition-api-detail-head { display: flex; justify-content: space-between; gap: 24px; align-items: flex-end; margin: 18px 0; }
+.variant-balanced[data-design="signal-studio"] .competition-api-detail-head h1 { margin: 5px 0; font-size: clamp(26px, 4vw, 38px); }
+.variant-balanced[data-design="signal-studio"] .competition-api-detail-head p { color: var(--text-secondary); }
+.variant-balanced[data-design="signal-studio"] .competition-api-ranking-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr); gap: 16px; margin-top: 18px; }
+.variant-balanced[data-design="signal-studio"] .competition-api-leaderboard { min-width: 0; padding: 18px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-raised); }
+.variant-balanced[data-design="signal-studio"] .competition-api-leaderboard > header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.variant-balanced[data-design="signal-studio"] .competition-api-leaderboard h2 { margin: 0; font-size: 17px; }
+.variant-balanced[data-design="signal-studio"] .competition-api-mini-empty { padding: 48px 12px; text-align: center; color: var(--text-secondary); }
+.variant-balanced[data-design="signal-studio"] .competition-choice-panel { margin-top: 16px; padding: 20px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-raised); }
+.variant-balanced[data-design="signal-studio"] .competition-choice-panel fieldset { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 14px; padding: 14px; border: 1px solid var(--border-subtle); border-radius: 8px; }
+.variant-balanced[data-design="signal-studio"] .competition-choice-panel label { display: flex; gap: 6px; align-items: center; }
+.variant-balanced[data-design="signal-studio"] .competition-api-dialog { max-height: min(90vh, 760px); overflow-y: auto; }
+.variant-balanced[data-design="signal-studio"] .competition-api-form { display: grid; gap: 14px; padding: 20px; }
+.variant-balanced[data-design="signal-studio"] .competition-api-form label { display: grid; gap: 6px; color: var(--text-secondary); }
+.variant-balanced[data-design="signal-studio"] .competition-api-form input { min-height: 38px; padding: 7px 9px; border: 1px solid var(--border-subtle); border-radius: 7px; background: var(--surface-base); color: var(--text-primary); }
+.variant-balanced[data-design="signal-studio"] .competition-api-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.variant-balanced[data-design="signal-studio"] .competition-api-form details { padding: 12px; border: 1px solid var(--border-subtle); border-radius: 8px; }
+.variant-balanced[data-design="signal-studio"] .competition-api-form details label { margin-top: 10px; }
+.variant-balanced[data-design="signal-studio"] .competition-api-form footer { display: flex; justify-content: flex-end; gap: 8px; }
+.variant-balanced[data-design="signal-studio"] .competition-api-privacy { display: flex; align-items: center; gap: 7px; color: var(--accent); }
+
+@media (max-width: 820px) {
+  .variant-balanced[data-design="signal-studio"] .competition-api-page,
+  .variant-balanced[data-design="signal-studio"] .competition-api-detail { width: calc(100% - 24px); }
+  .variant-balanced[data-design="signal-studio"] .competition-api-ranking-grid { grid-template-columns: 1fr; }
+  .variant-balanced[data-design="signal-studio"] .competition-api-detail-head { align-items: stretch; flex-direction: column; }
+  .variant-balanced[data-design="signal-studio"] .competition-api-form-grid { grid-template-columns: 1fr; }
+  .variant-balanced[data-design="signal-studio"] .competition-row { grid-template-columns: 44px minmax(0, 1fr) auto; }
+  .variant-balanced[data-design="signal-studio"] .competition-row .is-num:last-child { display: none; }
+}
+
 /* Operator RBAC reads remain a compact, read-only workspace. Visibility is
    derived from /operations/me, while the server remains the authorization
    boundary for every catalog and assignment request. */

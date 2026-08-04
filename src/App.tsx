@@ -26,6 +26,7 @@ import { OperatorRbacWorkspace } from './components/OperatorRbacViews';
 import type { OperatorRbacClient } from './api/operatorRbac';
 import { defaultNotificationClient } from './api/notifications';
 import type { NotificationClient } from './api/notifications';
+import type { CompetitionRoomsClient } from './api/competitionRooms';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
@@ -231,10 +232,11 @@ const paletteTemplates: PaletteTemplate[] = [
   { id: 'rose', label: '로즈', dark: '#f79ab0', light: '#b42a52' },
 ];
 
-function ProductApp({ accountClient, operationsClient, notificationClient, operatorRbacClient, operatorCaseAccessVerified, catalogReadPermissionId, assignmentReadPermissionId }: {
+function ProductApp({ accountClient, operationsClient, notificationClient, competitionRoomsClient, operatorRbacClient, operatorCaseAccessVerified, catalogReadPermissionId, assignmentReadPermissionId }: {
   accountClient: AccountClient;
   operationsClient: AccountOperationsClient;
   notificationClient: NotificationClient;
+  competitionRoomsClient?: CompetitionRoomsClient;
   operatorRbacClient?: OperatorRbacClient;
   operatorCaseAccessVerified: boolean;
   catalogReadPermissionId?: string;
@@ -296,8 +298,8 @@ function ProductApp({ accountClient, operationsClient, notificationClient, opera
     <Route path="/strategies/new/pro" element={<ProEditor blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
     <Route path="/bots" element={<BotsView key={requestedBot ?? 'bots'} botIcons={botIcons} onBotIconChange={changeBotIcon} initialBot={requestedBot} />} />
     <Route path="/backtests" element={<BacktestView client={defaultBacktestClient} />} />
-    <Route path="/competition" element={<RoomsView openBot={openBot} />} />
-    <Route path="/competition-v2" element={<RoomsView visualVariant="image" openBot={openBot} />} />
+    <Route path="/competition" element={<RoomsView client={competitionRoomsClient} openBot={openBot} />} />
+    <Route path="/competition-v2" element={<RoomsView client={competitionRoomsClient} visualVariant="image" openBot={openBot} />} />
     <Route path="/notifications" element={<NotificationsView setPage={setPage} client={notificationClient} />} />
     <Route path="/operations/cases" element={operatorCaseAccessVerified
       ? <OperatorCaseWorkspace client={operationsClient} />
@@ -370,6 +372,7 @@ export function App({
   accountClient = defaultAccountClient,
   operationsClient = defaultAccountOperationsClient,
   notificationClient = defaultNotificationClient,
+  competitionRoomsClient,
   operatorRbacClient,
   operatorCaseAccessVerified = false,
   catalogReadPermissionId = import.meta.env.VITE_OPERATOR_RBAC_CATALOG_READ_PERMISSION_ID,
@@ -379,6 +382,7 @@ export function App({
   accountClient?: AccountClient;
   operationsClient?: AccountOperationsClient;
   notificationClient?: NotificationClient;
+  competitionRoomsClient?: CompetitionRoomsClient;
   operatorRbacClient?: OperatorRbacClient;
   operatorCaseAccessVerified?: boolean;
   catalogReadPermissionId?: string;
@@ -390,6 +394,7 @@ export function App({
       accountClient={accountClient}
       operationsClient={operationsClient}
       notificationClient={notificationClient}
+      competitionRoomsClient={competitionRoomsClient}
       operatorRbacClient={operatorRbacClient}
       operatorCaseAccessVerified={operatorCaseAccessVerified}
       catalogReadPermissionId={catalogReadPermissionId}
