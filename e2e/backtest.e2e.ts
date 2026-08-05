@@ -176,15 +176,17 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     // Leaving and revisiting the screen in-app must not resurrect the refused
     // token: it is gone, so the visit stays at the gate and sends nothing.
     // (A full reload would re-run this test's addInitScript sign-in, which is
-    // why the round trip stays inside the app. The idle waits keep the strict
-    // double-mount's in-flight duplicates out of the before/after snapshots.)
+    // why the round trip stays inside the app. Only /api/v1/backtests requests
+    // count — the strategies page crossed on the way asks the same mock origin
+    // for its own, unauthenticated list.)
+    const backtestRequests = () => requests.filter((request) => request.url().includes('/api/v1/backtests'));
     await page.waitForLoadState('networkidle');
-    const before = requests.length;
+    const before = backtestRequests().length;
     await page.getByRole('button', { name: '전략' }).click();
     await page.getByRole('button', { name: '백테스트' }).click();
     await expect(page.getByTestId('backtest-session-gate')).toBeVisible();
     await page.waitForLoadState('networkidle');
-    expect(requests).toHaveLength(before);
+    expect(backtestRequests()).toHaveLength(before);
 
     const stored = await page.evaluate(
       (key) => window.sessionStorage.getItem(key),
