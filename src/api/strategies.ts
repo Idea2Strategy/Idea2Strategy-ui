@@ -143,7 +143,7 @@ export function createStrategyLibraryClient({
         signal,
       });
       if (!response.ok) {
-        throw new Error(`Strategy library request failed (${response.status})`);
+        throw new StrategyApiError(response.status, 'Strategy library request');
       }
       return readPage(await response.json());
     },

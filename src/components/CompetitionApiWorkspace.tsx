@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bot, CalendarDays, Check, LoaderCircle, Plus, RotateCcw, Search, Trophy, X } from 'lucide-react';
 import type {
   CompetitionRoomsClient, CreateRoomInput, JoinRoomInput, LeaderboardItem,
@@ -6,9 +7,19 @@ import type {
   CurrentStrategyValidationPage,
 } from '../api/competitionRooms';
 import { CompetitionApiError } from '../api/competitionRooms';
-import { Button, PageHeading } from './common';
+import { Button, PageHeading, SignInRequiredState } from './common';
 
 type LoadState = 'loading' | 'ready' | 'error';
+
+/** The shared sign-in state, bound to the router so the way in is one press. */
+function LobbySignInRequired({ detail }: { detail: string }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  return <SignInRequiredState
+    detail={detail}
+    onSignIn={() => navigate('/login', { state: { returnTo: location.pathname } })}
+  />;
+}
 const dateLabel = (value: string) => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric', day: 'numeric' }).format(new Date(value));
 const metric = (value: number | null, suffix = '') => value == null ? '—' : `${value.toFixed(2)}${suffix}`;
 const statusLabel = (room: PublicRoom, now = Date.now()) => now < Date.parse(room.recruitmentOpensAt) ? '모집 예정' : now <= Date.parse(room.participationClosesAt) ? '모집 중' : '평가/종료 확인';
@@ -16,14 +27,16 @@ const statusLabel = (room: PublicRoom, now = Date.now()) => now < Date.parse(roo
 export function CompetitionApiWorkspace({ client }: { client: CompetitionRoomsClient }) {
   const [rooms, setRooms] = useState<PublicRoom[]>([]);
   const [state, setState] = useState<LoadState>('loading');
+  const [lobbyError, setLobbyError] = useState<unknown>(null);
   const [query, setQuery] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [selected, setSelected] = useState<PublicRoom | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const load = useCallback(async (signal?: AbortSignal) => {
     setState('loading');
+    setLobbyError(null);
     try { const page = await client.searchRooms({ q: query.trim(), limit: 50 }, signal); setRooms(page.items); setState('ready'); }
-    catch (error) { if ((error as { name?: string }).name !== 'AbortError') setState('error'); }
+    catch (error) { if ((error as { name?: string }).name !== 'AbortError') { setLobbyError(error); setState('error'); } }
   }, [client, query]);
   useEffect(() => { const controller = new AbortController(); void load(controller.signal); return () => controller.abort(); }, [load, reloadKey]);
 
@@ -38,7 +51,9 @@ export function CompetitionApiWorkspace({ client }: { client: CompetitionRoomsCl
     <section className="competition-bulletin" aria-label="대회 게시판">
       <header className="competition-bulletin-head"><h2><Trophy size={14} aria-hidden="true" />공개 대회</h2><span>{state === 'ready' ? `${rooms.length}개` : 'API 연결'}</span></header>
       {state === 'loading' && <div className="competition-api-state" role="status"><LoaderCircle className="is-spinning" aria-hidden="true" /><strong>대회 목록을 불러오는 중입니다.</strong></div>}
-      {state === 'error' && <div className="competition-api-state is-error" role="alert"><strong>대회 목록을 불러오지 못했습니다.</strong><span>네트워크와 로그인 상태를 확인해 주세요.</span><button type="button" onClick={() => setReloadKey((key) => key + 1)}>다시 시도</button></div>}
+      {state === 'error' && (lobbyError instanceof CompetitionApiError && lobbyError.unauthenticated
+        ? <LobbySignInRequired detail="공개 대회 목록은 로그인 후 확인할 수 있습니다." />
+        : <div className="competition-api-state is-error" role="alert"><strong>대회 목록을 불러오지 못했습니다.</strong><span>네트워크 상태를 확인해 주세요.</span><button type="button" onClick={() => setReloadKey((key) => key + 1)}>다시 시도</button></div>)}
       {state === 'ready' && rooms.length === 0 && <div className="competition-api-state"><Trophy aria-hidden="true" /><strong>참가 가능한 공개 대회가 없습니다.</strong><span>검색어를 지우거나 나중에 다시 확인해 주세요.</span></div>}
       {state === 'ready' && <div role="list" aria-label="공개 대회 탐색 결과">{rooms.map((room) => <button type="button" role="listitem" className="competition-row" aria-label={`${room.name} 열기`} key={room.id} onClick={() => setSelected(room)}>
         <span className="competition-row-cell is-type"><span className="competition-kind-chip" data-kind="live">LIVE</span></span>
@@ -75,7 +90,9 @@ function RoomApiDetail({ client, room, onBack }: { client: CompetitionRoomsClien
     <dl className="competition-detail-facts"><div data-fact-width="wide"><dt>모집 시작</dt><dd>{dateLabel(room.recruitmentOpensAt)}</dd></div><div data-fact-width="wide"><dt>참가 마감</dt><dd>{dateLabel(room.participationClosesAt)}</dd></div><div data-fact-width="compact"><dt>전체 봇 한도</dt><dd>{room.botParticipationLimit}</dd></div><div data-fact-width="compact"><dt>계정당 한도</dt><dd>{room.perAccountBotLimit}</dd></div></dl>
     {joinOpen && <JoinRoomDialog client={client} room={room} onClose={() => setJoinOpen(false)} onJoined={() => { setJoinOpen(false); setReloadKey((key) => key + 1); }} />}
     {state === 'loading' && <div className="competition-api-state" role="status"><LoaderCircle className="is-spinning" aria-hidden="true" /><strong>리더보드를 불러오는 중입니다.</strong></div>}
-    {state === 'error' && <div className="competition-api-state is-error" role="alert"><strong>{error instanceof CompetitionApiError && error.forbidden ? '이 대회를 볼 권한이 없습니다.' : error instanceof CompetitionApiError && error.unauthenticated ? '로그인이 필요합니다.' : '리더보드를 불러오지 못했습니다.'}</strong><button type="button" onClick={() => setReloadKey((key) => key + 1)}>다시 시도</button></div>}
+    {state === 'error' && (error instanceof CompetitionApiError && error.unauthenticated
+      ? <LobbySignInRequired detail="대회 리더보드와 내 봇 비교는 로그인 후 확인할 수 있습니다." />
+      : <div className="competition-api-state is-error" role="alert"><strong>{error instanceof CompetitionApiError && error.forbidden ? '이 대회를 볼 권한이 없습니다.' : '리더보드를 불러오지 못했습니다.'}</strong><button type="button" onClick={() => setReloadKey((key) => key + 1)}>다시 시도</button></div>)}
     {state === 'ready' && <div className="competition-api-ranking-grid"><Leaderboard title="익명 봇 리더보드" items={leaderboard?.items ?? []} /><Leaderboard title="내 봇 비교" items={myBots?.items ?? []} owned /></div>}
     {state === 'ready' && ended && (myBots?.items.length ?? 0) > 0 && <section className="competition-choice-panel" aria-labelledby="post-evaluation-title"><h2 id="post-evaluation-title">대회 종료 후 운용 선택</h2><p>선택하지 않으면 봇은 안전한 종료 절차에 따라 주문을 취소하고 포지션을 정리합니다.</p>{myBots!.items.map((item) => item.viewerEvidence && <PostChoice key={item.viewerEvidence.participationId} client={client} roomId={room.id} item={item} initial={choices[item.viewerEvidence.participationId]} />)}</section>}
   </section>;

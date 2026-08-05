@@ -1,5 +1,16 @@
 import { getSessionAccessToken } from './sessionAccessToken';
 
+export class BotOperationsApiError extends Error {
+  constructor(public readonly status: number) {
+    super(`Bot operations request failed (${status})`);
+    this.name = 'BotOperationsApiError';
+  }
+
+  get unauthenticated(): boolean {
+    return this.status === 401;
+  }
+}
+
 export type BotOperationsState =
   | 'waiting'
   | 'running'
@@ -86,7 +97,7 @@ export function createBotOperationsClient({
       signal,
     });
     if (!response.ok) {
-      throw new Error(`Bot operations request failed (${response.status})`);
+      throw new BotOperationsApiError(response.status);
     }
     return response.json();
   };

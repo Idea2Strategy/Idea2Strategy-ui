@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
-import { Button, DataTable, EmptyState, ErrorState, LoadingState, PageHeading, Status, TabPanel, Tabs } from '../components/common';
+import { Button, DataTable, EmptyState, ErrorState, LoadingState, PageHeading, SignInRequiredState, Status, TabPanel, Tabs } from '../components/common';
 import type { DataTableColumn } from '../components/common';
 import { EquityChart } from '../components/EquityChart';
 import { LiveExecutionChart } from '../components/LiveExecutionChart';
@@ -24,7 +25,7 @@ import {
   getStrategyCanvasWheelZoom,
 } from '../lib/strategyCanvasLayout';
 import { ReadOnlyStrategyBlock } from './StrategyViews';
-import { defaultBotOperationsClient } from '../api/botOperations';
+import { BotOperationsApiError, defaultBotOperationsClient } from '../api/botOperations';
 import { defaultBotTradingClient, tickerLabel } from '../api/botTrading';
 import type {
   BotBudget,
@@ -1284,6 +1285,9 @@ export function BotsView({
   const [operations, setOperations] = useState<BotOperationsView[] | null>(null);
   const [judgmentsByBot, setJudgmentsByBot] = useState<Record<string, BotJudgmentLogEntry[]>>({});
   const [operationsError, setOperationsError] = useState<string | null>(null);
+  const [signInRequired, setSignInRequired] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
   const confirmedOperationsRef = useRef<BotOperationsView[] | null>(null);
   const [judgmentsError, setJudgmentsError] = useState<string | null>(null);
   const [commandPending, setCommandPending] = useState(false);
@@ -1316,9 +1320,16 @@ export function BotsView({
       } catch (error) {
         if (!(error instanceof DOMException && error.name === 'AbortError')) {
           setOperations(confirmedOperationsRef.current);
-          setOperationsError(confirmedOperationsRef.current === null
-            ? '봇 목록을 불러오지 못했습니다.'
-            : '마지막으로 확인한 봇 목록을 표시합니다. 마지막으로 확인한 상태를 유지합니다. 최신 실행 상태를 불러오지 못했습니다.');
+          // A 401 is the server working as designed, not a failure.
+          if (error instanceof BotOperationsApiError && error.unauthenticated) {
+            setSignInRequired(true);
+            setOperationsError(null);
+          } else {
+            setSignInRequired(false);
+            setOperationsError(confirmedOperationsRef.current === null
+              ? '봇 목록을 불러오지 못했습니다.'
+              : '마지막으로 확인한 봇 목록을 표시합니다. 마지막으로 확인한 상태를 유지합니다. 최신 실행 상태를 불러오지 못했습니다.');
+          }
         }
       } finally {
         requestInFlight = false;
@@ -1605,11 +1616,15 @@ export function BotsView({
       eyebrow="LIVE OPERATIONS"
       title="봇 운영 센터"
       description={!prototypeMode && operations === null
-        ? '서버에서 봇 실행 상태를 확인하고 있습니다.'
+        ? (signInRequired ? '로그인하면 내 봇의 실행 상태가 표시됩니다.' : '서버에서 봇 실행 상태를 확인하고 있습니다.')
         : attention.length > 0
         ? `봇 ${activeBots.length}개 중 ${healthyCount}개가 정상 실행 중이에요. ${attention.map((bot) => bot.name).join(', ')} 상태를 확인해 주세요.`
         : `봇 ${activeBots.length}개가 정상 상태예요. 확인할 문제가 없습니다.`}
     />
+    {signInRequired && operations === null && <SignInRequiredState
+      detail="내 봇의 실행 상태는 로그인 후 확인할 수 있습니다."
+      onSignIn={() => navigate('/login', { state: { returnTo: location.pathname } })}
+    />}
     {operationsError && <ErrorState
       title={operationsError}
       detail={operations === null ? '잠시 후 다시 시도해 주세요.' : '이전에 서버에서 확인한 목록은 그대로 유지합니다.'}
@@ -1633,7 +1648,7 @@ export function BotsView({
         {/* The list item and the control are separate elements: putting
             role="listitem" on the button itself would drop its button semantics,
             so it would no longer be announced as something you can activate. */}
-        {!prototypeMode && operations === null && !operationsError
+        {!prototypeMode && operations === null && !operationsError && !signInRequired
           ? <LoadingState label="봇 목록을 불러오는 중입니다." />
           : !prototypeMode && operations === null
             ? null

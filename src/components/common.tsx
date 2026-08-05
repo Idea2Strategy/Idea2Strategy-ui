@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowUpRight, ChevronRight, CircleHelp, Inbox, Loader2, RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, ChevronRight, CircleHelp, Inbox, Loader2, LockKeyhole, RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Localized } from '../lib/i18n';
@@ -188,6 +188,28 @@ export function ErrorState({ title, detail, onRetry, retryLabel = '다시 시도
     <strong>{title}</strong>
     {detail && <p>{detail}</p>}
     {onRetry && <Button icon={RotateCcw} onClick={onRetry}>{retryLabel}</Button>}
+  </div>;
+}
+
+interface SignInRequiredStateProps {
+  detail?: ReactNode;
+  onSignIn?: () => void;
+}
+
+/**
+ * A 401 is not a failure: the server answered exactly as designed. Every screen
+ * renders it through this one state so an unauthenticated visit looks the same
+ * everywhere and always offers the way in.
+ */
+export function SignInRequiredState({
+  detail = '이 화면은 로그인 후 이용할 수 있습니다.',
+  onSignIn,
+}: SignInRequiredStateProps) {
+  return <div className="result-state is-sign-in" role="status">
+    <span className="result-state-icon"><LockKeyhole size={20} aria-hidden="true" /></span>
+    <strong>로그인이 필요합니다</strong>
+    {detail && <p>{detail}</p>}
+    {onSignIn && <Button kind="primary" onClick={onSignIn}>로그인</Button>}
   </div>;
 }
 

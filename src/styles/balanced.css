@@ -6020,6 +6020,7 @@
   line-height: 1.55;
 }
 .result-state.is-error .result-state-icon { color: var(--negative); background: var(--negative-soft); }
+.result-state.is-sign-in .result-state-icon { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .result-state.is-loading .result-state-icon { color: var(--accent); background: var(--accent-soft); }
 .result-state.is-loading .result-state-icon svg { animation: resultSpin 1s linear infinite; }
 @keyframes resultSpin { to { transform: rotate(360deg); } }
