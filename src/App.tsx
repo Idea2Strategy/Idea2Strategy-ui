@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, Bell, CircleHelp, Moon, Palette, Settings, Sun, X } from 'lucide-react';
+import { ArrowRight, Bell, CircleHelp, Moon, Palette, Settings, Sun, UserRound, X } from 'lucide-react';
 import i2sLogo from './assets/i2s-logo.svg';
 import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation';
 import type { PageId } from './lib/navigation';
@@ -258,7 +258,9 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
           </div>
         </section>}
       </div>
-      <button className={`signal-user ${page === 'account' ? 'active' : ''}`} aria-label="내 계정" onClick={() => setPage('account')}>KIM <i /></button>
+      {/* No fabricated identity: the API never returns the account's name or
+          email, so the account entry is an icon, not a made-up "KIM". */}
+      <button className={`icon-button signal-user ${page === 'account' ? 'active' : ''}`} aria-label="내 계정" onClick={() => setPage('account')}><UserRound size={17} /></button>
     </div>
   </header></Localized>;
 }

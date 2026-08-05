@@ -709,12 +709,19 @@ describe('Account settings', () => {
     expect(setReduceMotion).toHaveBeenCalledWith(true);
   });
 
-  test('keeps the security section and states the storage limits', () => {
+  test('shows no fabricated identity, social login or stale data claims', () => {
     setup();
 
-    expect(screen.getByRole('heading', { name: '접근 보안' })).toBeInTheDocument();
-    expect(screen.getByText('이 브라우저에만 저장')).toBeInTheDocument();
-    expect(screen.getByText(/데이터 기준 2026\.07\.23/)).toBeInTheDocument();
+    // The API never returns the account's name or email, no social login
+    // exists, strategies do save to the server, and the hardcoded Atlas 07
+    // continuation card called nothing. None of that may render as real.
+    expect(screen.queryByText('김전략')).not.toBeInTheDocument();
+    expect(screen.queryByText(/kyoungcheul/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '접근 보안' })).not.toBeInTheDocument();
+    expect(screen.queryByText('이 브라우저에만 저장')).not.toBeInTheDocument();
+    expect(screen.queryByText(/데이터 기준 2026\.07\.23/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Atlas 07')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '화면 설정' })).toBeInTheDocument();
   });
 });
 

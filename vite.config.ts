@@ -6,6 +6,12 @@ export default defineConfig({
   plugins: [react()],
   server: process.env.VITE_REAL_API_TARGET ? {
     proxy: {
+      // The backtest read surface lives on backtest-api, not backend-api.
+      // The more specific rule wins, so only /api/v1/backtests leaves the
+      // backend target; everything else keeps its single-origin path.
+      ...(process.env.VITE_BACKTEST_API_TARGET ? {
+        '/api/v1/backtests': { target: process.env.VITE_BACKTEST_API_TARGET, changeOrigin: false },
+      } : {}),
       '/api': { target: process.env.VITE_REAL_API_TARGET, changeOrigin: false },
       '/actuator': { target: process.env.VITE_REAL_API_TARGET, changeOrigin: false },
     },
