@@ -220,7 +220,11 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('button', { name: '관심종목 설정' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '내 계정' }));
     expect(screen.getByRole('heading', { name: '내 계정' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '접근 보안' })).toBeInTheDocument();
+    // The fabricated identity is gone: no made-up profile name, no social
+    // login that never existed, only what the real API panels can prove.
+    expect(screen.queryByText('김전략')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '접근 보안' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '화면 설정' })).toBeInTheDocument();
   });
 
   test('switches the product between Korean and English and remembers the choice', async () => {

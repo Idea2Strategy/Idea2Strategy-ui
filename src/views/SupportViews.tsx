@@ -6,14 +6,8 @@ import {
   BookOpen,
   Check,
   CheckCircle2,
-  CircleHelp,
-  Clock3,
   Info,
-  KeyRound,
-  LockKeyhole,
-  Mail,
   Search,
-  UserRound,
 } from 'lucide-react';
 import { Button, EmptyState, PageHeading, Panel, Status } from '../components/common';
 import type { StatusTone } from '../components/common';
@@ -324,9 +318,6 @@ interface AccountViewProps {
 
 export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMotion, setReduceMotion, updown = 'kr', setUpdown = () => {}, accountClient, operationsClient, notificationClient }: AccountViewProps) {
   const { language, setLanguage } = useLanguage();
-  const [emailAlerts, setEmailAlerts] = useState(true);
-  const [actionAlerts, setActionAlerts] = useState(true);
-  const [competitionAlerts, setCompetitionAlerts] = useState(false);
 
   return <Localized><div className="page narrow-page account-page">
     <PageHeading
@@ -339,34 +330,10 @@ export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMoti
       {accountClient && <AccountApiPanels client={accountClient} />}
       {operationsClient && <UserCasePanel client={operationsClient} />}
       {notificationClient && <NotificationPreferencesPanel client={notificationClient} />}
-      <Panel title="프로필">
-        <div className="settings-rows">
-          <div className="settings-row">
-            <span className="settings-row-icon"><UserRound size={17} /></span>
-            <span className="settings-row-copy"><strong>김전략</strong><small>kyoungcheul.min@gmail.com</small></span>
-          </div>
-          <div className="settings-row">
-            <span className="settings-row-icon"><Mail size={17} /></span>
-            <span className="settings-row-copy"><strong>이메일 로그인</strong><small>인증 완료</small></span>
-            <Status tone="positive">연결됨</Status>
-          </div>
-        </div>
-      </Panel>
-
-      <Panel title="접근 보안">
-        <div className="settings-rows">
-          <div className="settings-row">
-            <span className="settings-row-icon"><KeyRound size={17} /></span>
-            <span className="settings-row-copy"><strong>소셜 로그인</strong><small>Google 계정</small></span>
-            <Status tone="positive">연결됨</Status>
-          </div>
-          <div className="settings-row">
-            <span className="settings-row-icon"><LockKeyhole size={17} /></span>
-            <span className="settings-row-copy"><strong>동시 접속</strong><small>한 번에 하나의 세션만 허용</small></span>
-          </div>
-        </div>
-      </Panel>
-
+      {/* No fabricated profile: the API deliberately never returns the account
+          email or a display name, and no social login exists. Everything real
+          about the account - sessions, preferences, recovery, cases - already
+          renders above from the actual API panels. */}
       <Panel className="span-2" title="화면 설정" subtitle="선택한 값은 이 브라우저에 보관됩니다">
         <div className="settings-fields">
           <label>
@@ -403,46 +370,15 @@ export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMoti
         </div>
       </Panel>
 
-      <Panel className="span-2" title="알림" subtitle="어떤 사건을 알림으로 받을지 선택합니다">
-        <div className="settings-fields">
-          <label className="settings-switch">
-            <input type="checkbox" checked={actionAlerts} onChange={(event) => setActionAlerts(event.target.checked)} />
-            <span><strong>조치가 필요한 사건</strong><small>주문 거절, 데이터 확인, 전략 미완성</small></span>
-          </label>
-          <label className="settings-switch">
-            <input type="checkbox" checked={competitionAlerts} onChange={(event) => setCompetitionAlerts(event.target.checked)} />
-            <span><strong>대회 일정</strong><small>제출 마감과 평가 종료 안내</small></span>
-          </label>
-          <label className="settings-switch">
-            <input type="checkbox" checked={emailAlerts} onChange={(event) => setEmailAlerts(event.target.checked)} />
-            <span><strong>이메일로도 받기</strong><small>시험판에서는 실제 메일을 보내지 않습니다</small></span>
-          </label>
-        </div>
-      </Panel>
+      {/* The local-only "알림" switches are gone: the real notification
+          channel preferences live in the server-backed panel above, and a
+          second set of toggles that reached no server only pretended to. */}
 
-      <Panel className="span-2" title="무소속 봇 계속 실행">
-        <div className="renew-card">
-          <div><strong>Atlas 07</strong><span>다음 확인 기한 · 2026.08.10 10:42 ET</span></div>
-          <Button kind="primary">30일 연장</Button>
-        </div>
-        <div className="help-note">
-          <CircleHelp size={16} aria-hidden="true" />
-          <span>로그인이나 화면 조회만으로 기한은 연장되지 않습니다. 서버가 버튼 요청을 접수한 시각을 기준으로 계산합니다.</span>
-        </div>
-      </Panel>
-
-      <Panel className="span-2 account-demo-note" title="데이터와 저장 범위">
-        <div className="settings-rows">
-          <div className="settings-row">
-            <span className="settings-row-icon"><Clock3 size={17} /></span>
-            <span className="settings-row-copy"><strong>데이터 기준 2026.07.23 16:00 ET</strong><small>가격·성과 데이터의 최신 시각입니다</small></span>
-          </div>
-          <div className="settings-row">
-            <span className="settings-row-icon"><LockKeyhole size={17} /></span>
-            <span className="settings-row-copy"><strong>이 브라우저에만 저장</strong><small>전략과 설정은 서버에 저장되지 않습니다</small></span>
-          </div>
-        </div>
-      </Panel>
+      {/* The seeded "무소속 봇 계속 실행" card (a hardcoded Atlas 07 with a
+          button that called nothing) and the stale "데이터 기준 2026.07.23"
+          note are gone: a dead button pretending to be a real command and a
+          claim that strategies are not stored on the server are both false.
+          The real continuation command lives with the bot it belongs to. */}
     </div>
   </div></Localized>;
 }
