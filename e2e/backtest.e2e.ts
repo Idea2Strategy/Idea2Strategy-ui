@@ -60,10 +60,13 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     const gate = page.getByTestId('backtest-session-gate');
     await expect(gate).toBeVisible();
     await expect(gate).toHaveAttribute('data-reason', 'absent');
-    await expect(gate.getByRole('alert')).toContainText('로그인이 필요합니다.');
+    // The gate is the shared sign-in state, not a failure alert.
+    await expect(gate.getByRole('status')).toContainText('로그인이 필요합니다');
+    await expect(gate.getByRole('button', { name: '로그인' })).toBeVisible();
+    await expect(page.getByRole('alert')).toHaveCount(0);
 
     // Not a spinner, not a blank panel, and no result on screen behind the notice.
-    await expect(page.getByRole('status')).toHaveCount(0);
+    await expect(page.getByText(/불러오는 중/)).toHaveCount(0);
     await expect(page.getByRole('list', { name: '공식 백테스트 실행 목록' })).toHaveCount(0);
     expect(requests).toHaveLength(0);
   });
@@ -167,7 +170,7 @@ test.describe('backtest screens against the /api/v1 contract', () => {
 
     const gate = page.getByTestId('backtest-session-gate');
     await expect(gate).toHaveAttribute('data-reason', 'rejected');
-    await expect(gate.getByRole('alert')).toContainText('로그인 세션이 더 이상 유효하지 않습니다.');
+    await expect(gate.getByRole('status')).toContainText('로그인 세션이 더 이상 유효하지 않습니다.');
 
     // Pressing refresh must not resurrect the refused token.
     const before = requests.length;
