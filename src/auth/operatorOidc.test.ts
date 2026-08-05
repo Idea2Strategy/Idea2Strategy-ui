@@ -3,6 +3,7 @@ import {
   OPERATOR_OIDC_TRANSACTION_KEY,
   createOperatorOidcSession,
   readProductionOperatorOidcConfig,
+  type OperatorOidcConfig,
 } from './operatorOidc';
 
 const now = Date.parse('2026-08-05T00:00:00Z');
@@ -15,6 +16,7 @@ const config = {
   audience: 'idea2strategy-operator',
   redirectUri: 'https://app.example.test/operations/callback',
   postLogoutRedirectUri: 'https://app.example.test/operations/login',
+  logoutRedirectParameter: 'post_logout_redirect_uri' as const,
   scopes: ['openid', 'profile'],
   signingAlgorithm: 'RS256',
 };
@@ -54,13 +56,13 @@ function tokenResponse(nonce: string, expiresIn = 120) {
   }), { status: 200, headers: { 'Content-Type': 'application/json' } });
 }
 
-function harness(fetchImpl: typeof fetch = vi.fn()) {
+function harness(fetchImpl: typeof fetch = vi.fn(), sessionConfig: OperatorOidcConfig = config) {
   const storage = new MemoryStorage();
   const assigned: string[] = [];
   const replaced: string[] = [];
   const timers: Array<() => void> = [];
   const session = createOperatorOidcSession({
-    config,
+    config: sessionConfig,
     storage,
     fetchImpl,
     now: () => now,
@@ -90,6 +92,7 @@ describe('production operator OIDC configuration', () => {
     VITE_OPERATOR_OIDC_AUDIENCE: config.audience,
     VITE_OPERATOR_OIDC_REDIRECT_URI: config.redirectUri,
     VITE_OPERATOR_OIDC_POST_LOGOUT_REDIRECT_URI: config.postLogoutRedirectUri,
+    VITE_OPERATOR_OIDC_LOGOUT_REDIRECT_PARAMETER: config.logoutRedirectParameter,
     VITE_OPERATOR_OIDC_SCOPES: 'openid profile',
     VITE_OPERATOR_OIDC_SIGNING_ALGORITHM: 'RS256',
   };
@@ -222,5 +225,17 @@ describe('operator authorization code and PKCE session', () => {
     expect(logout.origin + logout.pathname).toBe(config.endSessionEndpoint);
     expect(logout.searchParams.get('post_logout_redirect_uri')).toBe(config.postLogoutRedirectUri);
     expect(logout.href).not.toContain('token');
+  });
+
+  it('uses the configured Cognito logout_uri parameter without weakening local logout', () => {
+    const cognitoConfig = { ...config, logoutRedirectParameter: 'logout_uri' as const };
+    const { session, assigned } = harness(vi.fn(), cognitoConfig);
+
+    session.logout();
+
+    expect(session.getAccessToken()).toBeNull();
+    const logout = new URL(assigned.at(-1)!);
+    expect(logout.searchParams.get('logout_uri')).toBe(cognitoConfig.postLogoutRedirectUri);
+    expect(logout.searchParams.has('post_logout_redirect_uri')).toBe(false);
   });
 });
