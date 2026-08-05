@@ -5,7 +5,8 @@ import {
   ChevronDown,
   Trophy,
 } from 'lucide-react';
-import { ErrorState, Status } from '../components/common';
+import { Status } from '../components/common';
+import { ErrorPage } from '../components/StatePages';
 import { BotGlyph, DEFAULT_BOT_ICONS, FALLBACK_BOT_ICON } from '../components/BotGlyph';
 import type { BotIconMap } from '../components/BotGlyph';
 import { EquityChart } from '../components/EquityChart';
@@ -100,12 +101,10 @@ export function DashboardView({
   dataSource = import.meta.env.MODE === 'test' ? 'sample' : 'unavailable',
 }: DashboardViewProps): ReactNode {
   if (dataSource === 'unavailable') {
-    return <Localized><div className="page dashboard-page">
-      <ErrorState
-        title="운영 대시보드 데이터를 아직 제공할 수 없습니다."
-        detail="현재 API에는 계정 단위 자산 이력, 현금 흐름을 제거한 수익률, 대회 참여 요약 계약이 없습니다. 확인되지 않은 샘플 성과는 운영 데이터처럼 표시하지 않습니다."
-      />
-    </div></Localized>;
+    return <ErrorPage
+      title="운영 대시보드 데이터를 아직 제공할 수 없습니다."
+      detail="현재 API에는 계정 단위 자산 이력, 현금 흐름을 제거한 수익률, 대회 참여 요약 계약이 없습니다. 확인되지 않은 샘플 성과는 운영 데이터처럼 표시하지 않습니다."
+    />;
   }
 
   return <SampleDashboard setPage={setPage} botIcons={botIcons} />;

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
-import { Button, DataTable, EmptyState, ErrorState, LoadingState, PageHeading, SignInRequiredState, Status, TabPanel, Tabs } from '../components/common';
+import { Button, DataTable, EmptyState, ErrorState, LoadingState, PageHeading, Status, TabPanel, Tabs } from '../components/common';
+import { ErrorPage, SignInRequiredPage } from '../components/StatePages';
 import type { DataTableColumn } from '../components/common';
 import { EquityChart } from '../components/EquityChart';
 import { LiveExecutionChart } from '../components/LiveExecutionChart';
@@ -1286,8 +1286,6 @@ export function BotsView({
   const [judgmentsByBot, setJudgmentsByBot] = useState<Record<string, BotJudgmentLogEntry[]>>({});
   const [operationsError, setOperationsError] = useState<string | null>(null);
   const [signInRequired, setSignInRequired] = useState(false);
-  const navigate = useNavigate();
-  const location = useLocation();
   const confirmedOperationsRef = useRef<BotOperationsView[] | null>(null);
   const [judgmentsError, setJudgmentsError] = useState<string | null>(null);
   const [commandPending, setCommandPending] = useState(false);
@@ -1619,23 +1617,34 @@ export function BotsView({
   const isCompetitionBot = selected?.labels.includes('대회') ?? false;
   const startLabel = prototypeMode ? (isCompetitionBot ? '대회 참가 시간' : '운용 시작 시간') : '상태 변경 시각';
 
+  /*
+    Nothing to show at all — signed out, or the first load failed. The whole
+    route renders the one shared state page; no page scaffold survives around
+    it, so every screen fails the same way.
+  */
+  if (!prototypeMode && operations === null && signInRequired) {
+    return <SignInRequiredPage detail="내 봇의 실행 상태는 로그인 후 확인할 수 있습니다." />;
+  }
+  if (!prototypeMode && operations === null && operationsError) {
+    return <ErrorPage
+      title="봇 목록을 불러오지 못했습니다."
+      detail="연결이 돌아오면 자동으로 다시 시도합니다. 잠시 후에도 그대로면 네트워크 상태를 확인해 주세요."
+    />;
+  }
+
   return <Localized><div className="page bots-page">
     <PageHeading
       eyebrow="LIVE OPERATIONS"
       title="봇 운영 센터"
       description={!prototypeMode && operations === null
-        ? (signInRequired ? '로그인하면 내 봇의 실행 상태가 표시됩니다.' : '서버에서 봇 실행 상태를 확인하고 있습니다.')
+        ? '서버에서 봇 실행 상태를 확인하고 있습니다.'
         : attention.length > 0
         ? `봇 ${activeBots.length}개 중 ${healthyCount}개가 정상 실행 중이에요. ${attention.map((bot) => bot.name).join(', ')} 상태를 확인해 주세요.`
         : `봇 ${activeBots.length}개가 정상 상태예요. 확인할 문제가 없습니다.`}
     />
-    {signInRequired && operations === null && <SignInRequiredState
-      detail="내 봇의 실행 상태는 로그인 후 확인할 수 있습니다."
-      onSignIn={() => navigate('/login', { state: { returnTo: location.pathname } })}
-    />}
-    {operationsError && <ErrorState
+    {operationsError && operations !== null && <ErrorState
       title={operationsError}
-      detail={operations === null ? '잠시 후 다시 시도해 주세요.' : '최신 실행 상태를 불러오지 못해 이전에 서버에서 확인한 목록을 유지합니다.'}
+      detail="최신 실행 상태를 불러오지 못해 이전에 서버에서 확인한 목록을 유지합니다."
     />}
     {judgmentsError && <p className="bots-decision-note" role="status">{judgmentsError}</p>}
 
@@ -1656,11 +1665,9 @@ export function BotsView({
         {/* The list item and the control are separate elements: putting
             role="listitem" on the button itself would drop its button semantics,
             so it would no longer be announced as something you can activate. */}
-        {!prototypeMode && operations === null && !operationsError && !signInRequired
+        {!prototypeMode && operations === null
           ? <LoadingState label="봇 목록을 불러오는 중입니다." />
-          : !prototypeMode && operations === null
-            ? null
-            : visibleBots.length > 0 ? <div className="bots-list" role="list" aria-label="봇 목록 결과">
+          : visibleBots.length > 0 ? <div className="bots-list" role="list" aria-label="봇 목록 결과">
           {visibleBots.map((bot) => <div role="listitem" key={bot.name}><button
             type="button"
             aria-label={`${bot.name} 상세 보기`}

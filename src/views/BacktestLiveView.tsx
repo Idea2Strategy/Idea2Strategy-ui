@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { AlertTriangle, BarChart3, Clock3, LogIn, RefreshCw } from 'lucide-react';
+import { AlertTriangle, BarChart3, Clock3, RefreshCw } from 'lucide-react';
 import { BacktestApiError } from '../api/backtests';
 import type {
   BacktestAttempt,
@@ -20,9 +19,9 @@ import {
   MetricRow,
   PageHeading,
   Panel,
-  SignInRequiredState,
   Status,
 } from '../components/common';
+import { ErrorPage, SignInRequiredPage } from '../components/StatePages';
 import type { StatusTone } from '../components/common';
 import { Localized } from '../lib/i18n';
 import { browserSessionStore, useSessionState } from '../lib/session';
@@ -153,6 +152,18 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
 
   const retry = () => setListRevision((value) => value + 1);
 
+  /*
+    Nothing to show at all — signed out, or the list itself failed. The whole
+    route renders the one shared state page; no page scaffold survives around
+    it, so every screen fails the same way.
+  */
+  if (sessionState.status === 'anonymous') {
+    return <SignedOutState reason={sessionState.reason} />;
+  }
+  if (listFailure !== null) {
+    return <ListFailure kind={listFailure} onRetry={retry} />;
+  }
+
   return <Localized><div className="page backtest-page backtest-live-page">
     <PageHeading
       eyebrow="OFFICIAL BACKTEST"
@@ -160,9 +171,7 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
       description="출시된 봇의 자동 백테스트 상태와 검증된 결과를 확인합니다."
       actions={<Button icon={RefreshCw} onClick={retry}>새로고침</Button>}
     />
-    {sessionState.status === 'anonymous' && <SignedOutState reason={sessionState.reason} />}
     {signedIn && <>
-      {listFailure !== null && <ListFailure kind={listFailure} onRetry={retry} />}
       {listFailure === null && runs === null && <LoadingState label="백테스트 결과를 불러오는 중입니다." />}
       {listFailure === null && runs?.length === 0 && <EmptyState
         icon={BarChart3}
@@ -199,7 +208,8 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
 function SignedOutState({ reason }: { reason: AnonymousReason }) {
   const copy: Record<AnonymousReason, { title: string; detail: string }> = {
     absent: {
-      title: '로그인이 필요합니다.',
+      // Same words as every other screen's sign-in page, punctuation included.
+      title: '로그인이 필요합니다',
       detail: '공식 백테스트 결과는 실행을 소유한 계정에만 공개됩니다. 로그인한 뒤 다시 열어 주세요.',
     },
     expired: {
@@ -220,40 +230,26 @@ function SignedOutState({ reason }: { reason: AnonymousReason }) {
     data-testid="backtest-session-gate"
     data-reason={reason}
   >
-    <SessionGate title={copy[reason].title} detail={copy[reason].detail} />
-    <p className="backtest-live-state-copy"><LogIn size={16} />로그인 전에는 어떤 백테스트 결과도 요청하지 않습니다.</p>
+    <SignInRequiredPage
+      title={copy[reason].title}
+      detail={<>{copy[reason].detail} 로그인 전에는 어떤 백테스트 결과도 요청하지 않습니다.</>}
+    />
   </div>;
-}
-
-/*
-  Signed-out is the server (or this tab) answering as designed, so it renders
-  through the shared sign-in state — the same card every other screen shows —
-  not through the failure alert.
-*/
-function SessionGate({ title, detail }: { title: string; detail: string }) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  return <SignInRequiredState
-    title={title}
-    detail={detail}
-    onSignIn={() => navigate('/login', { state: { returnTo: location.pathname } })}
-  />;
 }
 
 function ListFailure({ kind, onRetry }: { kind: FailureKind; onRetry: () => void }) {
   if (kind === 'forbidden') {
-    return <ErrorState
+    return <ErrorPage
       title="백테스트 결과를 볼 권한이 없습니다."
       detail="이 계정에는 공식 백테스트 결과를 조회할 권한이 없습니다. 다른 계정의 실행 결과는 표시하지 않습니다."
     />;
   }
   // A 401 has already flipped the screen to the signed-out gate above, so anything
   // left here is a transport problem and a retry is the honest offer.
-  return <ErrorState
+  return <ErrorPage
     title="백테스트 결과를 불러오지 못했습니다."
     detail="연결 상태를 확인한 뒤 다시 시도해 주세요. 기존 결과를 정상으로 간주하지 않습니다."
     onRetry={onRetry}
-    retryLabel="다시 시도"
   />;
 }
 

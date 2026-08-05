@@ -1,5 +1,4 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import type {
   CSSProperties,
   DragEvent,
@@ -15,7 +14,8 @@ import { Activity, ArrowDown, ArrowLeft, ArrowUp, BarChart3, BellRing, Boxes, Ca
 import type { LucideIcon } from 'lucide-react';
 import { strategies } from '../data/mockData';
 import type { StrategySummary } from '../data/mockData';
-import { Button, EmptyState, ErrorState, LoadingState, PageHeading, Panel, SignInRequiredState, Status } from '../components/common';
+import { Button, EmptyState, ErrorState, LoadingState, PageHeading, Panel, Status } from '../components/common';
+import { ErrorPage, SignInRequiredPage } from '../components/StatePages';
 import { StrategyPreviewChart } from '../components/StrategyPreviewChart';
 import { splitPartitionSymbols } from '../lib/strategyPreview';
 import type { PreviewFlow } from '../lib/strategyPreview';
@@ -309,8 +309,7 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
   const [draggedStrategyId, setDraggedStrategyId] = useState<string | null>(null);
   const [libraryError, setLibraryError] = useState<string | null>(null);
   const [signInRequired, setSignInRequired] = useState(false);
-  const navigate = useNavigate();
-  const location = useLocation();
+  const [libraryAttempt, setLibraryAttempt] = useState(0);
   const confirmedItemsRef = useRef<StrategyListItem[] | null>(null);
   const [draftName, setDraftName] = useState('새 Basic 전략');
   const [createPending, setCreatePending] = useState(false);
@@ -344,7 +343,7 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
         setLibraryError('전략 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
       });
     return () => controller.abort();
-  }, [client, prototypeItems]);
+  }, [client, prototypeItems, libraryAttempt]);
 
   const filteredItems = useMemo(() => (items ?? []).filter((strategy) => {
     const matchesQuery = strategy.name.toLowerCase().includes(query.trim().toLowerCase());
@@ -396,6 +395,22 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
     }
   };
 
+  /*
+    Nothing to show at all — signed out, or the first load failed. The whole
+    route renders the one shared state page; no page scaffold survives around
+    it, so every screen fails the same way.
+  */
+  if (signInRequired && items === null) {
+    return <SignInRequiredPage detail="내 전략 목록은 로그인 후 확인할 수 있습니다." />;
+  }
+  if (libraryError && items === null) {
+    return <ErrorPage
+      title="전략 목록을 불러오지 못했습니다."
+      detail="잠시 후 다시 시도해 주세요."
+      onRetry={() => setLibraryAttempt((attempt) => attempt + 1)}
+    />;
+  }
+
   return <Localized><div className="page balanced-strategy-home">
     <PageHeading
       eyebrow="STRATEGY DESK / PRIVATE"
@@ -406,13 +421,9 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
 
     <div className="balanced-strategy-grid is-list-only">
       <section className="strategy-library panel">
-        {signInRequired && items === null && <SignInRequiredState
-          detail="내 전략 목록은 로그인 후 확인할 수 있습니다."
-          onSignIn={() => navigate('/login', { state: { returnTo: location.pathname } })}
-        />}
-        {libraryError && <ErrorState
-          title={items === null ? '전략 목록을 불러오지 못했습니다.' : '마지막으로 확인한 전략 목록을 표시합니다.'}
-          detail={items === null ? '잠시 후 다시 시도해 주세요.' : '최신 목록을 불러오지 못해 이전에 서버에서 확인한 결과를 유지합니다.'}
+        {libraryError && items !== null && <ErrorState
+          title="마지막으로 확인한 전략 목록을 표시합니다."
+          detail="최신 목록을 불러오지 못해 이전에 서버에서 확인한 결과를 유지합니다."
         />}
         {items === null && !libraryError && !signInRequired && <LoadingState label="전략 목록을 불러오는 중입니다." />}
         {items !== null && <>

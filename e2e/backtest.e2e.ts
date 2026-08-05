@@ -55,11 +55,12 @@ test.describe('backtest screens against the /api/v1 contract', () => {
 
     await page.goto(BACKTESTS);
 
-    // The screen still renders; it just stops at a named, visible refusal.
-    await expect(page.getByRole('heading', { name: '봇 백테스트' })).toBeVisible();
+    // The whole route is the shared full-page sign-in state: a named, visible
+    // refusal, with no page scaffold half-rendered around it.
     const gate = page.getByTestId('backtest-session-gate');
     await expect(gate).toBeVisible();
     await expect(gate).toHaveAttribute('data-reason', 'absent');
+    await expect(page.getByRole('heading', { name: '봇 백테스트' })).toHaveCount(0);
     // The gate is the shared sign-in state, not a failure alert.
     await expect(gate.getByRole('status')).toContainText('로그인이 필요합니다');
     await expect(gate.getByRole('button', { name: '로그인' })).toBeVisible();
@@ -172,11 +173,20 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     await expect(gate).toHaveAttribute('data-reason', 'rejected');
     await expect(gate.getByRole('status')).toContainText('로그인 세션이 더 이상 유효하지 않습니다.');
 
-    // Pressing refresh must not resurrect the refused token.
-    const before = requests.length;
-    await page.getByRole('button', { name: '새로고침' }).click();
-    await expect(gate).toBeVisible();
-    expect(requests).toHaveLength(before);
+    // Leaving and revisiting the screen in-app must not resurrect the refused
+    // token: it is gone, so the visit stays at the gate and sends nothing.
+    // (A full reload would re-run this test's addInitScript sign-in, which is
+    // why the round trip stays inside the app. Only /api/v1/backtests requests
+    // count — the strategies page crossed on the way asks the same mock origin
+    // for its own, unauthenticated list.)
+    const backtestRequests = () => requests.filter((request) => request.url().includes('/api/v1/backtests'));
+    await page.waitForLoadState('networkidle');
+    const before = backtestRequests().length;
+    await page.getByRole('button', { name: '전략' }).click();
+    await page.getByRole('button', { name: '백테스트' }).click();
+    await expect(page.getByTestId('backtest-session-gate')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    expect(backtestRequests()).toHaveLength(before);
 
     const stored = await page.evaluate(
       (key) => window.sessionStorage.getItem(key),
