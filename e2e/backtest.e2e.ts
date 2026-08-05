@@ -173,10 +173,13 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     await expect(gate).toHaveAttribute('data-reason', 'rejected');
     await expect(gate.getByRole('status')).toContainText('로그인 세션이 더 이상 유효하지 않습니다.');
 
-    // Reloading must not resurrect the refused token: it is gone from storage,
-    // so a fresh visit stays at the gate and sends nothing.
+    // Leaving and revisiting the screen in-app must not resurrect the refused
+    // token: it is gone, so the visit stays at the gate and sends nothing.
+    // (A full reload would re-run this test's addInitScript sign-in, which is
+    // why the round trip stays inside the app.)
     const before = requests.length;
-    await page.reload();
+    await page.getByRole('button', { name: '전략' }).click();
+    await page.getByRole('button', { name: '백테스트' }).click();
     await expect(page.getByTestId('backtest-session-gate')).toBeVisible();
     expect(requests).toHaveLength(before);
 
