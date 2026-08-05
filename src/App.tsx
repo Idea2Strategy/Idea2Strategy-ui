@@ -12,6 +12,7 @@ import { LandingView } from './views/LandingView';
 import { BacktestView, RoomsView } from './views/OperationsViews';
 import { BotsView } from './views/BotsView';
 import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
+import { LoginView, SignupView } from './views/AuthViews';
 import { DashboardView } from './views/DashboardView';
 import { DesignConceptLab } from './views/DesignConceptLab';
 import { BOT_ICON_STORAGE_KEY, loadBotIcons } from './components/BotGlyph';
@@ -103,6 +104,8 @@ function MarketFlag({ country }: { country: Updown }) {
 
 function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificationClient }: TopbarProps) {
   const { language, setLanguage } = useLanguage();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [openPanel, setOpenPanel] = useState<string | null>(null);
   const [notificationState, setNotificationState] = useState<TopbarNotificationState>({ kind: 'idle' });
   const [notificationReload, setNotificationReload] = useState(0);
@@ -181,6 +184,10 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
               ? <div role="alert">
                 <strong>{notificationState.error.authenticationRequired ? '로그인이 필요합니다.' : '알림을 불러오지 못했습니다.'}</strong>
                 <small>{notificationState.error.code}</small>
+                {notificationState.error.authenticationRequired && <button
+                  type="button"
+                  onClick={() => { setOpenPanel(null); navigate('/login', { state: { returnTo: location.pathname } }); }}
+                >로그인</button>}
                 <button type="button" onClick={() => setNotificationReload((value) => value + 1)}>다시 시도</button>
               </div>
               : notificationState.kind === 'ready' && notificationState.items.length === 0
@@ -350,6 +357,8 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/competition" element={<RoomsView client={competitionRoomsClient} openBot={openBot} />} />
     <Route path="/competition-v2" element={<RoomsView client={competitionRoomsClient} visualVariant="image" openBot={openBot} />} />
     <Route path="/notifications" element={<NotificationsView setPage={setPage} client={notificationClient} />} />
+    <Route path="/login" element={<LoginView client={accountClient} />} />
+    <Route path="/signup" element={<SignupView client={accountClient} />} />
     <Route path="/operations/login" element={operatorAuthentication
       ? <OperatorAuthenticationView authentication={operatorAuthentication} />
       : <Navigate to="/" replace />} />
