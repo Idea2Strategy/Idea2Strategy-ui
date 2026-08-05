@@ -10,11 +10,16 @@ test('browser completes the production account principal and user-case journey',
   const password = 'correct horse battery staple 2026!';
   const verificationToken = `a23-verification-${Date.now()}`;
 
+  // Logged out, the account page fails closed instead of showing seeded data.
   await page.goto('/account');
   await expect(page.getByText('로그인이 필요합니다.')).toBeVisible();
-  await page.getByText('가입 · 이메일 인증 · 비밀번호 복구').click();
-  await page.getByLabel('인증 이메일').fill(email);
-  await page.getByLabel('인증 비밀번호').fill(password);
+
+  // The journey enters through the dedicated /signup screen. A wrong password
+  // on /login later proves the error path; the /account inline form keeps its
+  // own unit coverage in AccountApiPanels.test.tsx.
+  await page.goto('/signup');
+  await page.getByLabel('가입 이메일').fill(email);
+  await page.getByLabel('가입 비밀번호').fill(password);
   const [signup] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/signup')),
     page.getByRole('button', { name: '가입', exact: true }).click(),
@@ -28,20 +33,34 @@ test('browser completes the production account principal and user-case journey',
     '-v', 'ON_ERROR_STOP=1', '-c',
     `update identity.email_verification_requests set token_digest='${digest}' where account_id='${accountId}' and consumed_at is null and revoked_at is null`]);
 
-  await page.getByLabel('인증 토큰').fill(verificationToken);
+  await page.getByLabel('가입 인증 토큰').fill(verificationToken);
   const [verification] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/verify-email')),
     page.getByRole('button', { name: '이메일 인증' }).click(),
   ]);
   expect(verification.status()).toBe(204);
+  await page.getByRole('button', { name: '로그인하러 가기' }).click();
+  await expect(page).toHaveURL(/\/login$/);
 
+  // Wrong password first: the screen reports the API's code and stays put.
   await page.getByLabel('로그인 이메일').fill(email);
-  await page.getByLabel('로그인 비밀번호').fill(password);
-  const [login] = await Promise.all([
+  await page.getByLabel('로그인 비밀번호').fill('wrong password on purpose');
+  const [rejectedLogin] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/login')),
     page.getByRole('button', { name: '로그인', exact: true }).click(),
   ]);
+  expect(rejectedLogin.status()).toBe(401);
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
+
+  await page.getByLabel('로그인 비밀번호').fill(password);
+  const [login] = await Promise.all([
+    page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/login') && response.status() === 200),
+    page.getByRole('button', { name: '로그인', exact: true }).click(),
+  ]);
   expect(login.status()).toBe(200);
+  // The default returnTo lands on the account page with the session live.
+  await expect(page).toHaveURL(/\/account$/);
   await expect(page.getByRole('heading', { name: '현재 세션' })).toBeVisible();
   await expect(page.getByText('Web browser')).toBeVisible();
 
