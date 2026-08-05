@@ -121,7 +121,7 @@ describe('Bot operations', () => {
     render(<BotsView operationsClient={client} pollIntervalMs={20} />);
 
     await waitFor(() => expect(screen.getAllByText('조치 필요').length).toBeGreaterThan(0));
-    await waitFor(() => expect(screen.getByText(/마지막으로 확인한 상태를 유지합니다/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/마지막으로 확인한 봇 목록/)).toBeInTheDocument());
     expect(screen.getAllByText('조치 필요').length).toBeGreaterThan(0);
     expect(screen.getByText('실행 차단 사유: UNRECOVERABLE_STATE')).toBeInTheDocument();
   });

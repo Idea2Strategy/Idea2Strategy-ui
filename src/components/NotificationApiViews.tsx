@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { BellRing, Check, Info, LoaderCircle, Mail, RefreshCw } from 'lucide-react';
-import { Button, EmptyState, PageHeading, Panel, SignInRequiredState, Status } from './common';
+import { BellRing, Check, Info, LoaderCircle, Mail } from 'lucide-react';
+import { Button, EmptyState, ErrorState, PageHeading, Panel, SignInRequiredState, Status } from './common';
 import { NotificationApiError } from '../api/notifications';
 import type { NotificationClient, NotificationPage, NotificationPreference, NotificationRecord } from '../api/notifications';
 import { Localized } from '../lib/i18n';
@@ -100,16 +100,20 @@ function NotificationError({ error, retry }: { error: NotificationApiError; retr
   const navigate = useNavigate();
   const location = useLocation();
   if (error.authenticationRequired) {
-    // A 401 is the server working as designed, not a failure. The correlation
-    // id stays visible because this branch also covers a malformed-credential
-    // 400, which support may need to trace.
+    // A 401 is the server working as designed, not a failure — the shared
+    // sign-in state, with no correlation id: on this card it is client-minted
+    // noise nobody can look up.
     return <SignInRequiredState
-      detail={<>알림은 로그인 후 확인할 수 있습니다.{error.correlationId && <> 문의 코드 {error.correlationId}</>}</>}
+      detail="알림은 로그인 후 확인할 수 있습니다."
       onSignIn={() => navigate('/login', { state: { returnTo: location.pathname } })}
     />;
   }
   const message = error.retryable ? '알림 서버에 일시적으로 연결할 수 없습니다.' : '알림 요청을 처리하지 못했습니다.';
-  return <div className="case-api-error" role="alert"><BellRing size={17} /><div><strong>{message}</strong><span>{error.code}</span>{error.correlationId && <small>문의 코드 {error.correlationId}</small>}</div><Button onClick={() => void retry()}><RefreshCw size={13} />다시 시도</Button></div>;
+  return <ErrorState
+    title={message}
+    detail={<>오류 코드 {error.code}{error.correlationId && <> · 문의 코드 {error.correlationId}</>}</>}
+    onRetry={() => void retry()}
+  />;
 }
 
 function argumentText(item: NotificationRecord) {

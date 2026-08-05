@@ -76,21 +76,22 @@ describe('AccountApiPanels', () => {
     expect(screen.getByDisplayValue('Asia/Seoul')).toBeInTheDocument();
   });
 
-  it('renders a 401 correlation id and retries the initial load', async () => {
-    const user = userEvent.setup();
+  it('renders a 401 as the shared sign-in state without raw error codes', async () => {
     const sessions = vi.fn()
-      .mockRejectedValueOnce(new AccountApiError(401, 'AUTHENTICATION_REQUIRED', 'corr-load-401'))
-      .mockResolvedValueOnce([session]);
+      .mockRejectedValue(new AccountApiError(401, 'AUTHENTICATION_REQUIRED', 'corr-load-401'));
     const accountClient = client({ sessions });
 
     render(<AccountApiPanels client={accountClient} />);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('로그인이 필요합니다.');
-    expect(screen.getByRole('alert')).toHaveTextContent('corr-load-401');
-    await user.click(screen.getByRole('button', { name: '다시 시도' }));
-
-    expect(await screen.findByRole('heading', { name: '현재 세션' })).toBeInTheDocument();
-    expect(sessions).toHaveBeenCalledTimes(2);
+    // Signed-out is the server answering as designed: the shared sign-in state,
+    // not a failure alert leaking the raw code and correlation id.
+    expect(await screen.findByText('로그인이 필요합니다')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText(/AUTHENTICATION_REQUIRED/)).toBeNull();
+    expect(screen.queryByText(/corr-load-401/)).toBeNull();
+    expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull();
+    // The way back in renders right below, in the same panel.
+    expect(screen.getByLabelText('로그인 이메일')).toBeInTheDocument();
   });
 
   it('logs in through the exact email session endpoint and reloads protected account data', async () => {
@@ -131,7 +132,7 @@ describe('AccountApiPanels', () => {
 
     await user.click(screen.getByRole('button', { name: '재설정 요청' }));
     expect(requestPasswordReset).toHaveBeenCalledWith('user@example.com');
-    expect(screen.getByRole('status')).toHaveTextContent('계정 존재 여부와 관계없이 복구 요청을 접수했습니다.');
+    expect(screen.getByText('계정 존재 여부와 관계없이 복구 요청을 접수했습니다.')).toBeInTheDocument();
   });
 
   it('renders a 403 action error with correlation evidence and retries safely', async () => {

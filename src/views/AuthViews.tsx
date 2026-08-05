@@ -21,9 +21,18 @@ function fallbackError(cause: unknown): AccountApiError {
 }
 
 function ApiFailure({ error }: { error: AccountApiError }) {
+  /* Lead with what the person can act on; the raw code and correlation id stay
+     on the second line for support. */
+  const title = error.status === 401
+    ? '이메일 또는 비밀번호가 올바르지 않습니다.'
+    : error.status === 400
+      ? '입력값을 확인해 주세요.'
+      : error.status === 0
+        ? '서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.'
+        : '요청을 처리하지 못했습니다.';
   return <div className="auth-error" role="alert">
-    <strong>{error.code}</strong>
-    {error.correlationId && <small> · {error.correlationId}</small>}
+    <strong>{title}</strong>
+    <small>오류 코드 {error.code}{error.correlationId && <> · 문의 코드 {error.correlationId}</>}</small>
   </div>;
 }
 

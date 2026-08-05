@@ -47,10 +47,11 @@ describe('NotificationCenter', () => {
     expect(screen.getAllByText('SECURITY_EVENT')).toHaveLength(2);
   });
 
-  it('shows authentication and correlation state without falling back to mock data', async () => {
+  it('shows the sign-in state without raw codes and without falling back to mock data', async () => {
     render(<NotificationCenter client={client({ list: vi.fn().mockRejectedValue(new NotificationApiError(400, 'INVALID_NOTIFICATION_REQUEST', 'corr-auth')) })} />);
     expect(await screen.findByText('로그인이 필요합니다')).toBeInTheDocument();
-    expect(screen.getByText(/문의 코드 corr-auth/)).toBeInTheDocument();
+    // The correlation id is client-minted noise on this card — never shown.
+    expect(screen.queryByText(/corr-auth/)).not.toBeInTheDocument();
     expect(screen.queryByText('CASE_UPDATED')).not.toBeInTheDocument();
   });
 });
