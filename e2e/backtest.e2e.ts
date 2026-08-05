@@ -55,11 +55,12 @@ test.describe('backtest screens against the /api/v1 contract', () => {
 
     await page.goto(BACKTESTS);
 
-    // The screen still renders; it just stops at a named, visible refusal.
-    await expect(page.getByRole('heading', { name: '봇 백테스트' })).toBeVisible();
+    // The whole route is the shared full-page sign-in state: a named, visible
+    // refusal, with no page scaffold half-rendered around it.
     const gate = page.getByTestId('backtest-session-gate');
     await expect(gate).toBeVisible();
     await expect(gate).toHaveAttribute('data-reason', 'absent');
+    await expect(page.getByRole('heading', { name: '봇 백테스트' })).toHaveCount(0);
     // The gate is the shared sign-in state, not a failure alert.
     await expect(gate.getByRole('status')).toContainText('로그인이 필요합니다');
     await expect(gate.getByRole('button', { name: '로그인' })).toBeVisible();
@@ -172,10 +173,11 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     await expect(gate).toHaveAttribute('data-reason', 'rejected');
     await expect(gate.getByRole('status')).toContainText('로그인 세션이 더 이상 유효하지 않습니다.');
 
-    // Pressing refresh must not resurrect the refused token.
+    // Reloading must not resurrect the refused token: it is gone from storage,
+    // so a fresh visit stays at the gate and sends nothing.
     const before = requests.length;
-    await page.getByRole('button', { name: '새로고침' }).click();
-    await expect(gate).toBeVisible();
+    await page.reload();
+    await expect(page.getByTestId('backtest-session-gate')).toBeVisible();
     expect(requests).toHaveLength(before);
 
     const stored = await page.evaluate(

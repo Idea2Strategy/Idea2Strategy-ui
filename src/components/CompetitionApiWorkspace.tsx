@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bot, CalendarDays, Check, LoaderCircle, Plus, RotateCcw, Search, Trophy, X } from 'lucide-react';
 import type {
   CompetitionRoomsClient, CreateRoomInput, JoinRoomInput, LeaderboardItem,
@@ -7,19 +6,11 @@ import type {
   CurrentStrategyValidationPage,
 } from '../api/competitionRooms';
 import { CompetitionApiError } from '../api/competitionRooms';
-import { Button, ErrorState, PageHeading, SignInRequiredState } from './common';
+import { Button, PageHeading } from './common';
+import { ErrorPage, SignInRequiredPage } from './StatePages';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
-/** The shared sign-in state, bound to the router so the way in is one press. */
-function LobbySignInRequired({ detail }: { detail: string }) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  return <SignInRequiredState
-    detail={detail}
-    onSignIn={() => navigate('/login', { state: { returnTo: location.pathname } })}
-  />;
-}
 const dateLabel = (value: string) => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric', day: 'numeric' }).format(new Date(value));
 const metric = (value: number | null, suffix = '') => value == null ? '—' : `${value.toFixed(2)}${suffix}`;
 const statusLabel = (room: PublicRoom, now = Date.now()) => now < Date.parse(room.recruitmentOpensAt) ? '모집 예정' : now <= Date.parse(room.participationClosesAt) ? '모집 중' : '평가/종료 확인';
@@ -41,6 +32,16 @@ export function CompetitionApiWorkspace({ client }: { client: CompetitionRoomsCl
   useEffect(() => { const controller = new AbortController(); void load(controller.signal); return () => controller.abort(); }, [load, reloadKey]);
 
   if (selected) return <RoomApiDetail client={client} room={selected} onBack={() => setSelected(null)} />;
+  /*
+    Nothing to show at all — signed out, or the lobby failed to load. The whole
+    route renders the one shared state page; no page scaffold survives around
+    it, so every screen fails the same way.
+  */
+  if (state === 'error') {
+    return lobbyError instanceof CompetitionApiError && lobbyError.unauthenticated
+      ? <SignInRequiredPage detail="공개 대회 목록은 로그인 후 확인할 수 있습니다." />
+      : <ErrorPage title="대회 목록을 불러오지 못했습니다." detail="네트워크 상태를 확인해 주세요." onRetry={() => setReloadKey((key) => key + 1)} />;
+  }
   return <div className="page competition-page competition-lobby-page competition-api-page">
     <PageHeading eyebrow="BOT COMPETITION · LIVE API" title="모의투자" description="실제 대회 API에서 공개 방과 일정을 조회하고, 익명 봇 성과만 비교합니다." actions={<Button kind="primary" icon={Plus} onClick={() => setCreateOpen(true)}>대회 만들기</Button>} />
     {createOpen && <CreateRoomDialog client={client} onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); setReloadKey((key) => key + 1); }} />}
@@ -51,9 +52,6 @@ export function CompetitionApiWorkspace({ client }: { client: CompetitionRoomsCl
     <section className="competition-bulletin" aria-label="대회 게시판">
       <header className="competition-bulletin-head"><h2><Trophy size={14} aria-hidden="true" />공개 대회</h2><span>{state === 'ready' ? `${rooms.length}개` : 'API 연결'}</span></header>
       {state === 'loading' && <div className="competition-api-state" role="status"><LoaderCircle className="is-spinning" aria-hidden="true" /><strong>대회 목록을 불러오는 중입니다.</strong></div>}
-      {state === 'error' && (lobbyError instanceof CompetitionApiError && lobbyError.unauthenticated
-        ? <LobbySignInRequired detail="공개 대회 목록은 로그인 후 확인할 수 있습니다." />
-        : <ErrorState title="대회 목록을 불러오지 못했습니다." detail="네트워크 상태를 확인해 주세요." onRetry={() => setReloadKey((key) => key + 1)} />)}
       {state === 'ready' && rooms.length === 0 && <div className="competition-api-state"><Trophy aria-hidden="true" /><strong>참가 가능한 공개 대회가 없습니다.</strong><span>검색어를 지우거나 나중에 다시 확인해 주세요.</span></div>}
       {state === 'ready' && <div role="list" aria-label="공개 대회 탐색 결과">{rooms.map((room) => <button type="button" role="listitem" className="competition-row" aria-label={`${room.name} 열기`} key={room.id} onClick={() => setSelected(room)}>
         <span className="competition-row-cell is-type"><span className="competition-kind-chip" data-kind="live">LIVE</span></span>
@@ -84,15 +82,28 @@ function RoomApiDetail({ client, room, onBack }: { client: CompetitionRoomsClien
     return () => controller.abort();
   }, [client, room.id, reloadKey]);
   const ended = leaderboard?.snapshotStatus === 'FINAL' || leaderboard?.snapshotStatus === 'PUBLISHED';
+  /*
+    The detail failed to load entirely. The shared state page takes over, with
+    the way back to the lobby kept above it — `selected` lives in this
+    workspace's state, so without the button the person would be stuck here.
+  */
+  if (state === 'error') {
+    return <div className="page competition-page competition-api-page">
+      <button type="button" className="competition-detail-back" onClick={onBack}><ArrowLeft size={15} aria-hidden="true" />대회 목록</button>
+      {error instanceof CompetitionApiError && error.unauthenticated
+        ? <SignInRequiredPage detail="대회 리더보드와 내 봇 비교는 로그인 후 확인할 수 있습니다." />
+        : <ErrorPage
+          title={error instanceof CompetitionApiError && error.forbidden ? '이 대회를 볼 권한이 없습니다.' : '리더보드를 불러오지 못했습니다.'}
+          onRetry={() => setReloadKey((key) => key + 1)}
+        />}
+    </div>;
+  }
   return <section className="competition-api-detail" role="region" aria-label={`${room.name} 상세`}>
     <button type="button" className="competition-detail-back" onClick={onBack}><ArrowLeft size={15} aria-hidden="true" />대회 목록</button>
     <header className="competition-api-detail-head"><div><span>{statusLabel(room)}</span><h1>{room.name}</h1><p>참가자는 표시하지 않으며, 플랫폼이 부여한 익명 봇 별칭만 공개합니다.</p></div><button type="button" className="button button-primary" onClick={() => setJoinOpen(true)}>이 대회 참가하기</button></header>
     <dl className="competition-detail-facts"><div data-fact-width="wide"><dt>모집 시작</dt><dd>{dateLabel(room.recruitmentOpensAt)}</dd></div><div data-fact-width="wide"><dt>참가 마감</dt><dd>{dateLabel(room.participationClosesAt)}</dd></div><div data-fact-width="compact"><dt>전체 봇 한도</dt><dd>{room.botParticipationLimit}</dd></div><div data-fact-width="compact"><dt>계정당 한도</dt><dd>{room.perAccountBotLimit}</dd></div></dl>
     {joinOpen && <JoinRoomDialog client={client} room={room} onClose={() => setJoinOpen(false)} onJoined={() => { setJoinOpen(false); setReloadKey((key) => key + 1); }} />}
     {state === 'loading' && <div className="competition-api-state" role="status"><LoaderCircle className="is-spinning" aria-hidden="true" /><strong>리더보드를 불러오는 중입니다.</strong></div>}
-    {state === 'error' && (error instanceof CompetitionApiError && error.unauthenticated
-      ? <LobbySignInRequired detail="대회 리더보드와 내 봇 비교는 로그인 후 확인할 수 있습니다." />
-      : <ErrorState title={error instanceof CompetitionApiError && error.forbidden ? '이 대회를 볼 권한이 없습니다.' : '리더보드를 불러오지 못했습니다.'} onRetry={() => setReloadKey((key) => key + 1)} />)}
     {state === 'ready' && <div className="competition-api-ranking-grid"><Leaderboard title="익명 봇 리더보드" items={leaderboard?.items ?? []} /><Leaderboard title="내 봇 비교" items={myBots?.items ?? []} owned /></div>}
     {state === 'ready' && ended && (myBots?.items.length ?? 0) > 0 && <section className="competition-choice-panel" aria-labelledby="post-evaluation-title"><h2 id="post-evaluation-title">대회 종료 후 운용 선택</h2><p>선택하지 않으면 봇은 안전한 종료 절차에 따라 주문을 취소하고 포지션을 정리합니다.</p>{myBots!.items.map((item) => item.viewerEvidence && <PostChoice key={item.viewerEvidence.participationId} client={client} roomId={room.id} item={item} initial={choices[item.viewerEvidence.participationId]} />)}</section>}
   </section>;

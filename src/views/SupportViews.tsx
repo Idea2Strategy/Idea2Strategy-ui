@@ -22,6 +22,8 @@ import { AccountApiPanels } from '../components/AccountApiPanels';
 import { UserCasePanel } from '../components/CaseApiPanels';
 import type { NotificationClient } from '../api/notifications';
 import { NotificationCenter, NotificationPreferencesPanel } from '../components/NotificationApiViews';
+import { SignInRequiredPage } from '../components/StatePages';
+import { useSessionAccessToken } from '../api/sessionAccessToken';
 
 type Severity = NotificationItem['severity'];
 type SeverityFilterId = Severity | 'all';
@@ -318,6 +320,17 @@ interface AccountViewProps {
 
 export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMotion, setReduceMotion, updown = 'kr', setUpdown = () => {}, accountClient, operationsClient, notificationClient }: AccountViewProps) {
   const { language, setLanguage } = useLanguage();
+  const sessionToken = useSessionAccessToken();
+
+  /*
+    "내 계정" is meaningless with nobody signed in: every real panel on it is
+    account-scoped, and the display settings also live behind the top-bar
+    gear. One shared sign-in page instead of three panels each apologizing in
+    its own format.
+  */
+  if (accountClient && sessionToken === null) {
+    return <SignInRequiredPage detail="계정 정보와 설정은 로그인 후 관리할 수 있습니다." />;
+  }
 
   return <Localized><div className="page narrow-page account-page">
     <PageHeading

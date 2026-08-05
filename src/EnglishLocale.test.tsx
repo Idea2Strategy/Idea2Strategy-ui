@@ -22,12 +22,14 @@ const ROUTES: Array<{ path: string; marker: () => HTMLElement }> = [
   { path: '/strategies/new/basic', marker: () => screen.getByTestId('basic-editor-workspace') },
   { path: '/strategies/new/pro', marker: () => screen.getByRole('heading', { name: /Pro editor is being prepared/i }) },
   { path: '/bots', marker: () => screen.getByRole('heading', { name: /Bot operations/i }) },
-  { path: '/backtests', marker: () => screen.getByRole('heading', { name: /Bots Backtest/i }) },
+  // Account-gated routes render the shared full-page sign-in state when the
+  // suite runs signed out; the marker is that page's translated heading.
+  { path: '/backtests', marker: () => screen.getByRole('heading', { name: /Sign-in required/i }) },
   { path: '/competition', marker: () => screen.getByRole('heading', { name: /^Competition$/i }) },
   { path: '/competition-v2', marker: () => screen.getByRole('heading', { name: /^Competition$/i }) },
   { path: '/notifications', marker: () => screen.getAllByRole('heading', { name: /Notifications/i })[0] },
   { path: '/help', marker: () => screen.getByRole('heading', { name: /Help/i }) },
-  { path: '/account', marker: () => screen.getByRole('heading', { name: /Account/i }) },
+  { path: '/account', marker: () => screen.getByRole('heading', { name: /Sign-in required/i }) },
 ];
 
 describe('English locale', () => {

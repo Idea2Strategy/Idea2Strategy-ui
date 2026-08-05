@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { BellRing, Check, Info, LoaderCircle, Mail } from 'lucide-react';
 import { Button, EmptyState, ErrorState, PageHeading, Panel, SignInRequiredState, Status } from './common';
+import { ErrorPage, SignInRequiredPage } from './StatePages';
 import { NotificationApiError } from '../api/notifications';
 import type { NotificationClient, NotificationPage, NotificationPreference, NotificationRecord } from '../api/notifications';
 import { Localized } from '../lib/i18n';
@@ -45,11 +46,26 @@ export function NotificationCenter({ client }: { client: NotificationClient }) {
     } catch (cause) { setState({ kind: 'error', error: apiError(cause) }); }
   };
 
+  /*
+    Nothing to show at all — signed out, or the load failed. The whole route
+    renders the one shared state page; no page scaffold survives around it,
+    so every screen fails the same way.
+  */
+  if (state.kind === 'error') {
+    if (state.error.authenticationRequired) {
+      return <SignInRequiredPage detail="알림은 로그인 후 확인할 수 있습니다." />;
+    }
+    return <ErrorPage
+      title={state.error.retryable ? '알림 서버에 일시적으로 연결할 수 없습니다.' : '알림 요청을 처리하지 못했습니다.'}
+      detail={<>오류 코드 {state.error.code}{state.error.correlationId && <> · 문의 코드 {state.error.correlationId}</>}</>}
+      onRetry={() => void load()}
+    />;
+  }
+
   return <Localized><div className="page narrow-page notifications-page">
     <PageHeading eyebrow="INBOX" title="알림" description="내 계정에 발행된 알림과 서버의 읽음 상태를 확인합니다." />
     <Panel className="notification-panel" title="알림 목록" subtitle={state.kind === 'ready' ? `읽지 않음 ${unreadCount}개` : '서버 동기화 중'} action={<label className="notification-unread-toggle"><input type="checkbox" checked={unreadOnly} onChange={(event) => setUnreadOnly(event.target.checked)} />읽지 않은 항목만</label>}>
       {state.kind === 'loading' && <div className="notification-api-state" role="status"><LoaderCircle size={17} />알림을 불러오는 중입니다.</div>}
-      {state.kind === 'error' && <NotificationError error={state.error} retry={load} />}
       {state.kind === 'ready' && visible.length === 0 && <EmptyState icon={BellRing} title="표시할 알림이 없습니다." detail={unreadOnly ? '모든 알림을 읽었습니다.' : '아직 발행된 알림이 없습니다.'} />}
       {state.kind === 'ready' && visible.length > 0 && <div className="notification-list">{visible.map((item) => <article key={item.id} className={`notification-row ${item.readAt === null ? 'unread' : ''}`}>
         <span className="notification-mark"><Info size={17} /></span>

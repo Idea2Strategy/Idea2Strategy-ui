@@ -564,6 +564,24 @@ const english: Record<string, string> = {
   '다시 시도': 'Retry',
   '불러오는 중': 'Loading',
 
+  // Shared full-page states: the one way every screen looks when it cannot
+  // show its content (signed out, or the load failed).
+  '로그인이 필요합니다': 'Sign-in required',
+  '로그인이 필요합니다.': 'Sign-in required.',
+  '이 화면은 로그인 후 이용할 수 있습니다.': 'This screen is available after you sign in.',
+  '로그인': 'Sign in',
+  '내 전략 목록은 로그인 후 확인할 수 있습니다.': 'Your strategy library is available after you sign in.',
+  '내 봇의 실행 상태는 로그인 후 확인할 수 있습니다.': 'Your bot operations are available after you sign in.',
+  '알림은 로그인 후 확인할 수 있습니다.': 'Notifications are available after you sign in.',
+  '계정 정보와 설정은 로그인 후 관리할 수 있습니다.': 'Account details and settings are available after you sign in.',
+  '공개 대회 목록은 로그인 후 확인할 수 있습니다.': 'Public competitions are available after you sign in.',
+  '대회 리더보드와 내 봇 비교는 로그인 후 확인할 수 있습니다.': 'Competition leaderboards and your bot comparison are available after you sign in.',
+  '전략 목록을 불러오지 못했습니다.': 'Could not load the strategy library.',
+  '봇 목록을 불러오지 못했습니다.': 'Could not load the bot list.',
+  '대회 목록을 불러오지 못했습니다.': 'Could not load the competition list.',
+  '백테스트 결과를 불러오지 못했습니다.': 'Could not load backtest results.',
+  '네트워크 상태를 확인해 주세요.': 'Please check your network connection.',
+
   // Home
   '확인할 항목이 없습니다.': 'Nothing needs your attention.',
   '봇과 전략이 모두 정상입니다. 새 사건이 생기면 여기에 표시됩니다.': 'All bots and strategies are healthy. New events will appear here.',

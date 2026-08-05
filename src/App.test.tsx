@@ -35,7 +35,9 @@ describe('Signal product UI', () => {
     unmount();
     window.history.replaceState({}, '', '/backtests');
     render(<App />);
-    expect(screen.getByRole('heading', { name: '봇 백테스트' })).toBeInTheDocument();
+    // Signed out, the route is the shared full-page sign-in state.
+    expect(screen.getByTestId('backtest-session-gate')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '로그인이 필요합니다.' })).toBeInTheDocument();
   });
 
   test('gives Basic a stable direct URL and blocks direct Pro editor access', async () => {
@@ -222,12 +224,13 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('button', { name: '관리자' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '관심종목 설정' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '내 계정' }));
-    expect(screen.getByRole('heading', { name: '내 계정' })).toBeInTheDocument();
-    // The fabricated identity is gone: no made-up profile name, no social
-    // login that never existed, only what the real API panels can prove.
+    // Signed out, the whole account page is the shared sign-in state — no
+    // fabricated identity, no per-panel apologies, and display settings live
+    // behind the top-bar gear instead.
+    expect(screen.getByText('계정 정보와 설정은 로그인 후 관리할 수 있습니다.')).toBeInTheDocument();
     expect(screen.queryByText('김전략')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '접근 보안' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '화면 설정' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '화면 설정' })).not.toBeInTheDocument();
   });
 
   test('switches the product between Korean and English and remembers the choice', async () => {
@@ -460,7 +463,6 @@ describe('Signal product UI', () => {
       ['홈', '반갑습니다, 김전략님'],
       ['전략', '전략'],
       ['봇', '봇 운영 센터'],
-      ['백테스트', '봇 백테스트'],
       ['모의투자', '모의투자'],
     ]) {
       await user.click(screen.getByRole('button', { name: navigation }));
@@ -469,6 +471,14 @@ describe('Signal product UI', () => {
       expect(activeItems).toHaveLength(1);
       expect(activeItems[0]).toHaveAccessibleName(navigation);
     }
+
+    // 백테스트 is account-gated: signed out it renders the shared full-page
+    // sign-in state instead of a page heading, and the nav item still activates.
+    await user.click(screen.getByRole('button', { name: '백테스트' }));
+    expect(screen.getByTestId('backtest-session-gate')).toBeInTheDocument();
+    const activeItems = document.querySelectorAll('.signal-product-nav > nav button.active');
+    expect(activeItems).toHaveLength(1);
+    expect(activeItems[0]).toHaveAccessibleName('백테스트');
   });
 
   test.each(['balanced', 'terminal'])('uses the official I2S logo in the %s navigation', (variant) => {

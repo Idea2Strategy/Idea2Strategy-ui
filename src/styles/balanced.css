@@ -6025,6 +6025,50 @@
 .result-state.is-loading .result-state-icon svg { animation: resultSpin 1s linear infinite; }
 @keyframes resultSpin { to { transform: rotate(360deg); } }
 
+/*
+  Full-page states. When a route cannot show its content at all — signed out,
+  or the load failed — the entire page becomes this one layout, identical on
+  every screen. No per-page heading survives around it.
+*/
+.state-page {
+  display: grid;
+  place-items: center;
+  min-height: min(60vh, 560px);
+}
+.state-page-card {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  max-width: 460px;
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+}
+.state-page-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  color: var(--text-faint);
+  background: var(--surface-2);
+}
+.state-page.is-error .state-page-icon { color: var(--negative); background: var(--negative-soft); }
+.state-page.is-sign-in .state-page-icon { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.state-page-card h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-section);
+  font-weight: 700;
+}
+.state-page-card p {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+}
+.state-page-card .button { margin-top: var(--space-2); }
+
 
 .detail-tabs {
   display: flex;
