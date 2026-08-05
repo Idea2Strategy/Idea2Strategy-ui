@@ -1,4 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render as renderBare, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import type { ReactElement } from 'react';
+
+// The 401 state navigates to /login, so renders need a router.
+const render = (ui: ReactElement) => renderBare(<MemoryRouter>{ui}</MemoryRouter>);
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { NotificationApiError } from '../api/notifications';
@@ -44,8 +49,8 @@ describe('NotificationCenter', () => {
 
   it('shows authentication and correlation state without falling back to mock data', async () => {
     render(<NotificationCenter client={client({ list: vi.fn().mockRejectedValue(new NotificationApiError(400, 'INVALID_NOTIFICATION_REQUEST', 'corr-auth')) })} />);
-    expect(await screen.findByText('알림을 확인하려면 다시 로그인해야 합니다.')).toBeInTheDocument();
-    expect(screen.getByText('문의 코드 corr-auth')).toBeInTheDocument();
+    expect(await screen.findByText('로그인이 필요합니다')).toBeInTheDocument();
+    expect(screen.getByText(/문의 코드 corr-auth/)).toBeInTheDocument();
     expect(screen.queryByText('CASE_UPDATED')).not.toBeInTheDocument();
   });
 });

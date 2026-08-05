@@ -1,6 +1,14 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render as renderBare, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import type { ReactElement } from 'react';
+
+// Views navigate to /login for sign-in states, so every render needs a router.
+const render = (ui: ReactElement) => renderBare(<MemoryRouter>{ui}</MemoryRouter>, { wrapper: undefined });
+const wrap = (ui: ReactElement) => <MemoryRouter>{ui}</MemoryRouter>;
 import { describe, expect, test, vi } from 'vitest';
+import { BotOperationsApiError } from './api/botOperations';
 import type { BotOperationsClient, BotOperationsView } from './api/botOperations';
+import { StrategyApiError } from './api/strategies';
 import type { StrategyLibraryClient, StrategyLibraryPage } from './api/strategies';
 import { BotsView } from './views/BotsView';
 import { DashboardView } from './views/DashboardView';
@@ -84,7 +92,7 @@ describe('production runtime honesty', () => {
     const view = render(<StrategyHome openEditor={() => {}} client={first} />);
     expect(await screen.findByTestId('strategy-row-Confirmed Strategy')).toBeInTheDocument();
 
-    view.rerender(<StrategyHome openEditor={() => {}} client={second} />);
+    view.rerender(wrap(<StrategyHome openEditor={() => {}} client={second} />));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('마지막으로 확인한 전략 목록');
     expect(screen.getByTestId('strategy-row-Confirmed Strategy')).toBeInTheDocument();
@@ -132,14 +140,36 @@ describe('production runtime honesty', () => {
     />);
     expect(await screen.findByRole('button', { name: 'Confirmed Bot 상세 보기' })).toBeInTheDocument();
 
-    view.rerender(<BotsView
+    view.rerender(wrap(<BotsView
       operationsClient={botClient(() => Promise.reject(new Error('offline')))}
       tradingClient={null}
-    />);
+    />));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('마지막으로 확인한 봇 목록'));
     expect(screen.getByRole('button', { name: 'Confirmed Bot 상세 보기' })).toBeInTheDocument();
     expect(screen.queryByText('Atlas 07')).not.toBeInTheDocument();
+  });
+
+  test('a signed-out strategy library renders the sign-in state, not a failure', async () => {
+    render(<StrategyHome
+      openEditor={() => {}}
+      client={strategyClient(() => Promise.reject(new StrategyApiError(401, 'Strategy library request')))}
+    />);
+
+    expect(await screen.findByText('로그인이 필요합니다')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '로그인' })).toBeInTheDocument();
+    expect(screen.queryByText('전략 목록을 불러오지 못했습니다.')).not.toBeInTheDocument();
+  });
+
+  test('a signed-out bot list renders the sign-in state, not a failure', async () => {
+    render(<BotsView
+      operationsClient={botClient(() => Promise.reject(new BotOperationsApiError(401)))}
+      tradingClient={null}
+    />);
+
+    expect(await screen.findByText('로그인이 필요합니다')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '로그인' })).toBeInTheDocument();
+    expect(screen.queryByText('봇 목록을 불러오지 못했습니다.')).not.toBeInTheDocument();
   });
 
   test('production dashboard deactivates synthetic performance while its aggregate API is absent', () => {

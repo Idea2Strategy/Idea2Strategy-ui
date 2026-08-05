@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AlertTriangle, BarChart3, Clock3, LogIn, RefreshCw } from 'lucide-react';
 import { BacktestApiError } from '../api/backtests';
 import type {
@@ -219,8 +220,19 @@ function SignedOutState({ reason }: { reason: AnonymousReason }) {
     data-reason={reason}
   >
     <ErrorState title={copy[reason].title} detail={copy[reason].detail} />
+    <SessionGateSignIn />
     <p className="backtest-live-state-copy"><LogIn size={16} />로그인 전에는 어떤 백테스트 결과도 요청하지 않습니다.</p>
   </div>;
+}
+
+/** One press to the sign-in screen, returning here afterwards. */
+function SessionGateSignIn() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  return <Button
+    kind="primary"
+    onClick={() => navigate('/login', { state: { returnTo: location.pathname } })}
+  >로그인</Button>;
 }
 
 function ListFailure({ kind, onRetry }: { kind: FailureKind; onRetry: () => void }) {

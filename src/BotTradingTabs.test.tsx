@@ -1,4 +1,9 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render as renderBare, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import type { ReactElement } from 'react';
+
+// Views navigate to /login for sign-in states, so every render needs a router.
+const render = (ui: ReactElement) => renderBare(<MemoryRouter>{ui}</MemoryRouter>);
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { BotsView } from './views/BotsView';
