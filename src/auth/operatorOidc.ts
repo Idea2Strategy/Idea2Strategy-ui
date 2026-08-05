@@ -9,6 +9,7 @@ export interface OperatorOidcConfig {
   audience: string;
   redirectUri: string;
   postLogoutRedirectUri: string;
+  logoutRedirectParameter: 'post_logout_redirect_uri' | 'logout_uri';
   scopes: string[];
   signingAlgorithm: string;
 }
@@ -98,6 +99,11 @@ export function readProductionOperatorOidcConfig(
   const endSessionEndpoint = env.VITE_OPERATOR_OIDC_END_SESSION_ENDPOINT?.trim()
     ? secureUrl(env.VITE_OPERATOR_OIDC_END_SESSION_ENDPOINT, 'VITE_OPERATOR_OIDC_END_SESSION_ENDPOINT').href
     : undefined;
+  const logoutRedirectParameter = env.VITE_OPERATOR_OIDC_LOGOUT_REDIRECT_PARAMETER?.trim()
+    || 'post_logout_redirect_uri';
+  if (logoutRedirectParameter !== 'post_logout_redirect_uri' && logoutRedirectParameter !== 'logout_uri') {
+    throw new Error('VITE_OPERATOR_OIDC_LOGOUT_REDIRECT_PARAMETER is invalid');
+  }
   return {
     issuer,
     authorizationEndpoint,
@@ -107,6 +113,7 @@ export function readProductionOperatorOidcConfig(
     audience: env.VITE_OPERATOR_OIDC_AUDIENCE!.trim(),
     redirectUri: redirectUri.href,
     postLogoutRedirectUri: postLogoutRedirectUri.href,
+    logoutRedirectParameter,
     scopes,
     signingAlgorithm: env.VITE_OPERATOR_OIDC_SIGNING_ALGORITHM!.trim(),
   };
@@ -283,7 +290,7 @@ export function createOperatorOidcSession({
       if (config.endSessionEndpoint) {
         const logout = new URL(config.endSessionEndpoint);
         logout.searchParams.set('client_id', config.clientId);
-        logout.searchParams.set('post_logout_redirect_uri', config.postLogoutRedirectUri);
+        logout.searchParams.set(config.logoutRedirectParameter, config.postLogoutRedirectUri);
         location.assign(logout.href);
       } else {
         replaceLocation(new URL(config.postLogoutRedirectUri).pathname);

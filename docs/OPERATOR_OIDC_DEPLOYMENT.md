@@ -18,6 +18,7 @@ Set these values when building the production frontend:
 | `VITE_OPERATOR_OIDC_AUDIENCE` | Exact operator API audience accepted by the backend/gateway |
 | `VITE_OPERATOR_OIDC_REDIRECT_URI` | Same-origin absolute URL ending in `/operations/callback` |
 | `VITE_OPERATOR_OIDC_POST_LOGOUT_REDIRECT_URI` | Same-origin absolute URL ending in `/operations/login` |
+| `VITE_OPERATOR_OIDC_LOGOUT_REDIRECT_PARAMETER` | `post_logout_redirect_uri` by default; use `logout_uri` for Amazon Cognito managed login |
 | `VITE_OPERATOR_OIDC_SCOPES` | Space-delimited scopes including `openid`; include the provider's refresh scope if refresh tokens are enabled |
 | `VITE_OPERATOR_OIDC_SIGNING_ALGORITHM` | Exact expected JWT algorithm, normally `RS256` |
 

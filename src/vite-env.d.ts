@@ -10,6 +10,7 @@ interface ImportMetaEnv {
   readonly VITE_OPERATOR_OIDC_AUDIENCE?: string;
   readonly VITE_OPERATOR_OIDC_REDIRECT_URI?: string;
   readonly VITE_OPERATOR_OIDC_POST_LOGOUT_REDIRECT_URI?: string;
+  readonly VITE_OPERATOR_OIDC_LOGOUT_REDIRECT_PARAMETER?: string;
   readonly VITE_OPERATOR_OIDC_SCOPES?: string;
   readonly VITE_OPERATOR_OIDC_SIGNING_ALGORITHM?: string;
 }
