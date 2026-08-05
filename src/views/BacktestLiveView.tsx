@@ -208,7 +208,8 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
 function SignedOutState({ reason }: { reason: AnonymousReason }) {
   const copy: Record<AnonymousReason, { title: string; detail: string }> = {
     absent: {
-      title: '로그인이 필요합니다.',
+      // Same words as every other screen's sign-in page, punctuation included.
+      title: '로그인이 필요합니다',
       detail: '공식 백테스트 결과는 실행을 소유한 계정에만 공개됩니다. 로그인한 뒤 다시 열어 주세요.',
     },
     expired: {

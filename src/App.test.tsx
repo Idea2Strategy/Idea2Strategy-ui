@@ -37,7 +37,7 @@ describe('Signal product UI', () => {
     render(<App />);
     // Signed out, the route is the shared full-page sign-in state.
     expect(screen.getByTestId('backtest-session-gate')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '로그인이 필요합니다.' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '로그인이 필요합니다' })).toBeInTheDocument();
   });
 
   test('gives Basic a stable direct URL and blocks direct Pro editor access', async () => {
