@@ -192,6 +192,9 @@ export function ErrorState({ title, detail, onRetry, retryLabel = '다시 시도
 }
 
 interface SignInRequiredStateProps {
+  /* Overridable for the session-gate variants (expired, rejected) that need to
+     name why the previous session ended; the visual stays the same. */
+  title?: ReactNode;
   detail?: ReactNode;
   onSignIn?: () => void;
 }
@@ -202,12 +205,13 @@ interface SignInRequiredStateProps {
  * everywhere and always offers the way in.
  */
 export function SignInRequiredState({
+  title = '로그인이 필요합니다',
   detail = '이 화면은 로그인 후 이용할 수 있습니다.',
   onSignIn,
 }: SignInRequiredStateProps) {
   return <div className="result-state is-sign-in" role="status">
     <span className="result-state-icon"><LockKeyhole size={20} aria-hidden="true" /></span>
-    <strong>로그인이 필요합니다</strong>
+    <strong>{title}</strong>
     {detail && <p>{detail}</p>}
     {onSignIn && <Button kind="primary" onClick={onSignIn}>로그인</Button>}
   </div>;

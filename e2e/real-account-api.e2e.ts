@@ -12,7 +12,7 @@ test('browser completes the production account principal and user-case journey',
 
   // Logged out, the account page fails closed instead of showing seeded data.
   await page.goto('/account');
-  await expect(page.getByText('로그인이 필요합니다.')).toBeVisible();
+  await expect(page.getByText('로그인이 필요합니다').first()).toBeVisible();
 
   // The journey enters through the dedicated /signup screen. A wrong password
   // on /login later proves the error path; the /account inline form keeps its

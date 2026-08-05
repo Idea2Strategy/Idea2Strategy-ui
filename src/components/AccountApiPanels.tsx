@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, KeyRound, Loader2, RefreshCw } from 'lucide-react';
+import { KeyRound, Loader2 } from 'lucide-react';
 import type {
   AccountClient,
   AccountPreferences,
@@ -7,7 +7,7 @@ import type {
   SessionView,
 } from '../api/account';
 import { AccountApiError } from '../api/account';
-import { Button, Panel, Status } from './common';
+import { Button, ErrorState, Panel, SignInRequiredState, Status } from './common';
 
 interface AccountApiPanelsProps {
   client: AccountClient;
@@ -223,21 +223,26 @@ function UnauthenticatedAccountActions({ client }: { client: AccountClient }) {
       <Button disabled={!token || !password} onClick={() => void run(() => client.resetPassword(token, password), '비밀번호를 재설정했습니다. 다시 로그인하세요.')}>비밀번호 재설정</Button>
     </div>
     {message && <p role="status">{message}</p>}
-    {failure && <div role="alert"><strong>{failure.code}</strong>{failure.correlationId && <small> · {failure.correlationId}</small>}</div>}
+    {failure && <ErrorState
+      title="요청을 처리하지 못했습니다."
+      detail={<>오류 코드 {failure.code}{failure.correlationId && <> · 문의 코드 {failure.correlationId}</>}</>}
+    />}
   </details>;
 }
 
 function ApiErrorState({ error, onRetry }: { error: AccountApiError; onRetry: () => void }) {
-  const message = error.status === 401
-    ? '로그인이 필요합니다.'
-    : error.status === 403
-      ? '이 작업을 수행할 권한이 없습니다.'
-      : '계정 서버 요청에 실패했습니다.';
-  return <div className="account-api-error" role="alert">
-    <AlertTriangle size={18} aria-hidden="true" />
-    <div><strong>{message}</strong><small>오류 코드: {error.code}</small>
-      {error.correlationId && <small>상관관계 ID: {error.correlationId}</small>}
-    </div>
-    <Button icon={RefreshCw} onClick={onRetry}>다시 시도</Button>
-  </div>;
+  if (error.status === 401) {
+    /* Signed-out is the server answering as designed, so it renders through the
+       shared sign-in state — no raw error code, no retry button. The sign-in
+       form itself is right below in the same panel. */
+    return <SignInRequiredState detail="세션이 유효하지 않습니다. 아래에서 로그인하면 계정 정보가 표시됩니다." />;
+  }
+  const message = error.status === 403
+    ? '이 작업을 수행할 권한이 없습니다.'
+    : '계정 서버 요청에 실패했습니다.';
+  return <ErrorState
+    title={message}
+    detail={<>오류 코드 {error.code}{error.correlationId && <> · 문의 코드 {error.correlationId}</>}</>}
+    onRetry={onRetry}
+  />;
 }

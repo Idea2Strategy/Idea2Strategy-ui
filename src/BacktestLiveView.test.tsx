@@ -329,10 +329,13 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
 
     const gate = await screen.findByTestId('backtest-session-gate');
     expect(gate).toHaveAttribute('data-reason', 'absent');
-    expect(within(gate).getByRole('alert')).toHaveTextContent('로그인이 필요합니다.');
+    // The gate is the shared sign-in state, not a failure alert.
+    expect(within(gate).getByRole('status')).toHaveTextContent('로그인이 필요합니다');
+    expect(within(gate).getByRole('button', { name: '로그인' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     // Not a spinner, not a blank panel, and not eight 401s to find out what the store
     // already knew.
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByText(/불러오는 중/)).not.toBeInTheDocument();
     await waitFor(() => expect(paths).toEqual([]));
   });
 
@@ -348,7 +351,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
 
     const gate = await screen.findByTestId('backtest-session-gate');
     expect(gate).toHaveAttribute('data-reason', 'expired');
-    expect(within(gate).getByRole('alert')).toHaveTextContent('로그인 세션이 만료되었습니다.');
+    expect(within(gate).getByRole('status')).toHaveTextContent('로그인 세션이 만료되었습니다.');
   });
 
   it('drops a credential the server answers 401 to, and says so', async () => {
@@ -358,7 +361,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
 
     const gate = await screen.findByTestId('backtest-session-gate');
     expect(gate).toHaveAttribute('data-reason', 'rejected');
-    expect(within(gate).getByRole('alert'))
+    expect(within(gate).getByRole('status'))
       .toHaveTextContent('로그인 세션이 더 이상 유효하지 않습니다.');
     // The refused token is gone, so a retry cannot resend it.
     expect(session.accessToken()).toBeNull();

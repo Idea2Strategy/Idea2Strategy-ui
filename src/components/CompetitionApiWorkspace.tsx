@@ -7,7 +7,7 @@ import type {
   CurrentStrategyValidationPage,
 } from '../api/competitionRooms';
 import { CompetitionApiError } from '../api/competitionRooms';
-import { Button, PageHeading, SignInRequiredState } from './common';
+import { Button, ErrorState, PageHeading, SignInRequiredState } from './common';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -53,7 +53,7 @@ export function CompetitionApiWorkspace({ client }: { client: CompetitionRoomsCl
       {state === 'loading' && <div className="competition-api-state" role="status"><LoaderCircle className="is-spinning" aria-hidden="true" /><strong>대회 목록을 불러오는 중입니다.</strong></div>}
       {state === 'error' && (lobbyError instanceof CompetitionApiError && lobbyError.unauthenticated
         ? <LobbySignInRequired detail="공개 대회 목록은 로그인 후 확인할 수 있습니다." />
-        : <div className="competition-api-state is-error" role="alert"><strong>대회 목록을 불러오지 못했습니다.</strong><span>네트워크 상태를 확인해 주세요.</span><button type="button" onClick={() => setReloadKey((key) => key + 1)}>다시 시도</button></div>)}
+        : <ErrorState title="대회 목록을 불러오지 못했습니다." detail="네트워크 상태를 확인해 주세요." onRetry={() => setReloadKey((key) => key + 1)} />)}
       {state === 'ready' && rooms.length === 0 && <div className="competition-api-state"><Trophy aria-hidden="true" /><strong>참가 가능한 공개 대회가 없습니다.</strong><span>검색어를 지우거나 나중에 다시 확인해 주세요.</span></div>}
       {state === 'ready' && <div role="list" aria-label="공개 대회 탐색 결과">{rooms.map((room) => <button type="button" role="listitem" className="competition-row" aria-label={`${room.name} 열기`} key={room.id} onClick={() => setSelected(room)}>
         <span className="competition-row-cell is-type"><span className="competition-kind-chip" data-kind="live">LIVE</span></span>
@@ -92,7 +92,7 @@ function RoomApiDetail({ client, room, onBack }: { client: CompetitionRoomsClien
     {state === 'loading' && <div className="competition-api-state" role="status"><LoaderCircle className="is-spinning" aria-hidden="true" /><strong>리더보드를 불러오는 중입니다.</strong></div>}
     {state === 'error' && (error instanceof CompetitionApiError && error.unauthenticated
       ? <LobbySignInRequired detail="대회 리더보드와 내 봇 비교는 로그인 후 확인할 수 있습니다." />
-      : <div className="competition-api-state is-error" role="alert"><strong>{error instanceof CompetitionApiError && error.forbidden ? '이 대회를 볼 권한이 없습니다.' : '리더보드를 불러오지 못했습니다.'}</strong><button type="button" onClick={() => setReloadKey((key) => key + 1)}>다시 시도</button></div>)}
+      : <ErrorState title={error instanceof CompetitionApiError && error.forbidden ? '이 대회를 볼 권한이 없습니다.' : '리더보드를 불러오지 못했습니다.'} onRetry={() => setReloadKey((key) => key + 1)} />)}
     {state === 'ready' && <div className="competition-api-ranking-grid"><Leaderboard title="익명 봇 리더보드" items={leaderboard?.items ?? []} /><Leaderboard title="내 봇 비교" items={myBots?.items ?? []} owned /></div>}
     {state === 'ready' && ended && (myBots?.items.length ?? 0) > 0 && <section className="competition-choice-panel" aria-labelledby="post-evaluation-title"><h2 id="post-evaluation-title">대회 종료 후 운용 선택</h2><p>선택하지 않으면 봇은 안전한 종료 절차에 따라 주문을 취소하고 포지션을 정리합니다.</p>{myBots!.items.map((item) => item.viewerEvidence && <PostChoice key={item.viewerEvidence.participationId} client={client} roomId={room.id} item={item} initial={choices[item.viewerEvidence.participationId]} />)}</section>}
   </section>;

@@ -20,6 +20,7 @@ import {
   MetricRow,
   PageHeading,
   Panel,
+  SignInRequiredState,
   Status,
 } from '../components/common';
 import type { StatusTone } from '../components/common';
@@ -219,20 +220,24 @@ function SignedOutState({ reason }: { reason: AnonymousReason }) {
     data-testid="backtest-session-gate"
     data-reason={reason}
   >
-    <ErrorState title={copy[reason].title} detail={copy[reason].detail} />
-    <SessionGateSignIn />
+    <SessionGate title={copy[reason].title} detail={copy[reason].detail} />
     <p className="backtest-live-state-copy"><LogIn size={16} />로그인 전에는 어떤 백테스트 결과도 요청하지 않습니다.</p>
   </div>;
 }
 
-/** One press to the sign-in screen, returning here afterwards. */
-function SessionGateSignIn() {
+/*
+  Signed-out is the server (or this tab) answering as designed, so it renders
+  through the shared sign-in state — the same card every other screen shows —
+  not through the failure alert.
+*/
+function SessionGate({ title, detail }: { title: string; detail: string }) {
   const navigate = useNavigate();
   const location = useLocation();
-  return <Button
-    kind="primary"
-    onClick={() => navigate('/login', { state: { returnTo: location.pathname } })}
-  >로그인</Button>;
+  return <SignInRequiredState
+    title={title}
+    detail={detail}
+    onSignIn={() => navigate('/login', { state: { returnTo: location.pathname } })}
+  />;
 }
 
 function ListFailure({ kind, onRetry }: { kind: FailureKind; onRetry: () => void }) {

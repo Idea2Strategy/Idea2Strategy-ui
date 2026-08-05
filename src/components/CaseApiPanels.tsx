@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react';
-import { Button, EmptyState, PageHeading, Panel, Status } from './common';
+import { CheckCircle2, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Button, EmptyState, ErrorState, PageHeading, Panel, SignInRequiredState, Status } from './common';
 import { AccountOperationsApiError } from '../api/accountOperations';
 import type {
   AccountOperationsClient, OperatorCaseAction, OperatorCaseDetail, OperatorCaseSummary, SanctionType, UserCaseType, UserCaseView,
@@ -243,8 +243,17 @@ function validSanctionVersion(value: string): boolean {
 }
 
 function CaseError({ error, retry }: { error: AccountOperationsApiError; retry?: () => void | Promise<void> }) {
-  const message = error.permissionDenied ? '이 작업에 필요한 로그인 또는 운영 권한이 없습니다.'
+  if (error.status === 401) {
+    /* Signed-out is the server answering as designed — the shared sign-in
+       state, not a failure alert with a raw error code. */
+    return <SignInRequiredState detail="이 작업은 로그인 후 이용할 수 있습니다." />;
+  }
+  const message = error.status === 403 ? '이 작업에 필요한 운영 권한이 없습니다.'
     : error.conflict ? '다른 변경이 먼저 반영되었습니다. 최신 상태를 다시 불러오세요.'
       : error.retryable ? '일시적으로 서버에 연결할 수 없습니다.' : '요청을 처리하지 못했습니다.';
-  return <div className="case-api-error" role="alert"><AlertTriangle size={17} /><div><strong>{message}</strong><span>{error.code}</span>{error.correlationId && <small>문의 코드 {error.correlationId}</small>}</div>{retry && <Button onClick={() => void retry()}>다시 시도</Button>}</div>;
+  return <ErrorState
+    title={message}
+    detail={<>오류 코드 {error.code}{error.correlationId && <> · 문의 코드 {error.correlationId}</>}</>}
+    onRetry={retry ? () => void retry() : undefined}
+  />;
 }

@@ -1328,7 +1328,7 @@ export function BotsView({
             setSignInRequired(false);
             setOperationsError(confirmedOperationsRef.current === null
               ? '봇 목록을 불러오지 못했습니다.'
-              : '마지막으로 확인한 봇 목록을 표시합니다. 마지막으로 확인한 상태를 유지합니다. 최신 실행 상태를 불러오지 못했습니다.');
+              : '마지막으로 확인한 봇 목록을 표시합니다.');
           }
         }
       } finally {
@@ -1338,9 +1338,17 @@ export function BotsView({
 
     void refresh();
     const timer = window.setInterval(() => void refresh(), pollIntervalMs);
+    /* Polls skip while the tab is hidden, so a tab opened in the background
+       would otherwise sit on the loading state until the next interval tick.
+       Becoming visible refreshes immediately instead. */
+    const refreshOnVisible = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    document.addEventListener('visibilitychange', refreshOnVisible);
     return () => {
       controller.abort();
       window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshOnVisible);
     };
   }, [operationsClient, pollIntervalMs]);
 
@@ -1627,7 +1635,7 @@ export function BotsView({
     />}
     {operationsError && <ErrorState
       title={operationsError}
-      detail={operations === null ? '잠시 후 다시 시도해 주세요.' : '이전에 서버에서 확인한 목록은 그대로 유지합니다.'}
+      detail={operations === null ? '잠시 후 다시 시도해 주세요.' : '최신 실행 상태를 불러오지 못해 이전에 서버에서 확인한 목록을 유지합니다.'}
     />}
     {judgmentsError && <p className="bots-decision-note" role="status">{judgmentsError}</p>}
 

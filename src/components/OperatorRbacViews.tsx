@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, KeyRound, LoaderCircle, RefreshCw, ShieldCheck, Users } from 'lucide-react';
-import { Button, EmptyState, PageHeading, Panel, Status } from './common';
+import { KeyRound, LoaderCircle, ShieldCheck, Users } from 'lucide-react';
+import { Button, EmptyState, ErrorState, PageHeading, Panel, Status } from './common';
 import { OperatorRbacApiError } from '../api/operatorRbac';
 import type { OperatorAssignments, OperatorCatalog, OperatorRbacClient, OperatorSelf } from '../api/operatorRbac';
 
@@ -134,8 +134,9 @@ export function OperatorReadError({ error, retry }: { error: OperatorRbacApiErro
       : error.notFound ? '조회할 수 있는 운영자를 찾지 못했습니다.'
         : error.conflict ? '권한 카탈로그 버전이 변경되었습니다. 최신 상태로 다시 조회하세요.'
           : error.retryable ? '운영자 권한 서비스에 일시적으로 연결할 수 없습니다.' : '운영자 권한 응답을 처리하지 못했습니다.';
-  return <div className="case-api-error" role="alert">
-    <AlertTriangle size={17} /><div><strong>{message}</strong><span>{error.code}</span>{error.correlationId && <small>문의 코드 {error.correlationId}</small>}</div>
-    {retry && <Button onClick={() => void retry()}><RefreshCw size={14} />다시 시도</Button>}
-  </div>;
+  return <ErrorState
+    title={message}
+    detail={<>오류 코드 {error.code}{error.correlationId && <> · 문의 코드 {error.correlationId}</>}</>}
+    onRetry={retry ? () => void retry() : undefined}
+  />;
 }

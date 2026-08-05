@@ -81,7 +81,10 @@ describe('Signal product UI', () => {
 
   test('moves to bot operations after launching a personal bot', async () => {
     const user = userEvent.setup();
-    window.history.replaceState({}, '', '/strategies/new/basic');
+    // Direct entry now opens blank; the seeded canvas needs the router state an
+    // in-app "open existing" navigation would carry (BrowserRouter keeps
+    // location.state under history.state.usr).
+    window.history.replaceState({ usr: { blank: false } }, '', '/strategies/new/basic');
     render(<App />);
 
     const buyRsi = screen.getByTestId('buy-rsi-block');
@@ -329,7 +332,11 @@ describe('Signal product UI', () => {
 
     await user.click(screen.getByRole('button', { name: '알림' }));
     const dialog = screen.getByRole('dialog', { name: '최근 알림' });
-    await waitFor(() => expect(within(dialog).getByRole('alert')).toHaveTextContent('AUTHENTICATION_REQUIRED'));
+    // Signed-out renders as the sign-in state — no raw error code, and the only
+    // offered action is the one that resolves it.
+    await waitFor(() => expect(within(dialog).getByRole('status')).toHaveTextContent('로그인이 필요합니다.'));
+    expect(within(dialog).queryByText(/AUTHENTICATION_REQUIRED/)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: '로그인' })).toBeInTheDocument();
     expect(within(dialog).queryByText(/Atlas 07/)).not.toBeInTheDocument();
   });
 
@@ -499,8 +506,9 @@ describe('Signal product UI', () => {
   });
 
   test('keeps natural-language rule notes attached to the selected Basic strategy card', () => {
-    // The create flow now opens a blank canvas, so reach the seeded editor directly.
-    window.history.replaceState({}, '', '/strategies/new/basic');
+    // The create flow and direct entry both open a blank canvas now, so the
+    // seeded editor needs the router state an in-app navigation would carry.
+    window.history.replaceState({ usr: { blank: false } }, '', '/strategies/new/basic');
     render(<App initialVariant="balanced" />);
     expect(screen.getAllByRole('note')).toHaveLength(2);
     expect(screen.getByTestId('basic-narrative-budget')).toHaveTextContent('전략 예산');

@@ -41,7 +41,7 @@ describe('UserCasePanel', () => {
     await userEvent.type(screen.getByLabelText('케이스 제목'), '문의');
     await userEvent.type(screen.getByLabelText('케이스 설명'), '내용');
     await userEvent.click(screen.getByRole('button', { name: '접수하기' }));
-    expect(await screen.findByText('문의 코드 corr-case')).toBeInTheDocument();
+    expect(await screen.findByText(/문의 코드 corr-case/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: '다시 시도' }));
     await screen.findByText('추적 번호 case-1 · 버전 1');
     expect(createIdempotencyKey).toHaveBeenCalledTimes(1);
@@ -72,8 +72,8 @@ describe('OperatorCaseWorkspace', () => {
 
   it('fails closed with a permission-specific message', async () => {
     render(<OperatorCaseWorkspace client={client({ operatorCaseQueue: vi.fn().mockRejectedValue(new AccountOperationsApiError(403, 'OPERATOR_PERMISSION_REQUIRED', 'corr-permission')) })} />);
-    expect(await screen.findByText('이 작업에 필요한 로그인 또는 운영 권한이 없습니다.')).toBeInTheDocument();
-    expect(screen.getByText('문의 코드 corr-permission')).toBeInTheDocument();
+    expect(await screen.findByText('이 작업에 필요한 운영 권한이 없습니다.')).toBeInTheDocument();
+    expect(screen.getByText(/문의 코드 corr-permission/)).toBeInTheDocument();
   });
 
   it('requires an explicit high-risk confirmation and sends the complete sanction command', async () => {

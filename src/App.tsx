@@ -181,15 +181,22 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
           <div>{notificationState.kind === 'loading'
             ? <div role="status">알림을 불러오는 중입니다.</div>
             : notificationState.kind === 'error'
-              ? <div role="alert">
-                <strong>{notificationState.error.authenticationRequired ? '로그인이 필요합니다.' : '알림을 불러오지 못했습니다.'}</strong>
-                <small>{notificationState.error.code}</small>
-                {notificationState.error.authenticationRequired && <button
-                  type="button"
-                  onClick={() => { setOpenPanel(null); navigate('/login', { state: { returnTo: location.pathname } }); }}
-                >로그인</button>}
-                <button type="button" onClick={() => setNotificationReload((value) => value + 1)}>다시 시도</button>
-              </div>
+              ? notificationState.error.authenticationRequired
+                /* Signed-out is not a failure: no raw error code, and the only
+                   offered action is the one that resolves it. */
+                ? <div role="status">
+                  <strong>로그인이 필요합니다.</strong>
+                  <small>알림은 로그인 후 확인할 수 있습니다.</small>
+                  <button
+                    type="button"
+                    onClick={() => { setOpenPanel(null); navigate('/login', { state: { returnTo: location.pathname } }); }}
+                  >로그인</button>
+                </div>
+                : <div role="alert">
+                  <strong>알림을 불러오지 못했습니다.</strong>
+                  <small>오류 코드 {notificationState.error.code}</small>
+                  <button type="button" onClick={() => setNotificationReload((value) => value + 1)}>다시 시도</button>
+                </div>
               : notificationState.kind === 'ready' && notificationState.items.length === 0
                 ? <div role="status">새 알림이 없습니다.</div>
                 : notificationState.kind === 'ready' && notificationState.items.map((item) => <button
@@ -332,10 +339,11 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
   const openEditor = (mode: 'basic' | 'pro', blank = false, strategyId?: string) => {
     navigate(`/strategies/new/${mode}`, { state: { blank, strategyId } });
   };
-  // A freshly created strategy opens on a blank canvas; opening an existing one
-  // (or landing on the URL directly) keeps the seeded editor.
+  // A freshly created strategy opens on a blank canvas. Landing on the editor
+  // URL directly (or refreshing it) also opens blank: there is no strategy
+  // behind it, so seeding a demo strategy would show data the user never made.
   const editorState = location.state as { blank?: boolean; strategyId?: string } | null;
-  const editorBlank = Boolean(editorState?.blank);
+  const editorBlank = editorState ? Boolean(editorState.blank) : true;
   const changeBotIcon = (botName: string, selection: BotIconSelection) => {
     setBotIcons((current) => ({ ...current, [botName]: selection }));
   };

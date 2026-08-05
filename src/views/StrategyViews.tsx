@@ -1224,22 +1224,30 @@ interface BasicEditorProps {
 }
 
 export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, strategyId, authoringClient = automaticStrategyAuthoringClient, catalogClient = automaticStrategyCatalogClient }: BasicEditorProps) {
+  /*
+    When a real strategy is behind the editor, the canvas starts empty and the
+    saved document fills it. Seeding the demo strategy here would show — and on
+    the next save, persist — partitions the user never made whenever the saved
+    document carries no presentation snapshot yet. The demo seed remains only
+    for the standalone prototype flow with no strategy and no API behind it.
+  */
+  const startBlank = blank || Boolean(strategyId && authoringClient);
   const [activeSectionId, setActiveSectionId] = useState('section-1');
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(blank ? null : 'primary-buy');
-  const [sections, setSections] = useState<StrategySection[]>(blank ? createBlankStrategySections : INITIAL_STRATEGY_SECTIONS);
-  const [cardBlocks, setCardBlocks] = useState<Record<string, BasicBlock[]>>(blank ? {} : INITIAL_CARD_BLOCKS);
-  const [cardMeta, setCardMeta] = useState<Record<string, CardMeta>>(blank ? {} : INITIAL_CARD_META);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(startBlank ? null : 'primary-buy');
+  const [sections, setSections] = useState<StrategySection[]>(startBlank ? createBlankStrategySections : INITIAL_STRATEGY_SECTIONS);
+  const [cardBlocks, setCardBlocks] = useState<Record<string, BasicBlock[]>>(startBlank ? {} : INITIAL_CARD_BLOCKS);
+  const [cardMeta, setCardMeta] = useState<Record<string, CardMeta>>(startBlank ? {} : INITIAL_CARD_META);
   const [editingCardTitleId, setEditingCardTitleId] = useState<string | null>(null);
   const [cardTitleDraft, setCardTitleDraft] = useState('');
   const [expandedSettingsCardId, setExpandedSettingsCardId] = useState<string | null>(null);
   const [buySettings, setBuySettings] = useState<Record<string, BuyContainerSettings>>(
-    blank ? {} : { 'primary-buy': createDefaultBuySettings() },
+    startBlank ? {} : { 'primary-buy': createDefaultBuySettings() },
   );
   const [sellSettings, setSellSettings] = useState<Record<string, SellContainerSettings>>(
-    blank ? {} : { 'primary-sell': createDefaultSellSettings() },
+    startBlank ? {} : { 'primary-sell': createDefaultSellSettings() },
   );
   const [symbolLimits, setSymbolLimits] = useState<Record<string, Record<string, number>>>(
-    blank ? { 'section-1': {} } : { 'section-1': { AAPL: 40, MSFT: 40, SPY: 40 } },
+    startBlank ? { 'section-1': {} } : { 'section-1': { AAPL: 40, MSFT: 40, SPY: 40 } },
   );
   const [symbolManagerSectionId, setSymbolManagerSectionId] = useState<string | null>(null);
   const [draggedBlock, setDraggedBlock] = useState<{ cardId: string; blockId: string } | null>(null);
