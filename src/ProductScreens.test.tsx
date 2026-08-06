@@ -88,7 +88,7 @@ describe('Bot operations', () => {
 
     await waitFor(() => expect(screen.getAllByText('데이터 저하').length).toBeGreaterThan(0));
     expect(screen.getByText('실행 차단 사유: MARKET_DATA_STALE')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('실시간 API')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('시세 데이터 대기')).toBeInTheDocument());
     await user.click(screen.getByRole('tab', { name: /판단 기록/ }));
     await waitFor(() => expect(screen.getByText('MSFT 1주 · $200')).toBeInTheDocument());
     expect(screen.getAllByText('AAPL 2주 · $100')).toHaveLength(1);
