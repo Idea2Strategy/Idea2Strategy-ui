@@ -171,7 +171,7 @@ test.describe('backtest screens against the /api/v1 contract', () => {
 
     const gate = page.getByTestId('backtest-session-gate');
     await expect(gate).toHaveAttribute('data-reason', 'rejected');
-    await expect(gate.getByRole('status')).toContainText('로그인 세션이 더 이상 유효하지 않습니다.');
+    await expect(gate.getByRole('status')).toContainText('로그인이 필요합니다');
 
     // Leaving and revisiting the screen in-app must not resurrect the refused
     // token: it is gone, so the visit stays at the gate and sends nothing.

@@ -227,7 +227,7 @@ describe('Signal product UI', () => {
     // Signed out, the whole account page is the shared sign-in state — no
     // fabricated identity, no per-panel apologies, and display settings live
     // behind the top-bar gear instead.
-    expect(screen.getByText('계정 정보와 설정은 로그인 후 관리할 수 있습니다.')).toBeInTheDocument();
+    expect(screen.getByText('이 화면은 로그인 후 이용할 수 있습니다.')).toBeInTheDocument();
     expect(screen.queryByText('김전략')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '접근 보안' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '화면 설정' })).not.toBeInTheDocument();

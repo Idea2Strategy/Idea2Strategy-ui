@@ -7,6 +7,7 @@ const render = (ui: ReactElement) => renderBare(<MemoryRouter>{ui}</MemoryRouter
 const wrap = (ui: ReactElement) => <MemoryRouter>{ui}</MemoryRouter>;
 import { describe, expect, test, vi } from 'vitest';
 import { BotOperationsApiError } from './api/botOperations';
+import { setSessionAccessToken } from './api/sessionAccessToken';
 import type { BotOperationsClient, BotOperationsView } from './api/botOperations';
 import { StrategyApiError } from './api/strategies';
 import type { StrategyLibraryClient, StrategyLibraryPage } from './api/strategies';
@@ -172,11 +173,24 @@ describe('production runtime honesty', () => {
     expect(screen.queryByText('봇 목록을 불러오지 못했습니다.')).not.toBeInTheDocument();
   });
 
-  test('production dashboard deactivates synthetic performance while its aggregate API is absent', () => {
+  test('a signed-out production dashboard is the shared sign-in page, with no synthetic performance', () => {
     render(<DashboardView setPage={() => {}} dataSource="unavailable" />);
 
-    expect(screen.getByRole('alert')).toHaveTextContent('운영 대시보드 데이터를 아직 제공할 수 없습니다.');
+    expect(screen.getByRole('status')).toHaveTextContent('로그인이 필요합니다');
     expect(screen.queryByText('$10,540.00')).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/수익률 차트/)).not.toBeInTheDocument();
+  });
+
+  test('a signed-in production dashboard deactivates synthetic performance while its aggregate API is absent', () => {
+    setSessionAccessToken('dashboard-session');
+    try {
+      render(<DashboardView setPage={() => {}} dataSource="unavailable" />);
+
+      expect(screen.getByRole('alert')).toHaveTextContent('운영 대시보드 데이터를 아직 제공할 수 없습니다.');
+      expect(screen.queryByText('$10,540.00')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/수익률 차트/)).not.toBeInTheDocument();
+    } finally {
+      setSessionAccessToken(null);
+    }
   });
 });

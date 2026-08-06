@@ -401,7 +401,7 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
     it, so every screen fails the same way.
   */
   if (signInRequired && items === null) {
-    return <SignInRequiredPage detail="내 전략 목록은 로그인 후 확인할 수 있습니다." />;
+    return <SignInRequiredPage />;
   }
   if (libraryError && items === null) {
     return <ErrorPage
