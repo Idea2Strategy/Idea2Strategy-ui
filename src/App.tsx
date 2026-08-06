@@ -151,22 +151,35 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
     }
     let lastY = window.scrollY;
     let settleTimer: number | undefined;
-    /* The landing's cinematic hero owns only the very top of the screen: the
-       bar tucks away for the opening beats, then starts easing back down five
-       viewports ahead of the first content section ("전략을 검증하는 작업대")
-       — roughly a third of the way through the story. */
-    const pastLandingHero = () => {
+    /*
+      The landing's cinematic motion owns the screen for exactly as long as it
+      plays. The hero writes its act onto the page root: `data-act-line` "3"
+      is the timeline's own "done" state (the last story line has exited), and
+      that is the moment the bar starts back down. The features check is the
+      reduced-motion fallback, where the acts never advance.
+    */
+    const landingMotion = (): 'none' | 'playing' | 'done' => {
+      const landing = document.querySelector('.landing-page');
+      if (!landing) return 'none';
+      if (landing.getAttribute('data-act-line') === '3') return 'done';
       const features = document.querySelector('.landing-features');
-      return features !== null && features.getBoundingClientRect().top < window.innerHeight * 5;
+      if (features && features.getBoundingClientRect().top < window.innerHeight) return 'done';
+      return 'playing';
     };
     const onScroll = () => {
       const y = window.scrollY;
-      if (y < 32 || pastLandingHero()) setTopbarHidden(false);
+      const motion = landingMotion();
+      if (motion === 'playing' && y >= 32) setTopbarHidden(true);
+      else if (y < 32 || motion === 'done') setTopbarHidden(false);
       else if (y > lastY + 2) setTopbarHidden(true);
       else if (y < lastY - 2) setTopbarHidden(false);
       lastY = y;
       if (settleTimer !== undefined) window.clearTimeout(settleTimer);
-      settleTimer = window.setTimeout(() => setTopbarHidden(false), 700);
+      settleTimer = window.setTimeout(() => {
+        /* Coming to rest reveals the bar everywhere except mid-motion — the
+           story asked for the whole screen until it has finished. */
+        if (landingMotion() !== 'playing') setTopbarHidden(false);
+      }, 700);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
