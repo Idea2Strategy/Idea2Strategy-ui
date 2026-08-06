@@ -1,8 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AccountApiError } from '../api/account';
 import type { AccountClient, AccountPreferences, LifecycleResult, SessionView } from '../api/account';
+import { getSessionAccessToken, setSessionTokens } from '../api/sessionAccessToken';
+import { browserSessionStore, SESSION_STORAGE_KEY } from '../lib/session';
 import { AccountApiPanels } from './AccountApiPanels';
 
 const session: SessionView = {
@@ -62,6 +64,24 @@ function client(overrides: Partial<AccountClient> = {}): AccountClient {
   };
 }
 
+/*
+  The signed-in decision lives in two stores: the in-memory token and the tab
+  session. Tests that seed them must leave both empty for the next test.
+*/
+function seedTabSession() {
+  window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+    accessToken: 'dead-token',
+    accountId: 'account-1',
+    expiresAt: '2099-01-01T00:00:00Z',
+  }));
+  setSessionTokens('dead-token', null);
+}
+
+afterEach(() => {
+  setSessionTokens(null, null);
+  browserSessionStore.signOut();
+});
+
 describe('AccountApiPanels', () => {
   it('shows loading until both session and preference requests complete', async () => {
     const sessions = deferred<SessionView[]>();
@@ -76,7 +96,8 @@ describe('AccountApiPanels', () => {
     expect(screen.getByDisplayValue('Asia/Seoul')).toBeInTheDocument();
   });
 
-  it('renders a 401 as the shared sign-in state without raw error codes', async () => {
+  it('renders a 401 as the shared sign-in state and drops the rejected session', async () => {
+    seedTabSession();
     const sessions = vi.fn()
       .mockRejectedValue(new AccountApiError(401, 'AUTHENTICATION_REQUIRED', 'corr-load-401'));
     const accountClient = client({ sessions });
@@ -90,49 +111,35 @@ describe('AccountApiPanels', () => {
     expect(screen.queryByText(/AUTHENTICATION_REQUIRED/)).toBeNull();
     expect(screen.queryByText(/corr-load-401/)).toBeNull();
     expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull();
-    // The way back in renders right below, in the same panel.
-    expect(screen.getByLabelText('로그인 이메일')).toBeInTheDocument();
+    // The dead session is gone from both stores, so the route guard redirects
+    // to the dedicated /login screen instead of leaving a signed-in shell. The
+    // inline login and signup forms are that screen's job, not this panel's.
+    expect(getSessionAccessToken()).toBeNull();
+    expect(browserSessionStore.read()).toEqual({ status: 'anonymous', reason: 'rejected' });
+    expect(screen.queryByLabelText('로그인 이메일')).toBeNull();
+    expect(screen.queryByText('가입 · 이메일 인증 · 비밀번호 복구')).toBeNull();
   });
 
-  it('logs in through the exact email session endpoint and reloads protected account data', async () => {
+  it('signs the tab out through the exact session endpoint', async () => {
     const user = userEvent.setup();
-    const sessions = vi.fn()
-      .mockRejectedValueOnce(new AccountApiError(401, 'AUTHENTICATION_REQUIRED', 'corr-auth'))
-      .mockResolvedValueOnce([session]);
-    const login = vi.fn().mockResolvedValue({ accountId: 'account-1', sessionId: 'session-1', sessionToken: 'token', expiresAt: session.expiresAt });
-    render(<AccountApiPanels client={client({ sessions, login })} />);
+    const logoutCurrent = vi.fn().mockResolvedValue(undefined);
+    render(<AccountApiPanels client={client({ logoutCurrent })} />);
 
-    await user.type(await screen.findByLabelText('로그인 이메일'), 'user@example.com');
-    await user.type(screen.getByLabelText('로그인 비밀번호'), 'password');
-    await user.click(screen.getByRole('button', { name: '로그인' }));
+    await user.click(await screen.findByRole('button', { name: '로그아웃' }));
 
-    await screen.findByText('Chrome');
-    expect(login).toHaveBeenCalledWith('user@example.com', 'password', 'Web browser');
-    expect(sessions).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(logoutCurrent).toHaveBeenCalledTimes(1));
   });
 
-  it('offers signup, verification, and non-enumerating recovery while signed out', async () => {
+  it('still signs the tab out locally when the logout request fails', async () => {
     const user = userEvent.setup();
-    const signup = vi.fn().mockResolvedValue({ accountId: 'account-1', verificationExpiresAt: '2026-08-04T00:00:00Z' });
-    const verifyEmail = vi.fn().mockResolvedValue({ accountId: 'account-1', status: 'ACTIVE' });
-    const requestPasswordReset = vi.fn().mockResolvedValue(undefined);
-    const sessions = vi.fn().mockRejectedValue(new AccountApiError(401, 'AUTHENTICATION_REQUIRED', null));
-    render(<AccountApiPanels client={client({ sessions, signup, verifyEmail, requestPasswordReset })} />);
+    seedTabSession();
+    const logoutCurrent = vi.fn().mockRejectedValue(new AccountApiError(0, 'NETWORK_ERROR', null));
+    render(<AccountApiPanels client={client({ logoutCurrent })} />);
 
-    await user.click(await screen.findByText('가입 · 이메일 인증 · 비밀번호 복구'));
-    await user.type(screen.getByLabelText('인증 이메일'), 'user@example.com');
-    await user.type(screen.getByLabelText('인증 비밀번호'), 'strong-password');
-    await user.click(screen.getByRole('button', { name: '가입' }));
-    expect(signup).toHaveBeenCalledWith('user@example.com', 'strong-password');
+    await user.click(await screen.findByRole('button', { name: '로그아웃' }));
 
-    await user.clear(screen.getByLabelText('인증 토큰'));
-    await user.type(screen.getByLabelText('인증 토큰'), 'verify-token');
-    await user.click(screen.getByRole('button', { name: '이메일 인증' }));
-    expect(verifyEmail).toHaveBeenCalledWith('verify-token');
-
-    await user.click(screen.getByRole('button', { name: '재설정 요청' }));
-    expect(requestPasswordReset).toHaveBeenCalledWith('user@example.com');
-    expect(screen.getByText('계정 존재 여부와 관계없이 복구 요청을 접수했습니다.')).toBeInTheDocument();
+    await waitFor(() => expect(getSessionAccessToken()).toBeNull());
+    expect(browserSessionStore.read().status).toBe('anonymous');
   });
 
   it('renders a 403 action error with correlation evidence and retries safely', async () => {
@@ -145,6 +152,8 @@ describe('AccountApiPanels', () => {
 
     render(<AccountApiPanels client={accountClient} createIdempotencyKey={createIdempotencyKey} />);
     await screen.findByRole('heading', { name: '계정 생명주기' });
+    // The destructive actions sit behind the danger-zone fold.
+    await user.click(screen.getByText('탈퇴 요청 · 취소 · 재활성화'));
     await user.type(screen.getByRole('textbox', { name: '계정 확인 이메일' }), 'user@example.com');
     fireEvent.change(screen.getByLabelText('계정 확인 비밀번호'), { target: { value: 'password' } });
     await user.click(screen.getByRole('button', { name: '탈퇴 요청' }));
