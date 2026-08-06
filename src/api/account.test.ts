@@ -5,8 +5,9 @@ describe('account API client', () => {
   it('stores the one-time login token and sends correlation evidence', async () => {
     const setAccessToken = vi.fn();
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      accountId: 'account-1', sessionId: 'session-1', sessionToken: 'secret-session',
-      expiresAt: '2026-08-03T00:00:00Z',
+      accountId: 'account-1', sessionId: 'session-1', tokenType: 'Bearer',
+      accessToken: 'access-jwt', refreshToken: 'refresh-jwt',
+      accessExpiresAt: '2026-08-03T00:00:00Z', refreshExpiresAt: '2026-08-03T12:00:00Z',
     }), { status: 200 }));
     const client = createAccountClient({
       baseUrl: 'https://api.example.com/', fetchImpl, setAccessToken,
@@ -15,7 +16,7 @@ describe('account API client', () => {
 
     await client.login('user@example.com', 'password', 'browser');
 
-    expect(setAccessToken).toHaveBeenCalledWith('secret-session');
+    expect(setAccessToken).toHaveBeenCalledWith('access-jwt');
     expect(fetchImpl).toHaveBeenCalledWith('https://api.example.com/api/v1/auth/login', expect.objectContaining({
       method: 'POST', credentials: 'include',
       headers: expect.objectContaining({ 'X-Correlation-Id': 'correlation-1' }),
@@ -26,8 +27,9 @@ describe('account API client', () => {
     const setAccessToken = vi.fn();
     const signIn = vi.fn();
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      accountId: 'account-9', sessionId: 'session-9', sessionToken: 'google-session',
-      expiresAt: '2026-08-07T00:00:00Z',
+      accountId: 'account-9', sessionId: 'session-9', tokenType: 'Bearer',
+      accessToken: 'google-access', refreshToken: 'google-refresh',
+      accessExpiresAt: '2026-08-07T00:00:00Z', refreshExpiresAt: '2026-08-07T12:00:00Z',
     }), { status: 200 }));
     const client = createAccountClient({
       baseUrl: 'https://api.example.com', fetchImpl, setAccessToken,
@@ -35,14 +37,17 @@ describe('account API client', () => {
       createCorrelationId: () => 'correlation-google',
     });
 
-    await client.loginWithGoogle!('google-id-token', 'Web browser');
+    await client.loginWithGoogle!('google-id-token', 'nonce-1', 'Web browser');
 
-    expect(fetchImpl).toHaveBeenCalledWith('https://api.example.com/api/v1/auth/oauth/google', expect.objectContaining({
+    expect(fetchImpl).toHaveBeenCalledWith('https://api.example.com/api/v1/auth/oidc/login', expect.objectContaining({
       method: 'POST',
-      body: JSON.stringify({ idToken: 'google-id-token', deviceLabel: 'Web browser' }),
+      body: JSON.stringify({ providerCode: 'GOOGLE', idToken: 'google-id-token', expectedNonce: 'nonce-1', deviceLabel: 'Web browser' }),
     }));
-    expect(setAccessToken).toHaveBeenCalledWith('google-session');
-    expect(signIn).toHaveBeenCalledWith({ accessToken: 'google-session', accountId: 'account-9', expiresAt: '2026-08-07T00:00:00Z' });
+    expect(setAccessToken).toHaveBeenCalledWith('google-access');
+    expect(signIn).toHaveBeenCalledWith({
+      accessToken: 'google-access', refreshToken: 'google-refresh', accountId: 'account-9',
+      expiresAt: '2026-08-07T00:00:00Z', refreshExpiresAt: '2026-08-07T12:00:00Z',
+    });
   });
 
   it('sends authorization and idempotency headers for withdrawal', async () => {
@@ -117,11 +122,15 @@ describe('account API client', () => {
   it('rotates the exact backend session contract and replaces the in-memory token', async () => {
     const setAccessToken = vi.fn();
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      sessionId: 'session-2', sessionToken: 'rotated-token', expiresAt: '2026-08-04T00:00:00Z',
+      sessionId: 'session-2', tokenType: 'Bearer', accessToken: 'rotated-access', refreshToken: 'rotated-refresh',
+      accessExpiresAt: '2026-08-04T00:00:00Z', refreshExpiresAt: '2026-08-04T12:00:00Z',
     }), { status: 200 }));
     await expect(createAccountClient({ fetchImpl, getAccessToken: () => 'old-token', setAccessToken }).rotateSession())
-      .resolves.toEqual({ sessionId: 'session-2', sessionToken: 'rotated-token', expiresAt: '2026-08-04T00:00:00Z' });
-    expect(setAccessToken).toHaveBeenCalledWith('rotated-token');
+      .resolves.toEqual({
+        sessionId: 'session-2', tokenType: 'Bearer', accessToken: 'rotated-access', refreshToken: 'rotated-refresh',
+        accessExpiresAt: '2026-08-04T00:00:00Z', refreshExpiresAt: '2026-08-04T12:00:00Z',
+      });
+    expect(setAccessToken).toHaveBeenCalledWith('rotated-access');
   });
 
   it('uses non-enumerating password recovery request and reset contracts', async () => {

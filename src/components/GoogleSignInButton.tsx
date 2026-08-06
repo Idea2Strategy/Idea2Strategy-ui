@@ -25,6 +25,7 @@ interface GoogleIdApi {
     id: {
       initialize(config: {
         client_id: string;
+        nonce: string;
         callback: (response: GoogleCredentialResponse) => void;
         ux_mode?: 'popup' | 'redirect';
       }): void;
@@ -91,8 +92,12 @@ export function GoogleSignInButton({
     let disposed = false;
     void loadGoogleIdentity().then((google) => {
       if (disposed || !mountRef.current) return;
+      const nonceBytes = crypto.getRandomValues(new Uint8Array(32));
+      const nonce = btoa(String.fromCharCode(...nonceBytes))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
       google.accounts.id.initialize({
         client_id: clientId,
+        nonce,
         ux_mode: 'popup',
         callback: (response) => {
           if (!response.credential) {
@@ -100,7 +105,7 @@ export function GoogleSignInButton({
             return;
           }
           setExchanging(true);
-          client.loginWithGoogle!(response.credential, 'Web browser')
+          client.loginWithGoogle!(response.credential, nonce, 'Web browser')
             .then(() => onSignedIn())
             .catch((cause: unknown) => {
               onFailure(cause instanceof AccountApiError ? cause : new AccountApiError(0, 'NETWORK_ERROR', null));

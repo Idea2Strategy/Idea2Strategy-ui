@@ -1,4 +1,9 @@
-import { getSessionAccessToken, setSessionAccessToken } from './sessionAccessToken';
+import {
+  getSessionAccessToken,
+  getSessionRefreshToken,
+  setSessionAccessToken,
+  setSessionTokens,
+} from './sessionAccessToken';
 import { browserSessionStore } from '../lib/session';
 import type { SessionStore } from '../lib/session';
 
@@ -24,9 +29,14 @@ export interface SessionView {
 export interface LoginResult {
   accountId: string;
   sessionId: string;
-  sessionToken: string;
-  expiresAt: string;
+  tokenType: 'Bearer';
+  accessToken: string;
+  refreshToken: string;
+  accessExpiresAt: string;
+  refreshExpiresAt: string;
 }
+
+export type RotatedTokenPair = Omit<LoginResult, 'accountId'>;
 
 export interface LifecycleResult {
   accountId: string;
@@ -52,7 +62,9 @@ interface AccountClientOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
   getAccessToken?: () => string | null;
+  getRefreshToken?: () => string | null;
   setAccessToken?: (token: string | null) => void;
+  setTokenPair?: (accessToken: string | null, refreshToken: string | null) => void;
   createCorrelationId?: () => string;
   /*
     The backtest screens read their credential from the tab session store, not
@@ -73,11 +85,11 @@ export interface AccountClient {
     only offer Google sign-in when a client id is configured AND the client
     implements this — never a dead button.
   */
-  loginWithGoogle?(idToken: string, deviceLabel?: string, signal?: AbortSignal): Promise<LoginResult>;
+  loginWithGoogle?(idToken: string, expectedNonce: string, deviceLabel?: string, signal?: AbortSignal): Promise<LoginResult>;
   requestPasswordReset(email: string, signal?: AbortSignal): Promise<boolean>;
   resetPassword(resetToken: string, newPassword: string, signal?: AbortSignal): Promise<void>;
   sessions(signal?: AbortSignal): Promise<SessionView[]>;
-  rotateSession(signal?: AbortSignal): Promise<{ sessionId: string; sessionToken: string; expiresAt: string }>;
+  rotateSession(signal?: AbortSignal): Promise<RotatedTokenPair>;
   logoutCurrent(signal?: AbortSignal): Promise<void>;
   logoutSession(sessionId: string, signal?: AbortSignal): Promise<void>;
   logoutAll(signal?: AbortSignal): Promise<void>;
@@ -92,13 +104,26 @@ export function createAccountClient({
   baseUrl = '',
   fetchImpl = fetch,
   getAccessToken,
+  getRefreshToken,
   setAccessToken,
+  setTokenPair,
   createCorrelationId = () => crypto.randomUUID(),
   sessionStore,
 }: AccountClientOptions = {}): AccountClient {
   const root = baseUrl.replace(/\/$/, '');
   const requireSession = () => {
-    if (!getAccessToken?.()) throw new AccountApiError(401, 'AUTHENTICATION_REQUIRED', createCorrelationId());
+    if (!getRefreshToken?.() && !getAccessToken?.()) throw new AccountApiError(401, 'AUTHENTICATION_REQUIRED', createCorrelationId());
+  };
+  const publishTokens = (result: LoginResult) => {
+    setTokenPair?.(result.accessToken, result.refreshToken);
+    if (!setTokenPair) setAccessToken?.(result.accessToken);
+    sessionStore?.signIn({
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      accountId: result.accountId,
+      expiresAt: result.accessExpiresAt,
+      refreshExpiresAt: result.refreshExpiresAt,
+    });
   };
   const request = async (path: string, init: RequestInit = {}) => {
     const correlationId = createCorrelationId();
@@ -159,28 +184,18 @@ export function createAccountClient({
       const value = object(await (await request('/api/v1/auth/login', {
         method: 'POST', signal, body: JSON.stringify({ email, password, deviceLabel: deviceLabel ?? null }),
       })).json());
-      const result = {
-        accountId: string(value.accountId, 'accountId'),
-        sessionId: string(value.sessionId, 'sessionId'),
-        sessionToken: string(value.sessionToken, 'sessionToken'),
-        expiresAt: string(value.expiresAt, 'expiresAt'),
-      };
-      setAccessToken?.(result.sessionToken);
-      sessionStore?.signIn({ accessToken: result.sessionToken, accountId: result.accountId, expiresAt: result.expiresAt });
+      const result = readLoginResult(value);
+      publishTokens(result);
       return result;
     },
-    async loginWithGoogle(idToken, deviceLabel, signal) {
-      const value = object(await (await request('/api/v1/auth/oauth/google', {
-        method: 'POST', signal, body: JSON.stringify({ idToken, deviceLabel: deviceLabel ?? null }),
+    async loginWithGoogle(idToken, expectedNonce, deviceLabel, signal) {
+      const value = object(await (await request('/api/v1/auth/oidc/login', {
+        method: 'POST', signal, body: JSON.stringify({
+          providerCode: 'GOOGLE', idToken, expectedNonce, deviceLabel: deviceLabel ?? null,
+        }),
       })).json());
-      const result = {
-        accountId: string(value.accountId, 'accountId'),
-        sessionId: string(value.sessionId, 'sessionId'),
-        sessionToken: string(value.sessionToken, 'sessionToken'),
-        expiresAt: string(value.expiresAt, 'expiresAt'),
-      };
-      setAccessToken?.(result.sessionToken);
-      sessionStore?.signIn({ accessToken: result.sessionToken, accountId: result.accountId, expiresAt: result.expiresAt });
+      const result = readLoginResult(value);
+      publishTokens(result);
       return result;
     },
     async requestPasswordReset(email, signal) {
@@ -197,41 +212,53 @@ export function createAccountClient({
     },
     async sessions(signal) {
       requireSession();
-      const value = await (await request('/api/v1/auth/sessions', { signal })).json();
+      const value = await (await request('/api/v1/auth/sessions', {
+        signal, headers: { Authorization: `Bearer ${getRefreshToken?.() ?? getAccessToken?.()}` },
+      })).json();
       if (!Array.isArray(value)) throw new Error('Invalid sessions response');
       return value.map(readSession);
     },
     async rotateSession(signal) {
       requireSession();
-      const value = object(await (await request('/api/v1/auth/sessions/rotate', { method: 'POST', signal })).json());
-      const rotated = {
-        sessionId: string(value.sessionId, 'sessionId'),
-        sessionToken: string(value.sessionToken, 'sessionToken'),
-        expiresAt: string(value.expiresAt, 'expiresAt'),
-      };
-      setAccessToken?.(rotated.sessionToken);
+      const value = object(await (await request('/api/v1/auth/sessions/rotate', {
+        method: 'POST', signal, headers: { Authorization: `Bearer ${getRefreshToken?.() ?? getAccessToken?.()}` },
+      })).json());
+      const rotated = readRotatedTokenPair(value);
+      setTokenPair?.(rotated.accessToken, rotated.refreshToken);
+      if (!setTokenPair) setAccessToken?.(rotated.accessToken);
       if (sessionStore) {
         const current = sessionStore.read();
         if (current.status === 'authenticated') {
-          sessionStore.signIn({ accessToken: rotated.sessionToken, accountId: current.session.accountId, expiresAt: rotated.expiresAt });
+          sessionStore.signIn({
+            accessToken: rotated.accessToken,
+            refreshToken: rotated.refreshToken,
+            accountId: current.session.accountId,
+            expiresAt: rotated.accessExpiresAt,
+            refreshExpiresAt: rotated.refreshExpiresAt,
+          });
         }
       }
       return rotated;
     },
     async logoutCurrent(signal) {
       requireSession();
-      await request('/api/v1/auth/sessions/current', { method: 'DELETE', signal });
-      setAccessToken?.(null);
+      await request('/api/v1/auth/sessions/current', { method: 'DELETE', signal,
+        headers: { Authorization: `Bearer ${getRefreshToken?.() ?? getAccessToken?.()}` } });
+      setTokenPair?.(null, null);
+      if (!setTokenPair) setAccessToken?.(null);
       sessionStore?.signOut();
     },
     async logoutSession(sessionId, signal) {
       requireSession();
-      await request(`/api/v1/auth/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE', signal });
+      await request(`/api/v1/auth/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE', signal,
+        headers: { Authorization: `Bearer ${getRefreshToken?.() ?? getAccessToken?.()}` } });
     },
     async logoutAll(signal) {
       requireSession();
-      await request('/api/v1/auth/sessions', { method: 'DELETE', signal });
-      setAccessToken?.(null);
+      await request('/api/v1/auth/sessions', { method: 'DELETE', signal,
+        headers: { Authorization: `Bearer ${getRefreshToken?.() ?? getAccessToken?.()}` } });
+      setTokenPair?.(null, null);
+      if (!setTokenPair) setAccessToken?.(null);
       sessionStore?.signOut();
     },
     async preferences(signal) {
@@ -267,6 +294,24 @@ async function readError(response: Response, fallbackCorrelationId: string): Pro
     ? body.correlationId
     : response.headers.get('X-Correlation-Id') ?? fallbackCorrelationId;
   return new AccountApiError(response.status, code, correlationId);
+}
+
+function readLoginResult(value: Record<string, unknown>): LoginResult {
+  const pair = readRotatedTokenPair(value);
+  return { accountId: string(value.accountId, 'accountId'), ...pair };
+}
+
+function readRotatedTokenPair(value: Record<string, unknown>): RotatedTokenPair {
+  const tokenType = string(value.tokenType, 'tokenType');
+  if (tokenType !== 'Bearer') throw new Error('Invalid tokenType');
+  return {
+    sessionId: string(value.sessionId, 'sessionId'),
+    tokenType,
+    accessToken: string(value.accessToken, 'accessToken'),
+    refreshToken: string(value.refreshToken, 'refreshToken'),
+    accessExpiresAt: string(value.accessExpiresAt, 'accessExpiresAt'),
+    refreshExpiresAt: string(value.refreshExpiresAt, 'refreshExpiresAt'),
+  };
 }
 
 function readPreferences(value: unknown): AccountPreferences {
@@ -325,7 +370,35 @@ function nullableString(value: unknown): string | null {
 
 export const defaultAccountClient = createAccountClient({
   baseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
-  getAccessToken: getSessionAccessToken,
+  getAccessToken: () => getSessionAccessToken() ?? browserSessionStore.accessToken(),
+  getRefreshToken: () => getSessionRefreshToken() ?? browserSessionStore.refreshToken?.() ?? null,
   setAccessToken: setSessionAccessToken,
+  setTokenPair: setSessionTokens,
   sessionStore: browserSessionStore,
 });
+
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleDefaultRefresh() {
+  if (refreshTimer !== null) clearTimeout(refreshTimer);
+  refreshTimer = null;
+  const state = browserSessionStore.read();
+  if (state.status !== 'authenticated' || !state.session.refreshToken || !state.session.expiresAt) return;
+  setSessionTokens(state.session.accessToken, state.session.refreshToken);
+  const delay = Math.max(0, Math.min(Date.parse(state.session.expiresAt) - Date.now() - 60_000, 2_147_000_000));
+  refreshTimer = setTimeout(() => {
+    void defaultAccountClient.rotateSession().catch((cause: unknown) => {
+      if (cause instanceof AccountApiError && cause.status === 401) {
+        setSessionTokens(null, null);
+        browserSessionStore.signOut('rejected');
+        return;
+      }
+      refreshTimer = setTimeout(scheduleDefaultRefresh, 30_000);
+    });
+  }, delay);
+}
+
+if (typeof window !== 'undefined') {
+  browserSessionStore.subscribe(scheduleDefaultRefresh);
+  scheduleDefaultRefresh();
+}

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
 let accessToken: string | null = null;
+let refreshToken: string | null = null;
 const listeners = new Set<() => void>();
 
 /**
@@ -11,10 +12,19 @@ export function getSessionAccessToken() {
   return accessToken;
 }
 
-export function setSessionAccessToken(token: string | null) {
-  if (token === accessToken) return;
-  accessToken = token;
+export function getSessionRefreshToken() {
+  return refreshToken;
+}
+
+export function setSessionTokens(access: string | null, refresh: string | null) {
+  if (access === accessToken && refresh === refreshToken) return;
+  accessToken = access;
+  refreshToken = refresh;
   for (const listener of [...listeners]) listener();
+}
+
+export function setSessionAccessToken(token: string | null) {
+  setSessionTokens(token, token === null ? null : refreshToken);
 }
 
 export function subscribeSessionAccessToken(listener: () => void) {

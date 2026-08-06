@@ -9,7 +9,8 @@ import type { AccountClient } from '../api/account';
 */
 
 const clientWithGoogle = (loginWithGoogle = vi.fn().mockResolvedValue({
-  accountId: 'account-1', sessionId: 'session-1', sessionToken: 'token-1', expiresAt: null,
+  accountId: 'account-1', sessionId: 'session-1', tokenType: 'Bearer', accessToken: 'access-1',
+  refreshToken: 'refresh-1', accessExpiresAt: '2026-08-06T00:05:00Z', refreshExpiresAt: '2026-08-06T12:00:00Z',
 })): AccountClient => ({
   signup: vi.fn(), verifyEmail: vi.fn(), resendVerification: vi.fn(), login: vi.fn(),
   loginWithGoogle,
@@ -48,7 +49,8 @@ describe('GoogleSignInButton', () => {
       },
     };
     const loginWithGoogle = vi.fn().mockResolvedValue({
-      accountId: 'account-1', sessionId: 'session-1', sessionToken: 'token-1', expiresAt: null,
+      accountId: 'account-1', sessionId: 'session-1', tokenType: 'Bearer', accessToken: 'access-1',
+      refreshToken: 'refresh-1', accessExpiresAt: '2026-08-06T00:05:00Z', refreshExpiresAt: '2026-08-06T12:00:00Z',
     });
     const onSignedIn = vi.fn();
 
@@ -64,6 +66,6 @@ describe('GoogleSignInButton', () => {
     credentialCallback!({ credential: 'google-jwt' });
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(loginWithGoogle).toHaveBeenCalledWith('google-jwt', 'Web browser');
+    expect(loginWithGoogle).toHaveBeenCalledWith('google-jwt', expect.any(String), 'Web browser');
   });
 });

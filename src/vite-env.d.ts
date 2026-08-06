@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
+  readonly VITE_GOOGLE_OAUTH_CLIENT_ID?: string;
   readonly VITE_OPERATOR_OIDC_ENABLED?: string;
   readonly VITE_OPERATOR_OIDC_ISSUER?: string;
   readonly VITE_OPERATOR_OIDC_AUTHORIZATION_ENDPOINT?: string;
