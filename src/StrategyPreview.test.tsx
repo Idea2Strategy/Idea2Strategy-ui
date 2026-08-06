@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test } from 'vitest';
 import { BasicEditor } from './views/StrategyViews';
@@ -184,253 +184,38 @@ describe('strategy preview engine', () => {
   });
 });
 
-describe('Basic editor partition preview chart', () => {
-  test('opens only from the partition preview button, not from selecting the partition', () => {
-    render(<BasicEditor goBack={() => {}} />);
-
-    expect(screen.queryByTestId('strategy-preview-panel')).not.toBeInTheDocument();
-
-    /*
-      Selecting a partition must stay a plain selection: the preview is an
-      explicit choice, the same way the natural-language explanation is.
-      (fireEvent, not a pointer sequence: jsdom reports zero rects, so a
-      synthetic pointerup at 0,0 lands in the trash zone and deletes the
-      partition.)
-    */
-    fireEvent.click(screen.getByTestId('strategy-section-1'));
-    expect(screen.queryByTestId('strategy-preview-panel')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
-
-    const panel = screen.getByTestId('strategy-preview-panel');
-    /* A floating window, so it must live outside the zoom/pan canvas: a
-       transformed ancestor would become the containing block for the fixed
-       card and drag it around with the canvas. */
-    expect(screen.getByTestId('strategy-section-1')).not.toContainElement(panel);
-    expect(screen.getByTestId('section-world')).not.toContainElement(panel);
-    expect(Number.parseInt(panel.style.top, 10)).toBeGreaterThan(window.innerHeight / 2);
-    expect(Number.parseInt(panel.style.left, 10)).toBe(window.innerWidth - 320 - 28);
-    // The chart canvas is mounted; the chart library itself is skipped in jsdom.
-    expect(within(panel).getByTestId('strategy-preview-canvas')).toBeInTheDocument();
-  });
-
-  test('can be dragged anywhere on screen and moved with the keyboard', async () => {
+describe('Basic editor partition preview state', () => {
+  test('does not invent a graph, signals, or fallback symbols', async () => {
     const user = userEvent.setup();
-    render(<BasicEditor goBack={() => {}} />);
-
-    await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
-    const panel = screen.getByTestId('strategy-preview-panel');
-    const grip = screen.getByTestId('strategy-preview-grip');
-    const startLeft = panel.style.left;
-    const startTop = panel.style.top;
-
-    fireEvent.pointerDown(grip, { pointerId: 1, button: 0, clientX: 900, clientY: 200 });
-    fireEvent.pointerMove(grip, { pointerId: 1, clientX: 640, clientY: 420 });
-    fireEvent.pointerUp(grip, { pointerId: 1, clientX: 640, clientY: 420 });
-
-    expect(panel.style.left).not.toBe(startLeft);
-    expect(panel.style.top).not.toBe(startTop);
-
-    const draggedLeft = panel.style.left;
-    grip.focus();
-    await user.keyboard('{ArrowRight}');
-    expect(panel.style.left).not.toBe(draggedLeft);
-  });
-
-  test('draws one inline price line with buy and sell arrows, no chart library', async () => {
-    const user = userEvent.setup();
-    render(<BasicEditor goBack={() => {}} />);
+    render(<BasicEditor blank goBack={() => {}} />);
 
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
 
-    /* 인라인 SVG 한 장이라 캔버스 없이도 선과 신호를 그대로 확인할 수 있다.
-       매수·매도를 함께 보여주는 것이 이 창의 존재 이유다. */
-    const frame = screen.getByTestId('strategy-preview-canvas');
-    const line = frame.querySelector('.strategy-preview-line');
-    expect(frame.querySelector('canvas')).toBeNull();
-    expect(line?.getAttribute('points')?.split(' ')).toHaveLength(PREVIEW_WINDOW.count);
-    expect(screen.getAllByTestId('preview-marker-buy').length).toBeGreaterThan(0);
-    expect(screen.getAllByTestId('preview-marker-sell').length).toBeGreaterThan(0);
-    // No indicator panes: overlays belong to the backtest screen.
-    expect(frame.querySelectorAll('polyline')).toHaveLength(1);
+    const panel = screen.getByTestId('strategy-preview-unavailable');
+    expect(panel).toHaveTextContent('종목 미선택');
+    expect(panel).toHaveTextContent('실제 시장 데이터 기반 미리보기만 표시합니다.');
+    expect(screen.queryByTestId('strategy-preview-canvas')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('preview-marker-buy')).not.toBeInTheDocument();
   });
 
-  test('draws pentagonal buy and sell banners toward their fill points', async () => {
-    const user = userEvent.setup();
-    render(<BasicEditor goBack={() => {}} />);
-
-    await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
-
-    /*
-      주식 차트의 관례: 매수는 체결 지점 아래에서 위를 향하고, 매도는 위에서
-      아래를 향한다. SVG는 y가 아래로 커지므로 "위를 향한다"는 꼭짓점 y가 밑변
-      y보다 작다는 뜻이다.
-    */
-    const corners = (marker: Element) => marker.getAttribute('points')!
-      .split(' ')
-      .map((point) => point.split(',').map(Number))
-      .map(([x, y]) => ({ x, y }));
-
-    /* 같은 x에 있는 종가 선의 y. 화살표는 이 선을 넘어오면 안 된다. */
-    const lineAt = (x: number) => {
-      const points = screen.getByTestId('strategy-preview-canvas')
-        .querySelector('.strategy-preview-line')!
-        .getAttribute('points')!
-        .split(' ')
-        .map((point) => point.split(',').map(Number));
-      return points.reduce((best, point) => Math.abs(point[0] - x) < Math.abs(best[0] - x) ? point : best, points[0])[1];
-    };
-
-    screen.getAllByTestId('preview-marker-buy').forEach((marker) => {
-      const [apex, leftShoulder, leftBase, rightBase, rightShoulder] = corners(marker);
-      expect(corners(marker)).toHaveLength(5);
-      expect(apex.y).toBeLessThan(leftShoulder.y);
-      expect(leftBase.y).toBe(rightBase.y);
-      expect(leftShoulder.y).toBe(rightShoulder.y);
-      expect(apex.y).toBeGreaterThan(lineAt(apex.x));
-      expect(rightBase.x - leftBase.x).toBeGreaterThanOrEqual(8);
-      expect(leftBase.y - apex.y).toBeGreaterThanOrEqual(8);
-    });
-    screen.getAllByTestId('preview-marker-sell').forEach((marker) => {
-      const [apex, leftShoulder, leftBase, rightBase, rightShoulder] = corners(marker);
-      expect(corners(marker)).toHaveLength(5);
-      expect(apex.y).toBeGreaterThan(leftShoulder.y);
-      expect(leftBase.y).toBe(rightBase.y);
-      expect(leftShoulder.y).toBe(rightShoulder.y);
-      expect(apex.y).toBeLessThan(lineAt(apex.x));
-    });
-
-    // 화살표가 커져도 차트 영역을 벗어나 잘리지 않는다.
-    const viewHeight = Number(screen.getByTestId('strategy-preview-canvas').querySelector('svg')!.getAttribute('viewBox')!.split(' ')[3]);
-    [...screen.getAllByTestId('preview-marker-buy'), ...screen.getAllByTestId('preview-marker-sell')].forEach((marker) => {
-      corners(marker).forEach(({ y }) => {
-        expect(y).toBeGreaterThan(0);
-        expect(y).toBeLessThan(viewHeight);
-      });
-    });
-  });
-
-  test('offers only the symbols the partition trades', async () => {
-    const user = userEvent.setup();
-    render(<BasicEditor goBack={() => {}} />);
-
-    await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
-
-    const symbols = screen.getByRole('group', { name: '미리보기 종목 선택' });
-    expect(within(symbols).getAllByRole('button').map((button) => button.textContent)).toEqual(['AAPL', 'MSFT', 'SPY']);
-    expect(within(symbols).getByRole('button', { name: 'AAPL 미리보기' })).toHaveAttribute('aria-pressed', 'true');
-
-    await user.click(within(symbols).getByRole('button', { name: 'MSFT 미리보기' }));
-    expect(within(symbols).getByRole('button', { name: 'MSFT 미리보기' })).toHaveAttribute('aria-pressed', 'true');
-    expect(within(symbols).getByRole('button', { name: 'AAPL 미리보기' })).toHaveAttribute('aria-pressed', 'false');
-  });
-
-  test('states the fixed one-month window and offers no period control', async () => {
-    const user = userEvent.setup();
-    render(<BasicEditor goBack={() => {}} />);
-
-    await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
-
-    // 기간은 최근 1개월 고정이다. 고를 것이 없으므로 컨트롤도 두지 않는다.
-    expect(screen.getByText(PREVIEW_WINDOW.label)).toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: '미리보기 기간 선택' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: '미리보기 시간 단위' })).not.toBeInTheDocument();
-  });
-
-  test('names the flow behind each signal and emphasises one on demand', async () => {
-    const user = userEvent.setup();
-    render(<BasicEditor goBack={() => {}} />);
-
-    const buyRsi = screen.getByTestId('buy-rsi-block');
-    await user.type(within(buyRsi).getByLabelText('RSI 반등 값'), '30');
-    await user.click(within(buyRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
-    await user.click(screen.getByRole('option', { name: '상승' }));
-    await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
-
-    // One buy and one sell container: the legend lists both with their counts.
-    const flows = screen.getByRole('group', { name: '신호를 만든 플로우' });
-    expect(within(flows).getAllByRole('button')).toHaveLength(2);
-    const buyFlow = screen.getByTestId('preview-flow-primary-buy');
-    expect(buyFlow).toHaveAttribute('aria-pressed', 'false');
-
-    // Emphasising a flow explains that flow's rule without hiding the round trip.
-    await user.click(buyFlow);
-    expect(buyFlow).toHaveAttribute('aria-pressed', 'true');
-    // 같은 문장이 신호 툴팁에도 붙으므로 요약 줄로 범위를 좁혀 확인한다.
-    expect(screen.getByTestId('preview-note')).toHaveTextContent(/RSI\(14\) 30 상향 돌파/);
-    expect(screen.getByTestId('preview-flow-primary-sell')).toBeInTheDocument();
-
-    await user.click(buyFlow);
-    expect(buyFlow).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByTestId('preview-buy-count')).toBeInTheDocument();
-  });
-
-  test('adds a flow chip when the partition gains another container', async () => {
-    const user = userEvent.setup();
-    render(<BasicEditor goBack={() => {}} />);
-
-    await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
-    expect(within(screen.getByRole('group', { name: '신호를 만든 플로우' })).getAllByRole('button')).toHaveLength(2);
-
-    await user.click(screen.getByRole('button', { name: 'PARTITION 01 매수 전략 추가' }));
-
-    const flows = within(screen.getByRole('group', { name: '신호를 만든 플로우' })).getAllByRole('button');
-    expect(flows).toHaveLength(3);
-    // Two buy containers, so each one is numbered instead of just "매수".
-    expect(flows.map((flow) => flow.textContent)).toEqual(expect.arrayContaining([
-      expect.stringContaining('매수 1'),
-      expect.stringContaining('매수 2'),
-    ]));
-  });
-
-  test('counts the signals the current blocks produce and recalculates when a value changes', async () => {
-    const user = userEvent.setup();
-    render(<BasicEditor goBack={() => {}} />);
-
-    await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
-    expect(screen.getByTestId('preview-buy-count')).not.toHaveTextContent('매수 0');
-
-    /* A threshold this tight can never be crossed, so the count has to fall to
-       zero — the chart is reading the live block value, not a snapshot. */
-    const rsiBlock = screen.getByTestId('buy-rsi-block');
-    const valueInput = within(rsiBlock).getByLabelText('RSI 반등 값');
-    await user.clear(valueInput);
-    await user.type(valueInput, '2');
-
-    expect(screen.getByTestId('preview-buy-count')).toHaveTextContent('매수 0');
-    expect(screen.getByTestId('preview-sell-count')).toHaveTextContent('매도 0');
-    // 완료된 매매가 없으면 수익률은 판단할 수 없으므로 숫자를 꾸며내지 않는다.
-    expect(screen.getByTestId('preview-return')).toHaveTextContent('—');
-  });
-
-  test('translates the whole card into the English locale', async () => {
+  test('translates the honest preview state into English', async () => {
     window.localStorage.setItem('i2s-language', 'en');
     const user = userEvent.setup();
-    render(<LanguageProvider><BasicEditor goBack={() => {}} /></LanguageProvider>);
+    render(<LanguageProvider><BasicEditor blank goBack={() => {}} /></LanguageProvider>);
 
-    const buyRsi = screen.getByTestId('buy-rsi-block');
-    await user.type(within(buyRsi).getByLabelText('RSI 반등 값'), '30');
-    await user.click(within(buyRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
-    await user.click(screen.getByRole('option', { name: '상승' }));
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 Strategy preview' }));
-    expect(screen.getByRole('group', { name: 'Flows behind the signals' })).toBeInTheDocument();
-    expect(screen.getByTestId('preview-buy-count')).toHaveTextContent('Buy');
-
-    /* 조건 문장은 엔진이 만든 문자열이라 prop 번역이 닿지 않는다. 여기서 한글이
-       남으면 카드 안에서 직접 번역하는 경로가 끊긴 것이다. */
-    await user.click(screen.getByTestId('preview-flow-primary-buy'));
-    expect(screen.getByTestId('preview-note')).toHaveTextContent('RSI(14) 30 crosses up');
+    expect(screen.getByTestId('strategy-preview-unavailable')).toHaveTextContent('Only previews backed by real market data are shown.');
     window.localStorage.clear();
   });
 
   test('closes the preview without leaving the editor', async () => {
     const user = userEvent.setup();
-    render(<BasicEditor goBack={() => {}} />);
+    render(<BasicEditor blank goBack={() => {}} />);
 
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
     await user.click(screen.getByRole('button', { name: '미리보기 닫기' }));
 
-    expect(screen.queryByTestId('strategy-preview-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('strategy-preview-unavailable')).not.toBeInTheDocument();
     expect(screen.getByTestId('basic-editor-workspace')).toBeInTheDocument();
   });
 });

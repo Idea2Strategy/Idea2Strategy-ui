@@ -11,6 +11,7 @@ import { setSessionAccessToken } from './api/sessionAccessToken';
 import type { BotOperationsClient, BotOperationsView } from './api/botOperations';
 import { StrategyApiError } from './api/strategies';
 import type { StrategyLibraryClient, StrategyLibraryPage } from './api/strategies';
+import { LanguageProvider } from './lib/i18n';
 import { BotsView } from './views/BotsView';
 import { DashboardView } from './views/DashboardView';
 import { StrategyHome } from './views/StrategyViews';
@@ -109,6 +110,7 @@ describe('production runtime honesty', () => {
 
     request.resolve([]);
     expect(await screen.findByText('운용 중인 봇이 없습니다.')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '봇 운영 안내' })).toHaveTextContent('운용할 봇을 선택하면');
     expect(screen.queryByText('Atlas 07')).not.toBeInTheDocument();
   });
 
@@ -181,14 +183,61 @@ describe('production runtime honesty', () => {
     expect(screen.queryByLabelText(/수익률 차트/)).not.toBeInTheDocument();
   });
 
-  test('a signed-in production dashboard deactivates synthetic performance while its aggregate API is absent', () => {
+  test('a signed-in production dashboard loads real bot operations without synthetic performance', async () => {
     setSessionAccessToken('dashboard-session');
     try {
-      render(<DashboardView setPage={() => {}} dataSource="unavailable" />);
+      render(<DashboardView
+        setPage={() => {}}
+        dataSource="live"
+        operationsClient={botClient(() => Promise.resolve([operation('Confirmed Bot')]))}
+      />);
 
-      expect(screen.getByRole('alert')).toHaveTextContent('운영 대시보드 데이터를 아직 제공할 수 없습니다.');
+      expect(await screen.findByText('Confirmed Bot')).toBeInTheDocument();
+      expect(screen.getByText('실제 자산 성과 데이터가 아직 없습니다.')).toBeInTheDocument();
       expect(screen.queryByText('$10,540.00')).not.toBeInTheDocument();
       expect(screen.queryByLabelText(/수익률 차트/)).not.toBeInTheDocument();
+    } finally {
+      setSessionAccessToken(null);
+    }
+  });
+
+  test('the live dashboard formats dynamic operation copy in English', async () => {
+    window.localStorage.setItem('i2s-language', 'en');
+    setSessionAccessToken('dashboard-session');
+    try {
+      render(<LanguageProvider><DashboardView
+        setPage={() => {}}
+        dataSource="live"
+        operationsClient={botClient(() => Promise.resolve([operation('Confirmed Bot')]))}
+      /></LanguageProvider>);
+
+      expect(await screen.findByText('1 of 1 bots are running.')).toBeInTheDocument();
+      expect(screen.getByText(/State changed/)).toBeInTheDocument();
+      expect(screen.queryByText(/상태 변경|개가 실행 중/)).not.toBeInTheDocument();
+    } finally {
+      window.localStorage.clear();
+      setSessionAccessToken(null);
+    }
+  });
+
+  test('a real empty dashboard is an empty state while a failed request is an error', async () => {
+    setSessionAccessToken('dashboard-session');
+    try {
+      const empty = render(<DashboardView
+        setPage={() => {}}
+        dataSource="live"
+        operationsClient={botClient(() => Promise.resolve([]))}
+      />);
+      expect(await screen.findByText('운용 중인 봇이 없습니다.')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+      empty.unmount();
+      render(<DashboardView
+        setPage={() => {}}
+        dataSource="live"
+        operationsClient={botClient(() => Promise.reject(new Error('offline')))}
+      />);
+      expect(await screen.findByRole('alert')).toHaveTextContent('Home 데이터를 불러오지 못했습니다.');
     } finally {
       setSessionAccessToken(null);
     }

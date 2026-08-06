@@ -55,6 +55,7 @@ describe('Strategy API view', () => {
 
   test('loads an owned document, acquires a lease, and saves the Basic presentation safely', async () => {
     const user = userEvent.setup();
+    const loadOrder: string[] = [];
     const document: StrategyDocument = {
       strategyId: 'strategy-id',
       semanticDocument: { mode: 'BASIC', groups: [] },
@@ -68,8 +69,8 @@ describe('Strategy API view', () => {
     };
     const authoringClient: StrategyAuthoringClient = {
       createBasic: vi.fn(),
-      getDocument: vi.fn().mockResolvedValue(document),
-      acquireLease: vi.fn().mockResolvedValue({ leaseToken: 'lease-token', expiresAt: '2026-08-01T12:02:00Z' }),
+      getDocument: vi.fn().mockImplementation(async () => { loadOrder.push('document'); return document; }),
+      acquireLease: vi.fn().mockImplementation(async () => { loadOrder.push('lease'); return { leaseToken: 'lease-token', expiresAt: '2026-08-01T12:02:00Z' }; }),
       heartbeatLease: vi.fn(),
       releaseLease: vi.fn().mockResolvedValue(undefined),
       saveDocument: vi.fn().mockResolvedValue({ ...document, editSequence: 1 }),
@@ -91,8 +92,14 @@ describe('Strategy API view', () => {
     const { unmount } = render(<BasicEditor blank goBack={() => {}} strategyId="strategy-id" authoringClient={authoringClient} catalogClient={catalogClient} />);
     await waitFor(() => expect(catalogClient.getBasic).toHaveBeenCalledWith(expect.any(AbortSignal)));
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 종목 관리' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: '추가할 종목' }), 'spy-id');
     await user.click(screen.getByRole('button', { name: '종목 추가' }));
-    expect(screen.getByRole('dialog', { name: 'PARTITION 1 종목 관리' })).toHaveTextContent('AAPL');
+    expect(screen.getByRole('dialog', { name: 'PARTITION 1 종목 관리' })).toHaveTextContent('SPY');
+    expect(loadOrder).toEqual(['document', 'lease']);
+    await user.click(screen.getByRole('button', { name: '완료' }));
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
+    expect(screen.getByTestId('strategy-preview-unavailable')).toHaveTextContent('실제 시장 데이터 기반 미리보기만 표시합니다.');
+    expect(screen.queryByTestId('strategy-preview-canvas')).not.toBeInTheDocument();
     const save = screen.getByRole('button', { name: '저장' });
     await waitFor(() => expect(save).toBeEnabled());
     await user.click(save);
@@ -105,12 +112,26 @@ describe('Strategy API view', () => {
         basicEditor: expect.objectContaining({
           version: 1,
           snapshot: expect.objectContaining({
-            sections: [expect.objectContaining({ symbol: 'AAPL', instrumentIds: ['aapl-id'] })],
+            sections: [expect.objectContaining({ symbol: 'SPY', instrumentIds: ['spy-id'] })],
           }),
         }),
       }),
     })));
     unmount();
     await waitFor(() => expect(authoringClient.releaseLease).toHaveBeenCalledWith('strategy-id', 'lease-token'));
+  });
+
+  test('distinguishes a missing strategy from a transport failure', async () => {
+    const authoringClient = {
+      createBasic: vi.fn(),
+      getDocument: vi.fn().mockRejectedValue(new (await import('./api/strategies')).StrategyApiError(404, 'document')),
+      acquireLease: vi.fn(), heartbeatLease: vi.fn(), releaseLease: vi.fn(), saveDocument: vi.fn(),
+    } as StrategyAuthoringClient;
+
+    render(<BasicEditor blank goBack={() => {}} strategyId="missing" authoringClient={authoringClient} catalogClient={null} />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('전략을 찾을 수 없습니다.');
+    expect(screen.queryByText('전략을 불러오지 못했습니다.')).not.toBeInTheDocument();
+    expect(authoringClient.acquireLease).not.toHaveBeenCalled();
   });
 });

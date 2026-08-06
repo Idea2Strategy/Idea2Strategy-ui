@@ -15,8 +15,8 @@
   color-scheme: light dark;
   font-synthesis: none;
 
-  --font-sans: Pretendard, Inter, "Noto Sans KR", "Segoe UI", sans-serif;
-  --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  --font-sans: "Pretendard Variable", Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", Inter, "Segoe UI", sans-serif;
+  --font-mono: "Cascadia Code", "SFMono-Regular", "Noto Sans Mono CJK KR", D2Coding, "Nanum Gothic Coding", Consolas, "Malgun Gothic", monospace;
 
   /* 4px spacing scale */
   --space-1: 4px;

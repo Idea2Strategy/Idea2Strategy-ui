@@ -121,9 +121,14 @@ function PostChoice({ client, roomId, item, initial }: { client: CompetitionRoom
   return <fieldset disabled={locked || saving}><legend>{item.anonymousAlias}</legend><label><input type="radio" name={`choice-${participationId}`} checked={action === 'CONTINUE_PRIVATE'} onChange={() => setAction('CONTINUE_PRIVATE')} />비공개 봇으로 계속 운용</label><label><input type="radio" name={`choice-${participationId}`} checked={action === 'STOP_AFTER_EVALUATION'} onChange={() => setAction('STOP_AFTER_EVALUATION')} />대회 종료와 함께 안전하게 중지</label><button type="button" className="button button-primary" onClick={save}>{saving ? '저장 중…' : '종료 후 선택 저장'}</button>{message && <span role="status">{message}</span>}{locked && <span>선택이 잠겨 변경할 수 없습니다.</span>}</fieldset>;
 }
 
-function DialogShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="competition-create-backdrop"><section className="competition-create-dialog competition-api-dialog" role="dialog" aria-modal="true" aria-label={title}><header><h2>{title}</h2><button type="button" aria-label={`${title} 닫기`} onClick={onClose}><X size={20} /></button></header>{children}</section></div>; }
+function DialogShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="competition-create-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="competition-create-dialog competition-api-dialog" role="dialog" aria-modal="true" aria-label={title}><header><div><small>COMPETITION</small><h2>{title}</h2></div><button type="button" aria-label={`${title} 닫기`} onClick={onClose}><X size={20} /></button></header>{children}</section></div>; }
 
-const dateTime = (days: number) => { const date = new Date(Date.now() + days * 86400000); date.setUTCMinutes(0, 0, 0); return date.toISOString().slice(0, 16); };
+const dateTime = (days: number) => {
+  const date = new Date(Date.now() + days * 86400000);
+  date.setMinutes(0, 0, 0);
+  const part = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${part(date.getMonth() + 1)}-${part(date.getDate())}T${part(date.getHours())}:00`;
+};
 function CreateRoomDialog({ client, onClose, onCreated }: { client: CompetitionRoomsClient; onClose: () => void; onCreated: () => void }) {
   const [catalog, setCatalog] = useState<{ state: LoadState; value: RoomInputCatalog | null; error: unknown }>({ state: 'loading', value: null, error: null });
   const [reloadKey, setReloadKey] = useState(0);
@@ -138,23 +143,38 @@ function CreateRoomDialog({ client, onClose, onCreated }: { client: CompetitionR
   const complete = catalog.state === 'ready' && Boolean(catalog.value?.scoringTemplates.length && catalog.value.feePolicies.length && catalog.value.buyingPowerBufferPolicies.length);
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault(); if (!complete) return;
-    const form = new FormData(event.currentTarget); setSaving(true); setError(''); const iso = (name: string) => new Date(String(form.get(name))).toISOString();
-    const input: CreateRoomInput = { name: String(form.get('name')), accessType: 'PUBLIC', scoringTemplateVersionId: String(form.get('scoringTemplateVersionId')), scoringAdjustments: {}, initialCashAmount: 10000, botParticipationLimit: 25, perAccountBotLimit: 2, stoppedBotSlotPolicy: 'RELEASE_SLOT', minimumOperationSeconds: 0, minimumFillCount: 0, feePolicyId: String(form.get('feePolicyId')), buyingPowerBufferPolicyId: String(form.get('buyingPowerBufferPolicyId')), recruitmentOpensAt: iso('recruitmentOpensAt'), participationOpensAt: iso('participationOpensAt'), evaluationStartsAt: iso('evaluationStartsAt'), participationClosesAt: iso('participationClosesAt'), evaluationEndsAt: iso('evaluationEndsAt'), finalizationDeadlineAt: iso('finalizationDeadlineAt'), timezoneName: 'Asia/Seoul' };
+    const form = new FormData(event.currentTarget); setError('');
+    const instant = (name: string) => new Date(String(form.get(name)));
+    const schedule = {
+      recruitmentOpensAt: instant('recruitmentOpensAt'), participationOpensAt: instant('participationOpensAt'),
+      participationClosesAt: instant('participationClosesAt'), evaluationStartsAt: instant('evaluationStartsAt'),
+      evaluationEndsAt: instant('evaluationEndsAt'), finalizationDeadlineAt: instant('finalizationDeadlineAt'),
+    };
+    const ordered = schedule.recruitmentOpensAt <= schedule.participationOpensAt
+      && schedule.participationOpensAt < schedule.participationClosesAt
+      && schedule.participationClosesAt < schedule.evaluationStartsAt
+      && schedule.evaluationStartsAt < schedule.evaluationEndsAt
+      && schedule.evaluationEndsAt <= schedule.finalizationDeadlineAt;
+    if (!ordered) { setError('모집·참가·평가·최종 확정 시한을 시간 순서대로 입력해 주세요.'); return; }
+    setSaving(true);
+    const input: CreateRoomInput = { name: String(form.get('name')), accessType: 'PUBLIC', scoringTemplateVersionId: String(form.get('scoringTemplateVersionId')), scoringAdjustments: {}, initialCashAmount: 10000, botParticipationLimit: 25, perAccountBotLimit: 2, stoppedBotSlotPolicy: 'RELEASE_SLOT', minimumOperationSeconds: 0, minimumFillCount: 0, feePolicyId: String(form.get('feePolicyId')), buyingPowerBufferPolicyId: String(form.get('buyingPowerBufferPolicyId')), recruitmentOpensAt: schedule.recruitmentOpensAt.toISOString(), participationOpensAt: schedule.participationOpensAt.toISOString(), evaluationStartsAt: schedule.evaluationStartsAt.toISOString(), participationClosesAt: schedule.participationClosesAt.toISOString(), evaluationEndsAt: schedule.evaluationEndsAt.toISOString(), finalizationDeadlineAt: schedule.finalizationDeadlineAt.toISOString(), timezoneName: 'Asia/Seoul' };
     try { await client.createRoom(input); onCreated(); } catch (cause) { setError(cause instanceof CompetitionApiError && cause.forbidden ? '대회를 만들 권한이 없습니다.' : '대회를 만들지 못했습니다. 입력과 로그인 상태를 확인해 주세요.'); setSaving(false); }
   };
   const catalogError = catalog.error instanceof CompetitionApiError && catalog.error.unauthenticated ? '로그인 후 대회 생성 정책을 확인할 수 있습니다.'
     : catalog.error instanceof CompetitionApiError && catalog.error.forbidden ? '대회 생성 정책을 조회할 권한이 없습니다.' : '대회 생성 정책을 불러오지 못했습니다.';
   return <DialogShell title="대회 만들기" onClose={onClose}><form className="competition-api-form" onSubmit={submit}>
-    <label>대회 이름<input name="name" aria-label="대회 이름" required /></label>
-    <div className="competition-api-form-grid"><label>모집 시작<input name="recruitmentOpensAt" type="datetime-local" defaultValue={dateTime(0)} required /></label><label>참가 시작<input name="participationOpensAt" type="datetime-local" defaultValue={dateTime(1)} required /></label><label>평가 시작<input name="evaluationStartsAt" type="datetime-local" defaultValue={dateTime(3)} required /></label><label>참가 마감<input name="participationClosesAt" type="datetime-local" defaultValue={dateTime(3)} required /></label><label>평가 종료<input name="evaluationEndsAt" type="datetime-local" defaultValue={dateTime(10)} required /></label><label>최종 확정 시한<input name="finalizationDeadlineAt" type="datetime-local" defaultValue={dateTime(11)} required /></label></div>
-    {catalog.state === 'loading' && <p role="status">대회 생성 입력을 불러오는 중입니다.</p>}
-    {catalog.state === 'error' && <div role="alert"><p>{catalogError}</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>정책 다시 불러오기</button></div>}
-    {catalog.state === 'ready' && !complete && <p role="alert">운영 정책 카탈로그가 준비되지 않아 대회를 만들 수 없습니다.</p>}
-    {complete && <div className="competition-api-form-grid">
-      <label>채점 템플릿<select name="scoringTemplateVersionId" aria-label="채점 템플릿" required>{catalog.value!.scoringTemplates.map((item) => <option key={item.id} value={item.id}>{item.templateCode} · {item.version}</option>)}</select></label>
-      <label>수수료 정책<select name="feePolicyId" aria-label="수수료 정책" required>{catalog.value!.feePolicies.map((item) => <option key={item.id} value={item.id}>{item.policyCode} · {item.version} · {item.feeRateBps}bps</option>)}</select></label>
-      <label>구매력 버퍼 정책<select name="buyingPowerBufferPolicyId" aria-label="구매력 버퍼 정책" required>{catalog.value!.buyingPowerBufferPolicies.map((item) => <option key={item.id} value={item.id}>{item.policyCode} · {item.version} · {item.bufferBps}bps</option>)}</select></label>
-    </div>}
+    <fieldset className="competition-api-form-section"><legend>기본 설정</legend><label>대회 이름<input name="name" aria-label="대회 이름" placeholder="참가자가 알아보기 쉬운 이름" required /></label></fieldset>
+    <fieldset className="competition-api-form-section"><legend>대회 일정</legend><p>표시된 시각은 한국 표준시 기준입니다.</p><div className="competition-api-form-grid"><label>모집 시작<input aria-label="모집 시작" name="recruitmentOpensAt" type="datetime-local" defaultValue={dateTime(0)} required /></label><label>참가 시작<input aria-label="참가 시작" name="participationOpensAt" type="datetime-local" defaultValue={dateTime(1)} required /></label><label>참가 마감<input aria-label="참가 마감" name="participationClosesAt" type="datetime-local" defaultValue={dateTime(3)} required /></label><label>평가 시작<input aria-label="평가 시작" name="evaluationStartsAt" type="datetime-local" defaultValue={dateTime(4)} required /></label><label>평가 종료<input aria-label="평가 종료" name="evaluationEndsAt" type="datetime-local" defaultValue={dateTime(10)} required /></label><label>최종 확정 시한<input aria-label="최종 확정 시한" name="finalizationDeadlineAt" type="datetime-local" defaultValue={dateTime(11)} required /></label></div></fieldset>
+    <fieldset className="competition-api-form-section"><legend>운영 정책</legend>
+      {catalog.state === 'loading' && <p role="status">대회 생성 입력을 불러오는 중입니다.</p>}
+      {catalog.state === 'error' && <div role="alert"><p>{catalogError}</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>정책 다시 불러오기</button></div>}
+      {catalog.state === 'ready' && !complete && <p role="status">운영 정책 카탈로그가 준비되지 않아 대회를 만들 수 없습니다.</p>}
+      {complete && <div className="competition-api-form-grid">
+        <label>채점 템플릿<select name="scoringTemplateVersionId" aria-label="채점 템플릿" required>{catalog.value!.scoringTemplates.map((item) => <option key={item.id} value={item.id}>{item.templateCode} · {item.version}</option>)}</select></label>
+        <label>수수료 정책<select name="feePolicyId" aria-label="수수료 정책" required>{catalog.value!.feePolicies.map((item) => <option key={item.id} value={item.id}>{item.policyCode} · {item.version} · {item.feeRateBps}bps</option>)}</select></label>
+        <label>구매력 버퍼 정책<select name="buyingPowerBufferPolicyId" aria-label="구매력 버퍼 정책" required>{catalog.value!.buyingPowerBufferPolicies.map((item) => <option key={item.id} value={item.id}>{item.policyCode} · {item.version} · {item.bufferBps}bps</option>)}</select></label>
+      </div>}
+    </fieldset>
     {error && <p role="alert">{error}</p>}<footer><button type="button" className="button button-secondary" onClick={onClose}>취소</button><button type="submit" className="button button-primary" disabled={saving || !complete}>{saving ? '생성 중…' : '대회 생성'}</button></footer>
   </form></DialogShell>;
 }

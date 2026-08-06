@@ -175,8 +175,8 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
       {listFailure === null && runs === null && <LoadingState label="백테스트 결과를 불러오는 중입니다." />}
       {listFailure === null && runs?.length === 0 && <EmptyState
         icon={BarChart3}
-        title="아직 실행된 공식 백테스트가 없습니다."
-        detail="봇이 출시되면 공식 백테스트가 자동으로 시작됩니다."
+        title="백테스트할 봇이 없습니다."
+        detail="출시된 봇이 생기면 공식 백테스트가 자동으로 시작되고 이곳에 결과가 표시됩니다."
       />}
       {listFailure === null && runs && runs.length > 0 && <div className="backtest-live-workspace">
         <RunList runs={runs} selectedRunId={selectedRunId} onSelect={setSelectedRunId} />
