@@ -42,6 +42,13 @@ interface AuthScreenProps {
   client: AccountClient;
 }
 
+const MIN_PASSWORD_LENGTH = 15;
+const MAX_PASSWORD_LENGTH = 128;
+const passwordLengthIsValid = (password: string) => {
+  const codePointLength = Array.from(password).length;
+  return codePointLength >= MIN_PASSWORD_LENGTH && codePointLength <= MAX_PASSWORD_LENGTH;
+};
+
 export function LoginView({ client }: AuthScreenProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -55,6 +62,7 @@ export function LoginView({ client }: AuthScreenProps) {
   const [resetPassword, setResetPassword] = useState('');
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [resetFailure, setResetFailure] = useState<AccountApiError | null>(null);
+  const resetPasswordValid = passwordLengthIsValid(resetPassword);
 
   const submit = async () => {
     setPending(true);
@@ -109,8 +117,9 @@ export function LoginView({ client }: AuthScreenProps) {
             <label><span>가입 이메일</span><input aria-label="재설정 이메일" type="email" autoComplete="email" value={resetEmail} onChange={(event) => setResetEmail(event.target.value)} /></label>
             <Button disabled={!resetEmail} onClick={() => void runReset(() => client.requestPasswordReset(resetEmail), '계정 존재 여부와 관계없이 복구 요청을 접수했습니다.')}>재설정 요청</Button>
             <label><span>재설정 토큰</span><input aria-label="재설정 토큰" value={resetToken} onChange={(event) => setResetToken(event.target.value)} /></label>
-            <label><span>새 비밀번호</span><input aria-label="재설정 새 비밀번호" type="password" autoComplete="new-password" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} /></label>
-            <Button disabled={!resetToken || !resetPassword} onClick={() => void runReset(() => client.resetPassword(resetToken, resetPassword), '비밀번호를 재설정했습니다. 새 비밀번호로 로그인하세요.')}>비밀번호 재설정</Button>
+            <label><span>새 비밀번호</span><input aria-label="재설정 새 비밀번호" type="password" autoComplete="new-password" aria-describedby="reset-password-help" aria-invalid={resetPassword.length > 0 && !resetPasswordValid} value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} /></label>
+            <p id="reset-password-help" className="auth-field-hint">비밀번호는 15자 이상 128자 이하로 입력해 주세요.</p>
+            <Button disabled={!resetToken || !resetPasswordValid} onClick={() => void runReset(() => client.resetPassword(resetToken, resetPassword), '비밀번호를 재설정했습니다. 새 비밀번호로 로그인하세요.')}>비밀번호 재설정</Button>
           </div>
           {resetMessage && <p role="status" className="auth-fold-status">{resetMessage}</p>}
           {resetFailure && <ApiFailure error={resetFailure} />}
@@ -139,6 +148,7 @@ export function SignupView({ client }: AuthScreenProps) {
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [token, setToken] = useState('');
   const passwordsMatch = password === passwordConfirm;
+  const passwordLengthValid = passwordLengthIsValid(password);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [failure, setFailure] = useState<AccountApiError | null>(null);
@@ -168,16 +178,18 @@ export function SignupView({ client }: AuthScreenProps) {
       {step.kind === 'form' && <>
         <form className="auth-form" onSubmit={(event) => {
           event.preventDefault();
+          if (!email || !passwordLengthValid || !passwordConfirm || !passwordsMatch || pending) return;
           void run(async () => {
             const result = await client.signup(email, password);
             setStep({ kind: 'verify', accountId: result.accountId, verificationExpiresAt: result.verificationExpiresAt });
           });
         }}>
           <label><span>이메일</span><input aria-label="가입 이메일" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-          <label><span>비밀번호</span><input aria-label="가입 비밀번호" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          <label><span>비밀번호</span><input aria-label="가입 비밀번호" type="password" autoComplete="new-password" aria-describedby="signup-password-help" aria-invalid={password.length > 0 && !passwordLengthValid} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          <p id="signup-password-help" className="auth-field-hint">비밀번호는 15자 이상 128자 이하로 입력해 주세요.</p>
           <label><span>비밀번호 확인</span><input aria-label="가입 비밀번호 확인" type="password" autoComplete="new-password" value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} /></label>
           {passwordConfirm.length > 0 && !passwordsMatch && <p className="auth-field-hint" role="alert">비밀번호가 일치하지 않습니다.</p>}
-          <Button kind="primary" type="submit" disabled={!email || !password || !passwordConfirm || !passwordsMatch || pending}>{pending ? '가입 요청 중' : '가입'}</Button>
+          <Button kind="primary" type="submit" disabled={!email || !passwordLengthValid || !passwordConfirm || !passwordsMatch || pending}>{pending ? '가입 요청 중' : '가입'}</Button>
         </form>
         <GoogleSignInButton
           client={client}

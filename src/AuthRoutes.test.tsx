@@ -148,6 +148,34 @@ describe('customer signup screen', () => {
     expect(client.signup).not.toHaveBeenCalled();
   });
 
+  it('explains and enforces the server password length before signup', async () => {
+    const client = accountClient();
+    window.history.replaceState({}, '', '/signup');
+    render(<App accountClient={client} />);
+
+    const password = screen.getByLabelText('가입 비밀번호');
+    expect(screen.getByText('비밀번호는 15자 이상 128자 이하로 입력해 주세요.')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('가입 이메일'), 'new@example.com');
+    await userEvent.type(password, 'too-short');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'too-short');
+    expect(screen.getByRole('button', { name: '가입' })).toBeDisabled();
+    expect(client.signup).not.toHaveBeenCalled();
+  });
+
+  it('counts Unicode code points the same way as the server password policy', async () => {
+    const client = accountClient();
+    window.history.replaceState({}, '', '/signup');
+    render(<App accountClient={client} />);
+
+    await userEvent.type(screen.getByLabelText('가입 이메일'), 'emoji@example.com');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호'), '😀'.repeat(14));
+    await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), '😀'.repeat(14));
+
+    expect(screen.getByRole('button', { name: '가입' })).toBeDisabled();
+    expect(client.signup).not.toHaveBeenCalled();
+  });
+
   it('keeps the signup form with the API code when signup fails', async () => {
     const client = accountClient({
       signup: vi.fn().mockRejectedValue(new AccountApiError(409, 'EMAIL_ALREADY_REGISTERED', 'corr-signup-1')),
@@ -156,8 +184,8 @@ describe('customer signup screen', () => {
     render(<App accountClient={client} />);
 
     await userEvent.type(screen.getByLabelText('가입 이메일'), 'taken@example.com');
-    await userEvent.type(screen.getByLabelText('가입 비밀번호'), 'pw');
-    await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'pw');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호'), 'valid password 2026!');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'valid password 2026!');
     await userEvent.click(screen.getByRole('button', { name: '가입' }));
 
     const alert = await screen.findByRole('alert');

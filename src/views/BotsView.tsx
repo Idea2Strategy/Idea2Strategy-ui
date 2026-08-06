@@ -1578,6 +1578,10 @@ export function BotsView({
       setMarketDataError(null);
       return undefined;
     }
+    // Bars belong to one instrument. Clear them before the next request so a
+    // slow or failed symbol switch can never relabel the previous chart.
+    setLiveMarketBars([]);
+    setMarketDataError(null);
     const controller = new AbortController();
     const bars = new Map<string, LiveMarketBar>();
     const publish = (items: MarketBar[]) => {
@@ -1602,7 +1606,7 @@ export function BotsView({
         setMarketDataError(null);
       } catch (error) {
         if (!(error instanceof DOMException && error.name === 'AbortError')) {
-          setMarketDataError('실시간 시장 데이터 연결을 확인하는 중입니다. 마지막으로 수신한 봉을 표시합니다.');
+          setMarketDataError('실시간 시장 데이터 연결을 확인하는 중입니다. 수신이 재개되면 새 시세를 표시합니다.');
         }
       }
     };

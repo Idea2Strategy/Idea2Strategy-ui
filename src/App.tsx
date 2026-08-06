@@ -6,7 +6,7 @@ import i2sLogo from './assets/i2s-logo.svg';
 import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation';
 import type { PageId } from './lib/navigation';
 import { LanguageProvider, Localized, useLanguage } from './lib/i18n';
-import { BasicEditor, ProEditor, StrategyHome } from './views/StrategyViews';
+import { BasicEditor, StrategyHome } from './views/StrategyViews';
 import { ProEditorUnavailableView } from './views/ProEditorUnavailableView';
 import { LandingView } from './views/LandingView';
 import { BacktestView, RoomsView } from './views/OperationsViews';
@@ -14,7 +14,6 @@ import { BotsView } from './views/BotsView';
 import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
 import { LoginView, SignupView } from './views/AuthViews';
 import { DashboardView } from './views/DashboardView';
-import { DesignConceptLab } from './views/DesignConceptLab';
 import { BOT_ICON_STORAGE_KEY, loadBotIcons } from './components/BotGlyph';
 import type { BotIconMap, BotIconSelection } from './components/BotGlyph';
 import { defaultBacktestClient } from './api/backtests';
@@ -31,14 +30,12 @@ import type { CompetitionRoomsClient } from './api/competitionRooms';
 import { OperatorCompetitionWorkspace } from './components/OperatorCompetitionWorkspace';
 import { OperatorAuthenticationView } from './components/OperatorAuthenticationView';
 import type { OperatorAuthentication } from './components/OperatorAuthenticationView';
-import { PRO_EDITOR_AVAILABLE } from './lib/proEditorAccess';
 import { useSessionAccessToken } from './api/sessionAccessToken';
 import { browserSessionStore, useSessionState } from './lib/session';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
 import './styles/pro-editor.css';
-import './styles/concepts.css';
 
 type SetPage = (page: PageId) => void;
 
@@ -453,13 +450,11 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/landing" element={<LandingView setPage={setPage} />} />
     <Route path="/strategies" element={<RequireSignIn><StrategyHome openEditor={openEditor} /></RequireSignIn>} />
     <Route path="/strategies/new/basic" element={<RequireSignIn><BasicEditor strategyId={editorState?.strategyId} blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} /></RequireSignIn>} />
-    <Route path="/strategies/new/pro" element={<RequireSignIn>{PRO_EDITOR_AVAILABLE
-      ? <ProEditor blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />
-      : <ProEditorUnavailableView goBack={() => navigate(pagePaths.strategy)} />}</RequireSignIn>} />
+    <Route path="/strategies/new/pro" element={<RequireSignIn><ProEditorUnavailableView goBack={() => navigate(pagePaths.strategy)} /></RequireSignIn>} />
     <Route path="/bots" element={<RequireSignIn><BotsView key={requestedBot ?? 'bots'} botIcons={botIcons} onBotIconChange={changeBotIcon} initialBot={requestedBot} /></RequireSignIn>} />
     <Route path="/backtests" element={<RequireSignIn><BacktestView client={defaultBacktestClient} /></RequireSignIn>} />
     <Route path="/competition" element={<RoomsView client={competitionRoomsClient} openBot={openBot} />} />
-    <Route path="/competition-v2" element={<RoomsView client={competitionRoomsClient} visualVariant="image" openBot={openBot} />} />
+    <Route path="/competition-v2" element={<Navigate to="/competition" replace />} />
     <Route path="/notifications" element={<RequireSignIn><NotificationsView setPage={setPage} client={notificationClient} /></RequireSignIn>} />
     <Route path="/login" element={<LoginView client={accountClient} />} />
     <Route path="/signup" element={<SignupView client={accountClient} />} />
@@ -576,7 +571,6 @@ export function App({
   assignmentReadPermissionId?: string;
 } = {}) {
   return <LanguageProvider><BrowserRouter><Routes>
-    <Route path="/concepts/*" element={<DesignConceptLab />} />
     <Route path="*" element={<ProductApp
       accountClient={accountClient}
       operationsClient={operationsClient}

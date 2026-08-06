@@ -12,6 +12,7 @@ import { ProEditor } from './views/StrategyViews';
 
 const balancedStyles = readFileSync(resolve(process.cwd(), 'src/styles/balanced.css'), 'utf8');
 const baseStyles = readFileSync(resolve(process.cwd(), 'src/styles/base.css'), 'utf8');
+const indexHtml = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
 
 /* Theme, market colours and language live behind the nav gear, so open it
    first. The trigger keeps its accessible name in both languages. */
@@ -58,6 +59,16 @@ describe('Signal product UI', () => {
     window.history.replaceState({}, '', '/backtests');
     render(<App />);
     expect(screen.getByRole('heading', { name: '봇 백테스트' })).toBeInTheDocument();
+  });
+
+  test('does not expose the comparison lab or prototype metadata from the product app', async () => {
+    window.history.replaceState({}, '', '/concepts');
+    render(<App />);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/'));
+    expect(screen.queryByText(/Concept Lab/i)).not.toBeInTheDocument();
+    expect(indexHtml).toContain('<title>Idea2Strategy</title>');
+    expect(indexHtml).not.toMatch(/UI Lab|comparison prototypes/);
   });
 
   test('sends a signed-out visit to an account-scoped route straight to the sign-in screen', () => {

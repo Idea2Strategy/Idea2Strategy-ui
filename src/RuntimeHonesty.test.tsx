@@ -10,6 +10,7 @@ import { BotOperationsApiError } from './api/botOperations';
 import { setSessionAccessToken } from './api/sessionAccessToken';
 import type { BotOperationsClient, BotOperationsView } from './api/botOperations';
 import type { DashboardClient, DashboardSnapshot } from './api/dashboard';
+import type { MarketBar, MarketDataClient } from './api/marketData';
 import { StrategyApiError } from './api/strategies';
 import type { StrategyLibraryClient, StrategyLibraryPage } from './api/strategies';
 import { LanguageProvider } from './lib/i18n';
@@ -267,6 +268,37 @@ describe('production runtime honesty', () => {
     } finally {
       setSessionAccessToken(null);
     }
+  });
+
+  test('clears the previous symbol market bars while the next symbol is loading', async () => {
+    const nextSnapshot = deferred<{ instrumentId: string; symbol: string; timeframe: '1m'; bars: MarketBar[] }>();
+    const bar: MarketBar = {
+      eventId: 'event-aapl', occurredAt: '2026-08-07T12:00:00Z', sequence: 1, revision: 0,
+      open: 100, high: 102, low: 99, close: 101, volume: 1000, provider: 'ALPACA', feed: 'SIP',
+    };
+    const marketDataClient: MarketDataClient = {
+      getRecentBars: vi.fn((instrumentId) => instrumentId === 'instrument-aapl'
+        ? Promise.resolve({ instrumentId, symbol: 'AAPL', timeframe: '1m' as const, bars: [bar] })
+        : nextSnapshot.promise),
+      streamBars: vi.fn((_instrumentId, _onBar, signal) => new Promise<void>((resolve) => {
+        signal?.addEventListener('abort', () => resolve(), { once: true });
+      })),
+    };
+    const runtime = { ...operation('Two Symbols'), instruments: [
+      { instrumentId: 'instrument-aapl', symbol: 'AAPL' },
+      { instrumentId: 'instrument-msft', symbol: 'MSFT' },
+    ] };
+
+    render(<BotsView
+      operationsClient={botClient(() => Promise.resolve([runtime]))}
+      tradingClient={null}
+      marketDataClient={marketDataClient}
+    />);
+
+    expect(await screen.findByText('실시간 API')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'MSFT 차트 보기' }));
+    expect(await screen.findByText('시세 데이터 대기')).toBeInTheDocument();
+    expect(screen.queryByText('실시간 API')).not.toBeInTheDocument();
   });
 
   test('a failed refresh keeps the last confirmed dashboard and marks it stale', async () => {

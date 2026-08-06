@@ -11,12 +11,18 @@ import { formatDateTimeLocal, zonedLocalToIso } from '../lib/zonedDateTime';
 import type { StrategyReleaseInputs } from '../api/strategies';
 import { Button, PageHeading } from './common';
 import { ErrorPage, SignInRequiredPage } from './StatePages';
+import { Localized, useLanguage } from '../lib/i18n';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
 const dateLabel = (value: string) => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric', day: 'numeric' }).format(new Date(value));
 const metric = (value: number | null, suffix = '') => value == null ? '—' : `${value.toFixed(2)}${suffix}`;
 const statusLabel = (room: PublicRoom, now = Date.now()) => now < Date.parse(room.recruitmentOpensAt) ? '모집 예정' : now <= Date.parse(room.participationClosesAt) ? '모집 중' : '평가/종료 확인';
+
+function CountLabel({ value }: { value: number }) {
+  const { language } = useLanguage();
+  return <>{language === 'en' ? value : `${value}개`}</>;
+}
 
 export function CompetitionApiWorkspace({ client }: { client: CompetitionRoomsClient }) {
   const [rooms, setRooms] = useState<PublicRoom[]>([]);
@@ -71,7 +77,7 @@ export function CompetitionApiWorkspace({ client }: { client: CompetitionRoomsCl
       ? <SignInRequiredPage />
       : <ErrorPage title="대회 목록을 불러오지 못했습니다." detail="네트워크 상태를 확인해 주세요." onRetry={() => setReloadKey((key) => key + 1)} />;
   }
-  return <div className="page competition-page competition-lobby-page competition-api-page">
+  return <Localized><div className="page competition-page competition-lobby-page competition-api-page">
     <PageHeading eyebrow="BOT COMPETITION · LIVE API" title="모의투자" description="실제 대회 API에서 공개 방과 일정을 조회하고, 익명 봇 성과만 비교합니다." actions={<><Button icon={KeyRound} onClick={() => setInvitationOpen(true)}>초대 코드 참가</Button><Button kind="primary" icon={Plus} onClick={() => setCreateOpen(true)}>대회 만들기</Button></>} />
     {createOpen && <CreateRoomDialog client={client} onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); setReloadKey((key) => key + 1); setOwnedReloadKey((key) => key + 1); }} />}
     {invitationOpen && <InvitationConsumeDialog client={client} onClose={() => setInvitationOpen(false)} onConsumed={(roomId) => { setInvitationOpen(false); setQuery(''); setReloadKey((key) => key + 1); setNotice(`초대를 확인했습니다. 대회 ID: ${roomId}`); }} />}
@@ -80,14 +86,14 @@ export function CompetitionApiWorkspace({ client }: { client: CompetitionRoomsCl
       <button type="button" onClick={() => setReloadKey((key) => key + 1)}><RotateCcw size={14} aria-hidden="true" />새로고침</button>
     </div>
     <section className="competition-bulletin competition-owned-rooms" aria-label="내가 만든 대회">
-      <header className="competition-bulletin-head"><h2><Settings2 size={14} />내가 만든 대회</h2><span>{ownedRooms.state === 'ready' ? `${ownedRooms.value.length}개` : '계정 조회'}</span></header>
+      <header className="competition-bulletin-head"><h2><Settings2 size={14} />내가 만든 대회</h2><span>{ownedRooms.state === 'ready' ? <CountLabel value={ownedRooms.value.length} /> : '계정 조회'}</span></header>
       {ownedRooms.state === 'loading' && !ownedRooms.value && <div className="competition-api-state" role="status"><LoaderCircle className="is-spinning" /><strong>내 대회를 불러오는 중입니다.</strong></div>}
       {ownedRooms.state === 'error' && !ownedRooms.value && <div className="competition-api-mini-empty" role="status">{ownedRooms.error instanceof CompetitionApiError && (ownedRooms.error.unauthenticated || ownedRooms.error.forbidden) ? '로그인하면 내가 만든 대회를 관리할 수 있습니다.' : <><strong>내 대회를 불러오지 못했습니다.</strong><button type="button" onClick={() => setOwnedReloadKey((key) => key + 1)}>다시 시도</button></>}</div>}
       {ownedRooms.value?.length === 0 && <div className="competition-api-mini-empty">아직 만든 대회가 없습니다.</div>}
       {ownedRooms.value && ownedRooms.value.length > 0 && <div role="list" aria-label="내 대회 목록">{ownedRooms.value.map((room) => <button type="button" role="listitem" className="competition-row" aria-label={`${room.name} 관리`} key={room.roomId} onClick={() => setSelectedOwned(room)}><span className="competition-row-cell is-type"><span className="competition-kind-chip" data-kind="live">{room.accessType === 'SECRET' ? 'SECRET' : 'PUBLIC'}</span></span><span className="competition-row-name"><strong>{room.name}</strong><small>{room.status}</small></span><span className="competition-row-cell is-num"><b>{room.participations.length}</b><small>참가 봇</small></span><span className="competition-row-cell is-num"><b>{dateLabel(room.participationClosesAt)}</b><small>참가 마감</small></span></button>)}</div>}
     </section>
     <section className="competition-bulletin" aria-label="대회 게시판">
-      <header className="competition-bulletin-head"><h2><Trophy size={14} aria-hidden="true" />공개 대회</h2><span>{state === 'ready' ? `${rooms.length}개` : 'API 연결'}</span></header>
+      <header className="competition-bulletin-head"><h2><Trophy size={14} aria-hidden="true" />공개 대회</h2><span>{state === 'ready' ? <CountLabel value={rooms.length} /> : 'API 연결'}</span></header>
       {state === 'loading' && <div className="competition-api-state" role="status"><LoaderCircle className="is-spinning" aria-hidden="true" /><strong>대회 목록을 불러오는 중입니다.</strong></div>}
       {state === 'ready' && rooms.length === 0 && <div className="competition-api-state"><Trophy aria-hidden="true" /><strong>참가 가능한 공개 대회가 없습니다.</strong><span>검색어를 지우거나 나중에 다시 확인해 주세요.</span></div>}
       {state === 'ready' && <div role="list" aria-label="공개 대회 탐색 결과">{rooms.map((room) => <button type="button" role="listitem" className="competition-row" aria-label={`${room.name} 열기`} key={room.id} onClick={() => setSelected(room)}>
@@ -103,7 +109,7 @@ export function CompetitionApiWorkspace({ client }: { client: CompetitionRoomsCl
       </footer>}
       {notice && <p role="status" className="competition-api-inline-status">{notice}</p>}
     </section>
-  </div>;
+  </div></Localized>;
 }
 
 function OwnedRoomManager({ client, room, onBack, onChanged }: { client: CompetitionRoomsClient; room: OwnedRoomManagement; onBack: () => void; onChanged: () => void }) {
@@ -140,7 +146,7 @@ function OwnedRoomManager({ client, room, onBack, onChanged }: { client: Competi
   };
   const editable = current.status === 'DRAFT';
   const terminal = current.status === 'ENDED' || current.status === 'CANCELLED' || current.status === 'INVALIDATED';
-  return <section className="page competition-page competition-api-detail competition-owner-manager" role="region" aria-label={`${current.name} 관리`}>
+  return <Localized><section className="page competition-page competition-api-detail competition-owner-manager" role="region" aria-label={`${current.name} 관리`}>
     <button type="button" className="competition-detail-back" onClick={onBack}><ArrowLeft size={15} />대회 목록</button>
     <header className="competition-api-detail-head"><div><span>{current.status}</span><h1>{current.name}</h1><p>방장에게만 공개되는 설정·초대·참가 관리 화면입니다.</p></div><button type="button" className="button button-primary" disabled={!editable} title={editable ? undefined : '모집이 시작된 뒤에는 규칙을 변경할 수 없습니다.'} onClick={() => setEditOpen(true)}><Settings2 size={15} />설정 변경</button></header>
     <dl className="competition-detail-facts"><div><dt>접근 방식</dt><dd>{current.accessType}</dd></div><div><dt>상태</dt><dd>{current.status}</dd></div><div><dt>초기 자금</dt><dd>${current.initialCashAmount.toLocaleString()}</dd></div><div><dt>참가 봇</dt><dd>{current.participations.length} / {current.botParticipationLimit}</dd></div><div><dt>시간대</dt><dd>{current.timezoneName}</dd></div></dl>
@@ -149,7 +155,7 @@ function OwnedRoomManager({ client, room, onBack, onChanged }: { client: Competi
     <section className="competition-owner-panel" aria-labelledby="participant-management-title"><h2 id="participant-management-title">참가 봇 관리</h2>{current.participations.length === 0 ? <div className="competition-api-mini-empty">아직 참가한 봇이 없습니다.</div> : <div className="competition-owner-list">{current.participations.map((participation) => <ParticipantExpulsion key={participation.participationId} client={client} roomId={current.roomId} participation={participation} disabled={terminal} onDone={() => void refresh()} />)}</div>}</section>
     {!terminal && <section className="competition-owner-panel competition-danger-panel" aria-labelledby="cancel-room-title"><h2 id="cancel-room-title">대회 취소</h2><p>취소하면 활성 참가가 함께 종료되며 되돌릴 수 없습니다.</p><label>사유 코드<input aria-label="대회 취소 사유" value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /></label><label>확인을 위해 “취소” 입력<input aria-label="대회 취소 확인" value={cancelConfirmation} onChange={(event) => setCancelConfirmation(event.target.value)} /></label><button type="button" className="button button-secondary" disabled={actionState === 'saving' || cancelConfirmation !== '취소' || !cancelReason.trim()} onClick={() => void cancel()}>대회 취소</button></section>}
     {actionMessage && <p className="competition-api-inline-status" role={actionState === 'error' ? 'alert' : 'status'}>{actionMessage}</p>}
-  </section>;
+  </section></Localized>;
 }
 
 function ParticipantExpulsion({ client, roomId, participation, disabled, onDone }: { client: CompetitionRoomsClient; roomId: string; participation: OwnedRoomManagement['participations'][number]; disabled: boolean; onDone: () => void }) {
@@ -157,7 +163,7 @@ function ParticipantExpulsion({ client, roomId, participation, disabled, onDone 
   const [state, setState] = useState<'idle' | 'saving' | 'error'>('idle');
   const active = !['WITHDRAWN', 'EXPELLED', 'COMPLETED'].includes(participation.status);
   const expel = async () => { if (confirmation !== participation.anonymousAlias) return; setState('saving'); try { await client.expelParticipation(roomId, participation.participationId); onDone(); } catch { setState('error'); } };
-  return <div><span><strong>{participation.anonymousAlias}</strong><small>{participation.status} · {new Date(participation.joinedAt).toLocaleString()}</small></span>{active && !disabled && <span className="competition-expulsion-controls"><input aria-label={`${participation.anonymousAlias} 퇴장 확인`} placeholder="봇 별칭 입력" value={confirmation} onChange={(event) => { setConfirmation(event.target.value); setState('idle'); }} /><button type="button" disabled={state === 'saving' || confirmation !== participation.anonymousAlias} onClick={() => void expel()}><UserMinus size={14} />퇴장</button></span>}{state === 'error' && <em role="alert">퇴장 처리 실패</em>}</div>;
+  return <Localized><div><span><strong>{participation.anonymousAlias}</strong><small>{participation.status} · {new Date(participation.joinedAt).toLocaleString()}</small></span>{active && !disabled && <span className="competition-expulsion-controls"><input aria-label={`${participation.anonymousAlias} 퇴장 확인`} placeholder="봇 별칭 입력" value={confirmation} onChange={(event) => { setConfirmation(event.target.value); setState('idle'); }} /><button type="button" disabled={state === 'saving' || confirmation !== participation.anonymousAlias} onClick={() => void expel()}><UserMinus size={14} />퇴장</button></span>}{state === 'error' && <em role="alert">퇴장 처리 실패</em>}</div></Localized>;
 }
 
 function EditRoomDialog({ client, room, onClose, onSaved }: { client: CompetitionRoomsClient; room: OwnedRoomManagement; onClose: () => void; onSaved: () => void }) {
@@ -208,7 +214,7 @@ function RoomApiDetail({ client, room, onBack }: { client: CompetitionRoomsClien
   }, [client, ownedCursor, ownedReloadKey, room.id]);
   const ended = leaderboard.value?.snapshotStatus === 'FINAL' || leaderboard.value?.snapshotStatus === 'PUBLISHED';
   const joinClosed = Date.now() > Date.parse(room.participationClosesAt);
-  return <section className="competition-api-detail" role="region" aria-label={`${room.name} 상세`}>
+  return <Localized><section className="competition-api-detail" role="region" aria-label={`${room.name} 상세`}>
     <button type="button" className="competition-detail-back" onClick={onBack}><ArrowLeft size={15} aria-hidden="true" />대회 목록</button>
     <header className="competition-api-detail-head"><div><span>{statusLabel(room)}</span><h1>{room.name}</h1><p>참가자는 표시하지 않으며, 플랫폼이 부여한 익명 봇 별칭만 공개합니다.</p></div><button type="button" className="button button-primary" disabled={joinClosed} onClick={() => setJoinOpen(true)}>{joinClosed ? '참가 마감' : '이 대회 참가하기'}</button></header>
     <dl className="competition-detail-facts"><div data-fact-width="wide"><dt>모집 시작</dt><dd>{dateLabel(room.recruitmentOpensAt)}</dd></div><div data-fact-width="wide"><dt>참가 마감</dt><dd>{dateLabel(room.participationClosesAt)}</dd></div><div data-fact-width="compact"><dt>전체 봇 한도</dt><dd>{room.botParticipationLimit}</dd></div><div data-fact-width="compact"><dt>계정당 한도</dt><dd>{room.perAccountBotLimit}</dd></div></dl>
@@ -219,21 +225,21 @@ function RoomApiDetail({ client, room, onBack }: { client: CompetitionRoomsClien
     </div>
     {myBots.state === 'ready' && myBots.value.items.length > 0 && !ended && <section className="competition-choice-panel" aria-labelledby="participation-management-title"><h2 id="participation-management-title">내 참가 관리</h2><p>철회하면 현재 대회 평가는 종료됩니다. 봇을 비공개로 계속 운용하거나 안전하게 중지할 수 있습니다.</p>{myBots.value.items.map((item) => item.viewerEvidence && <WithdrawParticipation key={item.viewerEvidence.participationId} client={client} roomId={room.id} item={item} onDone={() => setOwnedReloadKey((key) => key + 1)} />)}</section>}
     {myBots.state === 'ready' && ended && myBots.value.items.length > 0 && <section className="competition-choice-panel" aria-labelledby="post-evaluation-title"><h2 id="post-evaluation-title">대회 종료 후 운용 선택</h2><p>선택하지 않으면 봇은 안전한 종료 절차에 따라 주문을 취소하고 포지션을 정리합니다.</p>{myBots.value.items.map((item) => item.viewerEvidence && <PostChoice key={item.viewerEvidence.participationId} client={client} roomId={room.id} item={item} initial={choices[item.viewerEvidence.participationId]} />)}</section>}
-  </section>;
+  </section></Localized>;
 }
 
 function LeaderboardSection({ title, load, history, setHistory, cursor, setCursor, owned = false, onRetry }: { title: string; load: SectionLoad<LeaderboardPage>; history: Array<string | undefined>; setHistory: React.Dispatch<React.SetStateAction<Array<string | undefined>>>; cursor: string | undefined; setCursor: (cursor: string | undefined) => void; owned?: boolean; onRetry: () => void }) {
-  if (load.state === 'loading' && !load.value) return <section className="competition-api-leaderboard" aria-label={title}><div className="competition-api-state" role="status"><LoaderCircle className="is-spinning" /><strong>{title}를 불러오는 중입니다.</strong></div></section>;
+  if (load.state === 'loading' && !load.value) return <Localized><section className="competition-api-leaderboard" aria-label={title}><div className="competition-api-state" role="status"><LoaderCircle className="is-spinning" /><strong>{title}를 불러오는 중입니다.</strong></div></section></Localized>;
   if (load.state === 'error' && !load.value) {
     const denied = load.error instanceof CompetitionApiError && (load.error.unauthenticated || load.error.forbidden);
-    return <section className="competition-api-leaderboard" aria-label={title}><div className="competition-api-mini-empty" role={denied ? 'status' : 'alert'}><strong>{denied && owned ? '로그인하면 내 봇 비교를 볼 수 있습니다.' : `${title}를 불러오지 못했습니다.`}</strong>{!denied && <button type="button" onClick={onRetry}>다시 시도</button>}</div></section>;
+    return <Localized><section className="competition-api-leaderboard" aria-label={title}><div className="competition-api-mini-empty" role={denied ? 'status' : 'alert'}><strong>{denied && owned ? '로그인하면 내 봇 비교를 볼 수 있습니다.' : `${title}를 불러오지 못했습니다.`}</strong>{!denied && <button type="button" onClick={onRetry}>다시 시도</button>}</div></section></Localized>;
   }
   const page = load.value!;
-  return <section className="competition-api-leaderboard" aria-label={title}><Leaderboard title={title} items={page.items} owned />{(history.length > 0 || page.hasMore) && <footer className="competition-api-pagination"><button type="button" disabled={history.length === 0} onClick={() => { const next = history.slice(); setCursor(next.pop()); setHistory(next); }}><ArrowLeft size={13} />이전</button><span>{history.length + 1}페이지</span><button type="button" disabled={!page.hasMore || !page.nextCursor} onClick={() => { if (!page.nextCursor) return; setHistory((current) => [...current, cursor]); setCursor(page.nextCursor ?? undefined); }}>다음<ArrowRight size={13} /></button></footer>}</section>;
+  return <Localized><section className="competition-api-leaderboard" aria-label={title}><Leaderboard title={title} items={page.items} owned />{(history.length > 0 || page.hasMore) && <footer className="competition-api-pagination"><button type="button" disabled={history.length === 0} onClick={() => { const next = history.slice(); setCursor(next.pop()); setHistory(next); }}><ArrowLeft size={13} />이전</button><span>{history.length + 1}페이지</span><button type="button" disabled={!page.hasMore || !page.nextCursor} onClick={() => { if (!page.nextCursor) return; setHistory((current) => [...current, cursor]); setCursor(page.nextCursor ?? undefined); }}>다음<ArrowRight size={13} /></button></footer>}</section></Localized>;
 }
 
 function Leaderboard({ title, items, owned = false }: { title: string; items: LeaderboardItem[]; owned?: boolean }) {
-  return <section className="competition-api-leaderboard" aria-label={title}><header><h2>{title}</h2><span>{items.length}개</span></header>{items.length === 0 ? <div className="competition-api-mini-empty">표시할 봇 성과가 없습니다.</div> : <div className="competition-ranking-list"><div className="competition-ranking is-metric-ranking" style={{ '--ranking-cols': '56px minmax(140px, 1fr) repeat(4, minmax(82px, 1fr))', '--ranking-min-width': '650px' } as React.CSSProperties}><header><span>순위</span><span>익명 봇</span><span>점수</span><span>수익률</span><span>MDD</span><span>샤프</span></header>{items.map((item, index) => <div className={owned ? 'is-mine' : ''} key={`${item.anonymousAlias}-${index}`}><strong>#{item.rank ?? '—'}</strong><span>{item.anonymousAlias}{owned && <i className="competition-ranking-mine-tag"><Bot size={12} aria-hidden="true" />내 봇</i>}</span><b>{metric(item.score)}</b><b>{metric(item.totalReturnPct, '%')}</b><b>{metric(item.maxDrawdownPct, '%')}</b><b>{metric(item.sharpeRatio)}</b></div>)}</div></div>}</section>;
+  return <Localized><section className="competition-api-leaderboard" aria-label={title}><header><h2>{title}</h2><span><CountLabel value={items.length} /></span></header>{items.length === 0 ? <div className="competition-api-mini-empty">표시할 봇 성과가 없습니다.</div> : <div className="competition-ranking-list"><div className="competition-ranking is-metric-ranking" style={{ '--ranking-cols': '56px minmax(140px, 1fr) repeat(4, minmax(82px, 1fr))', '--ranking-min-width': '650px' } as React.CSSProperties}><header><span>순위</span><span>익명 봇</span><span>점수</span><span>수익률</span><span>MDD</span><span>샤프</span></header>{items.map((item, index) => <div className={owned ? 'is-mine' : ''} key={`${item.anonymousAlias}-${index}`}><strong>#{item.rank ?? '—'}</strong><span>{item.anonymousAlias}{owned && <i className="competition-ranking-mine-tag"><Bot size={12} aria-hidden="true" />내 봇</i>}</span><b>{metric(item.score)}</b><b>{metric(item.totalReturnPct, '%')}</b><b>{metric(item.maxDrawdownPct, '%')}</b><b>{metric(item.sharpeRatio)}</b></div>)}</div></div>}</section></Localized>;
 }
 
 function WithdrawParticipation({ client, roomId, item, onDone }: { client: CompetitionRoomsClient; roomId: string; item: LeaderboardItem; onDone: () => void }) {
@@ -248,7 +254,7 @@ function WithdrawParticipation({ client, roomId, item, onDone }: { client: Compe
     try { await client.withdrawParticipation(roomId, participationId, action, reason.trim()); setState('done'); onDone(); }
     catch { setState('error'); }
   };
-  return <fieldset disabled={state === 'saving' || state === 'done'}><legend>{item.anonymousAlias}</legend><label>철회 후 봇<select aria-label={`${item.anonymousAlias} 철회 후 봇`} value={action} onChange={(event) => setAction(event.target.value as 'CONTINUE_PRIVATE' | 'STOP')}><option value="CONTINUE_PRIVATE">비공개로 계속 운용</option><option value="STOP">안전하게 중지</option></select></label><label>사유 코드<input aria-label={`${item.anonymousAlias} 철회 사유`} value={reason} onChange={(event) => setReason(event.target.value)} /></label><label>확인을 위해 “철회” 입력<input aria-label={`${item.anonymousAlias} 철회 확인`} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label><button type="button" className="button button-secondary" disabled={confirmation !== '철회' || !reason.trim()} onClick={() => void submit()}>{state === 'saving' ? '철회 중…' : '대회 참가 철회'}</button>{state === 'done' && <span role="status">참가를 철회했습니다.</span>}{state === 'error' && <span role="alert">참가 철회에 실패했습니다.</span>}</fieldset>;
+  return <Localized><fieldset disabled={state === 'saving' || state === 'done'}><legend>{item.anonymousAlias}</legend><label>철회 후 봇<select aria-label={`${item.anonymousAlias} 철회 후 봇`} value={action} onChange={(event) => setAction(event.target.value as 'CONTINUE_PRIVATE' | 'STOP')}><option value="CONTINUE_PRIVATE">비공개로 계속 운용</option><option value="STOP">안전하게 중지</option></select></label><label>사유 코드<input aria-label={`${item.anonymousAlias} 철회 사유`} value={reason} onChange={(event) => setReason(event.target.value)} /></label><label>확인을 위해 “철회” 입력<input aria-label={`${item.anonymousAlias} 철회 확인`} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label><button type="button" className="button button-secondary" disabled={confirmation !== '철회' || !reason.trim()} onClick={() => void submit()}>{state === 'saving' ? '철회 중…' : '대회 참가 철회'}</button>{state === 'done' && <span role="status">참가를 철회했습니다.</span>}{state === 'error' && <span role="alert">참가 철회에 실패했습니다.</span>}</fieldset></Localized>;
 }
 
 function PostChoice({ client, roomId, item, initial }: { client: CompetitionRoomsClient; roomId: string; item: LeaderboardItem; initial?: PostEvaluationChoice }) {
@@ -256,10 +262,10 @@ function PostChoice({ client, roomId, item, initial }: { client: CompetitionRoom
   const [action, setAction] = useState<PostEvaluationAction>(initial?.action ?? 'STOP_AFTER_EVALUATION');
   const [saving, setSaving] = useState(false); const [message, setMessage] = useState(''); const locked = Boolean(initial?.lockedAt);
   const save = async () => { setSaving(true); setMessage(''); try { await client.setPostEvaluationChoice(roomId, participationId, action); setMessage('종료 후 선택을 저장했습니다.'); } catch { setMessage('선택을 저장하지 못했습니다. 다시 시도해 주세요.'); } finally { setSaving(false); } };
-  return <fieldset disabled={locked || saving}><legend>{item.anonymousAlias}</legend><label><input type="radio" name={`choice-${participationId}`} checked={action === 'CONTINUE_PRIVATE'} onChange={() => setAction('CONTINUE_PRIVATE')} />비공개 봇으로 계속 운용</label><label><input type="radio" name={`choice-${participationId}`} checked={action === 'STOP_AFTER_EVALUATION'} onChange={() => setAction('STOP_AFTER_EVALUATION')} />대회 종료와 함께 안전하게 중지</label><button type="button" className="button button-primary" onClick={save}>{saving ? '저장 중…' : '종료 후 선택 저장'}</button>{message && <span role="status">{message}</span>}{locked && <span>선택이 잠겨 변경할 수 없습니다.</span>}</fieldset>;
+  return <Localized><fieldset disabled={locked || saving}><legend>{item.anonymousAlias}</legend><label><input type="radio" name={`choice-${participationId}`} checked={action === 'CONTINUE_PRIVATE'} onChange={() => setAction('CONTINUE_PRIVATE')} />비공개 봇으로 계속 운용</label><label><input type="radio" name={`choice-${participationId}`} checked={action === 'STOP_AFTER_EVALUATION'} onChange={() => setAction('STOP_AFTER_EVALUATION')} />대회 종료와 함께 안전하게 중지</label><button type="button" className="button button-primary" onClick={save}>{saving ? '저장 중…' : '종료 후 선택 저장'}</button>{message && <span role="status">{message}</span>}{locked && <span>선택이 잠겨 변경할 수 없습니다.</span>}</fieldset></Localized>;
 }
 
-function DialogShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <div className="competition-create-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="competition-create-dialog competition-api-dialog" role="dialog" aria-modal="true" aria-label={title}><header><div><small>COMPETITION</small><h2>{title}</h2></div><button type="button" aria-label={`${title} 닫기`} onClick={onClose}><X size={20} /></button></header>{children}</section></div>; }
+function DialogShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <Localized><div className="competition-create-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="competition-create-dialog competition-api-dialog" role="dialog" aria-modal="true" aria-label={title}><header><div><small>COMPETITION</small><h2>{title}</h2></div><button type="button" aria-label={`${title} 닫기`} onClick={onClose}><X size={20} /></button></header>{children}</section></div></Localized>; }
 
 function InvitationConsumeDialog({ client, onClose, onConsumed }: { client: CompetitionRoomsClient; onClose: () => void; onConsumed: (roomId: string) => void }) {
   const [secret, setSecret] = useState('');
@@ -358,7 +364,13 @@ function JoinRoomDialog({ client, room, onClose, onJoined }: { client: Competiti
     const form = new FormData(event.currentTarget);
     const validation = validations.value!.items.find((item) => item.validationRunId === String(form.get('validationRunId')))!;
     const policy = releaseInputs.value!.executionPolicies.find((item) => item.version === String(form.get('executionPolicyVersion')))!;
-    const input: JoinRoomInput = { validationRunId: validation.validationRunId, anonymousAlias: String(form.get('anonymousAlias')).trim(), languageVersion: validation.languageVersion, schemaVersion: validation.schemaVersion, catalogVersion: validation.catalogVersion, budgetCapBps: Number(form.get('budgetCapBps')), brokerRulesVersion: policy.brokerRulesVersion, accountingRulesVersion: policy.accountingRulesVersion, candidateConflictPolicy: { policy: 'FIRST_WINS' } }; setSaving(true); setError('');
+    const budgetPercent = Number(form.get('budgetPercent'));
+    const budgetCapBps = Math.round(budgetPercent * 100);
+    if (!Number.isFinite(budgetPercent) || budgetPercent < 1 || budgetPercent > 100 || !Number.isSafeInteger(budgetCapBps)) {
+      setError('봇 예산 비율은 1% 이상 100% 이하로 입력해 주세요.');
+      return;
+    }
+    const input: JoinRoomInput = { validationRunId: validation.validationRunId, anonymousAlias: String(form.get('anonymousAlias')).trim(), languageVersion: validation.languageVersion, schemaVersion: validation.schemaVersion, catalogVersion: validation.catalogVersion, budgetCapBps, brokerRulesVersion: policy.brokerRulesVersion, accountingRulesVersion: policy.accountingRulesVersion, candidateConflictPolicy: { policy: 'FIRST_WINS' } }; setSaving(true); setError('');
     try { await client.joinRoom(room.id, input); onJoined(); } catch (cause) { setError(cause instanceof CompetitionApiError && cause.unauthenticated ? '로그인 후 참가할 수 있습니다.' : cause instanceof CompetitionApiError && cause.forbidden ? '이 대회에 참가할 권한이 없습니다.' : cause instanceof CompetitionApiError && cause.conflict ? cause.detail || '참가 조건을 충족하지 못했습니다.' : '참가 요청을 완료하지 못했습니다.'); setSaving(false); }
   };
   const validationError = validations.error instanceof CompetitionApiError && validations.error.unauthenticated ? '로그인 후 검증 완료 전략을 확인할 수 있습니다.'
@@ -367,12 +379,12 @@ function JoinRoomDialog({ client, room, onClose, onJoined }: { client: Competiti
     <p>{room.name}에는 검증 완료된 전략 실행만 제출할 수 있습니다.</p>
     {validations.state === 'loading' && <p role="status">검증 완료 전략을 불러오는 중입니다.</p>}
     {validations.state === 'error' && <div role="alert"><p>{validationError}</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>전략 다시 불러오기</button></div>}
-    {validations.state === 'ready' && validations.value!.items.length === 0 && <p role="alert">현재 제출 가능한 검증 완료 전략이 없습니다.</p>}
+    {validations.state === 'ready' && validations.value!.items.length === 0 && <p role="status">현재 제출 가능한 검증 완료 전략이 없습니다.</p>}
     {available && <label>검증 완료 전략<select name="validationRunId" aria-label="검증 완료 전략" required>{validations.value!.items.map((item) => <option key={item.validationRunId} value={item.validationRunId}>{item.strategyName} · 편집 {item.requestedEditSequence} · {dateLabel(item.completedAt)}</option>)}</select></label>}
     {releaseInputs.state === 'error' && <div role="alert"><p>실행 정책을 불러오지 못했습니다.</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>실행 정책 다시 불러오기</button></div>}
-    {releaseInputs.state === 'ready' && releaseInputs.value?.executionPolicies.length === 0 && <p role="alert">현재 사용할 수 있는 공식 실행 정책이 없습니다.</p>}
+    {releaseInputs.state === 'ready' && releaseInputs.value?.executionPolicies.length === 0 && <p role="status">현재 사용할 수 있는 공식 실행 정책이 없습니다.</p>}
     {available && <label>공식 실행 정책<select name="executionPolicyVersion" aria-label="공식 실행 정책" required>{releaseInputs.value!.executionPolicies.map((item) => <option key={item.version} value={item.version}>{item.version} · {item.brokerRulesVersion} · {item.accountingRulesVersion}</option>)}</select></label>}
-    <label>봇 예산 비율(1–100%)<input name="budgetCapBps" aria-label="봇 예산 비율" type="number" min="1" max="10000" step="1" defaultValue="10000" required /></label>
+    <label>봇 예산 비율(1–100%)<input name="budgetPercent" aria-label="봇 예산 비율" type="number" min="1" max="100" step="0.01" defaultValue="100" required /></label>
     <label>익명 봇 별칭<input name="anonymousAlias" aria-label="익명 봇 별칭" placeholder="다른 참가자에게 표시될 별칭" required /></label>
     <p className="competition-api-privacy"><Check size={14} aria-hidden="true" />계정 이름과 전략 내부는 공개되지 않습니다.</p>{error && <p role="alert">{error}</p>}
     <footer><button type="button" className="button button-secondary" onClick={onClose}>취소</button><button type="submit" className="button button-primary" disabled={saving || !available}>{saving ? '참가 중…' : '참가 확정'}</button></footer>

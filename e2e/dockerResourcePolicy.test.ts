@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { hasActiveProjectRun, interpretDockerInspect, isDockerContainerNameConflict, shouldReapContainer, shouldReapNetwork } from './dockerResourcePolicy';
 
 const now = Date.parse('2026-08-03T04:00:00Z');
 
 describe('real API Docker resource policy', () => {
+  it('runs against the current superproject checkout instead of stale hard-coded revisions', () => {
+    const setup = readFileSync(resolve(process.cwd(), 'e2e/realApiGlobalSetup.ts'), 'utf8');
+    expect(setup).not.toMatch(/const (backend|root)Revision = '[0-9a-f]{40}'/);
+    expect(setup).toContain("path.join('..', 'backend')");
+    expect(setup).toContain("path.join('..')");
+  });
   it('never reaps another running process and ages stopped resources before recovery', () => {
     expect(shouldReapContainer(true, '2026-08-03T01:00:00Z', now)).toBe(false);
     expect(shouldReapContainer(false, '2026-08-03T03:30:00Z', now)).toBe(false);
