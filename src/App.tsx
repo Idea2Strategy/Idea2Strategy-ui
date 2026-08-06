@@ -135,7 +135,30 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
   const location = useLocation();
   const signedIn = useSignedIn();
   const [openPanel, setOpenPanel] = useState<string | null>(null);
+  const [topbarHidden, setTopbarHidden] = useState(false);
   const [notificationState, setNotificationState] = useState<TopbarNotificationState>({ kind: 'idle' });
+
+  /*
+    Signed out the top bar stays out of the way while reading: scrolling down
+    slides it away, any scroll up brings it back. Signed in it stays put — the
+    product areas live there.
+  */
+  useEffect(() => {
+    if (signedIn) {
+      setTopbarHidden(false);
+      return undefined;
+    }
+    let lastY = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (y < 32) setTopbarHidden(false);
+      else if (y > lastY + 2) setTopbarHidden(true);
+      else if (y < lastY - 2) setTopbarHidden(false);
+      lastY = y;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [signedIn]);
   const [notificationReload, setNotificationReload] = useState(0);
   const labels: Partial<Record<PageId, string>> = { home: 'HOME', strategy: 'STRATEGIES', bots: 'BOTS', backtest: 'BACKTEST', rooms: 'COMPETITION' };
   const togglePanel = (panel: string) => setOpenPanel((current) => current === panel ? null : panel);
@@ -182,7 +205,7 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
     return () => document.removeEventListener('pointerdown', dismiss);
   }, [openPanel]);
 
-  return <Localized><header className="app-topbar signal-product-nav">
+  return <Localized><header className={`app-topbar signal-product-nav ${topbarHidden ? 'is-scrolled-away' : ''}`}>
     {/* The logo is the front door: it opens the landing introduction, while
         the HOME menu item remains the operational dashboard. */}
     {/* Signed out the logo is the front door (landing introduction); signed in
@@ -191,14 +214,16 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
       <img src={i2sLogo} alt="Idea2Strategy" />
       <strong>IDEA<span>2</span>STRATEGY</strong>
     </button>
-    <nav aria-label="Signal 주요 메뉴" data-orientation="horizontal">
+    {/* The product areas are all account-scoped, so the tabs only exist for
+        signed-in visitors; signed out they would each just open sign-in. */}
+    {signedIn && <nav aria-label="Signal 주요 메뉴" data-orientation="horizontal">
       {navItems.map(({ id, label }) => <button
         key={id}
         className={page === id ? 'active' : ''}
         aria-label={label}
         onClick={() => setPage(id)}
       >{labels[id]}</button>)}
-    </nav>
+    </nav>}
     <div className="signal-nav-tools">
       {signedIn && <div className="topbar-popover-anchor">
         <button className="icon-button has-count" aria-label="알림" onClick={() => togglePanel('notifications')}><Bell size={17} />{unreadCount > 0 && <b>{unreadCount}</b>}</button>

@@ -808,7 +808,7 @@ const english: Record<string, string> = {
   '아이디어를, 전략으로': 'Ideas, into strategies',
   '코드 없이 전략을 조립하고, 서버의 봇이 규칙 그대로 실행하는 가상 트레이딩 워크스페이스입니다.': 'Assemble strategies without code, and a server-side bot runs them exactly as written — a virtual trading workspace.',
   '전략 만들기': 'Create a strategy',
-  '대시보드 둘러보기': 'Explore the dashboard',
+  '대회 둘러보기': 'Explore competitions',
   '스크롤해서 살펴보기': 'Scroll to explore',
   '블록을 조립해 규칙을 만듭니다': 'Assemble blocks into rules',
   'Basic 문장형 블록, Pro 노드 그래프': 'Basic sentence blocks, Pro node graph',

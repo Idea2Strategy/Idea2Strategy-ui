@@ -159,7 +159,9 @@ export function LandingView({ setPage }: LandingViewProps): ReactNode {
           <p className="landing-sub">코드 없이 전략을 조립하고, 서버의 봇이 규칙 그대로 실행하는 가상 트레이딩 워크스페이스입니다.</p>
           <div className="landing-cta">
             <Button kind="primary" icon={ArrowRight} onClick={() => setPage('strategy')}>전략 만들기</Button>
-            <Button onClick={() => setPage('home')}>대시보드 둘러보기</Button>
+            {/* Competition is the one area open without an account, so it is
+                the honest "look around first" destination. */}
+            <Button onClick={() => setPage('rooms')}>대회 둘러보기</Button>
           </div>
         </div>
         <div ref={captionsRef} className="landing-captions" data-active-caption="0">

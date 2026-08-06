@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AccountApiError } from '../api/account';
 import type { AccountClient } from '../api/account';
-import { Button, PageHeading, Panel } from '../components/common';
+import { Button } from '../components/common';
+import i2sLogo from '../assets/i2s-logo.svg';
 import { Localized } from '../lib/i18n';
 import { pagePaths } from '../lib/navigation';
 
@@ -79,12 +80,14 @@ export function LoginView({ client }: AuthScreenProps) {
   };
 
   return <Localized><div className="page auth-page">
-    <PageHeading
-      eyebrow="ACCOUNT / SIGN IN"
-      title="로그인"
-      description="이메일과 비밀번호로 로그인합니다. 세션은 브라우저 메모리에만 유지됩니다."
-    />
-    <Panel className="auth-panel">
+    <div className="auth-backdrop" aria-hidden="true" />
+    <section className="auth-card auth-panel" aria-labelledby="auth-title">
+      <header className="auth-card-head">
+        <img src={i2sLogo} alt="" aria-hidden="true" />
+        <p className="auth-eyebrow">ACCOUNT / SIGN IN</p>
+        <h1 id="auth-title">로그인</h1>
+        <p className="auth-card-copy">이메일과 비밀번호로 로그인합니다. 세션은 브라우저 메모리에만 유지됩니다.</p>
+      </header>
       <form className="auth-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
         <label><span>이메일</span><input aria-label="로그인 이메일" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
         <label><span>비밀번호</span><input aria-label="로그인 비밀번호" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
@@ -108,7 +111,7 @@ export function LoginView({ client }: AuthScreenProps) {
         {resetMessage && <p role="status">{resetMessage}</p>}
         {resetFailure && <ApiFailure error={resetFailure} />}
       </details>
-    </Panel>
+    </section>
   </div></Localized>;
 }
 
@@ -143,12 +146,14 @@ export function SignupView({ client }: AuthScreenProps) {
   };
 
   return <Localized><div className="page auth-page">
-    <PageHeading
-      eyebrow="ACCOUNT / SIGN UP"
-      title="가입"
-      description="가입 후 이메일로 받은 인증 토큰을 입력해야 로그인할 수 있습니다."
-    />
-    <Panel className="auth-panel">
+    <div className="auth-backdrop" aria-hidden="true" />
+    <section className="auth-card auth-panel" aria-labelledby="auth-title">
+      <header className="auth-card-head">
+        <img src={i2sLogo} alt="" aria-hidden="true" />
+        <p className="auth-eyebrow">ACCOUNT / SIGN UP</p>
+        <h1 id="auth-title">가입</h1>
+        <p className="auth-card-copy">가입 후 이메일로 받은 인증 토큰을 입력해야 로그인할 수 있습니다.</p>
+      </header>
       {step.kind === 'form' && <>
         <form className="auth-form" onSubmit={(event) => {
           event.preventDefault();
@@ -192,6 +197,6 @@ export function SignupView({ client }: AuthScreenProps) {
       </>}
       {message && <p role="status">{message}</p>}
       {failure && <ApiFailure error={failure} />}
-    </Panel>
+    </section>
   </div></Localized>;
 }
