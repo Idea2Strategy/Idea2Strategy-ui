@@ -4167,17 +4167,9 @@
 .account-api-error small { display: block; color: var(--text-faint); }
 .account-api-fields { margin-bottom: 14px; }
 .account-api-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.account-login-form { width: 100%; display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 10px; margin-top: 12px; }
-.account-login-form label { display: grid; gap: 5px; }
-.account-login-form input { min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); background: var(--surface-2); }
-.account-auth-alternatives { width: 100%; margin-top: 12px; }
-.account-auth-alternatives summary { cursor: pointer; color: var(--text-soft); }
-.account-auth-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
-.account-auth-fields label { display: grid; gap: 5px; }
-.account-auth-fields input { min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); background: var(--surface-2); }
-@media (max-width: 760px) {
-  .account-auth-fields { grid-template-columns: 1fr; }
-}
+.account-danger-zone { width: 100%; }
+.account-danger-zone summary { cursor: pointer; color: var(--text-soft); }
+.account-danger-zone[open] summary { margin-bottom: 12px; }
 /* Dedicated /login and /signup screens (A23): one narrow column, the same
    field styling as the account panels so both auth surfaces read as one. */
 /*

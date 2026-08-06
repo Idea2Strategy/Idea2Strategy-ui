@@ -15,9 +15,8 @@ test('browser completes the production account principal and user-case journey',
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole('heading', { name: '로그인' })).toBeVisible();
 
-  // The journey enters through the dedicated /signup screen. A wrong password
-  // on /login later proves the error path; the /account inline form keeps its
-  // own unit coverage in AccountApiPanels.test.tsx.
+  // The journey enters through the dedicated /signup screen — the only signup
+  // surface. A wrong password on /login later proves the error path.
   await page.goto('/signup');
   await page.getByLabel('가입 이메일').fill(email);
   await page.getByLabel('가입 비밀번호', { exact: true }).fill(password);

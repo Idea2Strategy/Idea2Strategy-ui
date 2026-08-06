@@ -7,7 +7,20 @@ import type {
   SessionView,
 } from '../api/account';
 import { AccountApiError } from '../api/account';
+import { setSessionTokens } from '../api/sessionAccessToken';
+import { browserSessionStore } from '../lib/session';
 import { Button, ErrorState, Panel, SignInRequiredState, Status } from './common';
+
+/*
+  The route guard decides "signed in" from the in-memory token and the tab
+  session store. Dropping both is what turns a server-refused credential into
+  the sign-in redirect; leaving either one populated keeps the guard convinced
+  and strands the visitor on a page whose every request 401s.
+*/
+function dropTabSession(reason?: 'rejected') {
+  setSessionTokens(null, null);
+  browserSessionStore.signOut(reason);
+}
 
 interface AccountApiPanelsProps {
   client: AccountClient;
@@ -40,9 +53,7 @@ export function AccountApiPanels({
   const [lifecycleState, setLifecycleState] = useState<ActionState>({ kind: 'idle' });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [loginPending, setLoginPending] = useState(false);
+  const [logoutPending, setLogoutPending] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -55,13 +66,33 @@ export function AccountApiPanels({
         if (current) setLoadState({ kind: 'ready', sessions, preferences });
       })
       .catch((error: unknown) => {
-        if (current && !controller.signal.aborted) setLoadState({ kind: 'error', error: fallbackError(error) });
+        if (!current || controller.signal.aborted) return;
+        const resolved = fallbackError(error);
+        /* The guard let this render because a stored session looked alive, yet
+           the server refused it: the token is dead however good it looked
+           locally. Recording that flips the guard, which owns the way back to
+           the sign-in screen. */
+        if (resolved.status === 401) dropTabSession('rejected');
+        setLoadState({ kind: 'error', error: resolved });
       });
     return () => {
       current = false;
       controller.abort();
     };
   }, [client, loadAttempt]);
+
+  const logout = useCallback(async () => {
+    setLogoutPending(true);
+    try {
+      await client.logoutCurrent();
+    } catch {
+      // A server that cannot revoke the session must not keep this tab signed
+      // in; the deliberate sign-out still happens locally.
+      dropTabSession();
+    } finally {
+      setLogoutPending(false);
+    }
+  }, [client]);
 
   const updateDraft = (patch: Partial<AccountPreferences>) => {
     setLoadState((current) => current.kind === 'ready'
@@ -119,19 +150,6 @@ export function AccountApiPanels({
   if (loadState.kind === 'error') {
     return <Panel className="span-2 account-api-state" title="계정 서버 연결">
       <ApiErrorState error={loadState.error} onRetry={() => setLoadAttempt((attempt) => attempt + 1)} />
-      {loadState.error.status === 401 && <form className="account-login-form" onSubmit={(event) => {
-        event.preventDefault();
-        setLoginPending(true);
-        void client.login(loginEmail, loginPassword, 'Web browser')
-          .then(() => { setLoginPassword(''); setLoadAttempt((attempt) => attempt + 1); })
-          .catch((cause) => setLoadState({ kind: 'error', error: fallbackError(cause) }))
-          .finally(() => setLoginPending(false));
-      }}>
-        <label><span>이메일</span><input aria-label="로그인 이메일" type="email" value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} /></label>
-        <label><span>비밀번호</span><input aria-label="로그인 비밀번호" type="password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} /></label>
-        <Button kind="primary" type="submit" disabled={!loginEmail || !loginPassword || loginPending}>{loginPending ? '로그인 중' : '로그인'}</Button>
-      </form>}
-      {loadState.error.status === 401 && <UnauthenticatedAccountActions client={client} />}
     </Panel>;
   }
 
@@ -146,6 +164,7 @@ export function AccountApiPanels({
             <small>{currentSession ? `만료 ${currentSession.expiresAt}` : '활성 세션 없음'}</small>
           </span>
           {currentSession?.current && <Status tone="positive">현재</Status>}
+          <Button onClick={() => void logout()} disabled={logoutPending}>{logoutPending ? '로그아웃 중' : '로그아웃'}</Button>
         </div>
       </div>
     </Panel>
@@ -182,60 +201,34 @@ export function AccountApiPanels({
     </Panel>
 
     <Panel className="span-2" title="계정 생명주기" subtitle="탈퇴 요청, 취소, 재활성화는 서버 정책에 따라 처리됩니다">
-      <div className="settings-fields account-api-fields">
-        <label><span>이메일</span><input aria-label="계정 확인 이메일" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-        <label><span>비밀번호</span><input aria-label="계정 확인 비밀번호" type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-      </div>
-      <div className="account-api-actions">
-        <Button onClick={() => void runLifecycle('withdraw')} disabled={!email || !password || lifecycleState.kind === 'pending'}>탈퇴 요청</Button>
-        <Button onClick={() => void runLifecycle('cancel')} disabled={!email || !password || lifecycleState.kind === 'pending'}>탈퇴 취소</Button>
-        <Button onClick={() => void runLifecycle('reactivate')} disabled={!email || !password || lifecycleState.kind === 'pending'}>계정 재활성화</Button>
-      </div>
-      {lifecycleState.kind === 'pending' && <p role="status">서버가 요청을 처리하는 중입니다.</p>}
-      {lifecycleState.kind === 'lifecycle' && <p role="status">계정 상태: {lifecycleState.result.status} · 버전 {lifecycleState.result.version}</p>}
-      {lifecycleState.kind === 'error' && <ApiErrorState error={lifecycleState.error} onRetry={lifecycleState.retry} />}
+      {/* Destructive account actions stay behind a deliberate extra open: the
+          fold keeps them off the page's default reading path. */}
+      <details className="account-danger-zone">
+        <summary>탈퇴 요청 · 취소 · 재활성화</summary>
+        <div className="settings-fields account-api-fields">
+          <label><span>이메일</span><input aria-label="계정 확인 이메일" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+          <label><span>비밀번호</span><input aria-label="계정 확인 비밀번호" type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+        </div>
+        <div className="account-api-actions">
+          <Button onClick={() => void runLifecycle('withdraw')} disabled={!email || !password || lifecycleState.kind === 'pending'}>탈퇴 요청</Button>
+          <Button onClick={() => void runLifecycle('cancel')} disabled={!email || !password || lifecycleState.kind === 'pending'}>탈퇴 취소</Button>
+          <Button onClick={() => void runLifecycle('reactivate')} disabled={!email || !password || lifecycleState.kind === 'pending'}>계정 재활성화</Button>
+        </div>
+        {lifecycleState.kind === 'pending' && <p role="status">서버가 요청을 처리하는 중입니다.</p>}
+        {lifecycleState.kind === 'lifecycle' && <p role="status">계정 상태: {lifecycleState.result.status} · 버전 {lifecycleState.result.version}</p>}
+        {lifecycleState.kind === 'error' && <ApiErrorState error={lifecycleState.error} onRetry={lifecycleState.retry} />}
+      </details>
     </Panel>
   </>;
-}
-
-function UnauthenticatedAccountActions({ client }: { client: AccountClient }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [token, setToken] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
-  const [failure, setFailure] = useState<AccountApiError | null>(null);
-  const run = async (action: () => Promise<unknown>, success: string) => {
-    setFailure(null); setMessage(null);
-    try { await action(); setMessage(success); }
-    catch (cause) { setFailure(fallbackError(cause)); }
-  };
-  return <details className="account-auth-alternatives">
-    <summary>가입 · 이메일 인증 · 비밀번호 복구</summary>
-    <div className="account-auth-fields">
-      <label><span>이메일</span><input aria-label="인증 이메일" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-      <label><span>비밀번호 / 새 비밀번호</span><input aria-label="인증 비밀번호" type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-      <label><span>이메일 인증 또는 재설정 토큰</span><input aria-label="인증 토큰" value={token} onChange={(event) => setToken(event.target.value)} /></label>
-    </div>
-    <div className="account-api-actions">
-      <Button disabled={!email || !password} onClick={() => void run(() => client.signup(email, password), '가입 요청을 접수했습니다. 이메일 인증을 완료하세요.')}>가입</Button>
-      <Button disabled={!token} onClick={() => void run(() => client.verifyEmail(token), '이메일 인증을 완료했습니다.')}>이메일 인증</Button>
-      <Button disabled={!email} onClick={() => void run(() => client.requestPasswordReset(email), '계정 존재 여부와 관계없이 복구 요청을 접수했습니다.')}>재설정 요청</Button>
-      <Button disabled={!token || !password} onClick={() => void run(() => client.resetPassword(token, password), '비밀번호를 재설정했습니다. 다시 로그인하세요.')}>비밀번호 재설정</Button>
-    </div>
-    {message && <p role="status">{message}</p>}
-    {failure && <ErrorState
-      title="요청을 처리하지 못했습니다."
-      detail={<>오류 코드 {failure.code}{failure.correlationId && <> · 문의 코드 {failure.correlationId}</>}</>}
-    />}
-  </details>;
 }
 
 function ApiErrorState({ error, onRetry }: { error: AccountApiError; onRetry: () => void }) {
   if (error.status === 401) {
     /* Signed-out is the server answering as designed, so it renders through the
-       shared sign-in state — no raw error code, no retry button. The sign-in
-       form itself is right below in the same panel. */
-    return <SignInRequiredState detail="세션이 유효하지 않습니다. 아래에서 로그인하면 계정 정보가 표시됩니다." />;
+       shared sign-in state — no raw error code, no retry button. The session
+       stores were already dropped, so the route guard is taking this page to
+       the dedicated sign-in screen. */
+    return <SignInRequiredState detail="세션이 만료되었거나 서버가 로그인을 거부했습니다. 로그인 화면으로 이동합니다." />;
   }
   const message = error.status === 403
     ? '이 작업을 수행할 권한이 없습니다.'
