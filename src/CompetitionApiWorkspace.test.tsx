@@ -73,9 +73,15 @@ describe('real competition room workspace', () => {
     await screen.findByRole('listitem', { name: '실전 API 대회 열기' });
     await userEvent.click(screen.getByRole('button', { name: '대회 만들기' }));
     const create = screen.getByRole('dialog', { name: '대회 만들기' });
+    expect(within(create).getByRole('group', { name: '기본 설정' })).toBeInTheDocument();
+    expect(within(create).getByRole('group', { name: '대회 일정' })).toBeInTheDocument();
+    expect(within(create).getByRole('group', { name: '운영 정책' })).toBeInTheDocument();
     await userEvent.type(within(create).getByLabelText('대회 이름'), '새 대회');
     expect(await within(create).findByRole('option', { name: /TOTAL_RETURN · 1.0.0/ })).toBeInTheDocument();
     expect(within(create).queryByLabelText('채점 템플릿 버전 ID')).not.toBeInTheDocument();
+    const closesAt = new Date((within(create).getByLabelText('참가 마감') as HTMLInputElement).value);
+    const evaluationStartsAt = new Date((within(create).getByLabelText('평가 시작') as HTMLInputElement).value);
+    expect(closesAt.getTime()).toBeLessThan(evaluationStartsAt.getTime());
     await userEvent.click(within(create).getByRole('button', { name: '대회 생성' }));
     await waitFor(() => expect(api.createRoom).toHaveBeenCalledWith(expect.objectContaining({
       scoringTemplateVersionId: roomInputCatalog.scoringTemplates[0].id,

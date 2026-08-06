@@ -2093,7 +2093,13 @@ export function BotsView({
           <p className="bots-decision-note">전체 기록을 선택하면 주문으로 이어지지 않은 판단도 최초 실패 조건과 함께 남깁니다. 예산 상한 보류는 정상 동작이며 다음 평가에서 자동으로 재시도합니다.</p>
         </TabPanel>}
 
-      </section> : null}
+      </section> : <section className="bots-detail-panel panel bots-detail-empty" aria-label="봇 운영 안내">
+        <EmptyState
+          icon={Bot}
+          title="선택할 봇이 없습니다."
+          detail="운용할 봇을 선택하면 실행 상태, 포지션, 주문과 판단 기록이 이 영역에 표시됩니다."
+        />
+      </section>}
     </div>
 
     {layoutOpen && selected && detail && <StrategyLayoutModal

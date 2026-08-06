@@ -16,10 +16,10 @@ import { strategies } from '../data/mockData';
 import type { StrategySummary } from '../data/mockData';
 import { Button, EmptyState, ErrorState, LoadingState, PageHeading, Panel, Status } from '../components/common';
 import { ErrorPage, SignInRequiredPage } from '../components/StatePages';
-import { StrategyPreviewChart } from '../components/StrategyPreviewChart';
 import { splitPartitionSymbols } from '../lib/strategyPreview';
-import type { PreviewFlow } from '../lib/strategyPreview';
 import { Localized } from '../lib/i18n';
+import { browserSessionStore } from '../lib/session';
+import { setSessionAccessToken } from '../api/sessionAccessToken';
 import { PRO_EDITOR_AVAILABLE } from '../lib/proEditorAccess';
 import {
   getBasicSectionLayout,
@@ -32,6 +32,7 @@ import { defaultStrategyAuthoringClient, defaultStrategyCatalogClient, defaultSt
 import type { BasicCatalogInstrument, BasicStrategyCatalog, StrategyAuthoringClient, StrategyCatalogClient, StrategyLibraryClient, StrategyLibraryItem } from '../api/strategies';
 
 type EditorMode = 'basic' | 'pro';
+type EditorLoadFailure = 'sign-in' | 'missing' | 'conflict' | 'transport';
 type Side = 'buy' | 'sell' | 'risk';
 type BlockTone =
   | 'data'
@@ -1286,6 +1287,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const [announcement, setAnnouncement] = useState('');
   const [saveFeedback, setSaveFeedback] = useState<SaveFeedback | null>(null);
   const [documentPending, setDocumentPending] = useState(Boolean(strategyId && authoringClient));
+  const [documentRevision, setDocumentRevision] = useState(0);
+  const [editorLoadFailure, setEditorLoadFailure] = useState<EditorLoadFailure | null>(null);
   const [savePending, setSavePending] = useState(false);
   const leaseTokenRef = useRef<string | null>(null);
   const editSequenceRef = useRef(0);
@@ -1293,6 +1296,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const presentationDocumentRef = useRef<Record<string, unknown>>({});
   const [basicCatalog, setBasicCatalog] = useState<BasicStrategyCatalog | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [pendingInstrumentKey, setPendingInstrumentKey] = useState('');
   // Two-phase dismissal so the toast can slide back down (mirroring its entry)
   // instead of vanishing instantly.
   const [saveFeedbackClosing, setSaveFeedbackClosing] = useState(false);
@@ -1530,9 +1534,17 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     let heartbeatTimer: number | undefined;
     let grantedLeaseToken: string | null = null;
 
-    void authoringClient.acquireLease(strategyId, controller.signal).then(async (lease) => {
+    setDocumentPending(true);
+    setEditorLoadFailure(null);
+    /* Read before taking the exclusive lease. In React StrictMode the first
+       development-only mount is immediately discarded; acquiring first let
+       that discarded mount race its asynchronous release against the real
+       mount and produce a false 409. The abortable read makes the probe mount
+       harmless, then the surviving mount takes the lease. */
+    void authoringClient.getDocument(strategyId, controller.signal).then(async (document) => {
+      if (disposed) return;
+      const lease = await authoringClient.acquireLease(strategyId, controller.signal);
       grantedLeaseToken = lease.leaseToken;
-      const document = await authoringClient.getDocument(strategyId, controller.signal);
       if (disposed) {
         await authoringClient.releaseLease(strategyId, lease.leaseToken).catch(() => undefined);
         grantedLeaseToken = null;
@@ -1565,11 +1577,17 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       }
       if (disposed || (error instanceof DOMException && error.name === 'AbortError')) return;
       setDocumentPending(false);
-      setSaveFeedback({
-        tone: 'warning',
-        title: error instanceof StrategyApiError && error.status === 409 ? '다른 곳에서 편집 중입니다.' : '전략을 불러오지 못했습니다.',
-        detail: error instanceof StrategyApiError && error.status === 409 ? '다른 편집을 마친 뒤 다시 열어 주세요.' : '목록으로 돌아가 다시 시도해 주세요.',
-      });
+      if (error instanceof StrategyApiError && error.status === 401) {
+        setSessionAccessToken(null);
+        browserSessionStore.signOut('rejected');
+        setEditorLoadFailure('sign-in');
+      } else if (error instanceof StrategyApiError && error.status === 404) {
+        setEditorLoadFailure('missing');
+      } else if (error instanceof StrategyApiError && error.status === 409) {
+        setEditorLoadFailure('conflict');
+      } else {
+        setEditorLoadFailure('transport');
+      }
     });
 
     return () => {
@@ -1582,7 +1600,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       grantedLeaseToken = null;
       if (tokenToRelease) void authoringClient.releaseLease(strategyId, tokenToRelease).catch(() => undefined);
     };
-  }, [authoringClient, strategyId]);
+  }, [authoringClient, documentRevision, strategyId]);
 
   const rememberEditorChange = () => {
     const snapshot = captureEditorSnapshot();
@@ -2351,39 +2369,13 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     };
   };
 
-  /*
-    미리보기 차트에 넘길 파티션 구성. 파티션의 모든 매수·매도 전략 카드 블록을
-    한 벌로 모아 전달하므로, 블록을 추가하거나 값을 바꾸면 이 memo가 새 배열을
-    만들고 차트가 그 자리에서 다시 계산된다.
-  */
+  /* The editor has no market-data preview contract. Keep only the partition's
+     real configured symbols for the honest unavailable state below. */
   const previewSection = sections.find((section) => section.id === previewSectionId) ?? null;
   const previewSectionNumber = previewSection
     ? String(sections.findIndex((section) => section.id === previewSection.id) + 1).padStart(2, '0')
     : '';
-  const previewSymbols = useMemo(
-    () => {
-      const symbols = previewSection ? splitPartitionSymbols(previewSection.symbol) : [];
-      return symbols.length > 0 ? symbols : ['AAPL'];
-    },
-    [previewSection],
-  );
-  /*
-    전략 카드 하나가 미리보기의 플로우 하나다. 여러 매수 전략 카드를 한 벌로
-    합치면 어느 전략 카드가 주문을 만들었는지 알 수 없고, 두 번째 전략 카드의
-    조건은 계산에서 빠진다. 이름은 카드 헤더에 보이는 제목을 그대로 쓴다.
-  */
-  const previewFlows = useMemo<PreviewFlow[]>(() => {
-    if (!previewSection) return [];
-    const sides: Array<Exclude<Side, 'risk'>> = ['buy', 'sell'];
-    return sides.flatMap((side) => previewSection.cards[side].map((cardId, index) => ({
-      id: cardId,
-      label: previewSection.cards[side].length > 1
-        ? `${side === 'buy' ? '매수' : '매도'} ${index + 1}`
-        : (side === 'buy' ? '매수' : '매도'),
-      side,
-      blocks: cardBlocks[cardId] ?? [],
-    })));
-  }, [cardBlocks, previewSection]);
+  const previewSymbols = previewSection ? splitPartitionSymbols(previewSection.symbol) : [];
 
   const addStrategyCard = (sectionId: string, side: Side) => {
     const section = sections.find((item) => item.id === sectionId)!;
@@ -2951,7 +2943,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     : catalogClient
       ? []
       : LOCAL_PREVIEW_SYMBOLS.map((symbol) => ({ id: '', symbol }));
-  const nextSelectableInstrument = selectableInstruments.find((instrument) => !managedSymbols.includes(instrument.symbol));
+  const availableInstruments = selectableInstruments.filter((instrument) => !managedSymbols.includes(instrument.symbol));
+  const selectedInstrument = availableInstruments.find((instrument) => (instrument.id || instrument.symbol) === pendingInstrumentKey)
+    ?? availableInstruments[0];
   const removeManagedSymbol = (symbol: string) => {
     if (!symbolManagerSection) return;
     const nextSymbols = managedSymbols.filter((item) => item !== symbol);
@@ -2967,8 +2961,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     });
   };
   const addManagedSymbol = () => {
-    if (!symbolManagerSection || !nextSelectableInstrument) return;
-    const { id, symbol } = nextSelectableInstrument;
+    if (!symbolManagerSection || !selectedInstrument) return;
+    const { id, symbol } = selectedInstrument;
     updateSection(symbolManagerSection.id, {
       symbol: [...managedSymbols, symbol].join(' · '),
       instrumentIds: id
@@ -2979,6 +2973,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       ...current,
       [symbolManagerSection.id]: { ...(current[symbolManagerSection.id] ?? {}), [symbol]: 25 },
     }));
+    setPendingInstrumentKey('');
   };
 
   const trashItemLabel = draggedBlock
@@ -2988,6 +2983,22 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       : sectionMove
         ? '파티션'
         : null;
+
+  if (editorLoadFailure === 'sign-in') return <SignInRequiredPage />;
+  if (editorLoadFailure === 'missing') return <ErrorPage
+    title="전략을 찾을 수 없습니다."
+    detail="삭제되었거나 이 계정에 속하지 않는 전략입니다. 전략 목록에서 다시 선택해 주세요."
+  />;
+  if (editorLoadFailure === 'conflict') return <ErrorPage
+    title="다른 곳에서 편집 중입니다."
+    detail="다른 편집을 마친 뒤 다시 시도해 주세요."
+    onRetry={() => setDocumentRevision((current) => current + 1)}
+  />;
+  if (editorLoadFailure === 'transport') return <ErrorPage
+    title="전략을 불러오지 못했습니다."
+    detail="연결 상태를 확인한 뒤 다시 시도해 주세요. 확인되지 않은 편집 내용은 표시하지 않습니다."
+    onRetry={() => setDocumentRevision((current) => current + 1)}
+  />;
 
   return <Localized><div className="page editor-page basic-editor-page editor-shell-page">
     <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
@@ -3142,7 +3153,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
                 <button className="section-move-handle" data-testid={`${section.id}-move-handle`} aria-label={`PARTITION ${sectionNumber} 이동`} onPointerDown={(event) => beginSectionMove(event, section)}><GripVertical size={16} /></button>
                 <div className="section-identity"><span>PARTITION {sectionNumber}</span><strong>{section.symbol}</strong><small>매수 {section.cards.buy.length} · 매도 {section.cards.sell.length}</small></div>
                 <div className="section-settings">
-                  <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="거래 종목">종목</span><button type="button" className="section-symbol-manager" aria-label={`PARTITION ${sectionNumber} 종목 관리`} onClick={() => setSymbolManagerSectionId(section.id)}><strong>{splitPartitionSymbols(section.symbol).length || 0}개 종목</strong><small>한도 설정</small></button></label>
+                  <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="거래 종목">종목</span><button type="button" className="section-symbol-manager" aria-label={`PARTITION ${sectionNumber} 종목 관리`} onClick={() => { setPendingInstrumentKey(''); setSymbolManagerSectionId(section.id); }}><strong>{splitPartitionSymbols(section.symbol).length || 0}개 종목</strong><small>한도 설정</small></button></label>
                   <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="전체 전략 대비 예산">예산</span><span className="section-allocation"><input type="number" min=".1" max="100" step=".1" aria-label={`PARTITION ${sectionNumber} 전체 전략 대비 예산`} value={section.allocation} onWheel={(event) => event.stopPropagation()} onChange={(event) => updateSection(section.id, { allocation: Number(event.target.value) })} /><b>%</b></span></label>
                   <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="기본 봉 주기">봉 주기</span><select aria-label={`PARTITION ${sectionNumber} 기본 봉 주기`} value={section.timeframe} onChange={(event) => updateSection(section.id, { timeframe: event.target.value })}>{['1분봉', '3분봉', '5분봉', '15분봉', '30분봉', '1시간봉', '4시간봉', '일봉', '주봉'].map((timeframe) => <option key={timeframe}>{timeframe}</option>)}</select></label>
                 </div>
@@ -3209,12 +3220,17 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       미리보기는 PiP 창이다. 확대·이동하는 캔버스 안에 두면 좌표가 따라 움직이고
       transform이 fixed 기준을 바꿔 버리므로, 캔버스 밖 화면 단위에 띄운다.
     */}
-    {previewSection && <StrategyPreviewChart
-      partitionLabel={`PARTITION ${previewSectionNumber}`}
-      symbols={previewSymbols}
-      flows={previewFlows}
-      onClose={() => setPreviewSectionId(null)}
-    />}
+    {previewSection && <aside className="strategy-preview-card strategy-preview-unavailable" data-testid="strategy-preview-unavailable" aria-label={`PARTITION ${previewSectionNumber} 전략 미리보기`}>
+      <header className="strategy-preview-head">
+        <div className="strategy-preview-identity"><strong>{previewSymbols.length > 0 ? previewSymbols.join(' · ') : '종목 미선택'}</strong><small>{`PARTITION ${previewSectionNumber}`}</small></div>
+        <button type="button" className="strategy-preview-close" aria-label="미리보기 닫기" onClick={() => setPreviewSectionId(null)}><X size={13} /></button>
+      </header>
+      <EmptyState
+        icon={CandlestickChart}
+        title="실제 시장 데이터 기반 미리보기만 표시합니다."
+        detail="현재 편집기에는 검증된 미리보기 시세 API가 연결되어 있지 않습니다. 저장 후 공식 백테스트에서 실제 데이터 기반 결과를 확인해 주세요."
+      />
+    </aside>}
     {trashItemLabel && <div
       ref={(element) => { trashZoneRef.current = element; }}
       className={`editor-trash-zone ${cardMove || sectionMove ? 'is-pointer-trash' : ''} ${trashReady ? 'is-ready' : ''}`}
@@ -3251,7 +3267,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         <div className="symbol-manager-list">
           {managedSymbols.map((symbol) => <div key={symbol}><span><strong>{symbol}</strong><small>미국 주식</small></span><label><span>최대 보유 비율</span><span className="setting-with-unit"><input type="number" min=".1" max="100" step=".1" aria-label={`${symbol} 종목별 최대 보유 비율`} value={symbolLimits[symbolManagerSection.id]?.[symbol] ?? 25} onChange={(event) => setSymbolLimits((current) => ({ ...current, [symbolManagerSection.id]: { ...(current[symbolManagerSection.id] ?? {}), [symbol]: Number(event.target.value) } }))} /><b>%</b></span></label><button type="button" aria-label={`${symbol} 삭제`} onClick={() => removeManagedSymbol(symbol)}><Trash2 size={14} /></button></div>)}
         </div>
-        <footer><Button type="button" icon={Plus} disabled={!nextSelectableInstrument} onClick={addManagedSymbol}>종목 추가</Button><Button type="button" kind="primary" onClick={() => setSymbolManagerSectionId(null)}>완료</Button></footer>
+        <footer>
+          <label className="symbol-manager-add"><span>추가할 종목</span><select aria-label="추가할 종목" value={selectedInstrument ? (selectedInstrument.id || selectedInstrument.symbol) : ''} disabled={availableInstruments.length === 0} onChange={(event) => setPendingInstrumentKey(event.target.value)}>
+            {availableInstruments.map((instrument) => <option key={instrument.id || instrument.symbol} value={instrument.id || instrument.symbol}>{instrument.symbol}</option>)}
+          </select></label>
+          <Button type="button" icon={Plus} disabled={!selectedInstrument} onClick={addManagedSymbol}>종목 추가</Button><Button type="button" kind="primary" onClick={() => setSymbolManagerSectionId(null)}>완료</Button>
+        </footer>
       </section>
     </div>, document.body)}
     {launchDialogOpen && createPortal(<div

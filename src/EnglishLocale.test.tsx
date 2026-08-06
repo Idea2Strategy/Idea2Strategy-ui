@@ -20,6 +20,8 @@ import { BacktestView } from './views/OperationsViews';
 const ROUTES: Array<{ path: string; marker: () => HTMLElement }> = [
   { path: '/', marker: () => screen.getByRole('heading', { name: /Welcome back/i }) },
   { path: '/landing', marker: () => screen.getByRole('heading', { name: /Ideas, into strategies/i }) },
+  { path: '/login', marker: () => screen.getByRole('heading', { name: /^Sign in$/i }) },
+  { path: '/signup', marker: () => screen.getByRole('heading', { name: /^Sign up$/i }) },
   { path: '/strategies', marker: () => screen.getByRole('heading', { name: /^Strategies$/i }) },
   { path: '/strategies/new/basic', marker: () => screen.getByTestId('basic-editor-workspace') },
   { path: '/strategies/new/pro', marker: () => screen.getByRole('heading', { name: /Pro editor is being prepared/i }) },
@@ -60,6 +62,18 @@ describe('English locale', () => {
       expect(container.querySelectorAll('*').length).toBeGreaterThan(20);
       expect(marker()).toBeInTheDocument();
     });
+  });
+
+  test('translates the complete sign-in surface instead of only replacing the word login', () => {
+    window.history.replaceState({}, '', '/login');
+    const { container } = render(<App />);
+
+    expect(screen.getByLabelText('Sign-in email')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sign-in password')).toBeInTheDocument();
+    expect(screen.getByText('Forgot your password?')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign up' })).toBeInTheDocument();
+    expect(container).toHaveTextContent('Sign in with your email and password.');
+    expect(container.textContent).not.toMatch(/[가-힣]/);
   });
 
   test('draws candles for every chart timeframe, not just the default', async () => {

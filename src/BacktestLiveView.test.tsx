@@ -420,7 +420,8 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(alert).toHaveTextContent('백테스트 결과를 불러오지 못했습니다.');
     await user.click(within(alert).getByRole('button', { name: '다시 시도' }));
 
-    expect(await screen.findByText('아직 실행된 공식 백테스트가 없습니다.')).toBeInTheDocument();
+    expect(await screen.findByText('백테스트할 봇이 없습니다.')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(attempt).toBe(2);
   });
 });

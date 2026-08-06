@@ -291,6 +291,10 @@ describe('Signal product UI', () => {
     expect(screen.getByRole('heading', { name: 'Welcome back, KIM' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New strategy' })).not.toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute('lang', 'en');
+    await user.click(within(languageToggle).getByRole('button', { name: 'Korean' }));
+    expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
+    expect(document.documentElement).toHaveAttribute('lang', 'ko');
+    await user.click(within(languageToggle).getByRole('button', { name: 'English' }));
     await user.click(screen.getByRole('button', { name: 'Bots' }));
     expect(screen.getByRole('heading', { name: 'Bot operations' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/bots');

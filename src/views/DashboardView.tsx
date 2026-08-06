@@ -1,20 +1,23 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FocusEvent, ReactNode } from 'react';
 import {
   ArrowRight,
   ChevronDown,
   Trophy,
 } from 'lucide-react';
-import { Status } from '../components/common';
+import { Bot, Gauge } from 'lucide-react';
+import { Button, EmptyState, LoadingState, Status } from '../components/common';
 import { ErrorPage, SignInRequiredPage } from '../components/StatePages';
 import { useSessionAccessToken } from '../api/sessionAccessToken';
+import { BotOperationsApiError, defaultBotOperationsClient } from '../api/botOperations';
+import type { BotOperationsClient, BotOperationsState, BotOperationsView } from '../api/botOperations';
 import { BotGlyph, DEFAULT_BOT_ICONS, FALLBACK_BOT_ICON } from '../components/BotGlyph';
 import type { BotIconMap } from '../components/BotGlyph';
 import { EquityChart } from '../components/EquityChart';
 import type { LaunchMark } from '../components/EquityChart';
 import { dateLabels, money, percent, signedMoney, walkSeries } from '../lib/equitySim';
 import { bots } from '../data/mockData';
-import { Localized } from '../lib/i18n';
+import { Localized, useLanguage } from '../lib/i18n';
 
 /* ---------- Types (the product is migrating to TypeScript page by page) ---- */
 
@@ -36,7 +39,8 @@ interface BotRecord {
 interface DashboardViewProps {
   setPage: (page: PageId) => void;
   botIcons?: BotIconMap;
-  dataSource?: 'sample' | 'unavailable';
+  dataSource?: 'sample' | 'live' | 'unavailable';
+  operationsClient?: BotOperationsClient;
 }
 
 const botList = bots as BotRecord[];
@@ -99,7 +103,8 @@ const isBotInScope = (bot: BotRecord, scope: PerformanceScope): boolean =>
 export function DashboardView({
   setPage,
   botIcons = DEFAULT_BOT_ICONS,
-  dataSource = import.meta.env.MODE === 'test' ? 'sample' : 'unavailable',
+  dataSource = import.meta.env.MODE === 'test' ? 'sample' : 'live',
+  operationsClient = defaultBotOperationsClient,
 }: DashboardViewProps): ReactNode {
   const sessionToken = useSessionAccessToken();
   if (dataSource === 'unavailable') {
@@ -112,10 +117,107 @@ export function DashboardView({
     />;
   }
 
+  if (dataSource === 'live') {
+    return <LiveDashboard setPage={setPage} client={operationsClient} />;
+  }
+
   return <SampleDashboard setPage={setPage} botIcons={botIcons} />;
 }
 
-function SampleDashboard({ setPage, botIcons = DEFAULT_BOT_ICONS }: Omit<DashboardViewProps, 'dataSource'>): ReactNode {
+const LIVE_STATE_LABELS: Record<BotOperationsState, string> = {
+  waiting: '대기 중',
+  running: '실행 중',
+  'action-required': '조치 필요',
+  stopping: '중단 중',
+  stopped: '중단됨',
+  'data-degraded': '데이터 저하',
+  'settlement-failed': '정산 실패',
+};
+
+const liveStateTone = (state: BotOperationsState): 'positive' | 'info' | 'warning' | 'negative' | 'neutral' => {
+  if (state === 'running') return 'positive';
+  if (state === 'waiting' || state === 'stopping') return 'info';
+  if (state === 'stopped') return 'neutral';
+  return state === 'settlement-failed' ? 'negative' : 'warning';
+};
+
+function LiveDashboard({ setPage, client }: { setPage: (page: PageId) => void; client: BotOperationsClient }) {
+  const sessionToken = useSessionAccessToken();
+  const { language } = useLanguage();
+  const [operations, setOperations] = useState<BotOperationsView[] | null>(null);
+  const [failure, setFailure] = useState<'sign-in' | 'transport' | null>(null);
+  const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    if (sessionToken === null) return undefined;
+    const controller = new AbortController();
+    setOperations(null);
+    setFailure(null);
+    client.listOperations(controller.signal)
+      .then(setOperations)
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setFailure(error instanceof BotOperationsApiError && error.unauthenticated ? 'sign-in' : 'transport');
+      });
+    return () => controller.abort();
+  }, [client, revision, sessionToken]);
+
+  if (sessionToken === null || failure === 'sign-in') return <SignInRequiredPage />;
+  if (failure === 'transport') return <ErrorPage
+    title="Home 데이터를 불러오지 못했습니다."
+    detail="연결 상태를 확인한 뒤 다시 시도해 주세요. 확인되지 않은 샘플 데이터는 표시하지 않습니다."
+    onRetry={() => setRevision((current) => current + 1)}
+  />;
+
+  const runningCount = operations?.filter((bot) => bot.state === 'running').length ?? 0;
+  return <Localized><div className="page dashboard-page dashboard-live-page">
+    <header className="page-heading dashboard-heading">
+      <div>
+        <p className="eyebrow">HOME</p>
+        <h1>운영 현황</h1>
+        <p className="page-description">{operations === null
+          ? '계정의 봇 운영 상태를 확인하고 있습니다.'
+          : operations.length === 0
+            ? '현재 운용 중인 봇이 없습니다.'
+            : language === 'en'
+              ? `${runningCount} of ${operations.length} bots are running.`
+              : `봇 ${operations.length}개 중 ${runningCount}개가 실행 중입니다.`}</p>
+      </div>
+    </header>
+    {operations === null ? <LoadingState label="Home 데이터를 불러오는 중입니다." /> : <div className="dashboard-context-row">
+      <section className="dashboard-section" aria-label="운용 성과">
+        <header className="dashboard-section-head"><div><h2>운용 성과</h2></div></header>
+        <EmptyState
+          icon={Gauge}
+          title="실제 자산 성과 데이터가 아직 없습니다."
+          detail="현재 API가 제공하는 봇 실행 상태만 표시합니다. 자산 이력 계약이 연결되면 이 영역에 검증된 성과가 표시됩니다."
+        />
+      </section>
+      <div className="dashboard-side">
+        <section className="dashboard-section" aria-label="운용 중인 봇">
+          <header className="dashboard-section-head">
+            <div><h2>운용 중인 봇</h2></div>
+            <button className="dashboard-section-link" onClick={() => setPage('bots')}>봇 전체 보기<ArrowRight size={13} /></button>
+          </header>
+          {operations.length === 0 ? <EmptyState
+            icon={Bot}
+            title="운용 중인 봇이 없습니다."
+            detail="전략을 출시해 봇을 만들면 이곳에 실제 실행 상태가 표시됩니다."
+            action={<Button onClick={() => setPage('strategy')}>전략으로 이동</Button>}
+          /> : <div className="dashboard-bot-list">
+            {operations.map((bot) => <button key={bot.botId} onClick={() => setPage('bots')}>
+              <span className="dashboard-bot-icon" aria-hidden="true"><Bot size={16} /></span>
+              <span className="dashboard-bot-name"><strong>{bot.name}</strong><small>{`${language === 'en' ? 'State changed' : '상태 변경'} ${new Date(bot.lifecycleChangedAt).toLocaleString(language === 'en' ? 'en-US' : 'ko-KR')}`}</small></span>
+              <Status tone={liveStateTone(bot.state)}>{LIVE_STATE_LABELS[bot.state]}</Status>
+            </button>)}
+          </div>}
+        </section>
+      </div>
+    </div>}
+  </div></Localized>;
+}
+
+function SampleDashboard({ setPage, botIcons = DEFAULT_BOT_ICONS }: Pick<DashboardViewProps, 'setPage' | 'botIcons'>): ReactNode {
   const [period, setPeriod] = useState<PeriodKey>('lifetime');
   const [performanceScope, setPerformanceScope] = useState<PerformanceScope>('personal');
   const [included, setIncluded] = useState<Set<string>>(
