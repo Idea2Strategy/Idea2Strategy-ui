@@ -61,12 +61,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Idea2Strategy/Idea2Strategy-backend
-          ref: 6b535d440b9dac6903707a8e0b2f655596fb59f7
+          ref: 3be5215bacd7aa1d6611330f0a22ca3272cdbfbd
           path: backend
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Idea2Strategy/Idea2Strategy
-          ref: 4b5822ac459c472987cf2de0b45533d15c08db11
+          ref: 137d64055feacc2cb42259435315116b0e44d47b
           path: root
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
