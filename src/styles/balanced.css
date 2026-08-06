@@ -4279,8 +4279,56 @@
 .auth-form .button-primary { min-height: 42px; margin-top: var(--space-1); font-weight: 700; }
 .auth-error { color: var(--text-soft); }
 .auth-error small { display: block; color: var(--text-faint); }
-.auth-links { display: flex; flex-wrap: wrap; gap: 8px; }
-.auth-link { border: none; background: none; padding: 0; cursor: pointer; color: var(--accent); text-decoration: underline; }
+.auth-links {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 6px;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+}
+.auth-link { border: none; background: none; padding: 0; cursor: pointer; color: var(--accent); font-size: var(--fs-caption); font-weight: 600; text-decoration: none; }
+.auth-link:hover { text-decoration: underline; }
+.auth-field-hint { margin: -4px 0 0; color: var(--negative); font-size: var(--fs-micro); }
+.auth-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.auth-actions .button { flex: 1; min-height: 38px; }
+
+/* The password-reset fold: one quiet line until it is needed, then the same
+   field styling as the main form. */
+.auth-fold {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+.auth-fold summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+  padding: 0 12px;
+  cursor: pointer;
+  color: var(--text-soft);
+  font-size: var(--fs-caption);
+  user-select: none;
+}
+.auth-fold summary::-webkit-details-marker { display: none; }
+.auth-fold summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--text-faint);
+  border-bottom: 1.5px solid var(--text-faint);
+  transform: rotate(45deg);
+  transition: transform var(--motion-fast);
+}
+.auth-fold[open] summary::after { transform: rotate(225deg); }
+.auth-fold summary:hover { color: var(--text); }
+.auth-fold-body { display: grid; gap: var(--space-3); padding: var(--space-1) 12px var(--space-4); }
+.auth-fold-copy { margin: 0; color: var(--text-faint); font-size: var(--fs-micro); line-height: 1.55; }
+.auth-fold-status { margin: 0; color: var(--positive); font-size: var(--fs-caption); }
 .auth-google { display: grid; gap: var(--space-3); justify-items: center; }
 .auth-divider {
   width: 100%;

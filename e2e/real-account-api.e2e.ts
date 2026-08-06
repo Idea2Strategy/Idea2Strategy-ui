@@ -20,7 +20,8 @@ test('browser completes the production account principal and user-case journey',
   // own unit coverage in AccountApiPanels.test.tsx.
   await page.goto('/signup');
   await page.getByLabel('가입 이메일').fill(email);
-  await page.getByLabel('가입 비밀번호').fill(password);
+  await page.getByLabel('가입 비밀번호', { exact: true }).fill(password);
+  await page.getByLabel('가입 비밀번호 확인').fill(password);
   const [signup] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/signup')),
     page.getByRole('button', { name: '가입', exact: true }).click(),
