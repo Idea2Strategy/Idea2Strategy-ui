@@ -4281,6 +4281,19 @@
 .auth-error small { display: block; color: var(--text-faint); }
 .auth-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .auth-link { border: none; background: none; padding: 0; cursor: pointer; color: var(--accent); text-decoration: underline; }
+.auth-google { display: grid; gap: var(--space-3); justify-items: center; }
+.auth-divider {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+}
+.auth-divider::before,
+.auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.auth-google-mount { min-height: 40px; display: grid; justify-items: center; }
+.auth-google p { margin: 0; color: var(--text-faint); font-size: var(--fs-caption); }
 .case-api-form textarea {
   min-height: 92px;
   padding: 10px;

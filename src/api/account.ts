@@ -67,6 +67,13 @@ export interface AccountClient {
   verifyEmail(verificationToken: string, signal?: AbortSignal): Promise<void>;
   resendVerification(accountId: string, signal?: AbortSignal): Promise<{ verificationRequired: boolean; verificationExpiresAt: string }>;
   login(email: string, password: string, deviceLabel?: string, signal?: AbortSignal): Promise<LoginResult>;
+  /*
+    Optional because the backend endpoint (POST /api/v1/auth/oauth/google) is
+    a proposed contract, not yet in the published API spec. The auth screens
+    only offer Google sign-in when a client id is configured AND the client
+    implements this — never a dead button.
+  */
+  loginWithGoogle?(idToken: string, deviceLabel?: string, signal?: AbortSignal): Promise<LoginResult>;
   requestPasswordReset(email: string, signal?: AbortSignal): Promise<boolean>;
   resetPassword(resetToken: string, newPassword: string, signal?: AbortSignal): Promise<void>;
   sessions(signal?: AbortSignal): Promise<SessionView[]>;
@@ -151,6 +158,20 @@ export function createAccountClient({
     async login(email, password, deviceLabel, signal) {
       const value = object(await (await request('/api/v1/auth/login', {
         method: 'POST', signal, body: JSON.stringify({ email, password, deviceLabel: deviceLabel ?? null }),
+      })).json());
+      const result = {
+        accountId: string(value.accountId, 'accountId'),
+        sessionId: string(value.sessionId, 'sessionId'),
+        sessionToken: string(value.sessionToken, 'sessionToken'),
+        expiresAt: string(value.expiresAt, 'expiresAt'),
+      };
+      setAccessToken?.(result.sessionToken);
+      sessionStore?.signIn({ accessToken: result.sessionToken, accountId: result.accountId, expiresAt: result.expiresAt });
+      return result;
+    },
+    async loginWithGoogle(idToken, deviceLabel, signal) {
+      const value = object(await (await request('/api/v1/auth/oauth/google', {
+        method: 'POST', signal, body: JSON.stringify({ idToken, deviceLabel: deviceLabel ?? null }),
       })).json());
       const result = {
         accountId: string(value.accountId, 'accountId'),

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { AccountApiError } from '../api/account';
 import type { AccountClient } from '../api/account';
 import { Button } from '../components/common';
+import { GoogleSignInButton } from '../components/GoogleSignInButton';
 import i2sLogo from '../assets/i2s-logo.svg';
 import { Localized } from '../lib/i18n';
 import { pagePaths } from '../lib/navigation';
@@ -94,6 +95,12 @@ export function LoginView({ client }: AuthScreenProps) {
         <Button kind="primary" type="submit" disabled={!email || !password || pending}>{pending ? '로그인 중' : '로그인'}</Button>
       </form>
       {failure && <ApiFailure error={failure} />}
+      <GoogleSignInButton
+        client={client}
+        text="signin_with"
+        onSignedIn={() => navigate(returnTo, { replace: true })}
+        onFailure={setFailure}
+      />
       <div className="auth-links">
         <button type="button" className="auth-link" onClick={() => navigate('/signup', { state: { returnTo } })}>계정이 없으신가요? 가입하기</button>
       </div>
@@ -166,6 +173,12 @@ export function SignupView({ client }: AuthScreenProps) {
           <label><span>비밀번호</span><input aria-label="가입 비밀번호" type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
           <Button kind="primary" type="submit" disabled={!email || !password || pending}>{pending ? '가입 요청 중' : '가입'}</Button>
         </form>
+        <GoogleSignInButton
+          client={client}
+          text="signup_with"
+          onSignedIn={() => navigate(returnTo ?? pagePaths.account, { replace: true })}
+          onFailure={setFailure}
+        />
         <div className="auth-links">
           <button type="button" className="auth-link" onClick={() => navigate('/login', { state: returnTo ? { returnTo } : undefined })}>이미 계정이 있으신가요? 로그인</button>
         </div>
