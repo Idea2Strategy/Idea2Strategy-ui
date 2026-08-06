@@ -3898,7 +3898,9 @@
   color:var(--accent);
 }
 .signal-product-nav > nav button:focus-visible::after { transform:scaleX(1); }
-.signal-nav-tools { justify-self:end; }
+/* Pinned to the third track: with the signed-out bar carrying no nav, the
+   tools would otherwise slide into the centre column. */
+.signal-nav-tools { grid-column: 3; justify-self:end; }
 /* Every segmented toggle, not just the language one: the theme and gain/loss
    segments are the same control and have to stand the same height. */
 .variant-balanced[data-design="signal-studio"] .signal-product-nav .icon-button,
@@ -4192,13 +4194,17 @@
   padding-block: var(--space-8);
 }
 .auth-backdrop {
-  position: absolute;
+  /* Fixed to the viewport, not the page box: the glow has to run to the
+     actual screen edges or its boundary reads as a seam. */
+  position: fixed;
   inset: 0;
+  z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(460px 320px at 18% 10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%),
-    radial-gradient(560px 400px at 84% 92%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 72%);
+    radial-gradient(52vw 40vh at 16% 8%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%),
+    radial-gradient(60vw 48vh at 86% 94%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 72%);
 }
+.auth-card { z-index: 1; }
 .auth-card {
   position: relative;
   width: min(430px, 100%);

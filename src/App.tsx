@@ -140,8 +140,9 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
 
   /*
     Signed out the top bar stays out of the way while reading: scrolling down
-    slides it away, any scroll up brings it back. Signed in it stays put — the
-    product areas live there.
+    slides it away, scrolling up brings it back, and once the scrolling motion
+    settles it glides back in on its own. Signed in it stays put — the product
+    areas live there.
   */
   useEffect(() => {
     if (signedIn) {
@@ -149,15 +150,21 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
       return undefined;
     }
     let lastY = window.scrollY;
+    let settleTimer: number | undefined;
     const onScroll = () => {
       const y = window.scrollY;
       if (y < 32) setTopbarHidden(false);
       else if (y > lastY + 2) setTopbarHidden(true);
       else if (y < lastY - 2) setTopbarHidden(false);
       lastY = y;
+      if (settleTimer !== undefined) window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(() => setTopbarHidden(false), 700);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (settleTimer !== undefined) window.clearTimeout(settleTimer);
+    };
   }, [signedIn]);
   const [notificationReload, setNotificationReload] = useState(0);
   const labels: Partial<Record<PageId, string>> = { home: 'HOME', strategy: 'STRATEGIES', bots: 'BOTS', backtest: 'BACKTEST', rooms: 'COMPETITION' };
