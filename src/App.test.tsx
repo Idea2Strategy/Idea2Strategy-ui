@@ -2,10 +2,12 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { App } from './App';
 import { NotificationApiError } from './api/notifications';
 import type { NotificationClient } from './api/notifications';
+import { setSessionAccessToken } from './api/sessionAccessToken';
+import { SESSION_STORAGE_KEY } from './lib/session';
 import { ProEditor } from './views/StrategyViews';
 
 const balancedStyles = readFileSync(resolve(process.cwd(), 'src/styles/balanced.css'), 'utf8');
@@ -16,10 +18,30 @@ const baseStyles = readFileSync(resolve(process.cwd(), 'src/styles/base.css'), '
 const openDisplaySettings = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('button', { name: /화면 설정 열기|Open display settings/ }));
 
+/* Account-scoped routes redirect signed-out visits to /login, so the suite
+   signs in by default — both the in-memory token the API clients read and the
+   tab session the backtest screens read. Signed-out specs drop them. */
+const signIn = () => {
+  setSessionAccessToken('app-test-session');
+  window.sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+    accessToken: 'app-test-session',
+    accountId: '10000000-0000-4000-8000-000000000001',
+    expiresAt: null,
+  }));
+};
+const signOut = () => {
+  setSessionAccessToken(null);
+  window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+};
+
 describe('Signal product UI', () => {
   beforeEach(() => {
     window.localStorage.clear();
     window.history.replaceState({}, '', '/');
+    signIn();
+  });
+  afterEach(() => {
+    signOut();
   });
 
   test('keeps primary navigation and direct entry in sync with the browser URL', async () => {
@@ -35,9 +57,35 @@ describe('Signal product UI', () => {
     unmount();
     window.history.replaceState({}, '', '/backtests');
     render(<App />);
-    // Signed out, the route is the shared full-page sign-in state.
-    expect(screen.getByTestId('backtest-session-gate')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '로그인이 필요합니다' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '봇 백테스트' })).toBeInTheDocument();
+  });
+
+  test('sends a signed-out visit to an account-scoped route straight to the sign-in screen', () => {
+    signOut();
+    window.history.replaceState({}, '', '/backtests');
+    render(<App />);
+
+    // No intermediate "sign-in required" page and no loading flash: the visit
+    // lands on the sign-in screen itself, and returns after login.
+    expect(window.location.pathname).toBe('/login');
+    expect(screen.getByRole('heading', { name: '로그인' })).toBeInTheDocument();
+  });
+
+  test('shows sign-in and sign-up instead of notifications and account while signed out', async () => {
+    const user = userEvent.setup();
+    signOut();
+    window.history.replaceState({}, '', '/landing');
+    render(<App />);
+
+    expect(screen.queryByRole('button', { name: '알림' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '내 계정' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '회원가입' })).toBeInTheDocument();
+
+    // Signed out the logo stays the front door to the landing introduction.
+    expect(screen.getByRole('button', { name: 'Idea2Strategy 소개' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '로그인 페이지로 이동' }));
+    expect(window.location.pathname).toBe('/login');
   });
 
   test('gives Basic a stable direct URL and blocks direct Pro editor access', async () => {
@@ -122,10 +170,10 @@ describe('Signal product UI', () => {
 
     await user.click(screen.getByRole('button', { name: '전략' }));
     expect(screen.getByRole('heading', { name: '전략' })).toBeInTheDocument();
-    // The logo is the front door to the landing introduction, not the dashboard.
-    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
-    expect(window.location.pathname).toBe('/landing');
-    expect(screen.getByRole('heading', { name: '아이디어를, 전략으로' })).toBeInTheDocument();
+    // Signed in, the logo goes home — the landing introduction is the signed-out front door.
+    await user.click(screen.getByRole('button', { name: '홈으로 이동' }));
+    expect(window.location.pathname).toBe('/');
+    expect(screen.getByRole('heading', { name: '반갑습니다, 김전략님' })).toBeInTheDocument();
   });
 
   test('shows each bot custom icon on the home dashboard after it is changed', async () => {
@@ -224,13 +272,12 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('button', { name: '관리자' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '관심종목 설정' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '내 계정' }));
-    // Signed out, the whole account page is the shared sign-in state — no
-    // fabricated identity, no per-panel apologies, and display settings live
-    // behind the top-bar gear instead.
-    expect(screen.getByText('이 화면은 로그인 후 이용할 수 있습니다.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '내 계정' })).toBeInTheDocument();
+    // The fabricated identity is gone: no made-up profile name, no social
+    // login that never existed, only what the real API panels can prove.
     expect(screen.queryByText('김전략')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '접근 보안' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: '화면 설정' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '화면 설정' })).toBeInTheDocument();
   });
 
   test('switches the product between Korean and English and remembers the choice', async () => {
@@ -268,7 +315,7 @@ describe('Signal product UI', () => {
     expect(screen.getByTestId('app-shell')).toHaveAttribute('data-theme', 'light');
 
     // Anywhere outside closes it, without needing the ✕.
-    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
+    await user.click(screen.getByRole('button', { name: '홈으로 이동' }));
     expect(screen.queryByRole('dialog', { name: '화면 설정' })).not.toBeInTheDocument();
   });
 
@@ -288,7 +335,7 @@ describe('Signal product UI', () => {
     // One handler serves both panels, so notifications dismiss the same way.
     await user.click(screen.getByRole('button', { name: '알림' }));
     expect(screen.getByRole('dialog', { name: '최근 알림' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
+    await user.click(screen.getByRole('button', { name: '홈으로 이동' }));
     expect(screen.queryByRole('dialog', { name: '최근 알림' })).not.toBeInTheDocument();
   });
 
@@ -472,10 +519,10 @@ describe('Signal product UI', () => {
       expect(activeItems[0]).toHaveAccessibleName(navigation);
     }
 
-    // 백테스트 is account-gated: signed out it renders the shared full-page
-    // sign-in state instead of a page heading, and the nav item still activates.
+    // 백테스트 has no reachable engine in this suite, so its route settles on
+    // the shared full-page failure state; the nav item still activates alone.
     await user.click(screen.getByRole('button', { name: '백테스트' }));
-    expect(screen.getByTestId('backtest-session-gate')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('백테스트 결과를 불러오지 못했습니다.'));
     const activeItems = document.querySelectorAll('.signal-product-nav > nav button.active');
     expect(activeItems).toHaveLength(1);
     expect(activeItems[0]).toHaveAccessibleName('백테스트');

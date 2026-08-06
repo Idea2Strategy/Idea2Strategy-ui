@@ -6,12 +6,18 @@ import { AccountApiError } from './api/account';
 import type { AccountClient } from './api/account';
 import { NotificationApiError } from './api/notifications';
 import type { NotificationClient } from './api/notifications';
+import { setSessionAccessToken } from './api/sessionAccessToken';
 
 const accountClient = (overrides: Partial<AccountClient> = {}): AccountClient => ({
   signup: vi.fn().mockResolvedValue({ accountId: 'account-1', verificationExpiresAt: '2026-08-06T00:00:00Z' }),
   verifyEmail: vi.fn().mockResolvedValue(undefined),
   resendVerification: vi.fn().mockResolvedValue({ verificationRequired: true, verificationExpiresAt: '2026-08-07T00:00:00Z' }),
-  login: vi.fn().mockResolvedValue({ accountId: 'account-1', sessionId: 'session-1', sessionToken: 'token-1', expiresAt: '2026-08-06T00:00:00Z' }),
+  // The real client publishes the session token on login; the guarded routes
+  // the screen navigates to afterwards read exactly that.
+  login: vi.fn().mockImplementation(async () => {
+    setSessionAccessToken('token-1');
+    return { accountId: 'account-1', sessionId: 'session-1', sessionToken: 'token-1', expiresAt: '2026-08-06T00:00:00Z' };
+  }),
   requestPasswordReset: vi.fn().mockResolvedValue(true),
   resetPassword: vi.fn().mockResolvedValue(undefined),
   sessions: vi.fn().mockResolvedValue([]),
@@ -29,6 +35,7 @@ const accountClient = (overrides: Partial<AccountClient> = {}): AccountClient =>
 
 afterEach(() => {
   cleanup();
+  setSessionAccessToken(null);
   window.history.replaceState({}, '', '/');
 });
 
@@ -143,7 +150,10 @@ describe('customer signup screen', () => {
 });
 
 describe('login entry points', () => {
-  it('offers 로그인 from the notification popover when the API requires authentication', async () => {
+  it('offers 로그인 from the notification popover when the session died server-side', async () => {
+    // The bell only renders for signed-in visitors, so this is the mid-session
+    // case: the tab still holds a token the server no longer accepts.
+    setSessionAccessToken('stale-token');
     const notificationClient: NotificationClient = {
       list: vi.fn().mockRejectedValue(new NotificationApiError(401, 'UNAUTHENTICATED', 'corr-notif-1')),
       markRead: vi.fn(),
@@ -154,6 +164,8 @@ describe('login entry points', () => {
     render(<App accountClient={accountClient()} notificationClient={notificationClient} />);
 
     await userEvent.click(screen.getByRole('button', { name: '알림' }));
+    // Signed out mid-session there is nothing behind "알림 전체 보기" either.
+    expect(screen.queryByRole('button', { name: /알림 전체 보기/ })).not.toBeInTheDocument();
     await userEvent.click(await screen.findByRole('button', { name: '로그인' }));
 
     await waitFor(() => expect(window.location.pathname).toBe('/login'));

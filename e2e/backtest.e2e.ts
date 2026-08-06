@@ -50,24 +50,16 @@ function recordApiRequests(page: Page): Request[] {
 }
 
 test.describe('backtest screens against the /api/v1 contract', () => {
-  test('refuses a signed-out visit visibly, and asks the API for nothing', async ({ page }) => {
+  test('sends a signed-out visit straight to the sign-in screen, and asks the API for nothing', async ({ page }) => {
     const requests = recordApiRequests(page);
 
     await page.goto(BACKTESTS);
 
-    // The whole route is the shared full-page sign-in state: a named, visible
-    // refusal, with no page scaffold half-rendered around it.
-    const gate = page.getByTestId('backtest-session-gate');
-    await expect(gate).toBeVisible();
-    await expect(gate).toHaveAttribute('data-reason', 'absent');
-    await expect(page.getByRole('heading', { name: '봇 백테스트' })).toHaveCount(0);
-    // The gate is the shared sign-in state, not a failure alert.
-    await expect(gate.getByRole('status')).toContainText('로그인이 필요합니다');
-    await expect(gate.getByRole('button', { name: '로그인' })).toBeVisible();
-    await expect(page.getByRole('alert')).toHaveCount(0);
-
-    // Not a spinner, not a blank panel, and no result on screen behind the notice.
-    await expect(page.getByText(/불러오는 중/)).toHaveCount(0);
+    // The route guard redirects before any backtest surface renders: no
+    // intermediate page, no spinner, and not a single request to find out
+    // what the missing session already answered.
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole('heading', { name: '로그인' })).toBeVisible();
     await expect(page.getByRole('list', { name: '공식 백테스트 실행 목록' })).toHaveCount(0);
     expect(requests).toHaveLength(0);
   });
@@ -169,22 +161,18 @@ test.describe('backtest screens against the /api/v1 contract', () => {
 
     await page.goto(BACKTESTS);
 
-    const gate = page.getByTestId('backtest-session-gate');
-    await expect(gate).toHaveAttribute('data-reason', 'rejected');
-    await expect(gate.getByRole('status')).toContainText('로그인이 필요합니다');
+    // The refused token is dropped, and with no session left the route guard
+    // moves the visit to the sign-in screen instead of retrying.
+    await expect(page).toHaveURL(/\/login$/);
 
-    // Leaving and revisiting the screen in-app must not resurrect the refused
-    // token: it is gone, so the visit stays at the gate and sends nothing.
-    // (A full reload would re-run this test's addInitScript sign-in, which is
-    // why the round trip stays inside the app. Only /api/v1/backtests requests
-    // count — the strategies page crossed on the way asks the same mock origin
-    // for its own, unauthenticated list.)
+    // Nothing may resend the refused token: after the drop, no further
+    // backtest request leaves. (Only /api/v1/backtests requests count — other
+    // screens ask the same mock origin for their own lists.)
     const backtestRequests = () => requests.filter((request) => request.url().includes('/api/v1/backtests'));
     await page.waitForLoadState('networkidle');
     const before = backtestRequests().length;
-    await page.getByRole('button', { name: '전략' }).click();
     await page.getByRole('button', { name: '백테스트' }).click();
-    await expect(page.getByTestId('backtest-session-gate')).toBeVisible();
+    await expect(page).toHaveURL(/\/login$/);
     await page.waitForLoadState('networkidle');
     expect(backtestRequests()).toHaveLength(before);
 

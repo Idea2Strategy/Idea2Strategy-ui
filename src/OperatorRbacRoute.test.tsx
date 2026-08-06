@@ -25,7 +25,9 @@ describe('operator RBAC route activation', () => {
     window.history.replaceState({}, '', '/operations/rbac');
     render(<App />);
 
-    await waitFor(() => expect(window.location.pathname).toBe('/'));
+    // Without a client the route falls back to home, and home — account-scoped
+    // and signed out — forwards to the sign-in screen.
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
     expect(screen.queryByRole('heading', { name: '운영자 권한' })).not.toBeInTheDocument();
   });
 

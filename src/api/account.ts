@@ -1,4 +1,6 @@
 import { getSessionAccessToken, setSessionAccessToken } from './sessionAccessToken';
+import { browserSessionStore } from '../lib/session';
+import type { SessionStore } from '../lib/session';
 
 export type ThemePreference = 'LIGHT' | 'DARK' | 'SYSTEM';
 export type AccountLifecycleStatus = 'ACTIVE' | 'DORMANT' | 'CLOSING' | 'CLOSED';
@@ -52,6 +54,12 @@ interface AccountClientOptions {
   getAccessToken?: () => string | null;
   setAccessToken?: (token: string | null) => void;
   createCorrelationId?: () => string;
+  /*
+    The backtest screens read their credential from the tab session store, not
+    the in-memory token the other clients share. Wiring the store here keeps
+    the two in step: login/rotate publish the session, logout drops it.
+  */
+  sessionStore?: SessionStore;
 }
 
 export interface AccountClient {
@@ -79,6 +87,7 @@ export function createAccountClient({
   getAccessToken,
   setAccessToken,
   createCorrelationId = () => crypto.randomUUID(),
+  sessionStore,
 }: AccountClientOptions = {}): AccountClient {
   const root = baseUrl.replace(/\/$/, '');
   const requireSession = () => {
@@ -150,6 +159,7 @@ export function createAccountClient({
         expiresAt: string(value.expiresAt, 'expiresAt'),
       };
       setAccessToken?.(result.sessionToken);
+      sessionStore?.signIn({ accessToken: result.sessionToken, accountId: result.accountId, expiresAt: result.expiresAt });
       return result;
     },
     async requestPasswordReset(email, signal) {
@@ -179,12 +189,19 @@ export function createAccountClient({
         expiresAt: string(value.expiresAt, 'expiresAt'),
       };
       setAccessToken?.(rotated.sessionToken);
+      if (sessionStore) {
+        const current = sessionStore.read();
+        if (current.status === 'authenticated') {
+          sessionStore.signIn({ accessToken: rotated.sessionToken, accountId: current.session.accountId, expiresAt: rotated.expiresAt });
+        }
+      }
       return rotated;
     },
     async logoutCurrent(signal) {
       requireSession();
       await request('/api/v1/auth/sessions/current', { method: 'DELETE', signal });
       setAccessToken?.(null);
+      sessionStore?.signOut();
     },
     async logoutSession(sessionId, signal) {
       requireSession();
@@ -194,6 +211,7 @@ export function createAccountClient({
       requireSession();
       await request('/api/v1/auth/sessions', { method: 'DELETE', signal });
       setAccessToken?.(null);
+      sessionStore?.signOut();
     },
     async preferences(signal) {
       requireSession();
@@ -288,4 +306,5 @@ export const defaultAccountClient = createAccountClient({
   baseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
   getAccessToken: getSessionAccessToken,
   setAccessToken: setSessionAccessToken,
+  sessionStore: browserSessionStore,
 });

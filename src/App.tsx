@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactElement } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Bell, CircleHelp, Moon, Palette, Settings, Sun, UserRound, X } from 'lucide-react';
 import i2sLogo from './assets/i2s-logo.svg';
@@ -31,6 +31,8 @@ import type { CompetitionRoomsClient } from './api/competitionRooms';
 import { OperatorAuthenticationView } from './components/OperatorAuthenticationView';
 import type { OperatorAuthentication } from './components/OperatorAuthenticationView';
 import { PRO_EDITOR_AVAILABLE } from './lib/proEditorAccess';
+import { useSessionAccessToken } from './api/sessionAccessToken';
+import { browserSessionStore, useSessionState } from './lib/session';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
@@ -38,6 +40,31 @@ import './styles/pro-editor.css';
 import './styles/concepts.css';
 
 type SetPage = (page: PageId) => void;
+
+/*
+  Whether anyone is signed in, from either place the app keeps a credential:
+  the in-memory token the API clients share, or the tab session the backtest
+  screens read. Login populates both; either alone counts as signed in and the
+  screen that needs the missing one still answers for itself.
+*/
+function useSignedIn() {
+  const token = useSessionAccessToken();
+  const tabSession = useSessionState(browserSessionStore);
+  return token !== null || tabSession.status === 'authenticated';
+}
+
+/*
+  Route guard for account-scoped screens. Signed out, the visit goes straight
+  to the sign-in screen — no intermediate "sign-in required" page, no loading
+  flash from a request that could only 401 — and returns here after login.
+  Competition, landing, and help stay open without a session.
+*/
+function RequireSignIn({ children }: { children: ReactElement }) {
+  const signedIn = useSignedIn();
+  const location = useLocation();
+  if (!signedIn) return <Navigate to="/login" replace state={{ returnTo: location.pathname }} />;
+  return children;
+}
 
 type Theme = 'dark' | 'light';
 type Updown = 'kr' | 'us';
@@ -106,6 +133,7 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
   const { language, setLanguage } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
+  const signedIn = useSignedIn();
   const [openPanel, setOpenPanel] = useState<string | null>(null);
   const [notificationState, setNotificationState] = useState<TopbarNotificationState>({ kind: 'idle' });
   const [notificationReload, setNotificationReload] = useState(0);
@@ -157,7 +185,9 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
   return <Localized><header className="app-topbar signal-product-nav">
     {/* The logo is the front door: it opens the landing introduction, while
         the HOME menu item remains the operational dashboard. */}
-    <button className="signal-product-brand" aria-label="Idea2Strategy 소개" onClick={() => setPage('landing')}>
+    {/* Signed out the logo is the front door (landing introduction); signed in
+        it is the way home, same as the HOME menu item. */}
+    <button className="signal-product-brand" aria-label={signedIn ? '홈으로 이동' : 'Idea2Strategy 소개'} onClick={() => setPage(signedIn ? 'home' : 'landing')}>
       <img src={i2sLogo} alt="Idea2Strategy" />
       <strong>IDEA<span>2</span>STRATEGY</strong>
     </button>
@@ -170,7 +200,7 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
       >{labels[id]}</button>)}
     </nav>
     <div className="signal-nav-tools">
-      <div className="topbar-popover-anchor">
+      {signedIn && <div className="topbar-popover-anchor">
         <button className="icon-button has-count" aria-label="알림" onClick={() => togglePanel('notifications')}><Bell size={17} />{unreadCount > 0 && <b>{unreadCount}</b>}</button>
         {openPanel === 'notifications' && <section className="topbar-popover notifications-popover" role="dialog" aria-label="최근 알림">
           <header><div><strong>최근 알림</strong><span>{notificationState.kind === 'loading'
@@ -179,35 +209,35 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
               ? notificationState.error.authenticationRequired ? '로그인 필요' : '불러오기 실패'
               : `읽지 않음 ${unreadCount}개`}</span></div><button aria-label="알림 닫기" onClick={() => setOpenPanel(null)}><X size={15} /></button></header>
           <div>{notificationState.kind === 'loading'
-            ? <div role="status">알림을 불러오는 중입니다.</div>
+            ? <div className="notifications-popover-state" role="status">알림을 불러오는 중입니다.</div>
             : notificationState.kind === 'error'
               ? notificationState.error.authenticationRequired
-                /* Signed-out is not a failure: no raw error code, and the only
-                   offered action is the one that resolves it. */
-                ? <div role="status">
+                /* Only reachable when the session died while this panel was in
+                   use: the bell itself renders for signed-in visitors only. */
+                ? <div className="notifications-popover-state" role="status">
                   <strong>로그인이 필요합니다.</strong>
-                  <small>알림은 로그인 후 확인할 수 있습니다.</small>
                   <button
                     type="button"
+                    className="button button-primary"
                     onClick={() => { setOpenPanel(null); navigate('/login', { state: { returnTo: location.pathname } }); }}
                   >로그인</button>
                 </div>
-                : <div role="alert">
+                : <div className="notifications-popover-state" role="alert">
                   <strong>알림을 불러오지 못했습니다.</strong>
-                  <small>오류 코드 {notificationState.error.code}</small>
-                  <button type="button" onClick={() => setNotificationReload((value) => value + 1)}>다시 시도</button>
+                  <button type="button" className="button" onClick={() => setNotificationReload((value) => value + 1)}>다시 시도</button>
                 </div>
               : notificationState.kind === 'ready' && notificationState.items.length === 0
-                ? <div role="status">새 알림이 없습니다.</div>
+                ? <div className="notifications-popover-state" role="status">새 알림이 없습니다.</div>
                 : notificationState.kind === 'ready' && notificationState.items.map((item) => <button
                   className={item.readAt === null ? 'unread' : ''}
                   key={item.id}
                   aria-label={`${item.typeCode} 알림 열기`}
                   onClick={() => { setOpenPanel(null); setPage('notifications'); }}
                 ><i /><span><strong>{item.typeCode}</strong><small>{new Date(item.createdAt).toLocaleString()}</small></span></button>)}</div>
-          <footer><button onClick={() => { setOpenPanel(null); setPage('notifications'); }}>알림 전체 보기<ArrowRight size={13} aria-hidden="true" /></button></footer>
+          {!(notificationState.kind === 'error' && notificationState.error.authenticationRequired)
+            && <footer><button onClick={() => { setOpenPanel(null); setPage('notifications'); }}>알림 전체 보기<ArrowRight size={13} aria-hidden="true" /></button></footer>}
         </section>}
-      </div>
+      </div>}
       <button className={`icon-button ${page === 'help' ? 'active' : ''}`} aria-label="도움말" onClick={() => setPage('help')}><CircleHelp size={17} /></button>
       {/* Theme, market colour convention and language are all display
           preferences set once and rarely revisited, so they sit behind one gear
@@ -266,8 +296,17 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
         </section>}
       </div>
       {/* No fabricated identity: the API never returns the account's name or
-          email, so the account entry is an icon, not a made-up "KIM". */}
-      <button className={`icon-button signal-user ${page === 'account' ? 'active' : ''}`} aria-label="내 계정" onClick={() => setPage('account')}><UserRound size={17} /></button>
+          email, so the account entry is an icon, not a made-up "KIM". Signed
+          out there is no account (and no notifications), so the tools give way
+          to the two ways in. */}
+      {signedIn
+        ? <button className={`icon-button signal-user ${page === 'account' ? 'active' : ''}`} aria-label="내 계정" onClick={() => setPage('account')}><UserRound size={17} /></button>
+        : <div className="topbar-auth">
+          {/* aria-label keeps this distinct from the sign-in form's submit
+              button, which owns the bare name "로그인". */}
+          <button type="button" className="button" aria-label="로그인 페이지로 이동" onClick={() => navigate('/login', { state: { returnTo: location.pathname } })}>로그인</button>
+          <button type="button" className="button button-primary" onClick={() => navigate('/signup')}>회원가입</button>
+        </div>}
     </div>
   </header></Localized>;
 }
@@ -355,18 +394,18 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
   const requestedBot = (location.state as { bot?: string } | null)?.bot;
 
   const content = <Routes>
-    <Route path="/" element={<DashboardView setPage={setPage} botIcons={botIcons} />} />
+    <Route path="/" element={<RequireSignIn><DashboardView setPage={setPage} botIcons={botIcons} /></RequireSignIn>} />
     <Route path="/landing" element={<LandingView setPage={setPage} />} />
-    <Route path="/strategies" element={<StrategyHome openEditor={openEditor} />} />
-    <Route path="/strategies/new/basic" element={<BasicEditor strategyId={editorState?.strategyId} blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />} />
-    <Route path="/strategies/new/pro" element={PRO_EDITOR_AVAILABLE
+    <Route path="/strategies" element={<RequireSignIn><StrategyHome openEditor={openEditor} /></RequireSignIn>} />
+    <Route path="/strategies/new/basic" element={<RequireSignIn><BasicEditor strategyId={editorState?.strategyId} blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} /></RequireSignIn>} />
+    <Route path="/strategies/new/pro" element={<RequireSignIn>{PRO_EDITOR_AVAILABLE
       ? <ProEditor blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} />
-      : <ProEditorUnavailableView goBack={() => navigate(pagePaths.strategy)} />} />
-    <Route path="/bots" element={<BotsView key={requestedBot ?? 'bots'} botIcons={botIcons} onBotIconChange={changeBotIcon} initialBot={requestedBot} />} />
-    <Route path="/backtests" element={<BacktestView client={defaultBacktestClient} />} />
+      : <ProEditorUnavailableView goBack={() => navigate(pagePaths.strategy)} />}</RequireSignIn>} />
+    <Route path="/bots" element={<RequireSignIn><BotsView key={requestedBot ?? 'bots'} botIcons={botIcons} onBotIconChange={changeBotIcon} initialBot={requestedBot} /></RequireSignIn>} />
+    <Route path="/backtests" element={<RequireSignIn><BacktestView client={defaultBacktestClient} /></RequireSignIn>} />
     <Route path="/competition" element={<RoomsView client={competitionRoomsClient} openBot={openBot} />} />
     <Route path="/competition-v2" element={<RoomsView client={competitionRoomsClient} visualVariant="image" openBot={openBot} />} />
-    <Route path="/notifications" element={<NotificationsView setPage={setPage} client={notificationClient} />} />
+    <Route path="/notifications" element={<RequireSignIn><NotificationsView setPage={setPage} client={notificationClient} /></RequireSignIn>} />
     <Route path="/login" element={<LoginView client={accountClient} />} />
     <Route path="/signup" element={<SignupView client={accountClient} />} />
     <Route path="/operations/login" element={operatorAuthentication
@@ -390,7 +429,7 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
         ? <Navigate to="/operations/login" state={{ returnTo: location.pathname }} replace />
         : <Navigate to="/" replace />} />
     <Route path="/help" element={<HelpView />} />
-    <Route path="/account" element={<AccountView
+    <Route path="/account" element={<RequireSignIn><AccountView
       theme={theme}
       setTheme={setTheme}
       timezone={timezone}
@@ -402,7 +441,7 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
       accountClient={accountClient}
       operationsClient={operationsClient}
       notificationClient={notificationClient}
-    />} />
+    /></RequireSignIn>} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>;
 

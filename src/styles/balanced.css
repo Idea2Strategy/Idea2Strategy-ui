@@ -6026,6 +6026,36 @@
 @keyframes resultSpin { to { transform: rotate(360deg); } }
 
 /*
+  Loading states reveal only after a beat. A response that arrives within the
+  delay never shows a spinner at all, so fast navigations stop flashing
+  intermediate loading frames.
+*/
+.result-state.is-loading,
+.notification-api-state,
+.competition-api-state[role="status"] {
+  opacity: 0;
+  animation: revealLoading .2s ease .18s forwards;
+}
+@keyframes revealLoading { to { opacity: 1; } }
+
+/* Signed out, the nav tools give way to the two ways in. */
+.topbar-auth { display: flex; align-items: center; gap: var(--space-2); }
+.topbar-auth .button { min-height: 32px; padding: 0 14px; font-size: var(--fs-caption); }
+
+/* Popover body states: loading, empty, failure, and the mid-session sign-out. */
+.notifications-popover-state {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-4);
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  text-align: center;
+}
+.notifications-popover-state strong { color: var(--text); font-size: var(--fs-control); font-weight: 600; }
+.notifications-popover-state .button { min-height: 30px; padding: 0 14px; font-size: var(--fs-caption); }
+
+/*
   Full-page states. When a route cannot show its content at all — signed out,
   or the load failed — the entire page becomes this one layout, identical on
   every screen. No per-page heading survives around it.

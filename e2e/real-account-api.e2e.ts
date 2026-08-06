@@ -10,9 +10,10 @@ test('browser completes the production account principal and user-case journey',
   const password = 'correct horse battery staple 2026!';
   const verificationToken = `a23-verification-${Date.now()}`;
 
-  // Logged out, the account page fails closed instead of showing seeded data.
+  // Logged out, the account route goes straight to the sign-in screen.
   await page.goto('/account');
-  await expect(page.getByText('로그인이 필요합니다').first()).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('heading', { name: '로그인' })).toBeVisible();
 
   // The journey enters through the dedicated /signup screen. A wrong password
   // on /login later proves the error path; the /account inline form keeps its
