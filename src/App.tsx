@@ -151,9 +151,16 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
     }
     let lastY = window.scrollY;
     let settleTimer: number | undefined;
+    /* The landing's cinematic hero owns the top of the screen; the moment the
+       first content section ("전략을 검증하는 작업대") starts entering the
+       viewport, the bar begins its way back down. */
+    const pastLandingHero = () => {
+      const features = document.querySelector('.landing-features');
+      return features !== null && features.getBoundingClientRect().top < window.innerHeight * 0.92;
+    };
     const onScroll = () => {
       const y = window.scrollY;
-      if (y < 32) setTopbarHidden(false);
+      if (y < 32 || pastLandingHero()) setTopbarHidden(false);
       else if (y > lastY + 2) setTopbarHidden(true);
       else if (y < lastY - 2) setTopbarHidden(false);
       lastY = y;
