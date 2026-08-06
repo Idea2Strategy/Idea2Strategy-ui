@@ -103,4 +103,26 @@ describe('bot operations API client', () => {
       }),
     );
   });
+
+  it('loads preflight and renews the server-owned continuation deadline', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        botId: 'bot-1', ready: false, issues: [{ code: 'DATA_STALE', detail: '시장 데이터가 오래되었습니다.' }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        botId: 'bot-1', dueAt: '2026-09-01T00:00:00Z', renewalAvailableFrom: '2026-08-15T00:00:00Z',
+        lastRenewedAt: '2026-08-07T00:00:00Z', renewalAllowed: false,
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const client = createBotOperationsClient({ baseUrl: 'https://api.example.com', fetchImpl });
+
+    const preflight = await client.getPreflight?.('bot-1');
+    const continuation = await client.renewContinuation?.('bot-1');
+
+    expect(preflight).toMatchObject({ ready: false, issues: [{ code: 'DATA_STALE' }] });
+    expect(continuation?.renewalAllowed).toBe(false);
+    expect(fetchImpl).toHaveBeenNthCalledWith(2,
+      'https://api.example.com/api/v1/bots/bot-1/continuation/renew',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
 });

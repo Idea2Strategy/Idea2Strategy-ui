@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   AlertTriangle,
@@ -16,7 +16,7 @@ import type { NotificationItem } from '../data/mockData';
 import type { PageId } from '../lib/navigation';
 import { Localized, useLanguage } from '../lib/i18n';
 import type { Language } from '../lib/i18n';
-import type { AccountClient } from '../api/account';
+import type { AccountClient, AccountPreferences } from '../api/account';
 import type { AccountOperationsClient } from '../api/accountOperations';
 import { AccountApiPanels } from '../components/AccountApiPanels';
 import { UserCasePanel } from '../components/CaseApiPanels';
@@ -321,6 +321,11 @@ interface AccountViewProps {
 export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMotion, setReduceMotion, updown = 'kr', setUpdown = () => {}, accountClient, operationsClient, notificationClient }: AccountViewProps) {
   const { language, setLanguage } = useLanguage();
   const sessionToken = useSessionAccessToken();
+  const applyServerPreferences = useCallback((preferences: AccountPreferences) => {
+    if (preferences.languageCode === 'ko' || preferences.languageCode === 'en') setLanguage(preferences.languageCode);
+    if (preferences.themePreference === 'DARK') setTheme('dark');
+    if (preferences.themePreference === 'LIGHT') setTheme('light');
+  }, [setLanguage, setTheme]);
 
   /*
     "내 계정" is meaningless with nobody signed in: every real panel on it is
@@ -340,7 +345,7 @@ export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMoti
     />
 
     <div className="settings-grid">
-      {accountClient && <AccountApiPanels client={accountClient} />}
+      {accountClient && <AccountApiPanels client={accountClient} onPreferences={applyServerPreferences} />}
       {operationsClient && <UserCasePanel client={operationsClient} />}
       {notificationClient && <NotificationPreferencesPanel client={notificationClient} />}
       {/* No fabricated profile: the API deliberately never returns the account

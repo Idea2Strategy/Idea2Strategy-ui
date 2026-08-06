@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, BarChart3, Clock3, RefreshCw } from 'lucide-react';
+import type { FormEvent } from 'react';
+import { AlertTriangle, BarChart3, Clock3, Plus, RefreshCw } from 'lucide-react';
 import { BacktestApiError } from '../api/backtests';
 import type {
   BacktestAttempt,
@@ -7,7 +8,9 @@ import type {
   BacktestDetailManifest,
   BacktestMonthlySummary,
   BacktestPerformanceSummary,
+  BacktestRequestOptions,
   BacktestRun,
+  BacktestRunInputs,
   BacktestRunStatus,
   BacktestTrade,
 } from '../api/backtests';
@@ -43,7 +46,13 @@ interface RunDetail {
   performance: BacktestPerformanceSummary | null;
   monthlySummaries: BacktestMonthlySummary[];
   detailManifests: BacktestDetailManifest[];
+  inputs: BacktestRunInputs;
 }
+
+const RUN_PAGE_SIZE = 25;
+
+const newIdempotencyKey = () => globalThis.crypto?.randomUUID?.()
+  ?? `backtest-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 /**
  * Why the screen has no data. Kept apart because each case needs different words and
@@ -83,6 +92,19 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
   const [detail, setDetail] = useState<RunDetail | null>(null);
   const [detailFailure, setDetailFailure] = useState<FailureKind | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [runOffset, setRunOffset] = useState(0);
+  const [hasNextRunPage, setHasNextRunPage] = useState(false);
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [requestOptions, setRequestOptions] = useState<BacktestRequestOptions | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [requestPending, setRequestPending] = useState(false);
+  const [requestMessage, setRequestMessage] = useState<string | null>(null);
+  const [requestBotId, setRequestBotId] = useState('');
+  const [requestDatasetId, setRequestDatasetId] = useState('');
+  const [requestPolicyVersion, setRequestPolicyVersion] = useState('');
+  const [requestPeriodStart, setRequestPeriodStart] = useState('');
+  const [requestPeriodEnd, setRequestPeriodEnd] = useState('');
+  const [requestIdempotencyKey, setRequestIdempotencyKey] = useState(newIdempotencyKey);
 
   /*
     A 401 means the token this tab holds is not one the server accepts, whatever the
@@ -103,8 +125,9 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
     const controller = new AbortController();
     setRuns(null);
     setListFailure(null);
-    client.listRuns({}, controller.signal).then((page) => {
+    client.listRuns({ limit: RUN_PAGE_SIZE, offset: runOffset }, controller.signal).then((page) => {
       setRuns(page.items);
+      setHasNextRunPage(page.items.length === RUN_PAGE_SIZE);
       setSelectedRunId((current) => (
         current && page.items.some((run) => run.backtestRunId === current)
           ? current
@@ -114,7 +137,26 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
       if (!aborted(error)) setListFailure(classify(error, abandonSession));
     });
     return () => controller.abort();
-  }, [client, listRevision, signedIn, abandonSession]);
+  }, [client, listRevision, runOffset, signedIn, abandonSession]);
+
+  useEffect(() => {
+    if (!requestOpen || !signedIn) return undefined;
+    const controller = new AbortController();
+    setRequestOptions(null);
+    setRequestError(null);
+    client.getRequestOptions(controller.signal).then((options) => {
+      setRequestOptions(options);
+      setRequestBotId((current) => current || options.bots[0]?.botId || '');
+      setRequestPolicyVersion((current) => current || options.executionPolicies[0]?.version || '');
+      const dataset = options.datasets[0];
+      setRequestDatasetId((current) => current || dataset?.id || '');
+      setRequestPeriodStart((current) => current || dataset?.periodStart || '');
+      setRequestPeriodEnd((current) => current || dataset?.periodEnd || '');
+    }).catch((error) => {
+      if (!aborted(error)) setRequestError('백테스트에 사용할 봇과 공식 입력을 불러오지 못했습니다.');
+    });
+    return () => controller.abort();
+  }, [client, requestOpen, signedIn]);
 
   useEffect(() => {
     if (!selectedRunId || !signedIn) {
@@ -127,18 +169,21 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
 
     const load = async (): Promise<RunDetail> => {
       const run = await client.getRun(selectedRunId, controller.signal);
-      const attempts = await client.listAttempts(selectedRunId, controller.signal);
+      const [attempts, inputs] = await Promise.all([
+        client.listAttempts(selectedRunId, controller.signal),
+        client.getInputs(selectedRunId, controller.signal),
+      ]);
       if (run.status !== 'COMPLETED') {
         // Result-only endpoints exist for a completed run. Asking early would turn a
         // perfectly normal queued run into a 409 the screen would have to explain away.
-        return { run, attempts, performance: null, monthlySummaries: [], detailManifests: [] };
+        return { run, attempts, performance: null, monthlySummaries: [], detailManifests: [], inputs };
       }
       const [performance, monthlySummaries, detailManifests] = await Promise.all([
         client.getPerformance(selectedRunId, controller.signal).catch(pendingSummary),
         client.listMonthlySummaries(selectedRunId, controller.signal),
         client.listDetailManifests(selectedRunId, controller.signal),
       ]);
-      return { run, attempts, performance, monthlySummaries, detailManifests };
+      return { run, attempts, performance, monthlySummaries, detailManifests, inputs };
     };
 
     void load().then((loaded) => {
@@ -151,6 +196,41 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
   }, [client, selectedRunId, signedIn, abandonSession]);
 
   const retry = () => setListRevision((value) => value + 1);
+
+  const requestCustomBacktest = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!requestBotId || !requestDatasetId || !requestPolicyVersion || !requestPeriodStart || !requestPeriodEnd) {
+      setRequestError('봇, 데이터, 실행 정책, 시작일과 종료일을 모두 선택해 주세요.');
+      return;
+    }
+    if (requestPeriodStart > requestPeriodEnd) {
+      setRequestError('종료일은 시작일보다 빠를 수 없습니다.');
+      return;
+    }
+    setRequestPending(true);
+    setRequestError(null);
+    try {
+      const receipt = await client.requestBacktest(requestBotId, {
+        datasetManifestId: requestDatasetId,
+        periodStart: requestPeriodStart,
+        periodEnd: requestPeriodEnd,
+        executionPolicyVersion: requestPolicyVersion,
+        idempotencyKey: requestIdempotencyKey,
+      });
+      setRequestMessage(receipt.created
+        ? `백테스트 요청을 접수했습니다. 실행 ID: ${receipt.runId}`
+        : `같은 요청이 이미 접수되어 기존 실행을 사용합니다. 실행 ID: ${receipt.runId}`);
+      setRequestOpen(false);
+      setRequestIdempotencyKey(newIdempotencyKey());
+      setRunOffset(0);
+      retry();
+    } catch {
+      setRequestError('백테스트 요청을 접수하지 못했습니다. 입력 범위와 서버 상태를 확인한 뒤 다시 시도해 주세요.');
+    } finally {
+      setRequestPending(false);
+    }
+  };
+  const selectedRequestDataset = requestOptions?.datasets.find((dataset) => dataset.id === requestDatasetId) ?? null;
 
   /*
     Nothing to show at all — signed out, or the list itself failed. The whole
@@ -169,8 +249,39 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
       eyebrow="OFFICIAL BACKTEST"
       title="봇 백테스트"
       description="출시된 봇의 자동 백테스트 상태와 검증된 결과를 확인합니다."
-      actions={<Button icon={RefreshCw} onClick={retry}>새로고침</Button>}
+      actions={<div className="backtest-live-heading-actions">
+        <Button icon={Plus} kind="primary" onClick={() => setRequestOpen((open) => !open)}>새 백테스트</Button>
+        <Button icon={RefreshCw} onClick={retry}>새로고침</Button>
+      </div>}
     />
+    {requestMessage && <p className="bots-decision-note" role="status">{requestMessage}</p>}
+    {requestOpen && <Panel className="backtest-request-panel" title="사용자 지정 백테스트" subtitle="서버가 확인한 봇, 공식 데이터셋과 잠긴 실행 정책만 사용합니다.">
+      {requestOptions === null && !requestError && <LoadingState label="백테스트 입력을 불러오는 중입니다." />}
+      {requestError && <ErrorState title={requestError} />}
+      {requestOptions && requestOptions.bots.length === 0 && <EmptyState
+        icon={BarChart3}
+        title="백테스트할 출시 봇이 없습니다."
+        detail="전략을 검증하고 봇을 출시한 뒤 사용자 지정 백테스트를 요청할 수 있습니다."
+      />}
+      {requestOptions && requestOptions.bots.length > 0 && <form className="backtest-request-form" onSubmit={(event) => { void requestCustomBacktest(event); }}>
+        <label><span>봇</span><select aria-label="백테스트 봇" value={requestBotId} onChange={(event) => setRequestBotId(event.target.value)}>
+          {requestOptions.bots.map((bot) => <option key={bot.botId} value={bot.botId}>{bot.name}</option>)}
+        </select></label>
+        <label><span>공식 데이터</span><select aria-label="백테스트 데이터" value={requestDatasetId} onChange={(event) => {
+          const dataset = requestOptions.datasets.find((item) => item.id === event.target.value);
+          setRequestDatasetId(event.target.value);
+          if (dataset) { setRequestPeriodStart(dataset.periodStart); setRequestPeriodEnd(dataset.periodEnd); }
+        }}>
+          {requestOptions.datasets.map((dataset) => <option key={dataset.id} value={dataset.id}>{dataset.feedCode} · {dataset.resolution} · {dataset.periodStart}~{dataset.periodEnd}</option>)}
+        </select></label>
+        <label><span>시작일</span><input aria-label="백테스트 시작일" type="date" min={selectedRequestDataset?.periodStart} max={selectedRequestDataset?.periodEnd} value={requestPeriodStart} onChange={(event) => setRequestPeriodStart(event.target.value)} /></label>
+        <label><span>종료일</span><input aria-label="백테스트 종료일" type="date" min={selectedRequestDataset?.periodStart} max={selectedRequestDataset?.periodEnd} value={requestPeriodEnd} onChange={(event) => setRequestPeriodEnd(event.target.value)} /></label>
+        <label><span>실행 정책</span><select aria-label="백테스트 실행 정책" value={requestPolicyVersion} onChange={(event) => setRequestPolicyVersion(event.target.value)}>
+          {requestOptions.executionPolicies.map((policy) => <option key={policy.version} value={policy.version}>{policy.version}</option>)}
+        </select></label>
+        <div className="backtest-request-actions"><Button type="button" onClick={() => setRequestOpen(false)}>취소</Button><Button type="submit" kind="primary" disabled={requestPending || !requestDatasetId || !requestPolicyVersion}>{requestPending ? '요청 중…' : '백테스트 요청'}</Button></div>
+      </form>}
+    </Panel>}
     {signedIn && <>
       {listFailure === null && runs === null && <LoadingState label="백테스트 결과를 불러오는 중입니다." />}
       {listFailure === null && runs?.length === 0 && <EmptyState
@@ -179,7 +290,15 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
         detail="출시된 봇이 생기면 공식 백테스트가 자동으로 시작되고 이곳에 결과가 표시됩니다."
       />}
       {listFailure === null && runs && runs.length > 0 && <div className="backtest-live-workspace">
-        <RunList runs={runs} selectedRunId={selectedRunId} onSelect={setSelectedRunId} />
+        <RunList
+          runs={runs}
+          selectedRunId={selectedRunId}
+          onSelect={setSelectedRunId}
+          offset={runOffset}
+          hasNext={hasNextRunPage}
+          onPrevious={() => setRunOffset((value) => Math.max(0, value - RUN_PAGE_SIZE))}
+          onNext={() => setRunOffset((value) => value + RUN_PAGE_SIZE)}
+        />
         <section className="backtest-live-detail" aria-label="선택한 백테스트 결과">
           {detailFailure === null && detail === null
             && <LoadingState label="선택한 백테스트를 불러오는 중입니다." />}
@@ -263,10 +382,18 @@ function RunList({
   runs,
   selectedRunId,
   onSelect,
+  offset,
+  hasNext,
+  onPrevious,
+  onNext,
 }: {
   runs: BacktestRun[];
   selectedRunId: string | null;
   onSelect: (runId: string) => void;
+  offset: number;
+  hasNext: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
 }) {
   return <aside className="panel backtest-live-list" aria-labelledby="backtest-live-list-title">
     <header className="backtest-live-list-head">
@@ -284,6 +411,11 @@ function RunList({
         <Status tone={STATUS_TONES[run.status]}>{STATUS_LABELS[run.status]}</Status>
       </button></div>)}
     </div>
+    <footer className="backtest-live-pagination" aria-label="백테스트 실행 목록 페이지 이동">
+      <Button disabled={offset === 0} onClick={onPrevious}>이전</Button>
+      <span>{Math.floor(offset / RUN_PAGE_SIZE) + 1}페이지</span>
+      <Button disabled={!hasNext} onClick={onNext}>다음</Button>
+    </footer>
   </aside>;
 }
 
@@ -311,6 +443,7 @@ function RunDetailPanels({
       <RunState run={run} />
       <AttemptTable attempts={detail.attempts} />
     </Panel>
+    <RunInputsPanel inputs={detail.inputs} />
     {run.status === 'COMPLETED' && <>
       <PerformancePanel performance={detail.performance} />
       <MonthlyPanel
@@ -324,6 +457,30 @@ function RunDetailPanels({
       />
     </>}
   </>;
+}
+
+function RunInputsPanel({ inputs }: { inputs: BacktestRunInputs }) {
+  return <Panel
+    className="backtest-live-inputs"
+    title="잠긴 실행 입력"
+    subtitle="이 실행을 같은 조건으로 재현하기 위한 서버 확정 식별자입니다."
+  >
+    <dl>
+      <div><dt>입력 묶음</dt><dd><code>{inputs.inputBundleFingerprint}</code></dd></div>
+      <div><dt>전략 스냅샷</dt><dd><code>{inputs.strategySnapshotHash}</code></dd></div>
+      <div><dt>컴파일 계획</dt><dd><code>{inputs.compiledPlanChecksum}</code></dd></div>
+      <div><dt>데이터셋</dt><dd><code>{inputs.datasetManifestId}</code><small>{inputs.datasetHash}</small></dd></div>
+      <div><dt>실행 정책</dt><dd>{inputs.executionPolicyVersion}</dd></div>
+      <div><dt>정밀도 규칙</dt><dd>{inputs.precisionRulesVersion}</dd></div>
+      <div><dt>계산 모델</dt><dd>{inputs.calculationModelVersion ?? '실행되지 않음'}</dd></div>
+      <div><dt>비용 모델</dt><dd>{inputs.costModelVersion ?? '실행되지 않음'}</dd></div>
+      <div><dt>체결 모델</dt><dd>{inputs.executionModelVersion ?? '실행되지 않음'}</dd></div>
+    </dl>
+    {inputs.missingRequirements.length > 0 && <div className="backtest-live-failure">
+      <strong><AlertTriangle size={16} />필수 입력이 부족합니다.</strong>
+      <ul>{inputs.missingRequirements.map((requirement) => <li key={requirement}><code>{requirement}</code></li>)}</ul>
+    </div>}
+  </Panel>;
 }
 
 function RunState({ run }: { run: BacktestRun }) {

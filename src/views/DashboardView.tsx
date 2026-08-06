@@ -3,14 +3,15 @@ import type { FocusEvent, ReactNode } from 'react';
 import {
   ArrowRight,
   ChevronDown,
+  RefreshCw,
   Trophy,
 } from 'lucide-react';
 import { Bot, Gauge } from 'lucide-react';
-import { Button, EmptyState, LoadingState, Status } from '../components/common';
+import { Button, EmptyState, LoadingState, MetricRow, StaleState, Status } from '../components/common';
 import { ErrorPage, SignInRequiredPage } from '../components/StatePages';
 import { useSessionAccessToken } from '../api/sessionAccessToken';
-import { BotOperationsApiError, defaultBotOperationsClient } from '../api/botOperations';
-import type { BotOperationsClient, BotOperationsState, BotOperationsView } from '../api/botOperations';
+import { DashboardApiError, defaultDashboardClient } from '../api/dashboard';
+import type { DashboardBotState, DashboardClient, DashboardSnapshot } from '../api/dashboard';
 import { BotGlyph, DEFAULT_BOT_ICONS, FALLBACK_BOT_ICON } from '../components/BotGlyph';
 import type { BotIconMap } from '../components/BotGlyph';
 import { EquityChart } from '../components/EquityChart';
@@ -40,7 +41,7 @@ interface DashboardViewProps {
   setPage: (page: PageId) => void;
   botIcons?: BotIconMap;
   dataSource?: 'sample' | 'live' | 'unavailable';
-  operationsClient?: BotOperationsClient;
+  dashboardClient?: DashboardClient;
 }
 
 const botList = bots as BotRecord[];
@@ -104,7 +105,7 @@ export function DashboardView({
   setPage,
   botIcons = DEFAULT_BOT_ICONS,
   dataSource = import.meta.env.MODE === 'test' ? 'sample' : 'live',
-  operationsClient = defaultBotOperationsClient,
+  dashboardClient = defaultDashboardClient,
 }: DashboardViewProps): ReactNode {
   const sessionToken = useSessionAccessToken();
   if (dataSource === 'unavailable') {
@@ -118,13 +119,13 @@ export function DashboardView({
   }
 
   if (dataSource === 'live') {
-    return <LiveDashboard setPage={setPage} client={operationsClient} />;
+    return <LiveDashboard setPage={setPage} client={dashboardClient} />;
   }
 
   return <SampleDashboard setPage={setPage} botIcons={botIcons} />;
 }
 
-const LIVE_STATE_LABELS: Record<BotOperationsState, string> = {
+const LIVE_STATE_LABELS: Record<DashboardBotState, string> = {
   waiting: '대기 중',
   running: '실행 중',
   'action-required': '조치 필요',
@@ -134,32 +135,50 @@ const LIVE_STATE_LABELS: Record<BotOperationsState, string> = {
   'settlement-failed': '정산 실패',
 };
 
-const liveStateTone = (state: BotOperationsState): 'positive' | 'info' | 'warning' | 'negative' | 'neutral' => {
+const liveStateTone = (state: DashboardBotState): 'positive' | 'info' | 'warning' | 'negative' | 'neutral' => {
   if (state === 'running') return 'positive';
   if (state === 'waiting' || state === 'stopping') return 'info';
   if (state === 'stopped') return 'neutral';
   return state === 'settlement-failed' ? 'negative' : 'warning';
 };
 
-function LiveDashboard({ setPage, client }: { setPage: (page: PageId) => void; client: BotOperationsClient }) {
+function LiveDashboard({ setPage, client }: { setPage: (page: PageId) => void; client: DashboardClient }) {
   const sessionToken = useSessionAccessToken();
   const { language } = useLanguage();
-  const [operations, setOperations] = useState<BotOperationsView[] | null>(null);
+  const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [failure, setFailure] = useState<'sign-in' | 'transport' | null>(null);
+  const [stale, setStale] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     if (sessionToken === null) return undefined;
     const controller = new AbortController();
-    setOperations(null);
+    const hadSnapshot = snapshot !== null;
     setFailure(null);
-    client.listOperations(controller.signal)
-      .then(setOperations)
+    setRefreshing(true);
+    client.getSnapshot(controller.signal)
+      .then((next) => {
+        setSnapshot(next);
+        setStale(false);
+      })
       .catch((error) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
-        setFailure(error instanceof BotOperationsApiError && error.unauthenticated ? 'sign-in' : 'transport');
-      });
+        if (error instanceof DashboardApiError && error.unauthenticated) {
+          setFailure('sign-in');
+          return;
+        }
+        if (hadSnapshot) {
+          setStale(true);
+          return;
+        }
+        setFailure('transport');
+      })
+      .finally(() => setRefreshing(false));
     return () => controller.abort();
+    // The snapshot is intentionally not a dependency: a successful refresh
+    // must not immediately trigger another request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, revision, sessionToken]);
 
   if (sessionToken === null || failure === 'sign-in') return <SignInRequiredPage />;
@@ -169,29 +188,70 @@ function LiveDashboard({ setPage, client }: { setPage: (page: PageId) => void; c
     onRetry={() => setRevision((current) => current + 1)}
   />;
 
-  const runningCount = operations?.filter((bot) => bot.state === 'running').length ?? 0;
+  const bots = snapshot?.bots ?? [];
+  const runningCount = bots.filter((bot) => bot.state === 'running').length;
+  const performanceBots = bots.filter((bot) => bot.performance !== null);
+  const competitionBots = bots.filter((bot) => bot.competition !== null);
+  const totalEquity = performanceBots.reduce((sum, bot) => sum + (bot.performance?.equityAmount ?? 0), 0);
+  const latestPerformanceAt = performanceBots.reduce<string | null>((latest, bot) => {
+    const observedAt = bot.performance?.updatedAt ?? null;
+    return observedAt !== null && (latest === null || observedAt > latest) ? observedAt : latest;
+  }, null);
+  const locale = language === 'en' ? 'en-US' : 'ko-KR';
+  const formatMoney = (value: number) => new Intl.NumberFormat(locale, {
+    style: 'currency', currency: 'USD', maximumFractionDigits: 2,
+  }).format(value);
+  const formatPercent = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(2)}%`;
   return <Localized><div className="page dashboard-page dashboard-live-page">
     <header className="page-heading dashboard-heading">
       <div>
         <p className="eyebrow">HOME</p>
         <h1>운영 현황</h1>
-        <p className="page-description">{operations === null
+        <p className="page-description">{snapshot === null
           ? '계정의 봇 운영 상태를 확인하고 있습니다.'
-          : operations.length === 0
+          : bots.length === 0
             ? '현재 운용 중인 봇이 없습니다.'
             : language === 'en'
-              ? `${runningCount} of ${operations.length} bots are running.`
-              : `봇 ${operations.length}개 중 ${runningCount}개가 실행 중입니다.`}</p>
+              ? `${runningCount} of ${bots.length} bots are running.`
+              : `봇 ${bots.length}개 중 ${runningCount}개가 실행 중입니다.`}</p>
       </div>
+      <div className="page-actions"><Button icon={RefreshCw} onClick={() => setRevision((current) => current + 1)} disabled={refreshing}>
+        {refreshing ? '새로고침 중' : '새로고침'}
+      </Button></div>
     </header>
-    {operations === null ? <LoadingState label="Home 데이터를 불러오는 중입니다." /> : <div className="dashboard-context-row">
+    {stale && snapshot !== null && <StaleState
+      title="마지막으로 확인한 데이터를 표시하고 있습니다."
+      detail={language === 'en'
+        ? `As of ${new Date(snapshot.generatedAt).toLocaleString(locale)} · the latest refresh failed.`
+        : `${new Date(snapshot.generatedAt).toLocaleString(locale)} 기준 · 최신 데이터 갱신에 실패했습니다.`}
+      onRetry={() => setRevision((current) => current + 1)}
+    />}
+    {snapshot === null ? <LoadingState label="Home 데이터를 불러오는 중입니다." /> : <div className="dashboard-context-row">
       <section className="dashboard-section" aria-label="운용 성과">
         <header className="dashboard-section-head"><div><h2>운용 성과</h2></div></header>
-        <EmptyState
+        {bots.length === 0 ? <EmptyState
           icon={Gauge}
-          title="실제 자산 성과 데이터가 아직 없습니다."
-          detail="현재 API가 제공하는 봇 실행 상태만 표시합니다. 자산 이력 계약이 연결되면 이 영역에 검증된 성과가 표시됩니다."
-        />
+          title="성과를 계산할 봇이 없습니다."
+          detail="전략을 출시해 봇을 만들면 서버가 산출한 성과가 이곳에 표시됩니다."
+        /> : performanceBots.length === 0 ? <EmptyState
+          icon={Gauge}
+          title="성과 계산이 아직 완료되지 않았습니다."
+          detail="봇은 생성되었지만 검증된 최신 성과 Projection이 없습니다. 잠시 뒤 새로고침해 주세요."
+          action={<Button icon={RefreshCw} onClick={() => setRevision((current) => current + 1)}>새로고침</Button>}
+        /> : <>
+          <MetricRow label="계정 성과 요약" items={[
+            { label: '검증된 평가액', figure: formatMoney(totalEquity), detail: language === 'en' ? `${performanceBots.length} bots included` : `${performanceBots.length}개 봇 합계` },
+            { label: '전체 봇', figure: String(bots.length), detail: language === 'en' ? `${runningCount} running` : `실행 중 ${runningCount}개` },
+            { label: '최근 성과 산출', figure: latestPerformanceAt === null ? '—' : new Date(latestPerformanceAt).toLocaleString(locale) },
+          ]} />
+          <div className="dashboard-bot-list">
+            {performanceBots.map((bot) => <button key={bot.botId} onClick={() => setPage('bots')}>
+              <span className="dashboard-bot-icon" aria-hidden="true"><Gauge size={16} /></span>
+              <span className="dashboard-bot-name"><strong>{bot.name}</strong><small>{`${bot.performance?.calculationRulesVersion} · ${new Date(bot.performance!.updatedAt).toLocaleString(locale)}`}</small></span>
+              <span className="dashboard-bot-figures"><strong>{formatMoney(bot.performance!.equityAmount)}</strong><small className={bot.performance!.totalReturnPct >= 0 ? 'positive' : 'negative'}>{formatPercent(bot.performance!.totalReturnPct)}</small></span>
+            </button>)}
+          </div>
+        </>}
       </section>
       <div className="dashboard-side">
         <section className="dashboard-section" aria-label="운용 중인 봇">
@@ -199,22 +259,51 @@ function LiveDashboard({ setPage, client }: { setPage: (page: PageId) => void; c
             <div><h2>운용 중인 봇</h2></div>
             <button className="dashboard-section-link" onClick={() => setPage('bots')}>봇 전체 보기<ArrowRight size={13} /></button>
           </header>
-          {operations.length === 0 ? <EmptyState
+          {bots.length === 0 ? <EmptyState
             icon={Bot}
             title="운용 중인 봇이 없습니다."
             detail="전략을 출시해 봇을 만들면 이곳에 실제 실행 상태가 표시됩니다."
             action={<Button onClick={() => setPage('strategy')}>전략으로 이동</Button>}
           /> : <div className="dashboard-bot-list">
-            {operations.map((bot) => <button key={bot.botId} onClick={() => setPage('bots')}>
+            {bots.map((bot) => <button key={bot.botId} onClick={() => setPage('bots')}>
               <span className="dashboard-bot-icon" aria-hidden="true"><Bot size={16} /></span>
-              <span className="dashboard-bot-name"><strong>{bot.name}</strong><small>{`${language === 'en' ? 'State changed' : '상태 변경'} ${new Date(bot.lifecycleChangedAt).toLocaleString(language === 'en' ? 'en-US' : 'ko-KR')}`}</small></span>
+              <span className="dashboard-bot-name"><strong>{bot.name}</strong><small>{`${language === 'en' ? 'State changed' : '상태 변경'} ${new Date(bot.lifecycleChangedAt).toLocaleString(locale)}`}</small></span>
               <Status tone={liveStateTone(bot.state)}>{LIVE_STATE_LABELS[bot.state]}</Status>
+            </button>)}
+          </div>}
+        </section>
+        <section className="dashboard-section" aria-label="참여 중인 대회">
+          <header className="dashboard-section-head">
+            <div><h2>참여 중인 대회</h2></div>
+            <button className="dashboard-section-link" onClick={() => setPage('rooms')}>대회 보기<ArrowRight size={13} /></button>
+          </header>
+          {competitionBots.length === 0 ? <EmptyState
+            icon={Trophy}
+            title="참여 중인 대회가 없습니다."
+            detail="대회에 봇을 등록하면 대회 상태와 종료 시각이 이곳에 표시됩니다."
+          /> : <div className="dashboard-room-list">
+            {competitionBots.map((bot) => <button key={`${bot.competition!.roomId}:${bot.botId}`} onClick={() => setPage('rooms')}>
+              <span className="dashboard-bot-icon is-room" aria-hidden="true"><Trophy size={15} /></span>
+              <span className="dashboard-bot-name"><strong>{bot.competition!.roomName}</strong><small>{bot.name}</small></span>
+              <span className="dashboard-room-phase"><Status tone="info">{competitionStateLabel(bot.competition!.participationStatus, language)}</Status><small>{new Date(bot.competition!.evaluationEndsAt).toLocaleString(locale)}</small></span>
             </button>)}
           </div>}
         </section>
       </div>
     </div>}
   </div></Localized>;
+}
+
+function competitionStateLabel(status: string, language: 'ko' | 'en'): string {
+  if (language === 'en') return status.replaceAll('_', ' ').toLowerCase();
+  return ({
+    REGISTERED: '참가 등록',
+    PENDING_LEDGER: '원장 준비 중',
+    ACTIVE: '참가 중',
+    EVALUATING: '평가 중',
+    COMPLETED: '평가 완료',
+    EVALUATION_FAILED: '평가 실패',
+  } as Record<string, string>)[status] ?? status;
 }
 
 function SampleDashboard({ setPage, botIcons = DEFAULT_BOT_ICONS }: Pick<DashboardViewProps, 'setPage' | 'botIcons'>): ReactNode {

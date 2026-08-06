@@ -1,8 +1,9 @@
 import { StrictMode, useEffect, useMemo, useState } from 'react';
+import '@fontsource-variable/noto-sans-kr/wght.css';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { createAccountOperationsClient } from './api/accountOperations';
-import { defaultCompetitionRoomsClient } from './api/competitionRooms';
+import { createCompetitionRoomsClient, defaultCompetitionRoomsClient } from './api/competitionRooms';
 import { createOperatorRbacClient } from './api/operatorRbac';
 import { getSessionAccessToken } from './api/sessionAccessToken';
 import { createOperatorOidcSession, readProductionOperatorOidcConfig } from './auth/operatorOidc';
@@ -60,6 +61,11 @@ function RuntimeApp() {
     getAccessToken: getSessionAccessToken,
     getOperatorAccessToken: operatorToken,
   }) : undefined, [operatorReady, operatorToken]);
+  const operatorCompetitionClient = useMemo(() => operatorReady && operatorToken ? createCompetitionRoomsClient({
+    baseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
+    getAccessToken: getSessionAccessToken,
+    getOperatorAccessToken: operatorToken,
+  }) : undefined, [operatorReady, operatorToken]);
   const operatorAuthentication = productionSession || productionConfigurationError ? {
     snapshot,
     login: (returnTo?: string) => productionSession?.login(returnTo) ?? Promise.resolve(),
@@ -68,6 +74,7 @@ function RuntimeApp() {
 
   return <App
     competitionRoomsClient={defaultCompetitionRoomsClient}
+    operatorCompetitionClient={operatorCompetitionClient}
     operationsClient={operationsClient}
     operatorRbacClient={operatorRbacClient}
     operatorCaseAccessVerified={operatorReady}

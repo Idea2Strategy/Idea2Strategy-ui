@@ -223,6 +223,54 @@ export interface BacktestMonthlyTrades {
   items: BacktestTrade[];
 }
 
+export interface BacktestRunInputs {
+  backtestRunId: string;
+  botId: string;
+  status: BacktestRunStatus;
+  strategySnapshotHash: string;
+  compiledPlanChecksum: string;
+  datasetManifestId: string;
+  datasetHash: string;
+  inputBundleFingerprint: string;
+  inputContractVersion: string;
+  datasets: Array<{ datasetManifestId: string; purposeCode: string; lockedDatasetHash: string }>;
+  featureMaterializations: Array<Record<string, unknown>>;
+  executionPolicyVersion: string;
+  precisionRulesVersion: string;
+  calculationModelVersion: string | null;
+  costModelVersion: string | null;
+  executionModelVersion: string | null;
+  reasonCode: string | null;
+  missingRequirements: string[];
+}
+
+export interface BacktestRequestOptions {
+  bots: Array<{ botId: string; name: string }>;
+  executionPolicies: Array<{ version: string }>;
+  datasets: Array<{
+    id: string;
+    feedCode: string;
+    resolution: string;
+    periodStart: string;
+    periodEnd: string;
+  }>;
+}
+
+export interface CustomBacktestInput {
+  datasetManifestId: string;
+  periodStart: string;
+  periodEnd: string;
+  executionPolicyVersion: string;
+  idempotencyKey: string;
+}
+
+export interface CustomBacktestReceipt {
+  messageId: string;
+  eventType: string;
+  created: boolean;
+  runId: string;
+}
+
 export interface ListRunsOptions {
   limit?: number;
   offset?: number;
@@ -235,6 +283,9 @@ export interface BacktestClient {
   getPerformance(runId: string, signal?: AbortSignal): Promise<BacktestPerformanceSummary>;
   listMonthlySummaries(runId: string, signal?: AbortSignal): Promise<BacktestMonthlySummary[]>;
   listDetailManifests(runId: string, signal?: AbortSignal): Promise<BacktestDetailManifest[]>;
+  getInputs(runId: string, signal?: AbortSignal): Promise<BacktestRunInputs>;
+  getRequestOptions(signal?: AbortSignal): Promise<BacktestRequestOptions>;
+  requestBacktest(botId: string, input: CustomBacktestInput, signal?: AbortSignal): Promise<CustomBacktestReceipt>;
   listMonthlyTrades(
     runId: string,
     etMonth: string,
@@ -363,13 +414,21 @@ export function createBacktestClient({
 }: ClientOptions = {}): BacktestClient {
   const root = baseUrl.replace(/\/$/, '');
 
-  const request = async (path: string, operation: string, signal?: AbortSignal): Promise<unknown> => {
+  const request = async (
+    path: string,
+    operation: string,
+    signal?: AbortSignal,
+    init: RequestInit = {},
+  ): Promise<unknown> => {
     const token = getAccessToken?.();
     const response = await fetchImpl(`${root}${path}`, {
+      ...init,
       credentials: 'include',
       headers: {
         Accept: 'application/json',
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init.headers,
       },
       signal,
     });
@@ -431,6 +490,62 @@ export function createBacktestClient({
       );
       return items(object(payload, 'detail manifest list'), 'detail manifest list')
         .map(readDetailManifest);
+    },
+
+    async getInputs(runId, signal) {
+      return readRunInputs(await request(
+        `${runPath(runId)}/inputs`, 'Backtest input manifest request', signal,
+      ));
+    },
+
+    async getRequestOptions(signal) {
+      const [botsPayload, inputsPayload] = await Promise.all([
+        request('/api/v1/bots/operations', 'Backtest bot option request', signal),
+        request('/api/v1/strategy-release-inputs', 'Backtest input option request', signal),
+      ]);
+      if (!Array.isArray(botsPayload)) throw new BacktestContractError('Invalid backtest bot options');
+      const inputs = object(inputsPayload, 'backtest input options');
+      if (!Array.isArray(inputs.executionPolicies) || !Array.isArray(inputs.datasets)) {
+        throw new BacktestContractError('Invalid backtest input option collections');
+      }
+      return {
+        bots: botsPayload.map((value) => {
+          const bot = object(value, 'backtest bot option');
+          return { botId: string(bot.botId, 'botId'), name: string(bot.name, 'name') };
+        }),
+        executionPolicies: inputs.executionPolicies.map((value) => {
+          const policy = object(value, 'backtest execution policy option');
+          return { version: string(policy.version, 'version') };
+        }),
+        datasets: inputs.datasets.map((value) => {
+          const dataset = object(value, 'backtest dataset option');
+          return {
+            id: string(dataset.id, 'dataset id'),
+            feedCode: string(dataset.feedCode, 'feedCode'),
+            resolution: string(dataset.resolution, 'resolution'),
+            periodStart: string(dataset.periodStart, 'periodStart'),
+            periodEnd: string(dataset.periodEnd, 'periodEnd'),
+          };
+        }),
+      };
+    },
+
+    async requestBacktest(botId, input, signal) {
+      return readCustomReceipt(await request(
+        `/api/v1/bots/${encodeURIComponent(botId)}/backtests`,
+        'Custom backtest request',
+        signal,
+        {
+          method: 'POST',
+          headers: { 'Idempotency-Key': input.idempotencyKey },
+          body: JSON.stringify({
+            datasetManifestId: input.datasetManifestId,
+            periodStart: input.periodStart,
+            periodEnd: input.periodEnd,
+            executionPolicyVersion: input.executionPolicyVersion,
+          }),
+        },
+      ));
     },
 
     async listMonthlyTrades(runId, etMonth, signal) {
@@ -651,6 +766,50 @@ function readPositionAfter(value: unknown): BacktestPositionAfter {
   };
 }
 
+function readRunInputs(value: unknown): BacktestRunInputs {
+  const input = object(value, 'backtest run inputs');
+  if (!Array.isArray(input.datasets) || !Array.isArray(input.featureMaterializations)) {
+    throw new BacktestContractError('Invalid backtest run input collections');
+  }
+  return {
+    backtestRunId: string(input.backtestRunId, 'backtestRunId'),
+    botId: string(input.botId, 'botId'),
+    status: runStatus(input.status),
+    strategySnapshotHash: string(input.strategySnapshotHash, 'strategySnapshotHash'),
+    compiledPlanChecksum: string(input.compiledPlanChecksum, 'compiledPlanChecksum'),
+    datasetManifestId: string(input.datasetManifestId, 'datasetManifestId'),
+    datasetHash: string(input.datasetHash, 'datasetHash'),
+    inputBundleFingerprint: string(input.inputBundleFingerprint, 'inputBundleFingerprint'),
+    inputContractVersion: string(input.inputContractVersion, 'inputContractVersion'),
+    datasets: input.datasets.map((value) => {
+      const dataset = object(value, 'backtest run dataset input');
+      return {
+        datasetManifestId: string(dataset.datasetManifestId, 'datasetManifestId'),
+        purposeCode: string(dataset.purposeCode, 'purposeCode'),
+        lockedDatasetHash: string(dataset.lockedDatasetHash, 'lockedDatasetHash'),
+      };
+    }),
+    featureMaterializations: input.featureMaterializations.map((value) => object(value, 'featureMaterialization')),
+    executionPolicyVersion: string(input.executionPolicyVersion, 'executionPolicyVersion'),
+    precisionRulesVersion: string(input.precisionRulesVersion, 'precisionRulesVersion'),
+    calculationModelVersion: nullableString(input.calculationModelVersion, 'calculationModelVersion'),
+    costModelVersion: nullableString(input.costModelVersion, 'costModelVersion'),
+    executionModelVersion: nullableString(input.executionModelVersion, 'executionModelVersion'),
+    reasonCode: nullableString(input.reasonCode, 'reasonCode'),
+    missingRequirements: stringArray(input.missingRequirements, 'missingRequirements'),
+  };
+}
+
+function readCustomReceipt(value: unknown): CustomBacktestReceipt {
+  const receipt = object(value, 'custom backtest receipt');
+  return {
+    messageId: string(receipt.messageId, 'messageId'),
+    eventType: string(receipt.eventType, 'eventType'),
+    created: boolean(receipt.created, 'created'),
+    runId: string(receipt.runId, 'runId'),
+  };
+}
+
 function items(payload: Record<string, unknown>, label: string): unknown[] {
   if (!Array.isArray(payload.items)) throw new BacktestContractError(`Invalid ${label}`);
   return payload.items;
@@ -672,6 +831,11 @@ function string(value: unknown, label: string): string {
 
 function nullableString(value: unknown, label: string): string | null {
   return value === null ? null : string(value, label);
+}
+
+function boolean(value: unknown, label: string): boolean {
+  if (typeof value !== 'boolean') throw new BacktestContractError(`Invalid ${label}`);
+  return value;
 }
 
 function stringArray(value: unknown, label: string): string[] {

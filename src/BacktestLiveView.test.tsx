@@ -88,6 +88,36 @@ function recordRequests(): string[] {
 }
 
 describe('BacktestLiveView against the /api/v1 backtest surface', () => {
+  it('requests a custom backtest from server-confirmed bots and immutable inputs', async () => {
+    let received: Record<string, unknown> | null = null;
+    server.use(
+      http.get(`${BACKTEST_API_BASE}/api/v1/bots/operations`, () => HttpResponse.json([
+        { botId: 'bot-1', name: 'RSI bot' },
+      ])),
+      http.get(`${BACKTEST_API_BASE}/api/v1/strategy-release-inputs`, () => HttpResponse.json({
+        executionPolicies: [{ version: 'policy-v1' }],
+        datasets: [{ id: 'dataset-1', feedCode: 'SIP', resolution: '1m', periodStart: '2026-01-01', periodEnd: '2026-06-30' }],
+      })),
+      http.post(`${BACKTEST_API_BASE}/api/v1/bots/:botId/backtests`, async ({ request }) => {
+        received = await request.json() as Record<string, unknown>;
+        return HttpResponse.json({ messageId: 'message-1', eventType: 'CUSTOM_BACKTEST_REQUESTED', created: true, runId: 'run-2' }, { status: 202 });
+      }),
+    );
+    const user = userEvent.setup();
+    view();
+
+    await user.click(screen.getByRole('button', { name: '새 백테스트' }));
+    expect(await screen.findByRole('combobox', { name: '백테스트 봇' })).toHaveValue('bot-1');
+    await user.clear(screen.getByLabelText('백테스트 시작일'));
+    await user.type(screen.getByLabelText('백테스트 시작일'), '2026-02-01');
+    await user.click(screen.getByRole('button', { name: '백테스트 요청' }));
+
+    await waitFor(() => expect(received).toMatchObject({
+      datasetManifestId: 'dataset-1', periodStart: '2026-02-01', executionPolicyVersion: 'policy-v1',
+    }));
+    expect(await screen.findByText(/백테스트 요청을 접수했습니다/)).toBeInTheDocument();
+  });
+
   it('renders the completed run overview, performance and provenance', async () => {
     view();
 

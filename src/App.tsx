@@ -28,6 +28,7 @@ import type { OperatorRbacClient } from './api/operatorRbac';
 import { defaultNotificationClient, NotificationApiError } from './api/notifications';
 import type { NotificationClient, NotificationRecord } from './api/notifications';
 import type { CompetitionRoomsClient } from './api/competitionRooms';
+import { OperatorCompetitionWorkspace } from './components/OperatorCompetitionWorkspace';
 import { OperatorAuthenticationView } from './components/OperatorAuthenticationView';
 import type { OperatorAuthentication } from './components/OperatorAuthenticationView';
 import { PRO_EDITOR_AVAILABLE } from './lib/proEditorAccess';
@@ -386,11 +387,12 @@ const paletteTemplates: PaletteTemplate[] = [
   { id: 'rose', label: '로즈', dark: '#f79ab0', light: '#b42a52' },
 ];
 
-function ProductApp({ accountClient, operationsClient, notificationClient, competitionRoomsClient, operatorRbacClient, operatorCaseAccessVerified, operatorAuthentication, catalogReadPermissionId, assignmentReadPermissionId }: {
+function ProductApp({ accountClient, operationsClient, notificationClient, competitionRoomsClient, operatorCompetitionClient, operatorRbacClient, operatorCaseAccessVerified, operatorAuthentication, catalogReadPermissionId, assignmentReadPermissionId }: {
   accountClient: AccountClient;
   operationsClient: AccountOperationsClient;
   notificationClient: NotificationClient;
   competitionRoomsClient?: CompetitionRoomsClient;
+  operatorCompetitionClient?: CompetitionRoomsClient;
   operatorRbacClient?: OperatorRbacClient;
   operatorCaseAccessVerified: boolean;
   operatorAuthentication?: OperatorAuthentication;
@@ -475,9 +477,15 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/operations/rbac" element={operatorRbacClient
       ? <OperatorRbacWorkspace
         client={operatorRbacClient}
+        mutationsClient={operationsClient}
         catalogReadPermissionId={catalogReadPermissionId}
         assignmentReadPermissionId={assignmentReadPermissionId}
       />
+      : operatorAuthentication
+        ? <Navigate to="/operations/login" state={{ returnTo: location.pathname }} replace />
+        : <Navigate to="/" replace />} />
+    <Route path="/operations/competition" element={operatorCompetitionClient
+      ? <OperatorCompetitionWorkspace client={operatorCompetitionClient} />
       : operatorAuthentication
         ? <Navigate to="/operations/login" state={{ returnTo: location.pathname }} replace />
         : <Navigate to="/" replace />} />
@@ -548,6 +556,7 @@ export function App({
   operationsClient = defaultAccountOperationsClient,
   notificationClient = defaultNotificationClient,
   competitionRoomsClient,
+  operatorCompetitionClient,
   operatorRbacClient,
   operatorCaseAccessVerified = false,
   operatorAuthentication,
@@ -559,6 +568,7 @@ export function App({
   operationsClient?: AccountOperationsClient;
   notificationClient?: NotificationClient;
   competitionRoomsClient?: CompetitionRoomsClient;
+  operatorCompetitionClient?: CompetitionRoomsClient;
   operatorRbacClient?: OperatorRbacClient;
   operatorCaseAccessVerified?: boolean;
   operatorAuthentication?: OperatorAuthentication;
@@ -572,6 +582,7 @@ export function App({
       operationsClient={operationsClient}
       notificationClient={notificationClient}
       competitionRoomsClient={competitionRoomsClient}
+      operatorCompetitionClient={operatorCompetitionClient}
       operatorRbacClient={operatorRbacClient}
       operatorCaseAccessVerified={operatorCaseAccessVerified}
       operatorAuthentication={operatorAuthentication}

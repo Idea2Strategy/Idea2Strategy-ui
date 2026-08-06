@@ -102,6 +102,49 @@ describe('backtest results API client', () => {
     expect(attempts[0].failureCode).toBeNull();
   });
 
+  it('reads the immutable input manifest for reproducibility', async () => {
+    const inputs = await client().getInputs(RUN_ID);
+
+    expect(inputs.inputContractVersion).toBe('strategy-bot.v1');
+    expect(inputs.datasets).toEqual([expect.objectContaining({ purposeCode: 'MARKET_BARS' })]);
+    expect(inputs.executionPolicyVersion).toBe('official-backtest-policy-v2');
+    expect(inputs.calculationModelVersion).toBe('calculation-v9');
+  });
+
+  it('loads server-owned request options and submits a custom backtest idempotently', async () => {
+    let receivedKey = '';
+    let receivedBody: unknown;
+    server.use(
+      http.get(`${BACKTEST_API_BASE}/api/v1/bots/operations`, () => HttpResponse.json([
+        { botId: 'bot-1', name: 'RSI bot' },
+      ])),
+      http.get(`${BACKTEST_API_BASE}/api/v1/strategy-release-inputs`, () => HttpResponse.json({
+        executionPolicies: [{ version: 'policy-v1' }],
+        datasets: [{ id: 'dataset-1', feedCode: 'SIP', resolution: '1m', periodStart: '2026-01-01', periodEnd: '2026-06-30' }],
+      })),
+      http.post(`${BACKTEST_API_BASE}/api/v1/bots/:botId/backtests`, async ({ request }) => {
+        receivedKey = request.headers.get('Idempotency-Key') ?? '';
+        receivedBody = await request.json();
+        return HttpResponse.json({ messageId: 'message-1', eventType: 'CUSTOM_BACKTEST_REQUESTED', created: true, runId: 'run-2' }, { status: 202 });
+      }),
+    );
+
+    const options = await client().getRequestOptions();
+    const receipt = await client().requestBacktest(options.bots[0].botId, {
+      datasetManifestId: options.datasets[0].id,
+      periodStart: '2026-02-01',
+      periodEnd: '2026-03-31',
+      executionPolicyVersion: options.executionPolicies[0].version,
+      idempotencyKey: 'intent-1',
+    });
+
+    expect(receipt).toMatchObject({ created: true, runId: 'run-2' });
+    expect(receivedKey).toBe('intent-1');
+    expect(receivedBody).toEqual({
+      datasetManifestId: 'dataset-1', periodStart: '2026-02-01', periodEnd: '2026-03-31', executionPolicyVersion: 'policy-v1',
+    });
+  });
+
   it('reads the metrics document without flattening money into a float', async () => {
     const performance = await client().getPerformance(RUN_ID);
 

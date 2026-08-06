@@ -164,6 +164,32 @@ function route(request: IncomingMessage, state: BacktestApiState): Answer {
         ?? json(state.runs.find((run) => run.backtestRunId === runId));
     case 'attempts':
       return owned(caller, runId, state) ?? json({ items: state.attempts });
+    case 'inputs': {
+      const denied = owned(caller, runId, state);
+      if (denied) return denied;
+      const run = state.runs.find((item) => item.backtestRunId === runId)!;
+      const completed = run.status === 'COMPLETED';
+      return json({
+        backtestRunId: runId,
+        botId: run.botId,
+        status: run.status,
+        strategySnapshotHash: `sha256:${'1'.repeat(64)}`,
+        compiledPlanChecksum: `sha256:${'2'.repeat(64)}`,
+        datasetManifestId: '00000000-0000-4000-8000-000000000301',
+        datasetHash: `sha256:${'3'.repeat(64)}`,
+        inputBundleFingerprint: `sha256:${'4'.repeat(64)}`,
+        inputContractVersion: 'strategy-bot.v1',
+        datasets: [{ datasetManifestId: '00000000-0000-4000-8000-000000000301', purposeCode: 'MARKET_BARS', lockedDatasetHash: `sha256:${'3'.repeat(64)}` }],
+        featureMaterializations: [],
+        executionPolicyVersion: 'official-backtest-policy-v2',
+        precisionRulesVersion: 'precision:1.0.0',
+        calculationModelVersion: completed ? 'calculation-v9' : null,
+        costModelVersion: completed ? 'cost-v3' : null,
+        executionModelVersion: completed ? 'execution-v5' : null,
+        reasonCode: run.failureCode ?? null,
+        missingRequirements: run.status === 'UNAVAILABLE' ? ['resolution:1m'] : [],
+      });
+    }
     case 'performance':
       return owned(caller, runId, state)
         ?? requireCompleted(runId, state)

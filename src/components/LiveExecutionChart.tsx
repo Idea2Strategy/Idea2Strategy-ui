@@ -205,7 +205,7 @@ export function LiveExecutionChart({
       layout: {
         background: { type: ColorType.Solid, color: colors.background },
         textColor: colors.text,
-        fontFamily: '"Pretendard Variable", Pretendard, sans-serif',
+        fontFamily: '"Noto Sans KR Variable", "Pretendard Variable", Pretendard, sans-serif',
         fontSize: 11,
       },
       grid: {

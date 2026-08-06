@@ -14,6 +14,8 @@ export interface StrategyLibraryItem {
   editable: boolean;
   updatedAt: string;
   version: string | null;
+  blockCount: number;
+  symbols: string[];
 }
 
 export interface StrategyLibraryPage {
@@ -50,13 +52,73 @@ export interface SaveStrategyDocumentInput {
   presentationDocument: Record<string, unknown>;
 }
 
+export interface StrategyValidationFinding {
+  severity: 'ERROR' | 'WARNING';
+  code: string;
+  location: string;
+  message: string;
+  details: string[];
+}
+
+export interface StrategyValidationResult {
+  validationRunId: string;
+  strategyId: string;
+  status: 'VALID' | 'INVALID';
+  requestedEditSequence: number;
+  semanticHash: string;
+  elementCatalogVersionId: string;
+  findings: StrategyValidationFinding[];
+  completedAt: string;
+}
+
+export interface StrategyReleaseInputs {
+  executionPolicies: Array<{
+    version: string;
+    brokerRulesVersion: string;
+    accountingRulesVersion: string;
+    precisionRulesVersion: string;
+    feePolicyId: string;
+    feeRateBps: number;
+    buyingPowerBufferPolicyId: string;
+    buyingPowerBufferBps: number;
+  }>;
+  datasets: Array<{
+    id: string;
+    feedCode: string;
+    dataLayer: string;
+    resolution: string;
+    periodStart: string;
+    periodEnd: string;
+    schemaVersion: string;
+  }>;
+  observedAt: string;
+}
+
+export interface ReleaseStrategyInput {
+  validationRunId: string;
+  initialCashAmount: string;
+  budgetCapBps: number;
+  brokerRulesVersion: string;
+  accountingRulesVersion: string;
+  precisionRulesVersion: string;
+  feePolicyId: string;
+  buyingPowerBufferPolicyId: string;
+  datasetManifestId: string;
+  executionPolicyVersion: string;
+  candidateConflictPolicy: Record<string, unknown>;
+}
+
 export interface StrategyAuthoringClient {
   createBasic(name: string, description?: string, signal?: AbortSignal): Promise<{ id: string; mode: 'BASIC' }>;
+  copyStrategy(strategyId: string, signal?: AbortSignal): Promise<{ id: string }>;
   getDocument(strategyId: string, signal?: AbortSignal): Promise<StrategyDocument>;
   acquireLease(strategyId: string, signal?: AbortSignal): Promise<StrategyEditLease>;
   heartbeatLease(strategyId: string, leaseToken: string, signal?: AbortSignal): Promise<{ expiresAt: string }>;
   releaseLease(strategyId: string, leaseToken: string, signal?: AbortSignal): Promise<void>;
   saveDocument(strategyId: string, input: SaveStrategyDocumentInput, signal?: AbortSignal): Promise<StrategyDocument>;
+  validateStrategy(strategyId: string, catalogId: string, signal?: AbortSignal): Promise<StrategyValidationResult>;
+  getReleaseInputs(signal?: AbortSignal): Promise<StrategyReleaseInputs>;
+  releaseStrategy(strategyId: string, input: ReleaseStrategyInput, signal?: AbortSignal): Promise<{ botId: string; backtestLane: string }>;
 }
 
 export interface BasicCatalogInstrument {
@@ -185,6 +247,15 @@ export function createStrategyAuthoringClient({
       if (mode !== 'BASIC') throw new Error(`Unsupported strategy mode: ${mode}`);
       return { id: string(result.id, 'id'), mode };
     },
+    async copyStrategy(strategyId, signal) {
+      const response = await request(
+        `/api/v1/strategies/${encodeURIComponent(strategyId)}/copies`,
+        'Strategy copy',
+        { method: 'POST', signal },
+      );
+      const result = object(await response.json(), 'Invalid strategy copy response');
+      return { id: string(result.id, 'id') };
+    },
     async getDocument(strategyId, signal) {
       const response = await request(documentPath(strategyId), 'Strategy document request', { signal });
       return readDocument(await response.json());
@@ -212,6 +283,27 @@ export function createStrategyAuthoringClient({
       });
       return readDocument(await response.json());
     },
+    async validateStrategy(strategyId, catalogId, signal) {
+      const response = await request(
+        `/api/v1/strategies/${encodeURIComponent(strategyId)}/validations`,
+        'Strategy validation',
+        { method: 'POST', signal, body: JSON.stringify({ catalogId }) },
+      );
+      return readValidation(await response.json());
+    },
+    async getReleaseInputs(signal) {
+      const response = await request('/api/v1/strategy-release-inputs', 'Strategy release inputs', { signal });
+      return readStrategyReleaseInputs(await response.json());
+    },
+    async releaseStrategy(strategyId, input, signal) {
+      const response = await request(
+        `/api/v1/strategies/${encodeURIComponent(strategyId)}/releases`,
+        'Strategy release',
+        { method: 'POST', signal, body: JSON.stringify(input) },
+      );
+      const result = object(await response.json(), 'Invalid strategy release response');
+      return { botId: string(result.botId, 'botId'), backtestLane: string(result.backtestLane, 'backtestLane') };
+    },
   };
 }
 
@@ -223,13 +315,8 @@ export function createStrategyCatalogClient({
   const root = baseUrl.replace(/\/$/, '');
   return {
     async getBasic(signal) {
-      const query = new URLSearchParams({
-        languageVersion: 'basic/v1',
-        schemaVersion: 'schema/v1',
-        catalogVersion: 'catalog/v1',
-      });
       const token = getAccessToken?.();
-      const response = await fetchImpl(`${root}/api/v1/strategy-catalogs/basic?${query.toString()}`, {
+      const response = await fetchImpl(`${root}/api/v1/strategy-catalogs/basic`, {
         credentials: 'include',
         headers: {
           Accept: 'application/json',
@@ -271,6 +358,8 @@ function readItem(value: unknown): StrategyLibraryItem {
     editable: boolean(item.editable, 'editable'),
     updatedAt: string(item.updatedAt, 'updatedAt'),
     version: nullableString(item.version, 'version'),
+    blockCount: nonNegativeInteger(item.blockCount, 'blockCount'),
+    symbols: stringArray(item.symbols, 'symbols'),
   };
 }
 
@@ -286,6 +375,72 @@ function readDocument(value: unknown): StrategyDocument {
     presentationHash: string(document.presentationHash, 'presentationHash'),
     editSequence: nonNegativeInteger(document.editSequence, 'editSequence'),
     updatedAt: string(document.updatedAt, 'updatedAt'),
+  };
+}
+
+function readValidation(value: unknown): StrategyValidationResult {
+  const result = object(value, 'Invalid strategy validation response');
+  const status = string(result.status, 'status');
+  if (status !== 'VALID' && status !== 'INVALID') throw new Error(`Unsupported validation status: ${status}`);
+  if (!Array.isArray(result.findings)) throw new Error('Invalid strategy validation findings');
+  return {
+    validationRunId: string(result.validationRunId, 'validationRunId'),
+    strategyId: string(result.strategyId, 'strategyId'),
+    status,
+    requestedEditSequence: nonNegativeInteger(result.requestedEditSequence, 'requestedEditSequence'),
+    semanticHash: string(result.semanticHash, 'semanticHash'),
+    elementCatalogVersionId: string(result.elementCatalogVersionId, 'elementCatalogVersionId'),
+    findings: result.findings.map((value) => {
+      const finding = object(value, 'Invalid strategy validation finding');
+      const severity = string(finding.severity, 'severity');
+      if (severity !== 'ERROR' && severity !== 'WARNING') throw new Error(`Unsupported finding severity: ${severity}`);
+      if (!Array.isArray(finding.details) || !finding.details.every((detail) => typeof detail === 'string')) {
+        throw new Error('Invalid strategy validation finding details');
+      }
+      return {
+        severity,
+        code: string(finding.code, 'code'),
+        location: string(finding.location, 'location'),
+        message: string(finding.message, 'message'),
+        details: finding.details as string[],
+      };
+    }),
+    completedAt: string(result.completedAt, 'completedAt'),
+  };
+}
+
+export function readStrategyReleaseInputs(value: unknown): StrategyReleaseInputs {
+  const result = object(value, 'Invalid strategy release inputs response');
+  if (!Array.isArray(result.executionPolicies) || !Array.isArray(result.datasets)) {
+    throw new Error('Invalid strategy release input collections');
+  }
+  return {
+    executionPolicies: result.executionPolicies.map((value) => {
+      const policy = object(value, 'Invalid strategy release execution policy');
+      return {
+        version: string(policy.version, 'version'),
+        brokerRulesVersion: string(policy.brokerRulesVersion, 'brokerRulesVersion'),
+        accountingRulesVersion: string(policy.accountingRulesVersion, 'accountingRulesVersion'),
+        precisionRulesVersion: string(policy.precisionRulesVersion, 'precisionRulesVersion'),
+        feePolicyId: string(policy.feePolicyId, 'feePolicyId'),
+        feeRateBps: nonNegativeInteger(policy.feeRateBps, 'feeRateBps'),
+        buyingPowerBufferPolicyId: string(policy.buyingPowerBufferPolicyId, 'buyingPowerBufferPolicyId'),
+        buyingPowerBufferBps: nonNegativeInteger(policy.buyingPowerBufferBps, 'buyingPowerBufferBps'),
+      };
+    }),
+    datasets: result.datasets.map((value) => {
+      const dataset = object(value, 'Invalid strategy release dataset');
+      return {
+        id: string(dataset.id, 'dataset id'),
+        feedCode: string(dataset.feedCode, 'feedCode'),
+        dataLayer: string(dataset.dataLayer, 'dataLayer'),
+        resolution: string(dataset.resolution, 'resolution'),
+        periodStart: string(dataset.periodStart, 'periodStart'),
+        periodEnd: string(dataset.periodEnd, 'periodEnd'),
+        schemaVersion: string(dataset.schemaVersion, 'schemaVersion'),
+      };
+    }),
+    observedAt: string(result.observedAt, 'observedAt'),
   };
 }
 
@@ -359,6 +514,13 @@ function string(value: unknown, label: string): string {
 
 function nullableString(value: unknown, label: string): string | null {
   return value === null || value === undefined ? null : string(value, label);
+}
+
+function stringArray(value: unknown, label: string): string[] {
+  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
+    throw new Error(`Invalid ${label}`);
+  }
+  return value as string[];
 }
 
 function boolean(value: unknown, label: string): boolean {

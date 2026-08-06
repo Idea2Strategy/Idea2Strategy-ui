@@ -100,6 +100,7 @@ describe('Signal product UI', () => {
     expect(editorSurface).toContainElement(screen.getByRole('region', { name: 'Basic 전략 캔버스' }));
     expect(screen.queryByTestId('strategy-editor-subnav')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Basic 편집기' })).toHaveClass('active');
+    expect(screen.getByRole('button', { name: 'Pro 편집기' })).toBeDisabled();
     const editorPage = screen.getByTestId('basic-editor-workspace').closest('.editor-shell-page');
     expect(editorPage).not.toBeNull();
     expect(editorSurface.firstElementChild).toHaveClass('strategy-editor-scroll');
@@ -643,7 +644,7 @@ describe('Signal product UI', () => {
     await user.click(screen.getByRole('button', { name: '전략' }));
 
     expect(screen.queryByRole('searchbox', { name: '블록 검색' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Opening Range Flow 복사' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Opening Range Flow 복사' })).toBeInTheDocument();
     expect(screen.queryByText('7 blocks')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '새 전략' }));

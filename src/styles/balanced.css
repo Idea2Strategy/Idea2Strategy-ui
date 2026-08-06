@@ -6065,7 +6065,7 @@
 .symbol-manager-list label > span:first-child { color: var(--text-faint); font-size: 8px; }
 .symbol-manager-dialog > footer {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto auto;
+  grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) auto auto;
   align-items: end;
   gap: 10px;
   padding: 16px 22px 20px;
@@ -6079,7 +6079,8 @@
   font-size: var(--fs-micro);
   font-weight: 700;
 }
-.symbol-manager-add select {
+.symbol-manager-add select,
+.symbol-manager-add input {
   width: 100%;
   min-height: 36px;
   padding: 0 10px;
@@ -6090,9 +6091,86 @@
   background: var(--surface);
   font: 650 var(--fs-control) var(--font-sans);
 }
-.symbol-manager-add select:focus {
+.symbol-manager-add select:focus,
+.symbol-manager-add input:focus {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--line-strong));
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Live competition API navigation and management states. */
+.variant-balanced[data-design="signal-studio"] .competition-api-pagination {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 14px 16px; border-top: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .competition-api-pagination button {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 34px;
+  padding: 0 12px; border: 1px solid var(--line); border-radius: 9px;
+  background: var(--surface-2); color: var(--text);
+}
+.variant-balanced[data-design="signal-studio"] .competition-api-pagination button:disabled { opacity: .45; }
+.variant-balanced[data-design="signal-studio"] .competition-api-inline-status {
+  margin: 12px 16px; padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--positive) 32%, var(--line));
+  border-radius: 10px; background: color-mix(in srgb, var(--positive) 8%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .competition-choice-panel fieldset label { display: grid; gap: 5px; }
+.variant-balanced[data-design="signal-studio"] .competition-choice-panel fieldset input,
+.variant-balanced[data-design="signal-studio"] .competition-choice-panel fieldset select {
+  min-height: 38px; border: 1px solid var(--line); border-radius: 9px;
+  padding: 0 10px; background: var(--surface-2); color: var(--text);
+}
+.variant-balanced[data-design="signal-studio"] .competition-owned-rooms { margin-bottom: 18px; }
+.variant-balanced[data-design="signal-studio"] .competition-owner-manager { display: grid; gap: 16px; }
+.variant-balanced[data-design="signal-studio"] .competition-owner-panel {
+  display: grid; gap: 12px; padding: 18px; border: 1px solid var(--line);
+  border-radius: 14px; background: var(--surface);
+}
+.variant-balanced[data-design="signal-studio"] .competition-owner-panel h2 { margin: 0; font-size: 15px; }
+.variant-balanced[data-design="signal-studio"] .competition-owner-form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.variant-balanced[data-design="signal-studio"] .competition-owner-form label,
+.variant-balanced[data-design="signal-studio"] .competition-danger-panel label { display: grid; gap: 5px; min-width: 180px; }
+.variant-balanced[data-design="signal-studio"] .competition-owner-form input,
+.variant-balanced[data-design="signal-studio"] .competition-owner-form select,
+.variant-balanced[data-design="signal-studio"] .competition-danger-panel input,
+.variant-balanced[data-design="signal-studio"] .competition-expulsion-controls input {
+  min-height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px;
+  background: var(--surface-2); color: var(--text);
+}
+.variant-balanced[data-design="signal-studio"] .competition-invitation-secret {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border: 1px solid var(--accent); border-radius: 10px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-invitation-secret code { overflow-wrap: anywhere; }
+.variant-balanced[data-design="signal-studio"] .competition-owner-list { display: grid; gap: 8px; }
+.variant-balanced[data-design="signal-studio"] .competition-owner-list > div {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+}
+.variant-balanced[data-design="signal-studio"] .competition-owner-list span { display: flex; align-items: center; gap: 8px; }
+.variant-balanced[data-design="signal-studio"] .competition-owner-list span:first-child { display: grid; gap: 2px; }
+.variant-balanced[data-design="signal-studio"] .competition-expulsion-controls { flex-wrap: wrap; justify-content: flex-end; }
+.variant-balanced[data-design="signal-studio"] .competition-danger-panel { border-color: color-mix(in srgb, var(--negative) 35%, var(--line)); }
+@media (max-width: 720px) {
+  .variant-balanced[data-design="signal-studio"] .competition-owner-list > div { align-items: stretch; flex-direction: column; }
+  .variant-balanced[data-design="signal-studio"] .competition-expulsion-controls { justify-content: stretch; }
+}
+.symbol-manager-dialog > footer > small[role="status"] {
+  grid-column: 1 / -1;
+  color: var(--warning);
+  font-size: var(--fs-micro);
+}
+.bots-continuation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.bots-continuation > span {
+  display: grid;
+  gap: 3px;
+}
+.bots-continuation small {
+  color: var(--text-faint);
 }
 /*
  * The dialog is portalled to <body>, outside the `.variant-balanced` scope, so
@@ -6242,6 +6320,7 @@
   line-height: 1.55;
 }
 .result-state.is-error .result-state-icon { color: var(--negative); background: var(--negative-soft); }
+.result-state.is-stale .result-state-icon { color: var(--warning); background: color-mix(in srgb, var(--warning) 14%, transparent); }
 .result-state.is-sign-in .result-state-icon { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .result-state.is-loading .result-state-icon { color: var(--accent); background: var(--accent-soft); }
 .result-state.is-loading .result-state-icon svg { animation: resultSpin 1s linear infinite; }
@@ -9799,6 +9878,34 @@ small.dashboard-bot-scope {
   overflow: visible;
   padding: 7px;
 }
+.variant-balanced[data-design="signal-studio"] .basic-validation-server-finding {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 8px;
+  border-radius: 8px;
+  color: var(--text-soft);
+  background: color-mix(in srgb, var(--surface-1) 86%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-server-finding > span:first-child {
+  color: var(--warning);
+  font: 800 8px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-server-finding > span:last-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-server-finding strong {
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1.45;
+}
+.variant-balanced[data-design="signal-studio"] .basic-validation-server-finding small {
+  overflow-wrap: anywhere;
+  font: 8px var(--font-mono);
+}
 
 /* Keep the Basic command affordances on the same scale as the Pro editor. */
 .variant-balanced[data-design="signal-studio"] .basic-validation-trigger {
@@ -12121,6 +12228,81 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .backtest-live-list button small {
   color: var(--text-faint);
 }
+.variant-balanced[data-design="signal-studio"] .backtest-live-pagination,
+.variant-balanced[data-design="signal-studio"] .backtest-live-heading-actions,
+.variant-balanced[data-design="signal-studio"] .backtest-request-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-pagination {
+  justify-content: space-between;
+  padding: var(--space-3);
+  border-top: 1px solid var(--line);
+  color: var(--text-faint);
+  font: 700 var(--fs-micro) var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-request-panel {
+  margin-bottom: var(--space-4);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-request-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-request-form label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-request-form label:nth-child(2) {
+  grid-column: span 2;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-request-form select,
+.variant-balanced[data-design="signal-studio"] .backtest-request-form input {
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-request-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-inputs dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-inputs dl > div {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-inputs dt {
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-inputs dd {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  margin: 0;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-inputs code,
+.variant-balanced[data-design="signal-studio"] .backtest-live-inputs small {
+  overflow-wrap: anywhere;
+}
 .variant-balanced[data-design="signal-studio"] .backtest-live-detail {
   display: grid;
   min-width: 0;
@@ -12260,5 +12442,12 @@ small.dashboard-bot-scope {
 @media (max-width: 860px) {
   .variant-balanced[data-design="signal-studio"] .backtest-live-workspace {
     grid-template-columns: 1fr;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-request-form,
+  .variant-balanced[data-design="signal-studio"] .backtest-live-inputs dl {
+    grid-template-columns: 1fr;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-request-form label:nth-child(2) {
+    grid-column: auto;
   }
 }

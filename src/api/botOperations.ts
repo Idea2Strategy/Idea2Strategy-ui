@@ -28,6 +28,7 @@ export interface BotOperationsView {
   executionBlockedAt: string | null;
   executionBlockReasonCode: string | null;
   lastEventSequence: number;
+  instruments: Array<{ instrumentId: string; symbol: string }>;
 }
 
 export interface BotJudgmentLogEntry {
@@ -44,6 +45,20 @@ export interface BotJudgmentLogPage {
   hasMore: boolean;
 }
 
+export interface BotExecutionPreflight {
+  botId: string;
+  ready: boolean;
+  issues: Array<{ code: string; detail: string }>;
+}
+
+export interface BotContinuation {
+  botId: string;
+  dueAt: string;
+  renewalAvailableFrom: string;
+  lastRenewedAt: string | null;
+  renewalAllowed: boolean;
+}
+
 export interface BotOperationsClient {
   listOperations(signal?: AbortSignal): Promise<BotOperationsView[]>;
   listJudgments(
@@ -54,6 +69,9 @@ export interface BotOperationsClient {
   ): Promise<BotJudgmentLogPage>;
   runBot(botId: string, signal?: AbortSignal): Promise<void>;
   stopBot(botId: string, reasonCode: string, signal?: AbortSignal): Promise<void>;
+  getPreflight?(botId: string, signal?: AbortSignal): Promise<BotExecutionPreflight>;
+  getContinuation?(botId: string, signal?: AbortSignal): Promise<BotContinuation>;
+  renewContinuation?(botId: string, signal?: AbortSignal): Promise<BotContinuation>;
 }
 
 interface ClientOptions {
@@ -135,6 +153,48 @@ export function createBotOperationsClient({
         body: JSON.stringify({ reasonCode }),
       });
     },
+
+    async getPreflight(botId, signal) {
+      return readPreflight(await request(
+        `/api/v1/bots/${encodeURIComponent(botId)}/preflight`, signal,
+      ));
+    },
+
+    async getContinuation(botId, signal) {
+      return readContinuation(await request(
+        `/api/v1/bots/${encodeURIComponent(botId)}/continuation`, signal,
+      ));
+    },
+
+    async renewContinuation(botId, signal) {
+      return readContinuation(await request(
+        `/api/v1/bots/${encodeURIComponent(botId)}/continuation/renew`, signal, { method: 'POST' },
+      ));
+    },
+  };
+}
+
+function readPreflight(value: unknown): BotExecutionPreflight {
+  const report = object(value, 'Invalid bot preflight response');
+  if (!Array.isArray(report.issues)) throw new Error('Invalid bot preflight issues');
+  return {
+    botId: string(report.botId, 'botId'),
+    ready: boolean(report.ready, 'ready'),
+    issues: report.issues.map((value) => {
+      const issue = object(value, 'Invalid bot preflight issue');
+      return { code: string(issue.code, 'code'), detail: string(issue.detail, 'detail') };
+    }),
+  };
+}
+
+function readContinuation(value: unknown): BotContinuation {
+  const continuation = object(value, 'Invalid bot continuation response');
+  return {
+    botId: string(continuation.botId, 'botId'),
+    dueAt: string(continuation.dueAt, 'dueAt'),
+    renewalAvailableFrom: string(continuation.renewalAvailableFrom, 'renewalAvailableFrom'),
+    lastRenewedAt: nullableString(continuation.lastRenewedAt, 'lastRenewedAt'),
+    renewalAllowed: boolean(continuation.renewalAllowed, 'renewalAllowed'),
   };
 }
 
@@ -152,6 +212,13 @@ function readBotOperationsView(value: unknown): BotOperationsView {
     executionBlockedAt: nullableString(item.executionBlockedAt, 'executionBlockedAt'),
     executionBlockReasonCode: nullableString(item.executionBlockReasonCode, 'executionBlockReasonCode'),
     lastEventSequence: nonNegativeInteger(item.lastEventSequence, 'lastEventSequence'),
+    instruments: Array.isArray(item.instruments) ? item.instruments.map((value) => {
+      const instrument = object(value, 'Invalid bot operations instrument');
+      return {
+        instrumentId: string(instrument.instrumentId, 'instrumentId'),
+        symbol: string(instrument.symbol, 'symbol'),
+      };
+    }) : [],
   };
 }
 
