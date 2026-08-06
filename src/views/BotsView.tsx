@@ -42,6 +42,8 @@ import type {
   BotOperationsState,
   BotOperationsView,
 } from '../api/botOperations';
+import { defaultMarketDataClient } from '../api/marketData';
+import type { MarketBar, MarketDataClient } from '../api/marketData';
 
 /* ---------- Types ----------------------------------------------------------- */
 
@@ -438,6 +440,10 @@ const automaticBotTradingClient = import.meta.env.MODE === 'test'
   ? null
   : defaultBotTradingClient;
 
+const automaticMarketDataClient = import.meta.env.MODE === 'test'
+  ? null
+  : defaultMarketDataClient;
+
 const mergeBotOperations = (operations: BotOperationsView[]): BotRecord[] => operations.map((operation) => {
   const changedAt = new Date(operation.lifecycleChangedAt);
   const age = Number.isNaN(changedAt.getTime())
@@ -738,45 +744,6 @@ const judgmentToLogEvent = (entry: BotJudgmentLogEntry): LogEvent => {
     time: formatRuntimeTime(entry.occurredAt),
     title: displayValue(summaryValue(entry.summary, 'title'), entry.eventType.replaceAll('_', ' ')),
     detail,
-  };
-};
-
-interface RuntimeMarketBar extends LiveMarketBar {
-  symbol?: string;
-}
-
-const judgmentToMarketBar = (entry: BotJudgmentLogEntry): RuntimeMarketBar | null => {
-  const nested = entry.summary.marketBar;
-  const source = typeof nested === 'object' && nested !== null && !Array.isArray(nested)
-    ? nested as Record<string, unknown>
-    : entry.summary;
-  const open = summaryValue(source, 'open', 'openPrice');
-  const high = summaryValue(source, 'high', 'highPrice');
-  const low = summaryValue(source, 'low', 'lowPrice');
-  const close = summaryValue(source, 'close', 'closePrice');
-  if (![open, high, low, close].every((value) => typeof value === 'number' && Number.isFinite(value))) {
-    return null;
-  }
-  const numericOpen = open as number;
-  const numericHigh = high as number;
-  const numericLow = low as number;
-  const numericClose = close as number;
-  if (numericHigh < Math.max(numericOpen, numericClose) || numericLow > Math.min(numericOpen, numericClose)) {
-    return null;
-  }
-  const volume = summaryValue(source, 'volume');
-  return {
-    time: displayValue(summaryValue(source, 'time', 'occurredAt'), entry.occurredAt),
-    open: numericOpen,
-    high: numericHigh,
-    low: numericLow,
-    close: numericClose,
-    volume: typeof volume === 'number' && Number.isFinite(volume) ? volume : undefined,
-    symbol: displayValue(
-      summaryValue(source, 'symbol', 'instrumentSymbol')
-        ?? summaryValue(entry.summary, 'symbol', 'instrumentSymbol'),
-      '',
-    ) || undefined,
   };
 };
 
@@ -1238,6 +1205,7 @@ interface BotsViewProps {
   /* The trading and ledger record is read only, so it needs no polling: the
      six surfaces load once per selected bot. */
   tradingClient?: BotTradingClient | null;
+  marketDataClient?: MarketDataClient | null;
   pollIntervalMs?: number;
   /* 대회 리더보드에서 내 봇을 눌러 들어오는 경로(#54). 그 봇이 보이는
      운용 유형으로 필터까지 맞춰 열어야 목록에서 사라지지 않는다. */
@@ -1249,6 +1217,7 @@ export function BotsView({
   onBotIconChange,
   operationsClient = automaticBotOperationsClient,
   tradingClient = automaticBotTradingClient,
+  marketDataClient = automaticMarketDataClient,
   pollIntervalMs = 5000,
   initialBot,
 }: BotsViewProps = {}): ReactNode {
@@ -1282,6 +1251,8 @@ export function BotsView({
   const [liveBudget, setLiveBudget] = useState<BotBudget | null>(null);
   const [liveDecisionReasons, setLiveDecisionReasons] = useState<BotDecisionReason[] | null>(null);
   const [liveStopSettlement, setLiveStopSettlement] = useState<BotStopSettlementAction[] | null>(null);
+  const [liveMarketBars, setLiveMarketBars] = useState<LiveMarketBar[]>([]);
+  const [marketDataError, setMarketDataError] = useState<string | null>(null);
   const [operations, setOperations] = useState<BotOperationsView[] | null>(null);
   const [judgmentsByBot, setJudgmentsByBot] = useState<Record<string, BotJudgmentLogEntry[]>>({});
   const [operationsError, setOperationsError] = useState<string | null>(null);
@@ -1507,22 +1478,84 @@ export function BotsView({
     () => (detail?.events ?? []).filter((event): event is Extract<LogEvent, { kind: 'fill' }> => event.kind === 'fill'),
     [detail],
   );
-  const runtimeMarketBars = useMemo(() => {
-    if (!selected?.id) return undefined;
-    return (judgmentsByBot[selected.id] ?? [])
-      .map(judgmentToMarketBar)
-      .filter((bar): bar is RuntimeMarketBar => bar !== null);
-  }, [judgmentsByBot, selected?.id]);
-  const decisionSymbols = useMemo(
-    () => Array.from(new Set(fillEvents.map((event) => event.symbol))),
-    [fillEvents],
-  );
+  const marketInstruments = useMemo(() => {
+    const bySymbol = new Map<string, string>();
+    const add = (instrumentId: string | null, symbol: string | null, currentSymbol: string | null) => {
+      if (!instrumentId) return;
+      const ticker = tickerLabel(symbol, currentSymbol);
+      if (ticker && ticker !== UNVALUED) bySymbol.set(ticker, instrumentId);
+    };
+    (livePositions ?? []).forEach((item) => add(item.instrumentId, null, item.currentSymbol));
+    (liveFills ?? []).forEach((item) => add(item.instrumentId, item.symbol, item.currentSymbol));
+    (liveOrders ?? []).forEach((item) => add(item.instrumentId, item.symbol, item.currentSymbol));
+    (liveDecisionReasons ?? []).forEach((item) => add(item.instrumentId, item.symbol, item.currentSymbol));
+    return Array.from(bySymbol, ([symbol, instrumentId]) => ({ symbol, instrumentId }));
+  }, [liveDecisionReasons, liveFills, liveOrders, livePositions]);
+  const decisionSymbols = useMemo(() => Array.from(new Set([
+    ...marketInstruments.map((item) => item.symbol),
+    ...fillEvents.map((event) => event.symbol),
+  ])), [fillEvents, marketInstruments]);
+  const selectedMarketInstrument = marketInstruments.find((item) => item.symbol === decisionSymbol) ?? null;
 
   useEffect(() => {
     if (!decisionSymbols.includes(decisionSymbol)) {
       setDecisionSymbol(decisionSymbols[0] ?? '');
     }
   }, [decisionSymbol, decisionSymbols]);
+
+  useEffect(() => {
+    if (prototypeMode || !marketDataClient || !selectedMarketInstrument) {
+      setLiveMarketBars([]);
+      setMarketDataError(null);
+      return undefined;
+    }
+    const controller = new AbortController();
+    const bars = new Map<string, LiveMarketBar>();
+    const publish = (items: MarketBar[]) => {
+      items.forEach((bar) => bars.set(`${bar.occurredAt}:${bar.sequence}:${bar.revision}`, {
+        time: bar.occurredAt,
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
+        volume: bar.volume,
+      }));
+      setLiveMarketBars(Array.from(bars.values())
+        .sort((left, right) => Date.parse(String(left.time)) - Date.parse(String(right.time)))
+        .slice(-1000));
+    };
+    const refreshSnapshot = async () => {
+      try {
+        const snapshot = await marketDataClient.getRecentBars(
+          selectedMarketInstrument.instrumentId, 300, controller.signal,
+        );
+        publish(snapshot.bars);
+        setMarketDataError(null);
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setMarketDataError('실시간 시장 데이터 연결을 확인하는 중입니다. 마지막으로 수신한 봉을 표시합니다.');
+        }
+      }
+    };
+    void refreshSnapshot();
+    void marketDataClient.streamBars(
+      selectedMarketInstrument.instrumentId,
+      (bar) => {
+        publish([bar]);
+        setMarketDataError(null);
+      },
+      controller.signal,
+    ).catch((error) => {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        setMarketDataError('실시간 시장 데이터 스트림이 끊어졌습니다. 스냅샷을 계속 갱신합니다.');
+      }
+    });
+    const snapshotTimer = window.setInterval(() => void refreshSnapshot(), Math.max(30_000, pollIntervalMs));
+    return () => {
+      controller.abort();
+      window.clearInterval(snapshotTimer);
+    };
+  }, [marketDataClient, pollIntervalMs, prototypeMode, selectedMarketInstrument?.instrumentId]);
 
   useEffect(() => {
     if (!iconPickerOpen) return undefined;
@@ -1819,10 +1852,11 @@ export function BotsView({
             price axis. Reaching it used to mean a trip into the decision log,
             which is two steps from opening the page. */}
         {tab === 'live' && <TabPanel id="live">
+          {marketDataError && <p className="bots-decision-note" role="status">{marketDataError}</p>}
           {decisionSymbol && <LiveExecutionChart
             botName={selected.name}
             executions={fillEvents}
-            marketBars={runtimeMarketBars?.filter((bar) => !bar.symbol || bar.symbol === decisionSymbol)}
+            marketBars={prototypeMode ? undefined : liveMarketBars}
             symbols={decisionSymbols}
             symbol={decisionSymbol}
             onSymbolChange={setDecisionSymbol}
