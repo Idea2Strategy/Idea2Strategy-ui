@@ -56,6 +56,10 @@ test('browser completes the production account principal and user-case journey',
   await expect(page).toHaveURL(/\/login$/);
 
   await page.getByLabel('로그인 비밀번호').fill(password);
+  const sessionsLoaded = page.waitForResponse((response) =>
+    response.url().endsWith('/api/v1/auth/sessions') && response.request().method() === 'GET');
+  const preferencesLoaded = page.waitForResponse((response) =>
+    response.url().endsWith('/api/v1/account/preferences') && response.request().method() === 'GET');
   const [login] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/login') && response.status() === 200),
     page.getByRole('button', { name: '로그인', exact: true }).click(),
@@ -63,6 +67,9 @@ test('browser completes the production account principal and user-case journey',
   expect(login.status()).toBe(200);
   // The default returnTo lands on the account page with the session live.
   await expect(page).toHaveURL(/\/account$/);
+  const [sessions, loadedPreferences] = await Promise.all([sessionsLoaded, preferencesLoaded]);
+  expect(sessions.status()).toBe(200);
+  expect(loadedPreferences.status()).toBe(200);
   await expect(page.getByRole('heading', { name: '현재 세션' })).toBeVisible();
   await expect(page.getByText('Web browser')).toBeVisible();
 

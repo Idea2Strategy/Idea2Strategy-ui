@@ -5,8 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { hasActiveProjectRun, interpretDockerInspect, isDockerContainerNameConflict, shouldReapContainer, shouldReapNetwork } from './dockerResourcePolicy';
 
-const backendRevision = 'e2a2dd9595a17933e55cc2943c2c886ffe33a3cb';
-const rootRevision = '741d13ebe7a1d5bba54fbc109943cdf25060d091';
+const backendRevision = '6b535d440b9dac6903707a8e0b2f655596fb59f7';
+const rootRevision = '4b5822ac459c472987cf2de0b45533d15c08db11';
 const projectLabel = 'com.idea2strategy.a23-real-api=true';
 const backendPort = Number(process.env.A23_BACKEND_PORT);
 if (!Number.isInteger(backendPort) || backendPort < 1024 || backendPort > 65_535) {
