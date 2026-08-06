@@ -39,7 +39,7 @@ export function CompetitionApiWorkspace({ client }: { client: CompetitionRoomsCl
   */
   if (state === 'error') {
     return lobbyError instanceof CompetitionApiError && lobbyError.unauthenticated
-      ? <SignInRequiredPage detail="공개 대회 목록은 로그인 후 확인할 수 있습니다." />
+      ? <SignInRequiredPage />
       : <ErrorPage title="대회 목록을 불러오지 못했습니다." detail="네트워크 상태를 확인해 주세요." onRetry={() => setReloadKey((key) => key + 1)} />;
   }
   return <div className="page competition-page competition-lobby-page competition-api-page">
@@ -91,7 +91,7 @@ function RoomApiDetail({ client, room, onBack }: { client: CompetitionRoomsClien
     return <div className="page competition-page competition-api-page">
       <button type="button" className="competition-detail-back" onClick={onBack}><ArrowLeft size={15} aria-hidden="true" />대회 목록</button>
       {error instanceof CompetitionApiError && error.unauthenticated
-        ? <SignInRequiredPage detail="대회 리더보드와 내 봇 비교는 로그인 후 확인할 수 있습니다." />
+        ? <SignInRequiredPage />
         : <ErrorPage
           title={error instanceof CompetitionApiError && error.forbidden ? '이 대회를 볼 권한이 없습니다.' : '리더보드를 불러오지 못했습니다.'}
           onRetry={() => setReloadKey((key) => key + 1)}

@@ -53,7 +53,7 @@ export function NotificationCenter({ client }: { client: NotificationClient }) {
   */
   if (state.kind === 'error') {
     if (state.error.authenticationRequired) {
-      return <SignInRequiredPage detail="알림은 로그인 후 확인할 수 있습니다." />;
+      return <SignInRequiredPage />;
     }
     return <ErrorPage
       title={state.error.retryable ? '알림 서버에 일시적으로 연결할 수 없습니다.' : '알림 요청을 처리하지 못했습니다.'}

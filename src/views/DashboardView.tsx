@@ -6,7 +6,8 @@ import {
   Trophy,
 } from 'lucide-react';
 import { Status } from '../components/common';
-import { ErrorPage } from '../components/StatePages';
+import { ErrorPage, SignInRequiredPage } from '../components/StatePages';
+import { useSessionAccessToken } from '../api/sessionAccessToken';
 import { BotGlyph, DEFAULT_BOT_ICONS, FALLBACK_BOT_ICON } from '../components/BotGlyph';
 import type { BotIconMap } from '../components/BotGlyph';
 import { EquityChart } from '../components/EquityChart';
@@ -100,7 +101,11 @@ export function DashboardView({
   botIcons = DEFAULT_BOT_ICONS,
   dataSource = import.meta.env.MODE === 'test' ? 'sample' : 'unavailable',
 }: DashboardViewProps): ReactNode {
+  const sessionToken = useSessionAccessToken();
   if (dataSource === 'unavailable') {
+    // The home dashboard is account data: signed out it is the same sign-in
+    // page as every other account-scoped screen.
+    if (sessionToken === null) return <SignInRequiredPage />;
     return <ErrorPage
       title="운영 대시보드 데이터를 아직 제공할 수 없습니다."
       detail="현재 API에는 계정 단위 자산 이력, 현금 흐름을 제거한 수익률, 대회 참여 요약 계약이 없습니다. 확인되지 않은 샘플 성과는 운영 데이터처럼 표시하지 않습니다."

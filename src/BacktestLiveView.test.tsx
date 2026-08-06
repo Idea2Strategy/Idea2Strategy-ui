@@ -351,7 +351,9 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
 
     const gate = await screen.findByTestId('backtest-session-gate');
     expect(gate).toHaveAttribute('data-reason', 'expired');
-    expect(within(gate).getByRole('status')).toHaveTextContent('로그인 세션이 만료되었습니다.');
+    // The message is the same sign-in page as everywhere; the reason stays
+    // machine-readable on the gate.
+    expect(within(gate).getByRole('status')).toHaveTextContent('로그인이 필요합니다');
   });
 
   it('drops a credential the server answers 401 to, and says so', async () => {
@@ -361,8 +363,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
 
     const gate = await screen.findByTestId('backtest-session-gate');
     expect(gate).toHaveAttribute('data-reason', 'rejected');
-    expect(within(gate).getByRole('status'))
-      .toHaveTextContent('로그인 세션이 더 이상 유효하지 않습니다.');
+    expect(within(gate).getByRole('status')).toHaveTextContent('로그인이 필요합니다');
     // The refused token is gone, so a retry cannot resend it.
     expect(session.accessToken()).toBeNull();
   });

@@ -206,34 +206,15 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
  * session is unusable, and no request is sent at all.
  */
 function SignedOutState({ reason }: { reason: AnonymousReason }) {
-  const copy: Record<AnonymousReason, { title: string; detail: string }> = {
-    absent: {
-      // Same words as every other screen's sign-in page, punctuation included.
-      title: '로그인이 필요합니다',
-      detail: '공식 백테스트 결과는 실행을 소유한 계정에만 공개됩니다. 로그인한 뒤 다시 열어 주세요.',
-    },
-    expired: {
-      title: '로그인 세션이 만료되었습니다.',
-      detail: '보관된 인증 정보의 유효 기간이 지났습니다. 다시 로그인해 주세요.',
-    },
-    rejected: {
-      title: '로그인 세션이 더 이상 유효하지 않습니다.',
-      detail: '서버가 이 인증 정보를 거부했습니다(401). 다시 로그인한 뒤 결과를 열어 주세요.',
-    },
-    malformed: {
-      title: '보관된 로그인 정보를 읽을 수 없습니다.',
-      detail: '인증 정보가 손상되었습니다. 다시 로그인해 주세요. 손상된 값으로는 요청을 보내지 않습니다.',
-    },
-  };
+  // One sign-in page, same words as every other screen. The reason the session
+  // ended still rides on data-reason for tests and diagnostics, and the gate
+  // mechanics are unchanged: no request leaves before someone signs in.
   return <div
     className="backtest-live-session-gate"
     data-testid="backtest-session-gate"
     data-reason={reason}
   >
-    <SignInRequiredPage
-      title={copy[reason].title}
-      detail={<>{copy[reason].detail} 로그인 전에는 어떤 백테스트 결과도 요청하지 않습니다.</>}
-    />
+    <SignInRequiredPage />
   </div>;
 }
 

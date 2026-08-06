@@ -329,7 +329,7 @@ export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMoti
     its own format.
   */
   if (accountClient && sessionToken === null) {
-    return <SignInRequiredPage detail="계정 정보와 설정은 로그인 후 관리할 수 있습니다." />;
+    return <SignInRequiredPage />;
   }
 
   return <Localized><div className="page narrow-page account-page">

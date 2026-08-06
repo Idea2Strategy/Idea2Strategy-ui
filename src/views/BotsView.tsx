@@ -1623,7 +1623,7 @@ export function BotsView({
     it, so every screen fails the same way.
   */
   if (!prototypeMode && operations === null && signInRequired) {
-    return <SignInRequiredPage detail="내 봇의 실행 상태는 로그인 후 확인할 수 있습니다." />;
+    return <SignInRequiredPage />;
   }
   if (!prototypeMode && operations === null && operationsError) {
     return <ErrorPage

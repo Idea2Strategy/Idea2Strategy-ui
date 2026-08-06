@@ -3898,7 +3898,9 @@
   color:var(--accent);
 }
 .signal-product-nav > nav button:focus-visible::after { transform:scaleX(1); }
-.signal-nav-tools { justify-self:end; }
+/* Pinned to the third track: with the signed-out bar carrying no nav, the
+   tools would otherwise slide into the centre column. */
+.signal-nav-tools { grid-column: 3; justify-self:end; }
 /* Every segmented toggle, not just the language one: the theme and gain/loss
    segments are the same control and have to stand the same height. */
 .variant-balanced[data-design="signal-studio"] .signal-product-nav .icon-button,
@@ -4178,15 +4180,168 @@
 }
 /* Dedicated /login and /signup screens (A23): one narrow column, the same
    field styling as the account panels so both auth surfaces read as one. */
-.auth-page { max-width: 560px; margin: 0 auto; }
-.auth-panel { display: grid; gap: 12px; }
-.auth-form { display: grid; gap: 10px; }
-.auth-form label { display: grid; gap: 5px; }
-.auth-form input { min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); background: var(--surface-2); }
+/*
+  Auth screens — dark-glass card per the glass-dark-ui pattern (frosted fill,
+  masked gradient border, layered neutral shadow), expressed entirely through
+  the Signal tokens so both themes keep their contrast checks.
+*/
+.auth-page {
+  position: relative;
+  max-width: none;
+  min-height: calc(100vh - 150px);
+  display: grid;
+  place-items: center;
+  padding-block: var(--space-8);
+}
+.auth-backdrop {
+  /* Fixed to the viewport, not the page box: the glow has to run to the
+     actual screen edges or its boundary reads as a seam. */
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(52vw 40vh at 16% 8%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%),
+    radial-gradient(60vw 48vh at 86% 94%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 72%);
+}
+.auth-card { z-index: 1; }
+.auth-card {
+  position: relative;
+  width: min(430px, 100%);
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, var(--inset-highlight), transparent 42%),
+    color-mix(in srgb, var(--surface) 76%, transparent);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  /* Layered neutral elevation (beautiful-shadows "lg", on the theme's shadow ink). */
+  box-shadow:
+    0 1px 1px rgba(var(--shadow-rgb), .05),
+    0 3px 3px rgba(var(--shadow-rgb), .05),
+    0 7px 7px rgba(var(--shadow-rgb), .06),
+    0 14px 14px rgba(var(--shadow-rgb), .07),
+    0 28px 28px rgba(var(--shadow-rgb), .08),
+    inset 0 1px 0 var(--inset-highlight);
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .auth-card { background: var(--surface); }
+}
+/* Masked gradient border: paints only the 1px ring, never the fill. */
+.auth-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--accent) 44%, transparent) 0%,
+    color-mix(in srgb, var(--line-strong) 70%, transparent) 38%,
+    color-mix(in srgb, var(--line-strong) 55%, transparent) 68%,
+    color-mix(in srgb, var(--accent) 26%, transparent) 100%
+  );
+  pointer-events: none;
+}
+.auth-card-head { display: grid; gap: var(--space-2); justify-items: start; }
+.auth-card-head img { width: 34px; height: 34px; margin-bottom: var(--space-1); }
+.auth-eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font: 700 var(--fs-micro)/1 var(--font-mono);
+  letter-spacing: .14em;
+}
+.auth-card-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--text); }
+.auth-card-copy { margin: 0; color: var(--text-faint); font-size: var(--fs-caption); line-height: 1.55; }
+.auth-form { display: grid; gap: var(--space-3); }
+.auth-form label { display: grid; gap: 6px; color: var(--text-soft); font-size: var(--fs-caption); }
+.auth-form input {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--fs-control);
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+  transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
+}
+.auth-form input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+.auth-form .button-primary { min-height: 42px; margin-top: var(--space-1); font-weight: 700; }
 .auth-error { color: var(--text-soft); }
 .auth-error small { display: block; color: var(--text-faint); }
-.auth-links { display: flex; flex-wrap: wrap; gap: 8px; }
-.auth-link { border: none; background: none; padding: 0; cursor: pointer; color: var(--accent); text-decoration: underline; }
+.auth-links {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 6px;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+}
+.auth-link { border: none; background: none; padding: 0; cursor: pointer; color: var(--accent); font-size: var(--fs-caption); font-weight: 600; text-decoration: none; }
+.auth-link:hover { text-decoration: underline; }
+.auth-field-hint { margin: -4px 0 0; color: var(--negative); font-size: var(--fs-micro); }
+.auth-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.auth-actions .button { flex: 1; min-height: 38px; }
+
+/* The password-reset fold: one quiet line until it is needed, then the same
+   field styling as the main form. */
+.auth-fold {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+.auth-fold summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+  padding: 0 12px;
+  cursor: pointer;
+  color: var(--text-soft);
+  font-size: var(--fs-caption);
+  user-select: none;
+}
+.auth-fold summary::-webkit-details-marker { display: none; }
+.auth-fold summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--text-faint);
+  border-bottom: 1.5px solid var(--text-faint);
+  transform: rotate(45deg);
+  transition: transform var(--motion-fast);
+}
+.auth-fold[open] summary::after { transform: rotate(225deg); }
+.auth-fold summary:hover { color: var(--text); }
+.auth-fold-body { display: grid; gap: var(--space-3); padding: var(--space-1) 12px var(--space-4); }
+.auth-fold-copy { margin: 0; color: var(--text-faint); font-size: var(--fs-micro); line-height: 1.55; }
+.auth-fold-status { margin: 0; color: var(--positive); font-size: var(--fs-caption); }
+.auth-google { display: grid; gap: var(--space-3); justify-items: center; }
+.auth-divider {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+}
+.auth-divider::before,
+.auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.auth-google-mount { min-height: 40px; display: grid; justify-items: center; }
+.auth-google p { margin: 0; color: var(--text-faint); font-size: var(--fs-caption); }
 .case-api-form textarea {
   min-height: 92px;
   padding: 10px;
@@ -6024,6 +6179,42 @@
 .result-state.is-loading .result-state-icon { color: var(--accent); background: var(--accent-soft); }
 .result-state.is-loading .result-state-icon svg { animation: resultSpin 1s linear infinite; }
 @keyframes resultSpin { to { transform: rotate(360deg); } }
+
+/*
+  Loading states reveal only after a beat. A response that arrives within the
+  delay never shows a spinner at all, so fast navigations stop flashing
+  intermediate loading frames.
+*/
+.result-state.is-loading,
+.notification-api-state,
+.competition-api-state[role="status"] {
+  opacity: 0;
+  animation: revealLoading .2s ease .18s forwards;
+}
+@keyframes revealLoading { to { opacity: 1; } }
+
+/* Signed out, the top bar slides away on scroll down and returns on scroll up.
+   Both moves are unhurried: leaving drifts up, and coming back starts slowly
+   and settles in over most of a second. */
+.app-topbar { transition: transform .9s cubic-bezier(.33, 0, .18, 1) .05s; }
+.app-topbar.is-scrolled-away { transform: translateY(-100%); transition: transform .5s cubic-bezier(.4, 0, .6, 1) 0s; }
+
+/* Signed out, the nav tools give way to the two ways in. */
+.topbar-auth { display: flex; align-items: center; gap: var(--space-2); }
+.topbar-auth .button { min-height: 32px; padding: 0 14px; font-size: var(--fs-caption); }
+
+/* Popover body states: loading, empty, failure, and the mid-session sign-out. */
+.notifications-popover-state {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-4);
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  text-align: center;
+}
+.notifications-popover-state strong { color: var(--text); font-size: var(--fs-control); font-weight: 600; }
+.notifications-popover-state .button { min-height: 30px; padding: 0 14px; font-size: var(--fs-caption); }
 
 /*
   Full-page states. When a route cannot show its content at all — signed out,

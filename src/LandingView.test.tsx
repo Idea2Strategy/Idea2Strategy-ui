@@ -52,14 +52,17 @@ describe('Landing page', () => {
     expect(within(disclaimer).getByText(/샘플 데이터/)).toBeInTheDocument();
   });
 
-  test('the hero call to action leads to the strategy workspace', async () => {
+  test('the hero call to action leads a signed-out visitor to the sign-in screen', async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(screen.getAllByRole('button', { name: '전략 만들기' })[0]);
 
-    expect(window.location.pathname).toBe('/strategies');
-    expect(screen.getByRole('heading', { name: '전략' })).toBeInTheDocument();
+    // The strategy workspace is account-scoped: the route guard forwards the
+    // visit to sign-in and carries where it was headed.
+    expect(window.location.pathname).toBe('/login');
+    expect(screen.getByRole('heading', { name: '로그인' })).toBeInTheDocument();
+    expect((window.history.state as { usr?: { returnTo?: string } })?.usr?.returnTo).toBe('/strategies');
   });
 
   test('keeps the poster and instant reveals when WebGL and observers are missing', async () => {

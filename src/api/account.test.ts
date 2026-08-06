@@ -22,6 +22,29 @@ describe('account API client', () => {
     }));
   });
 
+  it('exchanges a Google credential for a session and publishes it to both stores', async () => {
+    const setAccessToken = vi.fn();
+    const signIn = vi.fn();
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      accountId: 'account-9', sessionId: 'session-9', sessionToken: 'google-session',
+      expiresAt: '2026-08-07T00:00:00Z',
+    }), { status: 200 }));
+    const client = createAccountClient({
+      baseUrl: 'https://api.example.com', fetchImpl, setAccessToken,
+      sessionStore: { read: vi.fn(), accessToken: vi.fn(), signIn, signOut: vi.fn(), subscribe: vi.fn() },
+      createCorrelationId: () => 'correlation-google',
+    });
+
+    await client.loginWithGoogle!('google-id-token', 'Web browser');
+
+    expect(fetchImpl).toHaveBeenCalledWith('https://api.example.com/api/v1/auth/oauth/google', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ idToken: 'google-id-token', deviceLabel: 'Web browser' }),
+    }));
+    expect(setAccessToken).toHaveBeenCalledWith('google-session');
+    expect(signIn).toHaveBeenCalledWith({ accessToken: 'google-session', accountId: 'account-9', expiresAt: '2026-08-07T00:00:00Z' });
+  });
+
   it('sends authorization and idempotency headers for withdrawal', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       accountId: 'account-1', status: 'CLOSING', version: 2,
