@@ -166,12 +166,17 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     await expect(page).toHaveURL(/\/login$/);
 
     // Nothing may resend the refused token: after the drop, no further
-    // backtest request leaves. (Only /api/v1/backtests requests count — other
+    // backtest request leaves. Signed out the top bar carries no product tabs,
+    // so the revisit steers the SPA history directly; the route guard turns it
+    // straight back to sign-in. (Only /api/v1/backtests requests count — other
     // screens ask the same mock origin for their own lists.)
     const backtestRequests = () => requests.filter((request) => request.url().includes('/api/v1/backtests'));
     await page.waitForLoadState('networkidle');
     const before = backtestRequests().length;
-    await page.getByRole('button', { name: '백테스트' }).click();
+    await page.evaluate(() => {
+      window.history.pushState({}, '', '/backtests');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
     await expect(page).toHaveURL(/\/login$/);
     await page.waitForLoadState('networkidle');
     expect(backtestRequests()).toHaveLength(before);
