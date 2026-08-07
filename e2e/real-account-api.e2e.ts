@@ -49,7 +49,7 @@ test('browser completes the production account principal and user-case journey',
   ]);
   expect(rejectedLogin.status()).toBe(401);
   await expect(page.getByRole('alert')).toBeVisible();
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login\?emailVerified=true$/);
 
   await page.getByLabel('로그인 비밀번호', { exact: true }).fill(password);
   const preferencesLoaded = page.waitForResponse((response) =>
