@@ -16,14 +16,12 @@ const accountClient = (overrides: Partial<AccountClient> = {}): AccountClient =>
   // the screen navigates to afterwards read exactly that.
   login: vi.fn().mockImplementation(async () => {
     setSessionAccessToken('token-1');
-    return { accountId: 'account-1', sessionId: 'session-1', sessionToken: 'token-1', expiresAt: '2026-08-06T00:00:00Z' };
+    return { accountId: 'account-1', tokenType: 'Bearer', accessToken: 'token-1', accessExpiresAt: '2026-08-06T00:05:00Z', refreshExpiresAt: '2026-09-05T00:00:00Z' };
   }),
   requestPasswordReset: vi.fn().mockResolvedValue(true),
   resetPassword: vi.fn().mockResolvedValue(undefined),
-  sessions: vi.fn().mockResolvedValue([]),
   rotateSession: vi.fn(),
   logoutCurrent: vi.fn(),
-  logoutSession: vi.fn(),
   logoutAll: vi.fn(),
   preferences: vi.fn().mockRejectedValue(new AccountApiError(401, 'UNAUTHENTICATED', null)),
   updatePreferences: vi.fn(),
@@ -69,7 +67,7 @@ describe('customer login screen', () => {
     await userEvent.type(screen.getByLabelText('로그인 비밀번호'), 'correct horse battery staple');
     await userEvent.click(screen.getByRole('button', { name: '로그인' }));
 
-    expect(client.login).toHaveBeenCalledWith('customer@example.com', 'correct horse battery staple', 'Web browser');
+    expect(client.login).toHaveBeenCalledWith('customer@example.com', 'correct horse battery staple');
     await waitFor(() => expect(window.location.pathname).toBe('/account'));
   });
 

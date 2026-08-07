@@ -15,18 +15,8 @@ export interface AccountPreferences {
   updatedAt: string;
 }
 
-export interface SessionView {
-  sessionId: string;
-  deviceLabel: string | null;
-  issuedAt: string;
-  lastSeenAt: string | null;
-  expiresAt: string;
-  current: boolean;
-}
-
 export interface LoginResult {
   accountId: string;
-  sessionId: string;
   tokenType: 'Bearer';
   accessToken: string;
   accessExpiresAt: string;
@@ -73,20 +63,18 @@ export interface AccountClient {
   signup(email: string, password: string, signal?: AbortSignal): Promise<{ accountId: string; verificationExpiresAt: string }>;
   verifyEmail(verificationToken: string, signal?: AbortSignal): Promise<void>;
   resendVerification(accountId: string, signal?: AbortSignal): Promise<{ verificationRequired: boolean; verificationExpiresAt: string }>;
-  login(email: string, password: string, deviceLabel?: string, signal?: AbortSignal): Promise<LoginResult>;
+  login(email: string, password: string, signal?: AbortSignal): Promise<LoginResult>;
   /*
     Optional because the backend endpoint (POST /api/v1/auth/oauth/google) is
     a proposed contract, not yet in the published API spec. The auth screens
     only offer Google sign-in when a client id is configured AND the client
     implements this — never a dead button.
   */
-  loginWithGoogle?(idToken: string, expectedNonce: string, deviceLabel?: string, signal?: AbortSignal): Promise<LoginResult>;
+  loginWithGoogle?(idToken: string, expectedNonce: string, signal?: AbortSignal): Promise<LoginResult>;
   requestPasswordReset(email: string, signal?: AbortSignal): Promise<boolean>;
   resetPassword(resetToken: string, newPassword: string, signal?: AbortSignal): Promise<void>;
-  sessions(signal?: AbortSignal): Promise<SessionView[]>;
   rotateSession(signal?: AbortSignal): Promise<RotatedTokenPair>;
   logoutCurrent(signal?: AbortSignal): Promise<void>;
-  logoutSession(sessionId: string, signal?: AbortSignal): Promise<void>;
   logoutAll(signal?: AbortSignal): Promise<void>;
   preferences(signal?: AbortSignal): Promise<AccountPreferences>;
   updatePreferences(input: Pick<AccountPreferences, 'languageCode' | 'timezoneName' | 'themePreference'>, signal?: AbortSignal): Promise<AccountPreferences>;
@@ -103,6 +91,7 @@ export function createAccountClient({
   sessionStore,
 }: AccountClientOptions = {}): AccountClient {
   const root = baseUrl.replace(/\/$/, '');
+  let rotationInFlight: Promise<RotatedTokenPair> | null = null;
   const requireSession = () => {
     if (!getAccessToken?.()) throw new AccountApiError(401, 'AUTHENTICATION_REQUIRED', createCorrelationId());
   };
@@ -115,22 +104,51 @@ export function createAccountClient({
       refreshExpiresAt: result.refreshExpiresAt,
     });
   };
+  let rotateTokens: (signal?: AbortSignal) => Promise<RotatedTokenPair>;
   const request = async (path: string, init: RequestInit = {}, sendAccessToken = true) => {
     const correlationId = createCorrelationId();
-    const token = sendAccessToken ? getAccessToken?.() : null;
-    const response = await fetchImpl(`${root}${path}`, {
-      credentials: 'include',
-      ...init,
-      headers: {
-        Accept: 'application/json',
-        'X-Correlation-Id': correlationId,
-        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...init.headers,
-      },
-    });
+    const execute = () => {
+      const token = sendAccessToken ? getAccessToken?.() : null;
+      return fetchImpl(`${root}${path}`, {
+        credentials: 'include',
+        ...init,
+        headers: {
+          Accept: 'application/json',
+          'X-Correlation-Id': correlationId,
+          ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...init.headers,
+        },
+      });
+    };
+    let response = await execute();
+    if (response.status === 401 && sendAccessToken && !path.startsWith('/api/v1/auth/')) {
+      try {
+        await rotateTokens(init.signal ?? undefined);
+        response = await execute();
+      } catch {
+        // Preserve the original protected-request failure when refresh is rejected.
+      }
+    }
     if (!response.ok) throw await readError(response, correlationId);
     return response;
+  };
+  rotateTokens = (signal) => {
+    if (rotationInFlight) return rotationInFlight;
+    rotationInFlight = (async () => {
+      let response: Response;
+      try {
+        response = await request('/api/v1/auth/refresh', { method: 'POST', signal }, false);
+      } catch (cause) {
+        if (!(cause instanceof AccountApiError) || cause.status !== 401) throw cause;
+        response = await request('/api/v1/auth/sessions/rotate', { method: 'POST', signal }, false);
+      }
+      const value = object(await response.json());
+      const rotated = readRotatedTokenPair(value);
+      publishTokens(rotated);
+      return rotated;
+    })().finally(() => { rotationInFlight = null; });
+    return rotationInFlight;
   };
   const lifecycle = async (
     path: string,
@@ -170,18 +188,18 @@ export function createAccountClient({
         verificationExpiresAt: string(value.verificationExpiresAt, 'verificationExpiresAt'),
       };
     },
-    async login(email, password, deviceLabel, signal) {
+    async login(email, password, signal) {
       const value = object(await (await request('/api/v1/auth/login', {
-        method: 'POST', signal, body: JSON.stringify({ email, password, deviceLabel: deviceLabel ?? null }),
+        method: 'POST', signal, body: JSON.stringify({ email, password }),
       })).json());
       const result = readLoginResult(value);
       publishTokens(result);
       return result;
     },
-    async loginWithGoogle(idToken, expectedNonce, deviceLabel, signal) {
+    async loginWithGoogle(idToken, expectedNonce, signal) {
       const value = object(await (await request('/api/v1/auth/oidc/login', {
         method: 'POST', signal, body: JSON.stringify({
-          providerCode: 'GOOGLE', idToken, expectedNonce, deviceLabel: deviceLabel ?? null,
+          providerCode: 'GOOGLE', idToken, expectedNonce,
         }),
       })).json());
       const result = readLoginResult(value);
@@ -200,39 +218,18 @@ export function createAccountClient({
         method: 'POST', signal, body: JSON.stringify({ resetToken, newPassword }),
       });
     },
-    async sessions(signal) {
-      requireSession();
-      const value = await (await request('/api/v1/auth/sessions', { signal })).json();
-      if (!Array.isArray(value)) throw new Error('Invalid sessions response');
-      return value.map(readSession);
-    },
-    async rotateSession(signal) {
-      const value = object(await (await request('/api/v1/auth/sessions/rotate', {
-        method: 'POST', signal,
-      }, false)).json());
-      const rotated = readRotatedTokenPair(value);
-      setAccessToken?.(rotated.accessToken);
-      sessionStore?.signIn({
-        accessToken: rotated.accessToken,
-        accountId: rotated.accountId,
-        expiresAt: rotated.accessExpiresAt,
-        refreshExpiresAt: rotated.refreshExpiresAt,
-      });
-      return rotated;
+    rotateSession(signal) {
+      return rotateTokens(signal);
     },
     async logoutCurrent(signal) {
       requireSession();
-      await request('/api/v1/auth/sessions/current', { method: 'DELETE', signal });
+      await request('/api/v1/auth/logout', { method: 'POST', signal }, false);
       setAccessToken?.(null);
       sessionStore?.signOut();
     },
-    async logoutSession(sessionId, signal) {
-      requireSession();
-      await request(`/api/v1/auth/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE', signal });
-    },
     async logoutAll(signal) {
       requireSession();
-      await request('/api/v1/auth/sessions', { method: 'DELETE', signal });
+      await request('/api/v1/auth/logout-all', { method: 'POST', signal }, false);
       setAccessToken?.(null);
       sessionStore?.signOut();
     },
@@ -277,7 +274,6 @@ function readRotatedTokenPair(value: Record<string, unknown>): RotatedTokenPair 
   if (tokenType !== 'Bearer') throw new Error('Invalid tokenType');
   return {
     accountId: string(value.accountId, 'accountId'),
-    sessionId: string(value.sessionId, 'sessionId'),
     tokenType,
     accessToken: string(value.accessToken, 'accessToken'),
     accessExpiresAt: string(value.accessExpiresAt, 'accessExpiresAt'),
@@ -294,18 +290,6 @@ function readPreferences(value: unknown): AccountPreferences {
     timezoneName: string(result.timezoneName, 'timezoneName'),
     themePreference: theme as ThemePreference,
     updatedAt: string(result.updatedAt, 'updatedAt'),
-  };
-}
-
-function readSession(value: unknown): SessionView {
-  const result = object(value);
-  return {
-    sessionId: string(result.sessionId, 'sessionId'),
-    deviceLabel: nullableString(result.deviceLabel),
-    issuedAt: string(result.issuedAt, 'issuedAt'),
-    lastSeenAt: nullableString(result.lastSeenAt),
-    expiresAt: string(result.expiresAt, 'expiresAt'),
-    current: Boolean(result.current),
   };
 }
 
