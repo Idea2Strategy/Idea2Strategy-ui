@@ -124,7 +124,10 @@ test('browser completes the production account principal and user-case journey',
   ]);
   expect(createdStrategy.status()).toBe(201);
   const strategyId = String((await createdStrategy.json()).id);
-  await expect(page).toHaveURL(/\/strategies\/new\/basic$/);
+  // The created strategy owns its URL, so a refresh reopens it rather than a blank canvas.
+  await expect(page).toHaveURL(`/strategies/${strategyId}/basic`);
+  await expect(page.getByTestId('basic-editor-workspace')).toBeVisible();
+  await page.reload();
   await expect(page.getByTestId('basic-editor-workspace')).toBeVisible();
 
   const botListResponse = page.waitForResponse((response) =>

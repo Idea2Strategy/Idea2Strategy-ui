@@ -126,6 +126,16 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('toolbar', { name: 'Pro 편집 작업' })).not.toBeInTheDocument();
   });
 
+  test('opens the editor from a saved strategy URL without router state', async () => {
+    // No history state at all: this is what a refresh or a pasted link gives.
+    window.history.replaceState({}, '', '/strategies/20000000-0000-4000-8000-000000000001/basic');
+    render(<App />);
+
+    const editorSurface = await screen.findByTestId('strategy-editor-surface');
+    expect(editorSurface).toContainElement(await screen.findByRole('region', { name: 'Basic 전략 캔버스' }));
+    expect(screen.getByRole('button', { name: 'Basic 편집기' })).toHaveClass('active');
+  });
+
   test('marks every Pro strategy entry point unavailable', async () => {
     const user = userEvent.setup();
     window.history.replaceState({}, '', '/strategies');
