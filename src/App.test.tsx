@@ -520,14 +520,14 @@ describe('Signal product UI', () => {
     expect(underlineRule).not.toMatch(/bottom:\s*-/);
   });
 
-  test('reserves the scrollbar gutter without forcing a scrollbar on pages that fit', () => {
-    /* #74. The gutter is what keeps navigation from shifting when page height
-       changes; `overflow-y: scroll` additionally painted a track on pages with
-       nothing to scroll. Keep the first, never reintroduce the second. */
-    const htmlRule = baseStyles.match(/(?:^|\n)html \{([^}]*)\}/)?.[1] ?? '';
-
-    expect(htmlRule).toContain('scrollbar-gutter: stable');
-    expect(htmlRule).not.toMatch(/overflow-y:\s*scroll/);
+  test('does not reserve blank space for a scrollbar on pages that fit', () => {
+    /* A stable root gutter leaves an unpainted strip at the right edge whenever
+       the current page is shorter than the viewport. The browser should only
+       allocate scrollbar space when the document actually needs to scroll. */
+    expect(baseStyles).not.toMatch(
+      /(?:^|\n)html\s*\{[^}]*scrollbar-gutter:\s*stable/,
+    );
+    expect(baseStyles).not.toMatch(/(?:^|\n)html\s*\{[^}]*overflow-y:\s*scroll/);
   });
 
   test('does not show a global search box in the top navigation', () => {
