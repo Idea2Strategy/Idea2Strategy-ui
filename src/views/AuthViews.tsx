@@ -118,6 +118,7 @@ export function LoginView({ client }: AuthScreenProps) {
   const location = useLocation();
   const routeState = location.state as { returnTo?: string; passwordResetComplete?: boolean } | null;
   const returnTo = routeState?.returnTo ?? pagePaths.account;
+  const emailVerified = new URLSearchParams(location.search).get('emailVerified') === 'true';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
@@ -149,6 +150,7 @@ export function LoginView({ client }: AuthScreenProps) {
         <AuthProductBrand />
         <h1 id="auth-title">로그인</h1>
       </header>
+      {emailVerified && <p role="status" className="auth-success">이메일 인증이 완료되었습니다. 로그인해 주세요.</p>}
       {routeState?.passwordResetComplete && <p role="status" className="auth-success">비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.</p>}
       <form className="auth-form" noValidate onSubmit={(event) => { event.preventDefault(); void submit(); }}>
         <label><span>이메일</span><input aria-label="로그인 이메일" type="email" autoComplete="email" aria-describedby={currentEmailError ? 'login-email-help' : undefined} aria-invalid={Boolean(currentEmailError || credentialsRejected)} value={email} onChange={(event) => { setEmail(event.target.value); setFailure(null); }} /></label>
@@ -278,8 +280,7 @@ export function PasswordResetView({ client }: AuthScreenProps) {
 
 type SignupStep =
   | { kind: 'form' }
-  | { kind: 'verify'; accountId: string; verificationExpiresAt: string }
-  | { kind: 'verified' };
+  | { kind: 'verify'; accountId: string; email: string; verificationExpiresAt: string };
 
 export function SignupView({ client }: AuthScreenProps) {
   const navigate = useNavigate();
@@ -289,20 +290,17 @@ export function SignupView({ client }: AuthScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
-  const [token, setToken] = useState('');
   const passwordsMatch = password === passwordConfirm;
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [failure, setFailure] = useState<AccountApiError | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const [tokenSubmitted, setTokenSubmitted] = useState(false);
   const currentEmailError = submitted ? emailError(email) : null;
   const currentPasswordError = submitted ? passwordError(password) : null;
   const passwordConfirmError = submitted
     ? !passwordConfirm ? '비밀번호 확인을 입력해 주세요.' : !passwordsMatch ? '비밀번호가 일치하지 않습니다.' : null
     : null;
   const emailRejected = failure?.code === 'EMAIL_ALREADY_REGISTERED';
-  const tokenError = tokenSubmitted && !token.trim() ? '인증 코드를 입력해 주세요.' : null;
 
   const run = async (action: () => Promise<void>) => {
     setPending(true);
@@ -331,7 +329,7 @@ export function SignupView({ client }: AuthScreenProps) {
           if (emailError(email) || passwordError(password) || !passwordConfirm || !passwordsMatch || pending) return;
           void run(async () => {
             const result = await client.signup(email, password);
-            setStep({ kind: 'verify', accountId: result.accountId, verificationExpiresAt: result.verificationExpiresAt });
+            setStep({ kind: 'verify', accountId: result.accountId, email: email.trim(), verificationExpiresAt: result.verificationExpiresAt });
           });
         }}>
           <label><span>이메일</span><input aria-label="가입 이메일" type="email" autoComplete="email" aria-describedby={currentEmailError ? 'signup-email-help' : undefined} aria-invalid={Boolean(currentEmailError || emailRejected)} value={email} onChange={(event) => { setEmail(event.target.value); setFailure(null); }} /></label>
@@ -353,30 +351,17 @@ export function SignupView({ client }: AuthScreenProps) {
         </div>
       </>}
       {step.kind === 'verify' && <>
-        <p role="status">이메일로 보낸 인증 코드를 입력하세요. 만료: {new Date(step.verificationExpiresAt).toLocaleString()}</p>
-        <form className="auth-form" onSubmit={(event) => {
-          event.preventDefault();
-          setTokenSubmitted(true);
-          if (!token.trim()) return;
-          void run(async () => {
-            await client.verifyEmail(token);
-            setStep({ kind: 'verified' });
-          });
-        }}>
-          <label><span>인증 코드</span><input aria-label="가입 인증 코드" aria-describedby={tokenError ? 'signup-token-help' : undefined} aria-invalid={Boolean(tokenError)} value={token} onChange={(event) => setToken(event.target.value)} /></label>
-          {tokenError && <p id="signup-token-help" className="auth-field-hint" role="alert">{tokenError}</p>}
-          <Button kind="primary" type="submit" disabled={pending}>{pending ? '인증 중' : '이메일 인증'}</Button>
-        </form>
+        <p role="status" className="auth-success">인증 링크를 이메일로 보냈습니다.</p>
+        <p className="auth-reset-email">{step.email}</p>
+        <p className="auth-card-copy">메일의 '이메일 인증하기' 버튼을 눌러 인증을 완료해 주세요.</p>
+        <p className="auth-field-hint">인증 링크 만료: {new Date(step.verificationExpiresAt).toLocaleString()}</p>
+        <p className="auth-field-hint">메일이 보이지 않으면 스팸함을 확인하거나 다시 보내세요.</p>
         <div className="auth-actions">
           <Button disabled={pending} onClick={() => void run(async () => {
             const result = await client.resendVerification(step.accountId);
+            setStep({ ...step, verificationExpiresAt: result.verificationExpiresAt });
             setMessage(`인증 메일을 다시 보냈습니다. 만료: ${new Date(result.verificationExpiresAt).toLocaleString()}`);
           })}>인증 메일 다시 보내기</Button>
-        </div>
-      </>}
-      {step.kind === 'verified' && <>
-        <p role="status">이메일 인증이 완료되었습니다.</p>
-        <div className="auth-actions">
           <Button kind="primary" onClick={() => navigate('/login', { state: returnTo ? { returnTo } : undefined })}>로그인하러 가기</Button>
         </div>
       </>}
