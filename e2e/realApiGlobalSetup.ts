@@ -114,6 +114,8 @@ export default async function globalSetup(): Promise<() => void> {
       '-e', `IDENTITY_CRYPTO_EMAIL_ENCRYPTION_KEY=${emailEncryptionKey}`,
       '-e', `IDENTITY_CRYPTO_LOOKUP_HMAC_KEY=${lookupHmacKey}`,
       '-e', `IDENTITY_CRYPTO_VERIFICATION_HMAC_KEY=${verificationHmacKey}`,
+      // Child PR CI remains compatible with the root-pinned pre-JWT backend during the cross-repository merge.
+      '-e', `IDENTITY_CRYPTO_SESSION_HMAC_KEY=${refreshTokenHmacKey}`,
       '-e', `IDENTITY_CRYPTO_REFRESH_TOKEN_HMAC_KEY=${refreshTokenHmacKey}`,
       '-e', `IDENTITY_CRYPTO_CUSTOMER_JWT_SIGNING_KEY=${customerJwtSigningKey}`,
       'gradle:8.14.3-jdk21', 'gradle', ':apps:backend-api:bootRun', '--no-daemon',

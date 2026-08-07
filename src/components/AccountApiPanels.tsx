@@ -137,7 +137,7 @@ export function AccountApiPanels({
       </header>
       <div className="account-environment-grid">
         <label><span><Languages size={15} />언어</span><select aria-label="서버 언어 선택" value={loadState.preferences.languageCode} onChange={(event) => updateDraft({ languageCode: event.target.value })}><option value="ko">한국어</option><option value="en">English</option></select></label>
-        <div className="account-readonly-group"><span>시간대</span><div className="account-readonly-field"><strong>{loadState.preferences.timezoneName}</strong><LockKeyhole size={16} /></div></div>
+        <div className="account-readonly-group"><span>시간대</span><div className="account-readonly-field" aria-label="서버 시간대"><strong>{loadState.preferences.timezoneName}</strong><LockKeyhole size={16} /></div></div>
       </div>
       <footer className="account-section-footer"><Button onClick={() => void savePreferences()} disabled={preferenceState.kind === 'pending'}>환경 저장</Button></footer>
       {preferenceState.kind === 'saved' && <p role="status">서버 설정을 저장했습니다.</p>}
