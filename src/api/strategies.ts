@@ -53,7 +53,7 @@ export interface SaveStrategyDocumentInput {
 }
 
 export interface StrategyValidationFinding {
-  severity: 'ERROR' | 'WARNING';
+  severity: 'BLOCKING_ERROR' | 'ERROR' | 'WARNING' | 'INFORMATION';
   code: string;
   location: string;
   message: string;
@@ -69,6 +69,12 @@ export interface StrategyValidationResult {
   elementCatalogVersionId: string;
   findings: StrategyValidationFinding[];
   completedAt: string;
+}
+
+export interface PreviewStrategyValidationInput {
+  catalogId: string;
+  clientRevision: number;
+  semanticDocument: Record<string, unknown>;
 }
 
 export interface StrategyReleaseInputs {
@@ -116,6 +122,7 @@ export interface StrategyAuthoringClient {
   heartbeatLease(strategyId: string, leaseToken: string, signal?: AbortSignal): Promise<{ expiresAt: string }>;
   releaseLease(strategyId: string, leaseToken: string, signal?: AbortSignal): Promise<void>;
   saveDocument(strategyId: string, input: SaveStrategyDocumentInput, signal?: AbortSignal): Promise<StrategyDocument>;
+  previewValidation?(strategyId: string, input: PreviewStrategyValidationInput, signal?: AbortSignal): Promise<StrategyValidationResult>;
   validateStrategy(strategyId: string, catalogId: string, signal?: AbortSignal): Promise<StrategyValidationResult>;
   getReleaseInputs(signal?: AbortSignal): Promise<StrategyReleaseInputs>;
   releaseStrategy(strategyId: string, input: ReleaseStrategyInput, signal?: AbortSignal): Promise<{ botId: string; backtestLane: string }>;
@@ -282,6 +289,14 @@ export function createStrategyAuthoringClient({
         method: 'PUT', signal, body: JSON.stringify(input),
       });
       return readDocument(await response.json());
+    },
+    async previewValidation(strategyId, input, signal) {
+      const response = await request(
+        `/api/v1/strategies/${encodeURIComponent(strategyId)}/validation-previews`,
+        'Strategy validation preview',
+        { method: 'POST', signal, body: JSON.stringify(input) },
+      );
+      return readValidation(await response.json());
     },
     async validateStrategy(strategyId, catalogId, signal) {
       const response = await request(

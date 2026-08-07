@@ -650,9 +650,20 @@ const serializeBasicEditorSnapshot = (snapshot: BasicEditorSnapshot): Record<str
   JSON.parse(JSON.stringify(snapshot)) as Record<string, unknown>
 );
 
-const BASIC_RSI_ELEMENT_CODES = new Set([
-  'BASIC_RSI_READ',
-  'BASIC_VALUE_COMPARE',
+const BASIC_EDITOR_ELEMENT_CODES = new Set([
+  'BASIC_PRICE_COMPARE',
+  'BASIC_PRICE_CHANGE_PERCENT',
+  'BASIC_VOLUME_COMPARE',
+  'BASIC_STREAK',
+  'BASIC_SMA_CROSS',
+  'BASIC_RSI_CROSS',
+  'BASIC_MACD_CROSS',
+  'BASIC_BOLLINGER_REVERSAL',
+  'BASIC_POSITION_RETURN',
+  'BASIC_HOLDING_PERIOD',
+  'BASIC_PEAK_RETURN',
+  'BASIC_DRAWDOWN_FROM_PEAK',
+  'BASIC_SCHEDULE',
   'BASIC_EQUAL_ALLOCATION_ORDER',
 ]);
 
@@ -663,11 +674,105 @@ const basicCompareOperator = (operator: string | undefined): string => {
   return 'LT';
 };
 
+const basicDirection = (operator: string | undefined): string => (
+  operator === '↑' || operator === '상승' || operator === '수익' ? 'UP' : 'DOWN'
+);
+
+const numericParameter = (value: string | undefined): string => String(value ?? '').replace('%', '').trim();
+
+const firstNumber = (value: string | undefined, fallback = 0): number => {
+  const match = String(value ?? '').match(/\d+/);
+  return match ? Number(match[0]) : fallback;
+};
+
+const allNumbers = (value: string | undefined): number[] => (
+  [...String(value ?? '').matchAll(/\d+/g)].map((match) => Number(match[0]))
+);
+
+const resolutionCode = (timeframe: string): string => ({
+  '1분봉': '1m', '3분봉': '3m', '5분봉': '5m', '15분봉': '15m', '30분봉': '30m',
+  '1시간봉': '1h', '4시간봉': '4h', '일봉': '1d', '주봉': '1w',
+}[timeframe] ?? '1m');
+
+const priceReferenceCode = (value: string | undefined): string => {
+  const exact: Record<string, string> = {
+    '전일 종가': 'PREVIOUS_CLOSE',
+    '당일 장 시작가': 'SESSION_OPEN',
+    '평균 진입가': 'AVERAGE_ENTRY_PRICE',
+  };
+  if (value && exact[value]) return exact[value];
+  const period = firstNumber(value);
+  if (value?.includes('평균 가격')) return `SMA_${period}`;
+  if (value?.includes('최고 가격')) return `HIGH_${period}`;
+  if (value?.includes('최저 가격')) return `LOW_${period}`;
+  return '';
+};
+
+const volumeReference = (value: string | undefined): { reference: string; period: string; multiplier: string } => {
+  if (value === '이전 봉 거래량') return { reference: 'PREVIOUS_VOLUME', period: '1', multiplier: '1' };
+  const numbers = allNumbers(value);
+  return {
+    reference: 'AVERAGE_VOLUME',
+    period: String(numbers[0] ?? 0),
+    multiplier: String(numbers[1] ?? 1),
+  };
+};
+
+const scheduleCycleCode = (cycle: BuyCycle): string => ({
+  '매 거래일': 'EVERY_TRADING_DAY',
+  '매주 첫 거래일': 'WEEK_FIRST_TRADING_DAY',
+  '매월 첫 거래일': 'MONTH_FIRST_TRADING_DAY',
+  '매월 마지막 거래일': 'MONTH_LAST_TRADING_DAY',
+  'N거래일마다': 'EVERY_N_TRADING_DAYS',
+}[cycle]);
+
+const blockElement = (block: BasicBlock, resolution: string): { elementCode: string; parameters: Record<string, unknown> } => {
+  const common = { resolution };
+  switch (block.label) {
+    case '가격 비교':
+      return { elementCode: 'BASIC_PRICE_COMPARE', parameters: { ...common, operator: basicCompareOperator(block.op), reference: priceReferenceCode(block.value) } };
+    case '가격 변화율':
+      return { elementCode: 'BASIC_PRICE_CHANGE_PERCENT', parameters: { ...common, base: priceReferenceCode(block.base), direction: basicDirection(block.op), thresholdPercent: numericParameter(block.value) } };
+    case '거래량': {
+      const reference = volumeReference(block.value);
+      return { elementCode: 'BASIC_VOLUME_COMPARE', parameters: { ...common, operator: basicCompareOperator(block.op), ...reference } };
+    }
+    case '연속 상승·하락':
+      return { elementCode: 'BASIC_STREAK', parameters: { ...common, direction: basicDirection(block.op), bars: String(firstNumber(block.value)) } };
+    case '평균선 교차': {
+      const [shortPeriod = 0, longPeriod = 0] = allNumbers(block.value);
+      return { elementCode: 'BASIC_SMA_CROSS', parameters: { ...common, direction: basicDirection(block.op), shortPeriod: String(shortPeriod), longPeriod: String(longPeriod) } };
+    }
+    case 'RSI 반등':
+      return { elementCode: 'BASIC_RSI_CROSS', parameters: { ...common, direction: basicDirection(block.op), period: '14', threshold: numericParameter(block.value) } };
+    case 'MACD 전환': {
+      const [fastPeriod = 12, slowPeriod = 26, signalPeriod = 9] = allNumbers(block.value);
+      return { elementCode: 'BASIC_MACD_CROSS', parameters: { ...common, direction: basicDirection(block.op), fastPeriod: String(fastPeriod), slowPeriod: String(slowPeriod), signalPeriod: String(signalPeriod) } };
+    }
+    case '가격 띠 반전': {
+      const [period = 20, deviations = 2] = allNumbers(block.value);
+      return { elementCode: 'BASIC_BOLLINGER_REVERSAL', parameters: { ...common, direction: basicDirection(block.op), period: String(period), deviations: String(deviations) } };
+    }
+    case '현재 수익률':
+      return { elementCode: 'BASIC_POSITION_RETURN', parameters: { direction: block.op === '수익' ? 'PROFIT' : 'LOSS', thresholdPercent: numericParameter(block.value) } };
+    case '보유 기간': {
+      const value = String(block.value ?? '');
+      const unit = value === '당일 장 마감' ? 'SESSION_CLOSE' : value.includes('거래일') ? 'TRADING_DAY' : 'BAR';
+      return { elementCode: 'BASIC_HOLDING_PERIOD', parameters: { unit, amount: String(value === '당일 장 마감' ? 0 : firstNumber(value)), resolution } };
+    }
+    case '최고 수익률':
+      return { elementCode: 'BASIC_PEAK_RETURN', parameters: { operator: basicCompareOperator(block.op), thresholdPercent: numericParameter(block.value) } };
+    case '고점 대비 하락':
+      return { elementCode: 'BASIC_DRAWDOWN_FROM_PEAK', parameters: { operator: basicCompareOperator(block.op), thresholdPercent: numericParameter(block.value) } };
+    default:
+      return { elementCode: '', parameters: {} };
+  }
+};
+
 /**
- * Converts only editor state that the published Basic runtime can execute into
- * the canonical server document. Unsupported cards stay visible in the
- * presentation snapshot, but are rejected by local/server validation rather
- * than being silently translated into a different strategy.
+ * Converts the editor's complete published block catalog into the canonical
+ * server document. Every visible condition becomes one deterministic runtime
+ * step and the container settings are pinned on the terminal order step.
  */
 export const buildBasicSemanticDocument = (
   snapshot: BasicEditorSnapshot,
@@ -683,33 +788,49 @@ export const buildBasicSemanticDocument = (
         : section.cards.risk.includes(cardId)
           ? 'risk'
           : null;
-    const condition = snapshot.cardBlocks[cardId]?.[0];
-    if (!side || side === 'risk' || !condition || condition.label !== 'RSI 반등') return [];
-    const readId = `${cardId}-rsi-read`;
-    const compareId = `${cardId}-compare`;
+    if (!side || side === 'risk') return [];
+    const resolution = resolutionCode(section.timeframe);
+    const configuredBlocks = snapshot.cardBlocks[cardId] ?? [];
+    const buy = side === 'buy' ? snapshot.buySettings[cardId] : null;
+    const sell = side === 'sell' ? snapshot.sellSettings[cardId] : null;
+    const schedule = buy?.entryMode === '주기마다'
+      ? [{
+        id: `${cardId}-schedule`,
+        elementCode: 'BASIC_SCHEDULE',
+        parameters: { cycle: scheduleCycleCode(buy.cycle), interval: String(buy.cycleInterval), resolution },
+      }]
+      : [];
+    const conditions = configuredBlocks.map((block) => ({ id: block.id, ...blockElement(block, resolution) }));
+    const executableConditions = [...schedule, ...conditions];
     const orderId = `${cardId}-order`;
+    const orderPercent = side === 'buy' ? buy?.maxOrderPercent ?? 100 : sell?.sellPercent ?? '';
+    const blocks = [
+      ...executableConditions,
+      {
+        id: orderId,
+        elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER',
+        parameters: {
+          orderPercent: String(orderPercent),
+          executionMode: side === 'buy' ? buy?.entryMode ?? '1회만' : sell?.executeMode ?? '1회만',
+          waitMode: side === 'buy' ? buy?.reentryWait ?? '조건 재충족' : sell?.reexecWait ?? '조건 재충족',
+          waitInterval: String(side === 'buy' ? buy?.reentryInterval ?? 1 : sell?.reexecInterval ?? 1),
+          maxExecutions: String(side === 'buy' ? buy?.maxEntries ?? 1 : sell?.maxExecutions ?? 1),
+        },
+      },
+    ];
     return [{
       id: cardId,
       container: side.toUpperCase(),
       evaluationMode: 'INDEPENDENT',
       allocationMode: 'EQUAL',
       instrumentIds: [...(section.instrumentIds ?? [])],
-      blocks: [
-        { id: readId, elementCode: 'BASIC_RSI_READ', parameters: { resolution: '1m' } },
-        {
-          id: compareId,
-          elementCode: 'BASIC_VALUE_COMPARE',
-          parameters: {
-            operator: basicCompareOperator(condition.op),
-            threshold: String(condition.value ?? '').trim(),
-          },
-        },
-        { id: orderId, elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: {} },
-      ],
-      connections: [
-        { fromBlockId: readId, outputPort: 'value', toBlockId: compareId, inputPort: 'value' },
-        { fromBlockId: compareId, outputPort: 'passed', toBlockId: orderId, inputPort: 'passed' },
-      ],
+      blocks,
+      connections: blocks.slice(0, -1).map((block, index) => ({
+        fromBlockId: block.id,
+        outputPort: 'passed',
+        toBlockId: blocks[index + 1].id,
+        inputPort: 'passed',
+      })),
     }];
   })),
 });
@@ -1384,6 +1505,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const [basicCatalog, setBasicCatalog] = useState<BasicStrategyCatalog | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [serverValidation, setServerValidation] = useState<StrategyValidationResult | null>(null);
+  const [savedValidation, setSavedValidation] = useState<StrategyValidationResult | null>(null);
+  const [savedReadySignature, setSavedReadySignature] = useState<string | null>(null);
+  const [validationPending, setValidationPending] = useState(false);
+  const validationPreviewRevisionRef = useRef(0);
   const [pendingInstrumentKey, setPendingInstrumentKey] = useState('');
   const [instrumentQuery, setInstrumentQuery] = useState('');
   // Two-phase dismissal so the toast can slide back down (mirroring its entry)
@@ -1448,12 +1573,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const [previewCandles, setPreviewCandles] = useState<PreviewCandle[] | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
-  const catalogSupportsRsiFlow = basicCatalog?.elements.length
-    ? [...BASIC_RSI_ELEMENT_CODES].every((code) => basicCatalog.elements.some((element) => element.elementCode === code))
+  const catalogSupportsEditor = basicCatalog?.elements.length
+    ? [...BASIC_EDITOR_ELEMENT_CODES].every((code) => basicCatalog.elements.some((element) => element.elementCode === code))
     : !catalogClient;
-  const supportedTemplates = catalogClient ? TEMPLATE_LIBRARY.filter((template) => template.id === 'rsi' && catalogSupportsRsiFlow) : TEMPLATE_LIBRARY;
+  const supportedTemplates = catalogClient ? (catalogSupportsEditor ? TEMPLATE_LIBRARY : []) : TEMPLATE_LIBRARY;
   const supportedBlockLibrary = catalogClient
-    ? BLOCK_LIBRARY.map((category) => ({ ...category, items: category.items.filter((item) => item === 'RSI 반등' && catalogSupportsRsiFlow) })).filter((category) => category.items.length > 0)
+    ? (catalogSupportsEditor ? BLOCK_LIBRARY : [])
     : BLOCK_LIBRARY;
   const filteredTemplates = useMemo(() => supportedTemplates.filter((template) => (
     `${template.name} ${template.category} ${template.indicator}`.toLowerCase().includes(templateQuery.trim().toLowerCase())
@@ -1512,14 +1637,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
               message: `${sectionLabel}의 ${sideLabel} 전략 카드에 조건 블록을 하나 이상 추가해 주세요.`,
             }];
           }
-          if (catalogClient && (blocks.length !== 1 || blocks[0]?.label !== 'RSI 반등')) {
-            return [{
-              id: `${cardId}-unsupported-catalog-block`,
-              sectionId: section.id,
-              cardId,
-              message: `${sectionLabel}의 ${sideLabel} 전략 카드는 현재 실행 가능한 RSI 조건 블록 하나만 사용할 수 있습니다.`,
-            }];
-          }
           const hasNullField = blocks.some((block) => {
             const operatorRequired = getBlockOperatorOptions(block).length > 1;
             const baseRequired = BASE_BLOCKS.has(block.label);
@@ -1546,13 +1663,35 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     });
   }, [cardBlocks, sections, sellSettings, buySettings, catalogClient]);
   const validationSignature = validationIssues.map((issue) => issue.id).join('|');
-  const isLocallyComplete = validationIssues.length === 0 && (!catalogClient || catalogSupportsRsiFlow);
+  const editorSignature = useMemo(() => JSON.stringify({
+    sections,
+    cardBlocks: Object.fromEntries(Object.entries(cardBlocks).map(([cardId, blocks]) => [
+      cardId,
+      blocks.map(({ id, label, op, value, base, tone }) => ({ id, label, op, value, base, tone })),
+    ])),
+    cardMeta,
+    buySettings,
+    sellSettings,
+    symbolLimits,
+  }), [sections, cardBlocks, cardMeta, buySettings, sellSettings, symbolLimits]);
+  const editorSignatureRef = useRef(editorSignature);
+  editorSignatureRef.current = editorSignature;
+  const isLocallyComplete = validationIssues.length === 0 && (!catalogClient || catalogSupportsEditor);
   const requiresServerValidation = Boolean(strategyId && authoringClient);
-  const isLaunchable = isLocallyComplete && (!requiresServerValidation || serverValidation?.status === 'VALID');
-  const serverErrorFindings = serverValidation?.findings.filter((finding) => finding.severity === 'ERROR') ?? [];
+  const isCurrentlyValid = isLocallyComplete && (!requiresServerValidation || serverValidation?.status === 'VALID');
+  const isLaunchable = isCurrentlyValid
+    && savedReadySignature === editorSignature
+    && (!requiresServerValidation || savedValidation?.status === 'VALID');
+  const serverErrorFindings = serverValidation?.findings.filter((finding) => (
+    finding.severity === 'BLOCKING_ERROR' || finding.severity === 'ERROR'
+  )) ?? [];
   const serverWarningFindings = serverValidation?.findings.filter((finding) => finding.severity === 'WARNING') ?? [];
-  const validationTriggerLabel = isLaunchable
-    ? serverWarningFindings.length > 0 ? `완성 · 경고 ${serverWarningFindings.length}` : '완성'
+  const validationTriggerLabel = validationPending
+    ? '검증 중…'
+    : isCurrentlyValid
+      ? isLaunchable
+        ? serverWarningFindings.length > 0 ? `출시 가능 · 경고 ${serverWarningFindings.length}` : '출시 가능'
+        : '유효 · 저장 필요'
     : validationIssues.length > 0
       ? `미완성 · 오류 ${validationIssues.length}`
       : serverValidation?.status === 'INVALID'
@@ -1744,6 +1883,36 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     };
   }, [authoringClient, documentRevision, strategyId]);
 
+  useEffect(() => {
+    if (!strategyId || !authoringClient?.previewValidation || !basicCatalog || documentPending) return undefined;
+    const controller = new AbortController();
+    const clientRevision = ++validationPreviewRevisionRef.current;
+    setValidationPending(true);
+    const timer = window.setTimeout(() => {
+      const semanticDocument = buildBasicSemanticDocument(captureEditorSnapshot(), basicCatalog);
+      void authoringClient.previewValidation!(strategyId, {
+        catalogId: basicCatalog.version.id,
+        clientRevision,
+        semanticDocument,
+      }, controller.signal).then((validation) => {
+        if (validationPreviewRevisionRef.current !== clientRevision
+          || validation.requestedEditSequence !== clientRevision) return;
+        setServerValidation(validation);
+        setValidationPending(false);
+      }).catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (validationPreviewRevisionRef.current === clientRevision) {
+          setServerValidation(null);
+          setValidationPending(false);
+        }
+      });
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [strategyId, authoringClient, basicCatalog, documentPending, editorSignature]);
+
   const rememberEditorChange = () => {
     const snapshot = captureEditorSnapshot();
     setUndoStack((current) => [...current.slice(-39), snapshot]);
@@ -1865,10 +2034,13 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   }, [saveFeedbackClosing]);
 
   const saveStrategy = async () => {
+    const signatureAtSave = editorSignature;
     const nextFeedback: SaveFeedback = isLocallyComplete
       ? { tone: 'positive', title: '전략 구성을 저장했습니다.', detail: '서버 검증 결과를 확인하고 있습니다.' }
       : { tone: 'warning', title: '미완성 상태로 저장했습니다.', detail: '모든 전략 카드의 조건을 완성하면 검증할 수 있습니다.' };
     if (!strategyId || !authoringClient) {
+      setSavedValidation(null);
+      setSavedReadySignature(isLocallyComplete ? signatureAtSave : null);
       setSaveFeedback(nextFeedback);
       setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
       return;
@@ -1881,6 +2053,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       return;
     }
     setSavePending(true);
+    setSavedReadySignature(null);
+    setSavedValidation(null);
     try {
       if (!basicCatalog) {
         throw new Error('Published Basic catalog is unavailable');
@@ -1904,21 +2078,25 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       editSequenceRef.current = saved.editSequence;
       semanticDocumentRef.current = saved.semanticDocument;
       presentationDocumentRef.current = saved.presentationDocument;
-      if (!isLocallyComplete) {
-        setServerValidation(null);
-        setSaveFeedback(nextFeedback);
-        setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
-      } else if (!authoringClient.validateStrategy) {
+      if (!authoringClient.validateStrategy) {
         const unavailable = { tone: 'warning' as const, title: '전략은 저장했지만 검증하지 못했습니다.', detail: '서버 검증 기능을 사용할 수 없습니다.' };
         setSaveFeedback(unavailable);
         setAnnouncement(`${unavailable.title} ${unavailable.detail}`);
       } else {
         const validation = await authoringClient.validateStrategy(strategyId, basicCatalog.version.id);
-        setServerValidation(validation);
-        const blocking = validation.findings.filter((finding) => finding.severity === 'ERROR');
-        const feedback: SaveFeedback = validation.status === 'VALID'
+        const fresh = validation.requestedEditSequence === saved.editSequence
+          && validation.semanticHash === saved.semanticHash
+          && validation.elementCatalogVersionId === basicCatalog.version.id;
+        const ready = fresh && validation.status === 'VALID';
+        setSavedValidation(validation);
+        setSavedReadySignature(ready ? signatureAtSave : null);
+        if (editorSignatureRef.current === signatureAtSave) setServerValidation(validation);
+        const blocking = validation.findings.filter((finding) => (
+          finding.severity === 'BLOCKING_ERROR' || finding.severity === 'ERROR'
+        ));
+        const feedback: SaveFeedback = ready
           ? { tone: 'positive', title: '검증된 출시 가능 상태로 저장했습니다.', detail: validation.findings.length > 0 ? `경고 ${validation.findings.length}개를 확인해 주세요.` : '서버 검증을 모두 통과했습니다.' }
-          : { tone: 'warning', title: '전략은 저장했지만 서버 검증을 통과하지 못했습니다.', detail: blocking[0]?.message ?? '검증 결과를 확인해 주세요.' };
+          : { tone: 'warning', title: '미완성 상태로 저장했습니다.', detail: fresh ? blocking[0]?.message ?? '검증 결과를 확인해 주세요.' : '저장된 리비전과 검증 결과가 일치하지 않아 출시를 막았습니다.' };
         setSaveFeedback(feedback);
         setAnnouncement(`${feedback.title} ${feedback.detail}`);
       }
@@ -1948,7 +2126,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     if (!isLaunchable) {
       const firstIssue = validationIssues[0]?.message
         ?? (serverValidation?.status === 'INVALID'
-          ? serverValidation.findings.find((finding) => finding.severity === 'ERROR')?.message
+          ? serverValidation.findings.find((finding) => (
+            finding.severity === 'BLOCKING_ERROR' || finding.severity === 'ERROR'
+          ))?.message
           : '저장 버튼을 눌러 현재 전략을 서버에서 검증해 주세요.')
         ?? '현재 전략을 서버에서 다시 검증해 주세요.';
       const nextFeedback: SaveFeedback = {
@@ -1990,7 +2170,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     if (strategyId && authoringClient) {
       const policy = releaseInputs?.executionPolicies.find((item) => item.version === selectedExecutionPolicy);
       const dataset = releaseInputs?.datasets.find((item) => item.id === selectedDataset);
-      if (!serverValidation || serverValidation.status !== 'VALID' || !policy || !dataset) return;
+      if (!savedValidation || savedValidation.status !== 'VALID' || !policy || !dataset) return;
       const cash = Number(initialCashAmount);
       const budget = Number(budgetPercent);
       if (!Number.isFinite(cash) || cash <= 0 || !Number.isFinite(budget) || budget <= 0 || budget > 100) {
@@ -2001,7 +2181,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       setReleaseError(null);
       try {
         const released = await authoringClient.releaseStrategy(strategyId, {
-          validationRunId: serverValidation.validationRunId,
+          validationRunId: savedValidation.validationRunId,
           initialCashAmount: String(cash),
           budgetCapBps: Math.round(budget * 100),
           brokerRulesVersion: policy.brokerRulesVersion,
@@ -3284,9 +3464,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       </div></div>
       <div className="basic-editor-actions">
         <Button
-          className={`floating-editor-button basic-validation-trigger ${highlightValidation ? 'is-active' : ''} ${isLaunchable ? 'is-launchable' : 'is-incomplete'}`}
-          icon={isLaunchable ? Check : TriangleAlert}
-          aria-label={isLaunchable ? '검증 완료 상태 보기' : '미완성 오류 강조'}
+          className={`floating-editor-button basic-validation-trigger ${highlightValidation ? 'is-active' : ''} ${isCurrentlyValid ? 'is-launchable' : 'is-incomplete'}`}
+          icon={isCurrentlyValid ? Check : TriangleAlert}
+          aria-label={isCurrentlyValid ? '검증 완료 상태 보기' : '미완성 오류 강조'}
           aria-pressed={highlightValidation}
           onClick={() => setHighlightValidation((current) => !current)}
         >
@@ -3298,6 +3478,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
             className={`floating-editor-button ${isLaunchable ? '' : 'is-unavailable'}`}
             kind="primary"
             icon={Rocket}
+            disabled={!isLaunchable || documentPending || savePending}
             aria-disabled={!isLaunchable}
             aria-describedby="personal-bot-launch-tooltip"
             onClick={() => { void preparePersonalBotLaunch(); }}
@@ -3473,23 +3654,23 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           </div>
         </div>
       </section>
-      {highlightValidation && <aside className={`basic-validation-drawer panel floating-editor-panel ${isLaunchable ? 'is-launchable' : 'is-incomplete'}`} role="complementary" aria-label="전략 오류 안내" aria-live="polite">
+      {highlightValidation && <aside className={`basic-validation-drawer panel floating-editor-panel ${isCurrentlyValid ? 'is-launchable' : 'is-incomplete'}`} role="complementary" aria-label="전략 오류 안내" aria-live="polite">
         <header className="basic-validation-drawer-title">
-          <span>{isLaunchable ? <Check size={16} /> : <TriangleAlert size={16} />}</span>
-          <div><small>VALIDATION</small><strong>{isLaunchable ? '출시 가능한 전략' : '수정할 항목'}</strong></div>
+          <span>{isCurrentlyValid ? <Check size={16} /> : <TriangleAlert size={16} />}</span>
+          <div><small>VALIDATION</small><strong>{isCurrentlyValid ? isLaunchable ? '출시 가능한 전략' : '유효한 전략 · 저장 필요' : '수정할 항목'}</strong></div>
           <button type="button" aria-label="전략 오류 안내 닫기" onClick={() => setHighlightValidation(false)}><X size={14} /></button>
         </header>
         <div className="basic-validation-drawer-summary">
-          <strong>{isLaunchable
+          <strong>{isCurrentlyValid
             ? serverWarningFindings.length > 0 ? `출시 가능 · 경고 ${serverWarningFindings.length}개` : '모든 필수 설정을 완료했어요'
             : validationIssues.length > 0
               ? `${validationIssues.length}개 항목을 확인해 주세요`
               : serverValidation?.status === 'INVALID'
                 ? `서버 검증 오류 ${serverErrorFindings.length}개`
                 : '저장 후 서버 검증이 필요합니다'}</strong>
-          <small>{isLaunchable ? '현재 구성으로 개인 봇을 출시할 수 있습니다.' : validationIssues.length > 0 ? '항목을 선택하면 수정할 전략 카드로 이동합니다.' : '저장하면 현재 구성을 서버 기준으로 검증합니다.'}</small>
+          <small>{isCurrentlyValid ? isLaunchable ? '현재 저장된 구성으로 개인 봇을 출시할 수 있습니다.' : '현재 구성은 유효합니다. 저장해야 개인 봇 출시가 활성화됩니다.' : validationIssues.length > 0 ? '항목을 선택하면 수정할 전략 카드로 이동합니다.' : '현재 구성을 서버 기준으로 검증하고 있습니다.'}</small>
         </div>
-        {!isLaunchable && <div className="basic-validation-groups">
+        {!isCurrentlyValid && <div className="basic-validation-groups">
           {groupedValidationIssues.map((group) => <section key={group.key} className="basic-validation-group" role="region" aria-label={`${group.label} 오류`}>
             <header><strong>{group.label}</strong><span>{group.issues.length}</span></header>
             <ul>{group.issues.map((issue, index) => <li key={issue.id}><button type="button" onClick={() => focusValidationIssue(issue)}><span>{String(index + 1).padStart(2, '0')}</span><span>{renderBasicValidationMessage(issue.message.replace(`${group.label}의 `, ''))}</span><ChevronRight size={13} /></button></li>)}</ul>

@@ -162,7 +162,11 @@ describe('Signal product UI', () => {
     await user.click(screen.getByRole('option', { name: '하락' }));
     await user.type(screen.getByRole('spinbutton', { name: '매도 비율' }), '100');
 
-    await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
+    const launch = screen.getByRole('button', { name: '개인 봇 출시' });
+    expect(launch).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: '저장' }));
+    expect(launch).toBeEnabled();
+    await user.click(launch);
     const dialog = screen.getByRole('dialog', { name: '개인 운용 봇 출시' });
     await user.type(within(dialog).getByRole('textbox', { name: '봇 이름' }), 'Momentum Scout');
     await user.type(within(dialog).getByRole('textbox', { name: '봇 설명' }), 'RSI 반등 전략을 운용합니다.');
