@@ -52,7 +52,7 @@ const ROUTES: Array<{ path: string; marker: () => Promise<HTMLElement> }> = [
   { path: '/login', marker: () => screen.findByRole('heading', { name: /^Sign in$/i }) },
   { path: '/signup', marker: () => screen.findByRole('heading', { name: /^Sign up$/i }) },
   { path: '/reactivate', marker: () => screen.findByRole('heading', { name: /^Reactivate account$/i }) },
-  { path: '/password-reset', marker: () => screen.findByRole('heading', { name: /^Find your password$/i }) },
+  { path: '/password-reset', marker: () => screen.findByRole('heading', { name: /^Reset password$/i }) },
   { path: '/strategies', marker: () => screen.findByRole('heading', { name: /^Strategies$/i }) },
   { path: '/strategies/new/basic', marker: () => screen.findByTestId('basic-editor-workspace') },
   { path: '/strategies/new/pro', marker: () => screen.findByRole('heading', { name: /Pro editor is being prepared/i }) },
@@ -101,7 +101,7 @@ describe('English locale', () => {
 
     expect(await screen.findByLabelText('Sign-in email')).toBeInTheDocument();
     expect(screen.getByLabelText('Sign-in password')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Find your password' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Forgot your password?' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign up' })).toBeInTheDocument();
     expect(container).toHaveTextContent('Sign in with your email and password.');
     expect(container.textContent).not.toMatch(/[가-힣]/);

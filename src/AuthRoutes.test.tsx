@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
@@ -86,26 +86,39 @@ describe('customer login screen', () => {
     expect(window.location.pathname).toBe('/login');
   });
 
-  it('opens password reset as a dedicated screen and keeps the existing API flow', async () => {
+  it('walks email, verification code and new password as separate recovery steps', async () => {
     const client = accountClient();
     window.history.replaceState({}, '', '/login');
     render(<App accountClient={client} />);
 
-    expect(screen.queryByRole('group', { name: '비밀번호 찾기' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('재설정 이메일')).not.toBeInTheDocument();
-    await userEvent.click(await screen.findByRole('button', { name: '비밀번호 찾기' }));
+    const loginPassword = await screen.findByLabelText('로그인 비밀번호');
+    const loginForm = loginPassword.closest('form');
+    expect(loginForm).not.toBeNull();
+    expect(within(loginForm!).getAllByRole('button').map((button) => button.textContent)).toEqual([
+      '비밀번호를 잊으셨나요?',
+      '로그인',
+    ]);
+    await userEvent.click(screen.getByRole('button', { name: '비밀번호를 잊으셨나요?' }));
 
     await waitFor(() => expect(window.location.pathname).toBe('/password-reset'));
-    expect(await screen.findByRole('heading', { name: '비밀번호 찾기' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '비밀번호 재설정' })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('재설정 이메일'), 'customer@example.com');
-    await userEvent.click(screen.getByRole('button', { name: '재설정 요청' }));
+    await userEvent.click(screen.getByRole('button', { name: '인증 코드 받기' }));
     expect(client.requestPasswordReset).toHaveBeenCalledWith('customer@example.com');
-    await screen.findByText('계정 존재 여부와 관계없이 복구 요청을 접수했습니다.');
 
-    await userEvent.type(screen.getByLabelText('재설정 토큰'), 'reset-token');
-    await userEvent.type(screen.getByLabelText('재설정 새 비밀번호'), 'new password 2026!');
-    await userEvent.click(screen.getByRole('button', { name: '비밀번호 재설정' }));
+    expect(await screen.findByRole('heading', { name: '인증 코드 입력' })).toBeInTheDocument();
+    expect(screen.getByText('customer@example.com')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('인증 코드'), 'reset-token');
+    await userEvent.click(screen.getByRole('button', { name: '다음' }));
+
+    expect(await screen.findByRole('heading', { name: '새 비밀번호 설정' })).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('새 비밀번호'), 'new password 2026!');
+    await userEvent.type(screen.getByLabelText('새 비밀번호 확인'), 'new password 2026!');
+    await userEvent.click(screen.getByRole('button', { name: '비밀번호 변경' }));
     expect(client.resetPassword).toHaveBeenCalledWith('reset-token', 'new password 2026!');
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(await screen.findByRole('status')).toHaveTextContent('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.');
   });
 });
 
