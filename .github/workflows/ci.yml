@@ -112,7 +112,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Idea2Strategy/Idea2Strategy
-          ref: 137d64055feacc2cb42259435315116b0e44d47b
+          ref: 208de4d1f28533ef69d2b0a48f4c138a44ebd76a
           path: root
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
