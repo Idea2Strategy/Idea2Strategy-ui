@@ -7,7 +7,7 @@ import type {
   SessionView,
 } from '../api/account';
 import { AccountApiError } from '../api/account';
-import { setSessionTokens } from '../api/sessionAccessToken';
+import { setSessionAccessToken } from '../api/sessionAccessToken';
 import { browserSessionStore } from '../lib/session';
 import { Button, ErrorState, Panel, SignInRequiredState, Status } from './common';
 
@@ -18,7 +18,7 @@ import { Button, ErrorState, Panel, SignInRequiredState, Status } from './common
   and strands the visitor on a page whose every request 401s.
 */
 function dropTabSession(reason?: 'rejected') {
-  setSessionTokens(null, null);
+  setSessionAccessToken(null);
   browserSessionStore.signOut(reason);
 }
 
@@ -149,7 +149,7 @@ export function AccountApiPanels({
   }, [client]);
 
   const runLifecycle = useCallback(async (
-    operation: 'withdraw' | 'cancel' | 'reactivate',
+    operation: 'withdraw' | 'cancel',
     retryKey?: string,
   ) => {
     setLifecycleState({ kind: 'pending' });
@@ -157,9 +157,7 @@ export function AccountApiPanels({
     try {
       const result = operation === 'withdraw'
         ? await client.requestWithdrawal(email, password, key)
-        : operation === 'cancel'
-          ? await client.cancelWithdrawal(email, password, key)
-          : await client.reactivateWithPassword(email, password, [], key);
+        : await client.cancelWithdrawal(email, password, key);
       setPassword('');
       setLifecycleState({ kind: 'lifecycle', result });
     } catch (error) {
@@ -237,11 +235,11 @@ export function AccountApiPanels({
       {preferenceState.kind === 'error' && <ApiErrorState error={preferenceState.error} onRetry={preferenceState.retry} />}
     </Panel>
 
-    <Panel className="span-2" title="계정 생명주기" subtitle="탈퇴 요청, 취소, 재활성화는 서버 정책에 따라 처리됩니다">
+    <Panel className="span-2" title="계정 생명주기" subtitle="탈퇴 요청과 취소는 서버 정책에 따라 처리됩니다">
       {/* Destructive account actions stay behind a deliberate extra open: the
           fold keeps them off the page's default reading path. */}
       <details className="account-danger-zone">
-        <summary>탈퇴 요청 · 취소 · 재활성화</summary>
+        <summary>탈퇴 요청 · 취소</summary>
         <div className="settings-fields account-api-fields">
           <label><span>이메일</span><input aria-label="계정 확인 이메일" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
           <label><span>비밀번호</span><input aria-label="계정 확인 비밀번호" type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
@@ -249,7 +247,6 @@ export function AccountApiPanels({
         <div className="account-api-actions">
           <Button onClick={() => void runLifecycle('withdraw')} disabled={!email || !password || lifecycleState.kind === 'pending'}>탈퇴 요청</Button>
           <Button onClick={() => void runLifecycle('cancel')} disabled={!email || !password || lifecycleState.kind === 'pending'}>탈퇴 취소</Button>
-          <Button onClick={() => void runLifecycle('reactivate')} disabled={!email || !password || lifecycleState.kind === 'pending'}>계정 재활성화</Button>
         </div>
         {lifecycleState.kind === 'pending' && <p role="status">서버가 요청을 처리하는 중입니다.</p>}
         {lifecycleState.kind === 'lifecycle' && <p role="status">계정 상태: {lifecycleState.result.status} · 버전 {lifecycleState.result.version}</p>}

@@ -29,6 +29,7 @@ const accountClient = (overrides: Partial<AccountClient> = {}): AccountClient =>
   updatePreferences: vi.fn(),
   requestWithdrawal: vi.fn(),
   cancelWithdrawal: vi.fn(),
+  reactivationPolicies: vi.fn().mockResolvedValue([]),
   reactivateWithPassword: vi.fn(),
   ...overrides,
 });

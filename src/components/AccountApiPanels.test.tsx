@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AccountApiError } from '../api/account';
 import type { AccountClient, AccountPreferences, LifecycleResult, SessionView } from '../api/account';
-import { getSessionAccessToken, setSessionTokens } from '../api/sessionAccessToken';
+import { getSessionAccessToken, setSessionAccessToken } from '../api/sessionAccessToken';
 import { browserSessionStore, SESSION_STORAGE_KEY } from '../lib/session';
 import { AccountApiPanels } from './AccountApiPanels';
 
@@ -59,6 +59,7 @@ function client(overrides: Partial<AccountClient> = {}): AccountClient {
     updatePreferences: vi.fn().mockResolvedValue(preferences),
     requestWithdrawal: vi.fn().mockResolvedValue(lifecycle),
     cancelWithdrawal: vi.fn().mockResolvedValue({ ...lifecycle, status: 'ACTIVE' }),
+    reactivationPolicies: vi.fn().mockResolvedValue([]),
     reactivateWithPassword: vi.fn().mockResolvedValue({ ...lifecycle, status: 'ACTIVE' }),
     ...overrides,
   };
@@ -74,11 +75,11 @@ function seedTabSession() {
     accountId: 'account-1',
     expiresAt: '2099-01-01T00:00:00Z',
   }));
-  setSessionTokens('dead-token', null);
+  setSessionAccessToken('dead-token');
 }
 
 afterEach(() => {
-  setSessionTokens(null, null);
+  setSessionAccessToken(null);
   browserSessionStore.signOut();
 });
 
@@ -188,7 +189,7 @@ describe('AccountApiPanels', () => {
     render(<AccountApiPanels client={accountClient} createIdempotencyKey={createIdempotencyKey} />);
     await screen.findByRole('heading', { name: '계정 생명주기' });
     // The destructive actions sit behind the danger-zone fold.
-    await user.click(screen.getByText('탈퇴 요청 · 취소 · 재활성화'));
+    await user.click(screen.getByText('탈퇴 요청 · 취소'));
     await user.type(screen.getByRole('textbox', { name: '계정 확인 이메일' }), 'user@example.com');
     fireEvent.change(screen.getByLabelText('계정 확인 비밀번호'), { target: { value: 'password' } });
     await user.click(screen.getByRole('button', { name: '탈퇴 요청' }));

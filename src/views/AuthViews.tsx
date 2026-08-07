@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AccountApiError } from '../api/account';
 import type { AccountClient } from '../api/account';
 import { Button } from '../components/common';
 import { GoogleSignInButton } from '../components/GoogleSignInButton';
 import i2sLogo from '../assets/i2s-logo.svg';
-import { Localized } from '../lib/i18n';
+import { Localized, useLanguage } from '../lib/i18n';
 import { pagePaths } from '../lib/navigation';
 
 /*
@@ -95,7 +95,7 @@ export function LoginView({ client }: AuthScreenProps) {
         <img src={i2sLogo} alt="" aria-hidden="true" />
         <p className="auth-eyebrow">ACCOUNT / SIGN IN</p>
         <h1 id="auth-title">로그인</h1>
-        <p className="auth-card-copy">이메일과 비밀번호로 로그인합니다. 세션은 브라우저 메모리에만 유지됩니다.</p>
+        <p className="auth-card-copy">이메일과 비밀번호로 로그인합니다. 로그인 정보는 안전한 쿠키와 현재 브라우저 탭에만 유지됩니다.</p>
       </header>
       <form className="auth-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
         <label><span>이메일</span><input aria-label="로그인 이메일" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
@@ -129,6 +129,93 @@ export function LoginView({ client }: AuthScreenProps) {
         <span>계정이 없으신가요?</span>
         <button type="button" className="auth-link" onClick={() => navigate('/signup', { state: { returnTo } })}>가입하기</button>
       </div>
+      <div className="auth-links">
+        <span>휴면 또는 닫힌 계정인가요?</span>
+        <button type="button" className="auth-link" onClick={() => navigate('/reactivate')}>계정 재활성화</button>
+      </div>
+    </section>
+  </div></Localized>;
+}
+
+export function ReactivationView({ client }: AuthScreenProps) {
+  const navigate = useNavigate();
+  const { language } = useLanguage();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [policies, setPolicies] = useState<Awaited<ReturnType<AccountClient['reactivationPolicies']>>>([]);
+  const [accepted, setAccepted] = useState<Set<string>>(() => new Set());
+  const [pending, setPending] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [failure, setFailure] = useState<AccountApiError | null>(null);
+  const [completed, setCompleted] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setFailure(null);
+    void client.reactivationPolicies(language, controller.signal)
+      .then((required) => {
+        setPolicies(required.filter((policy) => policy.required));
+        setAccepted(new Set());
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) setFailure(fallbackError(cause));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [client, language]);
+
+  const allAccepted = policies.length > 0 && policies.every((policy) => accepted.has(policy.id));
+  const submit = async () => {
+    if (!email || !password || !allAccepted || pending) return;
+    setPending(true);
+    setFailure(null);
+    try {
+      await client.reactivateWithPassword(email, password, policies.map((policy) => policy.id), crypto.randomUUID());
+      setCompleted(true);
+    } catch (cause) {
+      setFailure(fallbackError(cause));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return <Localized><div className="page auth-page">
+    <div className="auth-backdrop" aria-hidden="true" />
+    <section className="auth-card auth-panel" aria-labelledby="reactivation-title">
+      <header className="auth-card-head">
+        <img src={i2sLogo} alt="" aria-hidden="true" />
+        <p className="auth-eyebrow">ACCOUNT / REACTIVATE</p>
+        <h1 id="reactivation-title">계정 재활성화</h1>
+        <p className="auth-card-copy">로그인하기 전에 계정 자격 증명을 확인하고 현재 필수 정책에 동의합니다.</p>
+      </header>
+      {completed ? <>
+        <p role="status">계정을 다시 활성화했습니다. 로그인해 주세요.</p>
+        <Button kind="primary" onClick={() => navigate('/login')}>로그인으로 이동</Button>
+      </> : <form className="auth-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+        <label><span>이메일</span><input aria-label="재활성화 이메일" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+        <label><span>비밀번호</span><input aria-label="재활성화 비밀번호" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+        <div className="auth-policy-list" aria-busy={loading}>
+          {loading && <p>필수 정책을 불러오는 중입니다.</p>}
+          {!loading && policies.map((policy) => <label className="auth-policy-item" key={policy.id}>
+            <span className="auth-policy-title"><input
+              type="checkbox"
+              checked={accepted.has(policy.id)}
+              onChange={(event) => setAccepted((current) => {
+                const next = new Set(current);
+                if (event.target.checked) next.add(policy.id); else next.delete(policy.id);
+                return next;
+              })}
+            /> {policy.title}</span>
+            <span className="auth-policy-content">{policy.contentText}</span>
+          </label>)}
+        </div>
+        <Button kind="primary" type="submit" disabled={!email || !password || !allAccepted || pending || loading}>{pending ? '재활성화 중' : '계정 재활성화'}</Button>
+      </form>}
+      {failure && <ApiFailure error={failure} />}
+      {!completed && <div className="auth-links"><span>활성 계정인가요?</span><button type="button" className="auth-link" onClick={() => navigate('/login')}>로그인</button></div>}
     </section>
   </div></Localized>;
 }

@@ -6,7 +6,7 @@ describe('account API client', () => {
     const setAccessToken = vi.fn();
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       accountId: 'account-1', sessionId: 'session-1', tokenType: 'Bearer',
-      accessToken: 'access-jwt', refreshToken: 'refresh-jwt',
+      accessToken: 'access-jwt',
       accessExpiresAt: '2026-08-03T00:00:00Z', refreshExpiresAt: '2026-08-03T12:00:00Z',
     }), { status: 200 }));
     const client = createAccountClient({
@@ -28,12 +28,12 @@ describe('account API client', () => {
     const signIn = vi.fn();
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       accountId: 'account-9', sessionId: 'session-9', tokenType: 'Bearer',
-      accessToken: 'google-access', refreshToken: 'google-refresh',
+      accessToken: 'google-access',
       accessExpiresAt: '2026-08-07T00:00:00Z', refreshExpiresAt: '2026-08-07T12:00:00Z',
     }), { status: 200 }));
     const client = createAccountClient({
       baseUrl: 'https://api.example.com', fetchImpl, setAccessToken,
-      sessionStore: { read: vi.fn(), accessToken: vi.fn(), signIn, signOut: vi.fn(), subscribe: vi.fn() },
+      sessionStore: { read: vi.fn(), accessToken: vi.fn(), canRefresh: vi.fn(), signIn, signOut: vi.fn(), subscribe: vi.fn() },
       createCorrelationId: () => 'correlation-google',
     });
 
@@ -45,7 +45,7 @@ describe('account API client', () => {
     }));
     expect(setAccessToken).toHaveBeenCalledWith('google-access');
     expect(signIn).toHaveBeenCalledWith({
-      accessToken: 'google-access', refreshToken: 'google-refresh', accountId: 'account-9',
+      accessToken: 'google-access', accountId: 'account-9',
       expiresAt: '2026-08-07T00:00:00Z', refreshExpiresAt: '2026-08-07T12:00:00Z',
     });
   });
@@ -122,15 +122,31 @@ describe('account API client', () => {
   it('rotates the exact backend session contract and replaces the in-memory token', async () => {
     const setAccessToken = vi.fn();
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      sessionId: 'session-2', tokenType: 'Bearer', accessToken: 'rotated-access', refreshToken: 'rotated-refresh',
+      accountId: 'account-1', sessionId: 'session-2', tokenType: 'Bearer', accessToken: 'rotated-access',
       accessExpiresAt: '2026-08-04T00:00:00Z', refreshExpiresAt: '2026-08-04T12:00:00Z',
     }), { status: 200 }));
     await expect(createAccountClient({ fetchImpl, getAccessToken: () => 'old-token', setAccessToken }).rotateSession())
       .resolves.toEqual({
-        sessionId: 'session-2', tokenType: 'Bearer', accessToken: 'rotated-access', refreshToken: 'rotated-refresh',
+        accountId: 'account-1', sessionId: 'session-2', tokenType: 'Bearer', accessToken: 'rotated-access',
         accessExpiresAt: '2026-08-04T00:00:00Z', refreshExpiresAt: '2026-08-04T12:00:00Z',
       });
     expect(setAccessToken).toHaveBeenCalledWith('rotated-access');
+    expect(fetchImpl).toHaveBeenCalledWith('/api/v1/auth/sessions/rotate', expect.objectContaining({
+      method: 'POST', credentials: 'include',
+      headers: expect.not.objectContaining({ Authorization: expect.anything() }),
+    }));
+  });
+
+  it('loads the signed-out reactivation policy documents', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify([{
+      id: 'policy-1', policyCode: 'TERMS', version: '2', languageCode: 'ko', title: '이용약관',
+      contentFormat: 'text/markdown', contentText: '필수 약관', contentHash: 'sha256:terms',
+      required: true, publishedAt: '2026-08-07T00:00:00Z', retiredAt: null,
+    }]), { status: 200 }));
+
+    await expect(createAccountClient({ fetchImpl }).reactivationPolicies('ko'))
+      .resolves.toEqual([expect.objectContaining({ id: 'policy-1', required: true })]);
+    expect(fetchImpl).toHaveBeenCalledWith('/api/v1/policies/reactivation?language=ko', expect.anything());
   });
 
   it('uses non-enumerating password recovery request and reset contracts', async () => {
