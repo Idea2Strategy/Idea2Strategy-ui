@@ -36,7 +36,7 @@ import { defaultStrategyAuthoringClient, defaultStrategyCatalogClient, defaultSt
 import type { BasicCatalogInstrument, BasicStrategyCatalog, StrategyAuthoringClient, StrategyCatalogClient, StrategyLibraryClient, StrategyLibraryItem, StrategyReleaseInputs, StrategyValidationResult } from '../api/strategies';
 
 type EditorMode = 'basic' | 'pro';
-type EditorLoadFailure = 'sign-in' | 'missing' | 'conflict' | 'transport';
+type EditorLoadFailure = 'sign-in' | 'missing' | 'conflict' | 'transport' | 'unreadable';
 type Side = 'buy' | 'sell' | 'risk';
 type BlockTone =
   | 'data'
@@ -834,6 +834,15 @@ export const buildBasicSemanticDocument = (
     }];
   })),
 });
+
+/**
+ * Whether the saved semantic document describes a strategy that would be lost by
+ * reconstructing the canvas as empty. Only the presence of groups matters: their shape is
+ * the validator's concern, not this guard's.
+ */
+const semanticDocumentCarriesGroups = (semantic: Record<string, unknown>): boolean => (
+  Array.isArray(semantic.groups) && semantic.groups.length > 0
+);
 
 const readBasicEditorSnapshot = (presentation: Record<string, unknown>): BasicEditorSnapshot | null => {
   const editor = presentation.basicEditor;
@@ -1831,11 +1840,22 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         grantedLeaseToken = null;
         return;
       }
+      const snapshot = readBasicEditorSnapshot(document.presentationDocument);
+      /* The canvas is reconstructed from the presentation snapshot alone. When that
+         snapshot cannot be read but the semantic document does carry groups, opening
+         a blank canvas would let the next save overwrite a real strategy with an
+         empty one, so refuse to open instead of silently discarding it. */
+      if (!snapshot && semanticDocumentCarriesGroups(document.semanticDocument)) {
+        await authoringClient.releaseLease(strategyId, lease.leaseToken).catch(() => undefined);
+        grantedLeaseToken = null;
+        setDocumentPending(false);
+        setEditorLoadFailure('unreadable');
+        return;
+      }
       leaseTokenRef.current = lease.leaseToken;
       editSequenceRef.current = document.editSequence;
       semanticDocumentRef.current = document.semanticDocument;
       presentationDocumentRef.current = document.presentationDocument;
-      const snapshot = readBasicEditorSnapshot(document.presentationDocument);
       if (snapshot) restoreEditorSnapshot(snapshot);
       const viewport = readBasicEditorViewport(document.presentationDocument);
       if (viewport) {
@@ -3453,6 +3473,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     title="전략을 불러오지 못했습니다."
     detail="연결 상태를 확인한 뒤 다시 시도해 주세요. 확인되지 않은 편집 내용은 표시하지 않습니다."
     onRetry={() => setDocumentRevision((current) => current + 1)}
+  />;
+  if (editorLoadFailure === 'unreadable') return <ErrorPage
+    title="이 전략은 현재 편집기에서 열 수 없습니다."
+    detail="저장된 배치 정보를 이 버전의 편집기가 해석할 수 없습니다. 빈 화면으로 열면 저장 시 전략이 지워지므로 열지 않았습니다. 전략 내용은 그대로 남아 있습니다."
   />;
 
   return <Localized><div className="page editor-page basic-editor-page editor-shell-page">

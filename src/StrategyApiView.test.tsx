@@ -305,4 +305,69 @@ describe('Strategy API view', () => {
     expect(screen.queryByText('전략을 불러오지 못했습니다.')).not.toBeInTheDocument();
     expect(authoringClient.acquireLease).not.toHaveBeenCalled();
   });
+
+  test('refuses to open a strategy whose layout is unreadable instead of blanking it', async () => {
+    const document: StrategyDocument = {
+      strategyId: 'legacy',
+      // A future editor version this build cannot interpret.
+      presentationDocument: { basicEditor: { version: 2, snapshot: {} } },
+      semanticDocument: { mode: 'BASIC', catalogId: 'catalog-id', groups: [{ id: 'buy', container: 'BUY', blocks: [] }] },
+      semanticSchemaVersion: 'basic-semantic/v1',
+      presentationSchemaVersion: 'basic-presentation/v1',
+      semanticHash: 'a'.repeat(64),
+      presentationHash: 'b'.repeat(64),
+      editSequence: 4,
+      updatedAt: '2026-08-08T00:00:00.000Z',
+    };
+    const authoringClient = {
+      createBasic: vi.fn(),
+      copyStrategy: vi.fn(),
+      getDocument: vi.fn().mockResolvedValue(document),
+      acquireLease: vi.fn().mockResolvedValue({ leaseToken: 'lease-token', expiresAt: '2026-08-08T00:02:00.000Z' }),
+      heartbeatLease: vi.fn(),
+      releaseLease: vi.fn().mockResolvedValue(undefined),
+      saveDocument: vi.fn(),
+      validateStrategy: vi.fn(),
+      getReleaseInputs: vi.fn(),
+      releaseStrategy: vi.fn(),
+    } as StrategyAuthoringClient;
+
+    render(<BasicEditor blank goBack={() => {}} strategyId="legacy" authoringClient={authoringClient} catalogClient={null} />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('이 전략은 현재 편집기에서 열 수 없습니다.');
+    // The exclusive lease must not be held by an editor that refused to open.
+    await waitFor(() => expect(authoringClient.releaseLease).toHaveBeenCalledWith('legacy', 'lease-token'));
+    expect(authoringClient.saveDocument).not.toHaveBeenCalled();
+  });
+
+  test('still opens a strategy that has no saved layout when nothing would be lost', async () => {
+    const document: StrategyDocument = {
+      strategyId: 'fresh',
+      presentationDocument: {},
+      semanticDocument: { mode: 'BASIC', groups: [] },
+      semanticSchemaVersion: 'basic-semantic/v1',
+      presentationSchemaVersion: 'basic-presentation/v1',
+      semanticHash: 'c'.repeat(64),
+      presentationHash: 'd'.repeat(64),
+      editSequence: 0,
+      updatedAt: '2026-08-08T00:00:00.000Z',
+    };
+    const authoringClient = {
+      createBasic: vi.fn(),
+      copyStrategy: vi.fn(),
+      getDocument: vi.fn().mockResolvedValue(document),
+      acquireLease: vi.fn().mockResolvedValue({ leaseToken: 'lease-token', expiresAt: '2026-08-08T00:02:00.000Z' }),
+      heartbeatLease: vi.fn(),
+      releaseLease: vi.fn().mockResolvedValue(undefined),
+      saveDocument: vi.fn(),
+      validateStrategy: vi.fn(),
+      getReleaseInputs: vi.fn(),
+      releaseStrategy: vi.fn(),
+    } as StrategyAuthoringClient;
+
+    render(<BasicEditor blank goBack={() => {}} strategyId="fresh" authoringClient={authoringClient} catalogClient={null} />);
+
+    await waitFor(() => expect(authoringClient.acquireLease).toHaveBeenCalled());
+    expect(screen.queryByText('이 전략은 현재 편집기에서 열 수 없습니다.')).not.toBeInTheDocument();
+  });
 });
