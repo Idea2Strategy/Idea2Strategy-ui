@@ -50,6 +50,20 @@ describe('session store', () => {
     expect(store.accessToken()).toBe('owner-token');
   });
 
+  it('never persists a refresh credential in browser storage', () => {
+    const storage = memoryStorage();
+    const store = createSessionStore(storage);
+
+    store.signIn({
+      accessToken: 'access-jwt',
+      accountId: 'account-1',
+      expiresAt: '2026-08-07T00:05:00Z',
+      refreshExpiresAt: '2026-08-07T12:00:00Z',
+    });
+
+    expect(storage.map.get(SESSION_STORAGE_KEY)).not.toContain('refreshToken');
+  });
+
   it('never invents a credential for a build that has none', () => {
     // The defect this module exists for: a default token would make this pass a
     // bearer header on a machine nobody signed in on.
