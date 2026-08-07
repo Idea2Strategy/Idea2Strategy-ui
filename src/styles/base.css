@@ -1,10 +1,5 @@
 * { box-sizing: border-box; }
 .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
-/* scrollbar-gutter alone reserves the gutter, so navigation still never shifts
-   when page height changes. `overflow-y: scroll` additionally forced the track
-   to be painted on pages that fit, which read as a scrollbar with nothing to
-   scroll — it is the gutter that stabilises the layout, not the track. */
-html { scrollbar-gutter: stable; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--bg); color: var(--text); }
 button, input, select { font: inherit; }
 button { color: inherit; }

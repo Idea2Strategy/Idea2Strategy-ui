@@ -53,14 +53,15 @@ const ROUTES: Array<{ path: string; marker: () => Promise<HTMLElement> }> = [
   { path: '/landing', marker: () => findHeading(/Ideas, into strategies/i) },
   { path: '/login', marker: () => findHeading(/^Sign in$/i) },
   { path: '/signup', marker: () => findHeading(/^Sign up$/i) },
+  { path: '/password-reset', marker: () => findHeading(/^Reset password$/i) },
   { path: '/strategies', marker: () => findHeading(/^Strategies$/i) },
-  { path: '/strategies/new/basic', marker: () => screen.findByTestId('basic-editor-workspace') },
+  { path: '/strategies/new/basic', marker: () => screen.findByTestId('basic-editor-workspace', {}, lazyRouteWait) },
   { path: '/strategies/new/pro', marker: () => findHeading(/Pro editor is being prepared/i) },
   { path: '/bots', marker: () => findHeading(/Bot operations/i) },
   { path: '/backtests', marker: () => findHeading(/Bots Backtest/i) },
   { path: '/competition', marker: () => findHeading(/^Competition$/i) },
   { path: '/competition-v2', marker: () => findHeading(/^Competition$/i) },
-  { path: '/notifications', marker: () => screen.findByRole('heading', { name: /^Notifications$/i, level: 1 }) },
+  { path: '/notifications', marker: () => screen.findByRole('heading', { name: /^Notifications$/i, level: 1 }, lazyRouteWait) },
   { path: '/help', marker: () => findHeading(/Help/i) },
   { path: '/account', marker: () => findHeading(/My account/i) },
 ];
@@ -86,6 +87,10 @@ describe('English locale', () => {
 
   ROUTES.forEach(({ path, marker }) => {
     test(`renders ${path} without crashing`, async () => {
+      if (path === '/login' || path === '/signup') {
+        setSessionAccessToken(null);
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      }
       window.history.replaceState({}, '', path);
       const { container } = renderEnglishApp();
 
@@ -95,15 +100,17 @@ describe('English locale', () => {
     });
   });
 
-  test('translates the complete sign-in surface instead of only replacing the word login', async () => {
+  test('renders the complete sign-in surface with concise English copy', async () => {
+    setSessionAccessToken(null);
+    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     window.history.replaceState({}, '', '/login');
     const { container } = renderEnglishApp();
 
     expect(await screen.findByLabelText('Sign-in email')).toBeInTheDocument();
     expect(screen.getByLabelText('Sign-in password')).toBeInTheDocument();
-    expect(screen.getByText('Forgot your password?')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Sign up' })).toBeInTheDocument();
-    expect(container).toHaveTextContent('Sign in with your email and password.');
+    expect(screen.getByRole('button', { name: 'Forgot your password?' })).toBeInTheDocument();
+    expect(within(screen.getByRole('heading', { name: 'Sign in' }).closest('.auth-card')!).getByRole('button', { name: 'Sign up' })).toBeInTheDocument();
+    expect(container).not.toHaveTextContent('Sign in with your email and password.');
     expect(container.textContent).not.toMatch(/[가-힣]/);
   });
 

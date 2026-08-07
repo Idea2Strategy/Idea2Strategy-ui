@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import type { CSSProperties, ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, Bell, CircleHelp, Moon, Palette, Settings, Sun, UserRound, X } from 'lucide-react';
+import { ArrowRight, Bell, CircleHelp, Moon, Settings, Sun, UserRound, X } from 'lucide-react';
 import i2sLogo from './assets/i2s-logo.svg';
 import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation';
 import type { PageId } from './lib/navigation';
@@ -18,7 +18,7 @@ import { defaultNotificationClient, NotificationApiError } from './api/notificat
 import type { NotificationClient, NotificationRecord } from './api/notifications';
 import type { CompetitionRoomsClient } from './api/competitionRooms';
 import type { OperatorAuthentication } from './components/OperatorAuthenticationView';
-import { useSessionAccessToken } from './api/sessionAccessToken';
+import { setSessionAccessToken, useSessionAccessToken } from './api/sessionAccessToken';
 import { browserSessionStore, useSessionState } from './lib/session';
 import './styles/tokens.css';
 import './styles/base.css';
@@ -37,6 +37,7 @@ const HelpView = lazy(() => import('./views/SupportViews').then((module) => ({ d
 const AccountView = lazy(() => import('./views/SupportViews').then((module) => ({ default: module.AccountView })));
 const LoginView = lazy(() => import('./views/AuthViews').then((module) => ({ default: module.LoginView })));
 const SignupView = lazy(() => import('./views/AuthViews').then((module) => ({ default: module.SignupView })));
+const PasswordResetView = lazy(() => import('./views/AuthViews').then((module) => ({ default: module.PasswordResetView })));
 const OperatorCaseWorkspace = lazy(() => import('./components/CaseApiPanels').then((module) => ({ default: module.OperatorCaseWorkspace })));
 const OperatorRbacWorkspace = lazy(() => import('./components/OperatorRbacViews').then((module) => ({ default: module.OperatorRbacWorkspace })));
 const OperatorCompetitionWorkspace = lazy(() => import('./components/OperatorCompetitionWorkspace').then((module) => ({ default: module.OperatorCompetitionWorkspace })));
@@ -66,6 +67,14 @@ function RequireSignIn({ children }: { children: ReactElement }) {
   const signedIn = useSignedIn();
   const location = useLocation();
   if (!signedIn) return <Navigate to="/login" replace state={{ returnTo: location.pathname }} />;
+  return children;
+}
+
+/* Authenticated accounts have no useful work on credential-entry screens.
+   This also blocks direct URL entry and browser refreshes. */
+function RequireSignedOut({ children }: { children: ReactElement }) {
+  const signedIn = useSignedIn();
+  if (signedIn) return <Navigate to={pagePaths.home} replace />;
   return children;
 }
 
@@ -299,7 +308,12 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
                   <button
                     type="button"
                     className="button button-primary"
-                    onClick={() => { setOpenPanel(null); navigate('/login', { state: { returnTo: location.pathname } }); }}
+                    onClick={() => {
+                      setOpenPanel(null);
+                      setSessionAccessToken(null);
+                      browserSessionStore.signOut('rejected');
+                      navigate('/login', { state: { returnTo: location.pathname } });
+                    }}
                   >로그인</button>
                 </div>
                 : <div className="notifications-popover-state" role="alert">
@@ -391,28 +405,6 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
   </header></Localized>;
 }
 
-/*
-  Colour templates: each swaps only the brand accent (per theme, in
-  tokens.css). The dot previews the accent the current theme would get.
-*/
-type PaletteId = 'teal' | 'blue' | 'violet' | 'green' | 'amber' | 'rose';
-
-interface PaletteTemplate {
-  id: PaletteId;
-  label: string;
-  dark: string;
-  light: string;
-}
-
-const paletteTemplates: PaletteTemplate[] = [
-  { id: 'teal', label: '틸', dark: '#5ecfca', light: '#0e7476' },
-  { id: 'blue', label: '블루', dark: '#8fb3ff', light: '#2563eb' },
-  { id: 'violet', label: '바이올렛', dark: '#bda4ff', light: '#6d4bc4' },
-  { id: 'green', label: '그린', dark: '#7fd1a4', light: '#1f7a55' },
-  { id: 'amber', label: '앰버', dark: '#eec27e', light: '#8c5c0d' },
-  { id: 'rose', label: '로즈', dark: '#f79ab0', light: '#b42a52' },
-];
-
 function ProductApp({ accountClient, operationsClient, notificationClient, competitionRoomsClient, operatorCompetitionClient, operatorRbacClient, operatorCaseAccessVerified, operatorAuthentication, catalogReadPermissionId, assignmentReadPermissionId }: {
   accountClient: AccountClient;
   operationsClient: AccountOperationsClient;
@@ -437,13 +429,6 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
   // Up/down colour convention: Korean charts paint gains red and losses blue,
   // US charts the opposite hues. Korean is the default for this product.
   const [updown, setUpdown] = useState<Updown>('kr');
-  const [palette, setPalette] = useState<PaletteId>(() => {
-    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('i2s-palette') : null;
-    return paletteTemplates.some((template) => template.id === saved) ? (saved as PaletteId) : 'teal';
-  });
-  useEffect(() => {
-    localStorage.setItem('i2s-palette', palette);
-  }, [palette]);
   useEffect(() => {
     localStorage.setItem(BOT_ICON_STORAGE_KEY, JSON.stringify(botIcons));
   }, [botIcons]);
@@ -520,8 +505,10 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/competition" element={<RoomsView client={competitionRoomsClient} openBot={openBot} />} />
     <Route path="/competition-v2" element={<Navigate to="/competition" replace />} />
     <Route path="/notifications" element={<RequireSignIn><NotificationsView setPage={setPage} client={notificationClient} /></RequireSignIn>} />
-    <Route path="/login" element={<LoginView client={accountClient} />} />
-    <Route path="/signup" element={<SignupView client={accountClient} />} />
+    <Route path="/login" element={<RequireSignedOut><LoginView client={accountClient} /></RequireSignedOut>} />
+    <Route path="/signup" element={<RequireSignedOut><SignupView client={accountClient} /></RequireSignedOut>} />
+    <Route path="/reactivate" element={<Navigate to="/login" replace />} />
+    <Route path="/password-reset" element={<PasswordResetView client={accountClient} />} />
     <Route path="/operations/login" element={operatorAuthentication
       ? <OperatorAuthenticationView authentication={operatorAuthentication} />
       : <Navigate to="/" replace />} />
@@ -573,7 +560,6 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     data-theme={theme}
     data-timezone={timezone}
     data-updown={updown}
-    data-palette={palette}
     className={`app-shell variant-balanced signal-product theme-${theme}${reduceMotion ? ' reduce-motion' : ''}`}
   >
     <div className="app-main">
@@ -592,18 +578,6 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
            never scrolls — the sticky stage would simply not stick. */
         : <div className={`page-scroll${page === 'landing' ? ' landing-scroll' : ''}`}>{content}</div>}
     </div>
-    <Localized><div className="palette-dock" role="group" aria-label="색상 템플릿 선택">
-      <Palette size={13} aria-hidden="true" />
-      {paletteTemplates.map((template) => <button
-        key={template.id}
-        type="button"
-        aria-label={`${template.label} 템플릿`}
-        aria-pressed={palette === template.id}
-        className={palette === template.id ? 'active' : ''}
-        style={{ '--swatch': theme === 'light' ? template.light : template.dark } as CSSProperties}
-        onClick={() => setPalette(template.id)}
-      />)}
-    </div></Localized>
   </main>;
 }
 

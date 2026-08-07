@@ -10,6 +10,7 @@ import { RoomsView } from './views/OperationsViews';
 import { BotsView } from './views/BotsView';
 import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
 import type { BotOperationsClient } from './api/botOperations';
+import type { AccountOperationsClient } from './api/accountOperations';
 
 /* The page opens on 실시간 so the live chart costs no clicks; the standing
    figures moved to their own 개요 tab, which these tests have to open. */
@@ -733,7 +734,20 @@ describe('Help and glossary', () => {
 });
 
 describe('Account settings', () => {
-  const setup = () => {
+  const operationsClient: AccountOperationsClient = {
+    submitCase: vi.fn(),
+    addCaseEvidence: vi.fn(),
+    userCase: vi.fn(),
+    operatorCaseQueue: vi.fn(),
+    operatorCase: vi.fn(),
+    commandCase: vi.fn(),
+    grantOperator: vi.fn(),
+    revokeOperator: vi.fn(),
+    applySanction: vi.fn(),
+    liftSanction: vi.fn(),
+  };
+
+  const setup = (withSupport = false) => {
     const setTheme = vi.fn();
     const setTimezone = vi.fn();
     const setReduceMotion = vi.fn();
@@ -744,22 +758,33 @@ describe('Account settings', () => {
       setTimezone={setTimezone}
       reduceMotion={false}
       setReduceMotion={setReduceMotion}
+      operationsClient={withSupport ? operationsClient : undefined}
     />);
     return { setTheme, setTimezone, setReduceMotion };
   };
 
-  test('display controls are wired to the live app state', async () => {
+  test('keeps display settings in the topbar and presents account sections with clear navigation', () => {
+    setup();
+
+    expect(screen.getByRole('navigation', { name: '계정 설정' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '로그인 및 보안' })).toHaveAttribute('href', '#account-security');
+    expect(screen.getByRole('link', { name: '서비스 환경' })).toHaveAttribute('href', '#account-environment');
+    expect(screen.queryByRole('heading', { name: '화면 설정' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: '테마 선택' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: '시간대 표기 선택' })).not.toBeInTheDocument();
+  });
+
+  test('opens support as a focused modal instead of an always-visible form', async () => {
     const user = userEvent.setup();
-    const { setTheme, setTimezone, setReduceMotion } = setup();
+    setup(true);
 
-    await user.selectOptions(screen.getByRole('combobox', { name: '테마 선택' }), 'light');
-    expect(setTheme).toHaveBeenCalledWith('light');
+    expect(screen.queryByLabelText('케이스 제목')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '문의하기' }));
 
-    await user.selectOptions(screen.getByRole('combobox', { name: '시간대 표기 선택' }), 'kst');
-    expect(setTimezone).toHaveBeenCalledWith('kst');
-
-    await user.click(screen.getByLabelText(/모션 줄이기/));
-    expect(setReduceMotion).toHaveBeenCalledWith(true);
+    const dialog = screen.getByRole('dialog', { name: '문의하기' });
+    expect(within(dialog).getByLabelText('케이스 제목')).toHaveFocus();
+    await user.click(within(dialog).getByRole('button', { name: '문의 창 닫기' }));
+    expect(screen.queryByRole('dialog', { name: '문의하기' })).not.toBeInTheDocument();
   });
 
   test('shows no fabricated identity, social login or stale data claims', () => {
@@ -774,7 +799,7 @@ describe('Account settings', () => {
     expect(screen.queryByText('이 브라우저에만 저장')).not.toBeInTheDocument();
     expect(screen.queryByText(/데이터 기준 2026\.07\.23/)).not.toBeInTheDocument();
     expect(screen.queryByText('Atlas 07')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '화면 설정' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '화면 설정' })).not.toBeInTheDocument();
   });
 });
 

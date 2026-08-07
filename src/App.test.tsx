@@ -13,6 +13,7 @@ import { ProEditor } from './views/StrategyViews';
 
 const balancedStyles = readFileSync(resolve(process.cwd(), 'src/styles/balanced.css'), 'utf8');
 const baseStyles = readFileSync(resolve(process.cwd(), 'src/styles/base.css'), 'utf8');
+const tokenStyles = readFileSync(resolve(process.cwd(), 'src/styles/tokens.css'), 'utf8');
 const indexHtml = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
 const appSource = readFileSync(resolve(process.cwd(), 'src/App.tsx'), 'utf8');
 
@@ -279,7 +280,7 @@ describe('Signal product UI', () => {
     expect(performance).toHaveTextContent('개인 운용과 대회 성과는 합산하지 않습니다.');
   });
 
-  test('removes admin and watchlist entry points and opens security inside My account', async () => {
+  test('removes admin and watchlist entry points and centralizes account settings in My account', async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -291,7 +292,11 @@ describe('Signal product UI', () => {
     // login that never existed, only what the real API panels can prove.
     expect(screen.queryByText('김전략')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '접근 보안' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '화면 설정' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: '계정 설정' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '로그인 및 보안' })).toHaveAttribute('href', '#account-security');
+    expect(screen.getByRole('link', { name: '서비스 환경' })).toHaveAttribute('href', '#account-environment');
+    expect(screen.queryByRole('heading', { name: '화면 설정' })).not.toBeInTheDocument();
+    expect(screen.getByText('테마와 화면 표시는 상단 톱니바퀴에서 변경할 수 있습니다.')).toBeInTheDocument();
   });
 
   test('switches the product between Korean and English and remembers the choice', async () => {
@@ -515,14 +520,14 @@ describe('Signal product UI', () => {
     expect(underlineRule).not.toMatch(/bottom:\s*-/);
   });
 
-  test('reserves the scrollbar gutter without forcing a scrollbar on pages that fit', () => {
-    /* #74. The gutter is what keeps navigation from shifting when page height
-       changes; `overflow-y: scroll` additionally painted a track on pages with
-       nothing to scroll. Keep the first, never reintroduce the second. */
-    const htmlRule = baseStyles.match(/(?:^|\n)html \{([^}]*)\}/)?.[1] ?? '';
-
-    expect(htmlRule).toContain('scrollbar-gutter: stable');
-    expect(htmlRule).not.toMatch(/overflow-y:\s*scroll/);
+  test('does not reserve blank space for a scrollbar on pages that fit', () => {
+    /* A stable root gutter leaves an unpainted strip at the right edge whenever
+       the current page is shorter than the viewport. The browser should only
+       allocate scrollbar space when the document actually needs to scroll. */
+    expect(baseStyles).not.toMatch(
+      /(?:^|\n)html\s*\{[^}]*scrollbar-gutter:\s*stable/,
+    );
+    expect(baseStyles).not.toMatch(/(?:^|\n)html\s*\{[^}]*overflow-y:\s*scroll/);
   });
 
   test('does not show a global search box in the top navigation', () => {
@@ -621,6 +626,18 @@ describe('Signal product UI', () => {
 
     expect(screen.getByTestId('app-shell')).toHaveAttribute('data-design', 'signal-studio');
     expect(screen.getByTestId('app-shell')).toHaveAttribute('data-theme', 'dark');
+  });
+
+  test('keeps one fixed teal accent per light and dark theme without a palette picker', () => {
+    render(<App initialVariant="balanced" />);
+
+    expect(screen.getByTestId('app-shell')).not.toHaveAttribute('data-palette');
+    expect(screen.queryByRole('group', { name: '색상 템플릿 선택' })).not.toBeInTheDocument();
+    expect(appSource).not.toContain('i2s-palette');
+    expect(balancedStyles).not.toContain('.palette-dock');
+    expect(tokenStyles).toMatch(/:root,[\s\S]*?\.theme-dark\s*\{[\s\S]*?--accent:\s*#5ecfca;/);
+    expect(tokenStyles).toMatch(/\.theme-light\s*\{[\s\S]*?--accent:\s*#0e7476;/);
+    expect(tokenStyles).not.toContain('[data-palette=');
   });
 
   test('switches theme without losing the active page', async () => {
@@ -736,6 +753,12 @@ describe('Signal product UI', () => {
     const strategyRowsRule = balancedStyles.match(/\.strategy-rows\s*\{([^}]*)\}/)?.[1] ?? '';
 
     expect(strategyRowsRule).not.toMatch(/(?:min-)?height\s*:/);
+  });
+
+  test('gives strategy names and dates the flexible column instead of a removed drag-handle track', () => {
+    expect(balancedStyles).toMatch(/\.strategy-row\s*\{[^}]*grid-template-columns:\s*38px minmax\(180px,\s*1fr\) 64px 90px auto;/s);
+    expect(balancedStyles).toMatch(/\.variant-balanced\[data-design="signal-studio"\] \.strategy-row\s*\{[^}]*grid-template-columns:\s*30px minmax\(180px,\s*1fr\) 72px 96px auto;/s);
+    expect(balancedStyles).not.toMatch(/grid-template-columns:\s*(?:16px 38px|13px 30px)/);
   });
 
   test('keeps market status out of navigation and uses topbar notifications', async () => {

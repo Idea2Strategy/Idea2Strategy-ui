@@ -1,8 +1,6 @@
 import {
   getSessionAccessToken,
-  getSessionRefreshToken,
   setSessionAccessToken,
-  setSessionTokens,
 } from './sessionAccessToken';
 import { browserSessionStore } from '../lib/session';
 import type { SessionStore } from '../lib/session';
@@ -31,12 +29,11 @@ export interface LoginResult {
   sessionId: string;
   tokenType: 'Bearer';
   accessToken: string;
-  refreshToken: string;
   accessExpiresAt: string;
   refreshExpiresAt: string;
 }
 
-export type RotatedTokenPair = Omit<LoginResult, 'accountId'>;
+export type RotatedTokenPair = LoginResult;
 
 export interface LifecycleResult {
   accountId: string;
@@ -62,9 +59,7 @@ interface AccountClientOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
   getAccessToken?: () => string | null;
-  getRefreshToken?: () => string | null;
   setAccessToken?: (token: string | null) => void;
-  setTokenPair?: (accessToken: string | null, refreshToken: string | null) => void;
   createCorrelationId?: () => string;
   /*
     The backtest screens read their credential from the tab session store, not
@@ -97,37 +92,32 @@ export interface AccountClient {
   updatePreferences(input: Pick<AccountPreferences, 'languageCode' | 'timezoneName' | 'themePreference'>, signal?: AbortSignal): Promise<AccountPreferences>;
   requestWithdrawal(email: string, password: string, idempotencyKey: string, signal?: AbortSignal): Promise<LifecycleResult>;
   cancelWithdrawal(email: string, password: string, idempotencyKey: string, signal?: AbortSignal): Promise<LifecycleResult>;
-  reactivateWithPassword(email: string, password: string, acceptedPolicyDocumentIds: string[], idempotencyKey: string, signal?: AbortSignal): Promise<LifecycleResult>;
 }
 
 export function createAccountClient({
   baseUrl = '',
   fetchImpl = fetch,
   getAccessToken,
-  getRefreshToken,
   setAccessToken,
-  setTokenPair,
   createCorrelationId = () => crypto.randomUUID(),
   sessionStore,
 }: AccountClientOptions = {}): AccountClient {
   const root = baseUrl.replace(/\/$/, '');
   const requireSession = () => {
-    if (!getRefreshToken?.() && !getAccessToken?.()) throw new AccountApiError(401, 'AUTHENTICATION_REQUIRED', createCorrelationId());
+    if (!getAccessToken?.()) throw new AccountApiError(401, 'AUTHENTICATION_REQUIRED', createCorrelationId());
   };
   const publishTokens = (result: LoginResult) => {
-    setTokenPair?.(result.accessToken, result.refreshToken);
-    if (!setTokenPair) setAccessToken?.(result.accessToken);
+    setAccessToken?.(result.accessToken);
     sessionStore?.signIn({
       accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
       accountId: result.accountId,
       expiresAt: result.accessExpiresAt,
       refreshExpiresAt: result.refreshExpiresAt,
     });
   };
-  const request = async (path: string, init: RequestInit = {}) => {
+  const request = async (path: string, init: RequestInit = {}, sendAccessToken = true) => {
     const correlationId = createCorrelationId();
-    const token = getAccessToken?.();
+    const token = sendAccessToken ? getAccessToken?.() : null;
     const response = await fetchImpl(`${root}${path}`, {
       credentials: 'include',
       ...init,
@@ -212,53 +202,38 @@ export function createAccountClient({
     },
     async sessions(signal) {
       requireSession();
-      const value = await (await request('/api/v1/auth/sessions', {
-        signal, headers: { Authorization: `Bearer ${getRefreshToken?.() ?? getAccessToken?.()}` },
-      })).json();
+      const value = await (await request('/api/v1/auth/sessions', { signal })).json();
       if (!Array.isArray(value)) throw new Error('Invalid sessions response');
       return value.map(readSession);
     },
     async rotateSession(signal) {
-      requireSession();
       const value = object(await (await request('/api/v1/auth/sessions/rotate', {
-        method: 'POST', signal, headers: { Authorization: `Bearer ${getRefreshToken?.() ?? getAccessToken?.()}` },
-      })).json());
+        method: 'POST', signal,
+      }, false)).json());
       const rotated = readRotatedTokenPair(value);
-      setTokenPair?.(rotated.accessToken, rotated.refreshToken);
-      if (!setTokenPair) setAccessToken?.(rotated.accessToken);
-      if (sessionStore) {
-        const current = sessionStore.read();
-        if (current.status === 'authenticated') {
-          sessionStore.signIn({
-            accessToken: rotated.accessToken,
-            refreshToken: rotated.refreshToken,
-            accountId: current.session.accountId,
-            expiresAt: rotated.accessExpiresAt,
-            refreshExpiresAt: rotated.refreshExpiresAt,
-          });
-        }
-      }
+      setAccessToken?.(rotated.accessToken);
+      sessionStore?.signIn({
+        accessToken: rotated.accessToken,
+        accountId: rotated.accountId,
+        expiresAt: rotated.accessExpiresAt,
+        refreshExpiresAt: rotated.refreshExpiresAt,
+      });
       return rotated;
     },
     async logoutCurrent(signal) {
       requireSession();
-      await request('/api/v1/auth/sessions/current', { method: 'DELETE', signal,
-        headers: { Authorization: `Bearer ${getRefreshToken?.() ?? getAccessToken?.()}` } });
-      setTokenPair?.(null, null);
-      if (!setTokenPair) setAccessToken?.(null);
+      await request('/api/v1/auth/sessions/current', { method: 'DELETE', signal });
+      setAccessToken?.(null);
       sessionStore?.signOut();
     },
     async logoutSession(sessionId, signal) {
       requireSession();
-      await request(`/api/v1/auth/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE', signal,
-        headers: { Authorization: `Bearer ${getRefreshToken?.() ?? getAccessToken?.()}` } });
+      await request(`/api/v1/auth/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE', signal });
     },
     async logoutAll(signal) {
       requireSession();
-      await request('/api/v1/auth/sessions', { method: 'DELETE', signal,
-        headers: { Authorization: `Bearer ${getRefreshToken?.() ?? getAccessToken?.()}` } });
-      setTokenPair?.(null, null);
-      if (!setTokenPair) setAccessToken?.(null);
+      await request('/api/v1/auth/sessions', { method: 'DELETE', signal });
+      setAccessToken?.(null);
       sessionStore?.signOut();
     },
     async preferences(signal) {
@@ -277,9 +252,6 @@ export function createAccountClient({
     cancelWithdrawal(email, password, idempotencyKey, signal) {
       return lifecycle('/api/v1/account/withdrawal-cancellations', email, password, [], idempotencyKey, signal);
     },
-    reactivateWithPassword(email, password, acceptedPolicyDocumentIds, idempotencyKey, signal) {
-      return lifecycle('/api/v1/account/reactivations/password', email, password, acceptedPolicyDocumentIds, idempotencyKey, signal);
-    },
   };
 }
 
@@ -297,18 +269,17 @@ async function readError(response: Response, fallbackCorrelationId: string): Pro
 }
 
 function readLoginResult(value: Record<string, unknown>): LoginResult {
-  const pair = readRotatedTokenPair(value);
-  return { accountId: string(value.accountId, 'accountId'), ...pair };
+  return readRotatedTokenPair(value);
 }
 
 function readRotatedTokenPair(value: Record<string, unknown>): RotatedTokenPair {
   const tokenType = string(value.tokenType, 'tokenType');
   if (tokenType !== 'Bearer') throw new Error('Invalid tokenType');
   return {
+    accountId: string(value.accountId, 'accountId'),
     sessionId: string(value.sessionId, 'sessionId'),
     tokenType,
     accessToken: string(value.accessToken, 'accessToken'),
-    refreshToken: string(value.refreshToken, 'refreshToken'),
     accessExpiresAt: string(value.accessExpiresAt, 'accessExpiresAt'),
     refreshExpiresAt: string(value.refreshExpiresAt, 'refreshExpiresAt'),
   };
@@ -371,9 +342,7 @@ function nullableString(value: unknown): string | null {
 export const defaultAccountClient = createAccountClient({
   baseUrl: import.meta.env.VITE_API_BASE_URL ?? '',
   getAccessToken: () => getSessionAccessToken() ?? browserSessionStore.accessToken(),
-  getRefreshToken: () => getSessionRefreshToken() ?? browserSessionStore.refreshToken?.() ?? null,
   setAccessToken: setSessionAccessToken,
-  setTokenPair: setSessionTokens,
   sessionStore: browserSessionStore,
 });
 
@@ -383,22 +352,34 @@ function scheduleDefaultRefresh() {
   if (refreshTimer !== null) clearTimeout(refreshTimer);
   refreshTimer = null;
   const state = browserSessionStore.read();
-  if (state.status !== 'authenticated' || !state.session.refreshToken || !state.session.expiresAt) return;
-  setSessionTokens(state.session.accessToken, state.session.refreshToken);
+  if (state.status !== 'authenticated') {
+    if (browserSessionStore.canRefresh()) void rotateDefaultSession();
+    return;
+  }
+  if (!state.session.expiresAt) return;
+  setSessionAccessToken(state.session.accessToken);
   const delay = Math.max(0, Math.min(Date.parse(state.session.expiresAt) - Date.now() - 60_000, 2_147_000_000));
   refreshTimer = setTimeout(() => {
-    void defaultAccountClient.rotateSession().catch((cause: unknown) => {
-      if (cause instanceof AccountApiError && cause.status === 401) {
-        setSessionTokens(null, null);
-        browserSessionStore.signOut('rejected');
-        return;
-      }
-      refreshTimer = setTimeout(scheduleDefaultRefresh, 30_000);
-    });
+    void rotateDefaultSession();
   }, delay);
+}
+
+async function rotateDefaultSession() {
+  try {
+    await defaultAccountClient.rotateSession();
+  } catch (cause) {
+    if (cause instanceof AccountApiError && cause.status === 401) {
+      setSessionAccessToken(null);
+      browserSessionStore.signOut('rejected');
+      return;
+    }
+    refreshTimer = setTimeout(scheduleDefaultRefresh, 30_000);
+  }
 }
 
 if (typeof window !== 'undefined') {
   browserSessionStore.subscribe(scheduleDefaultRefresh);
+  window.addEventListener('focus', scheduleDefaultRefresh);
+  document.addEventListener('visibilitychange', scheduleDefaultRefresh);
   scheduleDefaultRefresh();
 }

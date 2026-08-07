@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { ChevronLeft, Eye, EyeOff } from 'lucide-react';
 import { AccountApiError } from '../api/account';
 import type { AccountClient } from '../api/account';
 import { Button } from '../components/common';
@@ -22,10 +23,19 @@ function fallbackError(cause: unknown): AccountApiError {
   return cause instanceof AccountApiError ? cause : new AccountApiError(0, 'NETWORK_ERROR', null);
 }
 
+function AuthProductBrand() {
+  return <div className="auth-product-brand" role="img" aria-label="Idea2Strategy">
+    <img src={i2sLogo} alt="" aria-hidden="true" />
+    <strong aria-hidden="true">IDEA<span>2</span>STRATEGY</strong>
+  </div>;
+}
+
 function ApiFailure({ error }: { error: AccountApiError }) {
   /* Lead with what the person can act on; the raw code and correlation id stay
      on the second line for support. */
-  const title = error.status === 401
+  const title = error.code === 'EMAIL_ALREADY_REGISTERED'
+    ? '이미 가입된 이메일입니다. 로그인하거나 다른 이메일을 사용해 주세요.'
+    : error.status === 401
     ? '이메일 또는 비밀번호가 올바르지 않습니다.'
     : error.status === 400
       ? '입력값을 확인해 주세요.'
@@ -42,29 +52,84 @@ interface AuthScreenProps {
   client: AccountClient;
 }
 
+interface PasswordInputProps {
+  label: string;
+  ariaLabel: string;
+  value: string;
+  onChange: (value: string) => void;
+  autoComplete: 'current-password' | 'new-password';
+  describedBy?: string;
+  invalid?: boolean;
+}
+
+function PasswordInput({ label, ariaLabel, value, onChange, autoComplete, describedBy, invalid = false }: PasswordInputProps) {
+  const inputId = useId();
+  const [visible, setVisible] = useState(false);
+  const toggleLabel = `${ariaLabel} ${visible ? '숨기기' : '표시'}`;
+
+  return <div className="auth-password-control">
+    <label htmlFor={inputId}>{label}</label>
+    <div className="auth-password-field">
+      <input
+        id={inputId}
+        aria-label={ariaLabel}
+        type={visible ? 'text' : 'password'}
+        autoComplete={autoComplete}
+        aria-describedby={describedBy}
+        aria-invalid={invalid}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <button
+        type="button"
+        className="auth-password-toggle"
+        aria-label={toggleLabel}
+        aria-pressed={visible}
+        title={toggleLabel}
+        onClick={() => setVisible((current) => !current)}
+      >
+        {visible ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+      </button>
+    </div>
+  </div>;
+}
+
 const MIN_PASSWORD_LENGTH = 15;
 const MAX_PASSWORD_LENGTH = 128;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
+const passwordLength = (password: string) => Array.from(password).length;
 const passwordLengthIsValid = (password: string) => {
-  const codePointLength = Array.from(password).length;
+  const codePointLength = passwordLength(password);
   return codePointLength >= MIN_PASSWORD_LENGTH && codePointLength <= MAX_PASSWORD_LENGTH;
+};
+const emailError = (email: string) => {
+  if (!email.trim()) return '이메일을 입력해 주세요.';
+  return EMAIL_PATTERN.test(email.trim()) ? null : '올바른 이메일 주소를 입력해 주세요.';
+};
+const passwordError = (password: string) => {
+  if (!password) return '비밀번호를 입력해 주세요.';
+  if (passwordLength(password) < MIN_PASSWORD_LENGTH) return '비밀번호는 15자 이상이어야 합니다.';
+  if (passwordLength(password) > MAX_PASSWORD_LENGTH) return '비밀번호는 128자 이하여야 합니다.';
+  return null;
 };
 
 export function LoginView({ client }: AuthScreenProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo ?? pagePaths.account;
+  const routeState = location.state as { returnTo?: string; passwordResetComplete?: boolean } | null;
+  const returnTo = routeState?.returnTo ?? pagePaths.account;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<AccountApiError | null>(null);
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetToken, setResetToken] = useState('');
-  const [resetPassword, setResetPassword] = useState('');
-  const [resetMessage, setResetMessage] = useState<string | null>(null);
-  const [resetFailure, setResetFailure] = useState<AccountApiError | null>(null);
-  const resetPasswordValid = passwordLengthIsValid(resetPassword);
+  const [submitted, setSubmitted] = useState(false);
+  const currentEmailError = submitted ? emailError(email) : null;
+  const currentPasswordError = submitted ? passwordError(password) : null;
+  const credentialsRejected = failure?.status === 401;
 
   const submit = async () => {
+    setSubmitted(true);
+    if (emailError(email) || passwordError(password)) return;
     setPending(true);
     setFailure(null);
     try {
@@ -77,58 +142,136 @@ export function LoginView({ client }: AuthScreenProps) {
     }
   };
 
-  const runReset = async (action: () => Promise<unknown>, success: string) => {
-    setResetFailure(null);
-    setResetMessage(null);
-    try {
-      await action();
-      setResetMessage(success);
-    } catch (cause) {
-      setResetFailure(fallbackError(cause));
-    }
-  };
-
   return <Localized><div className="page auth-page">
     <div className="auth-backdrop" aria-hidden="true" />
     <section className="auth-card auth-panel" aria-labelledby="auth-title">
       <header className="auth-card-head">
-        <img src={i2sLogo} alt="" aria-hidden="true" />
-        <p className="auth-eyebrow">ACCOUNT / SIGN IN</p>
+        <AuthProductBrand />
         <h1 id="auth-title">로그인</h1>
-        <p className="auth-card-copy">이메일과 비밀번호로 로그인합니다. 세션은 브라우저 메모리에만 유지됩니다.</p>
       </header>
-      <form className="auth-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
-        <label><span>이메일</span><input aria-label="로그인 이메일" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-        <label><span>비밀번호</span><input aria-label="로그인 비밀번호" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-        <Button kind="primary" type="submit" disabled={!email || !password || pending}>{pending ? '로그인 중' : '로그인'}</Button>
+      {routeState?.passwordResetComplete && <p role="status" className="auth-success">비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.</p>}
+      <form className="auth-form" noValidate onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+        <label><span>이메일</span><input aria-label="로그인 이메일" type="email" autoComplete="email" aria-describedby={currentEmailError ? 'login-email-help' : undefined} aria-invalid={Boolean(currentEmailError || credentialsRejected)} value={email} onChange={(event) => { setEmail(event.target.value); setFailure(null); }} /></label>
+        {currentEmailError && <p id="login-email-help" className="auth-field-hint" role="alert">{currentEmailError}</p>}
+        <PasswordInput label="비밀번호" ariaLabel="로그인 비밀번호" autoComplete="current-password" describedBy={currentPasswordError ? 'login-password-help' : undefined} invalid={Boolean(currentPasswordError || credentialsRejected)} value={password} onChange={(value) => { setPassword(value); setFailure(null); }} />
+        {currentPasswordError && <p id="login-password-help" className="auth-field-hint" role="alert">{currentPasswordError}</p>}
+        <div className="auth-field-link-row">
+          <button type="button" className="auth-link auth-inline-link" onClick={() => navigate('/password-reset', { state: { returnTo } })}>비밀번호를 잊으셨나요?</button>
+        </div>
+        <Button kind="primary" type="submit" disabled={pending}>{pending ? '로그인 중' : '로그인'}</Button>
       </form>
       {failure && <ApiFailure error={failure} />}
       <GoogleSignInButton
         client={client}
-        text="signin_with"
         onSignedIn={() => navigate(returnTo, { replace: true })}
         onFailure={setFailure}
       />
-      <details className="auth-fold">
-        <summary>비밀번호를 잊으셨나요?</summary>
-        <div className="auth-fold-body">
-          <p className="auth-fold-copy">가입 이메일로 재설정 요청을 보내고, 메일로 받은 토큰과 새 비밀번호를 입력하세요.</p>
-          <div className="auth-form">
-            <label><span>가입 이메일</span><input aria-label="재설정 이메일" type="email" autoComplete="email" value={resetEmail} onChange={(event) => setResetEmail(event.target.value)} /></label>
-            <Button disabled={!resetEmail} onClick={() => void runReset(() => client.requestPasswordReset(resetEmail), '계정 존재 여부와 관계없이 복구 요청을 접수했습니다.')}>재설정 요청</Button>
-            <label><span>재설정 토큰</span><input aria-label="재설정 토큰" value={resetToken} onChange={(event) => setResetToken(event.target.value)} /></label>
-            <label><span>새 비밀번호</span><input aria-label="재설정 새 비밀번호" type="password" autoComplete="new-password" aria-describedby="reset-password-help" aria-invalid={resetPassword.length > 0 && !resetPasswordValid} value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} /></label>
-            <p id="reset-password-help" className="auth-field-hint">비밀번호는 15자 이상 128자 이하로 입력해 주세요.</p>
-            <Button disabled={!resetToken || !resetPasswordValid} onClick={() => void runReset(() => client.resetPassword(resetToken, resetPassword), '비밀번호를 재설정했습니다. 새 비밀번호로 로그인하세요.')}>비밀번호 재설정</Button>
-          </div>
-          {resetMessage && <p role="status" className="auth-fold-status">{resetMessage}</p>}
-          {resetFailure && <ApiFailure error={resetFailure} />}
-        </div>
-      </details>
       <div className="auth-links">
         <span>계정이 없으신가요?</span>
         <button type="button" className="auth-link" onClick={() => navigate('/signup', { state: { returnTo } })}>가입하기</button>
       </div>
+    </section>
+  </div></Localized>;
+}
+
+type PasswordResetStep = 'email' | 'code' | 'password';
+
+export function PasswordResetView({ client }: AuthScreenProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = (location.state as { returnTo?: string } | null)?.returnTo;
+  const [step, setStep] = useState<PasswordResetStep>('email');
+  const [email, setEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [failure, setFailure] = useState<AccountApiError | null>(null);
+  const [emailSubmitted, setEmailSubmitted] = useState(false);
+  const [codeSubmitted, setCodeSubmitted] = useState(false);
+  const [passwordSubmitted, setPasswordSubmitted] = useState(false);
+  const currentEmailError = emailSubmitted ? emailError(email) : null;
+  const currentCodeError = codeSubmitted && !resetToken.trim() ? '인증 코드를 입력해 주세요.' : null;
+  const currentPasswordError = passwordSubmitted ? passwordError(newPassword) : null;
+  const newPasswordValid = passwordLengthIsValid(newPassword);
+  const passwordsMatch = newPassword === newPasswordConfirm;
+  const passwordConfirmError = passwordSubmitted
+    ? !newPasswordConfirm ? '비밀번호 확인을 입력해 주세요.' : !passwordsMatch ? '비밀번호가 일치하지 않습니다.' : null
+    : null;
+
+  const requestCode = async (advance: boolean) => {
+    setPending(true);
+    setFailure(null);
+    setMessage(null);
+    try {
+      await client.requestPasswordReset(email);
+      if (advance) {
+        setMessage('인증 코드를 보냈습니다.');
+        setStep('code');
+      }
+      else setMessage('인증 코드를 다시 보냈습니다.');
+    } catch (cause) {
+      setFailure(fallbackError(cause));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const changePassword = async () => {
+    setPending(true);
+    setFailure(null);
+    try {
+      await client.resetPassword(resetToken, newPassword);
+      navigate('/login', { replace: true, state: { returnTo, passwordResetComplete: true } });
+    } catch (cause) {
+      setFailure(fallbackError(cause));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const goBack = () => {
+    setFailure(null);
+    setMessage(null);
+    if (step === 'password') setStep('code');
+    else if (step === 'code') setStep('email');
+    else navigate('/login', { state: returnTo ? { returnTo } : undefined });
+  };
+
+  return <Localized><div className="page auth-page">
+    <div className="auth-backdrop" aria-hidden="true" />
+    <section className="auth-card auth-panel auth-reset-card" aria-labelledby="password-reset-title">
+      <button type="button" className="auth-back-link" onClick={goBack}><ChevronLeft size={16} aria-hidden="true" />뒤로</button>
+      <header className="auth-card-head">
+        <AuthProductBrand />
+        <h1 id="password-reset-title">{step === 'email' ? '비밀번호 재설정' : step === 'code' ? '인증 코드 입력' : '새 비밀번호 설정'}</h1>
+        {step === 'email' && <p className="auth-card-copy">가입한 이메일을 입력하세요.</p>}
+        {step === 'code' && <p className="auth-card-copy">이메일로 받은 인증 코드를 입력하세요.<strong className="auth-reset-email">{email}</strong></p>}
+        {step === 'password' && <p className="auth-card-copy">15자 이상 128자 이하로 입력하세요.</p>}
+      </header>
+      {step === 'email' && <form className="auth-form" noValidate onSubmit={(event) => { event.preventDefault(); setEmailSubmitted(true); if (!emailError(email) && !pending) void requestCode(true); }}>
+        <label><span>가입 이메일</span><input aria-label="재설정 이메일" type="email" autoComplete="email" aria-describedby={currentEmailError ? 'reset-email-help' : undefined} aria-invalid={Boolean(currentEmailError)} value={email} onChange={(event) => { setEmail(event.target.value); setFailure(null); }} /></label>
+        {currentEmailError && <p id="reset-email-help" className="auth-field-hint" role="alert">{currentEmailError}</p>}
+        <Button type="submit" kind="primary" disabled={pending}>{pending ? '요청 중' : '인증 코드 받기'}</Button>
+      </form>}
+      {step === 'code' && <>
+        <form className="auth-form" onSubmit={(event) => { event.preventDefault(); setCodeSubmitted(true); if (resetToken.trim()) setStep('password'); }}>
+          <label><span>인증 코드</span><input aria-label="인증 코드" autoComplete="one-time-code" aria-describedby={currentCodeError ? 'reset-code-help' : undefined} aria-invalid={Boolean(currentCodeError)} value={resetToken} onChange={(event) => setResetToken(event.target.value)} /></label>
+          {currentCodeError && <p id="reset-code-help" className="auth-field-hint" role="alert">{currentCodeError}</p>}
+          <Button type="submit" kind="primary">다음</Button>
+        </form>
+        <div className="auth-resend"><span>인증 코드를 받지 못하셨나요?</span><button type="button" className="auth-link" disabled={pending} onClick={() => void requestCode(false)}>인증 코드 다시 받기</button></div>
+      </>}
+      {step === 'password' && <form className="auth-form" onSubmit={(event) => { event.preventDefault(); setPasswordSubmitted(true); if (newPasswordValid && newPasswordConfirm && passwordsMatch && !pending) void changePassword(); }}>
+        <PasswordInput label="새 비밀번호" ariaLabel="새 비밀번호" autoComplete="new-password" describedBy={currentPasswordError ? 'reset-password-help' : undefined} invalid={Boolean(currentPasswordError)} value={newPassword} onChange={setNewPassword} />
+        {currentPasswordError && <p id="reset-password-help" className="auth-field-hint" role="alert">{currentPasswordError}</p>}
+        <PasswordInput label="새 비밀번호 확인" ariaLabel="새 비밀번호 확인" autoComplete="new-password" describedBy={passwordConfirmError ? 'reset-password-confirm-help' : undefined} invalid={Boolean(passwordConfirmError)} value={newPasswordConfirm} onChange={setNewPasswordConfirm} />
+        {passwordConfirmError && <p id="reset-password-confirm-help" className="auth-field-hint" role="alert">{passwordConfirmError}</p>}
+        <Button type="submit" kind="primary" disabled={pending}>{pending ? '변경 중' : '비밀번호 변경'}</Button>
+      </form>}
+      {message && <p role="status" className="auth-reset-status auth-success">{message}</p>}
+      {failure && <ApiFailure error={failure} />}
     </section>
   </div></Localized>;
 }
@@ -148,10 +291,18 @@ export function SignupView({ client }: AuthScreenProps) {
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [token, setToken] = useState('');
   const passwordsMatch = password === passwordConfirm;
-  const passwordLengthValid = passwordLengthIsValid(password);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [failure, setFailure] = useState<AccountApiError | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+  const [tokenSubmitted, setTokenSubmitted] = useState(false);
+  const currentEmailError = submitted ? emailError(email) : null;
+  const currentPasswordError = submitted ? passwordError(password) : null;
+  const passwordConfirmError = submitted
+    ? !passwordConfirm ? '비밀번호 확인을 입력해 주세요.' : !passwordsMatch ? '비밀번호가 일치하지 않습니다.' : null
+    : null;
+  const emailRejected = failure?.code === 'EMAIL_ALREADY_REGISTERED';
+  const tokenError = tokenSubmitted && !token.trim() ? '인증 코드를 입력해 주세요.' : null;
 
   const run = async (action: () => Promise<void>) => {
     setPending(true);
@@ -170,30 +321,29 @@ export function SignupView({ client }: AuthScreenProps) {
     <div className="auth-backdrop" aria-hidden="true" />
     <section className="auth-card auth-panel" aria-labelledby="auth-title">
       <header className="auth-card-head">
-        <img src={i2sLogo} alt="" aria-hidden="true" />
-        <p className="auth-eyebrow">ACCOUNT / SIGN UP</p>
+        <AuthProductBrand />
         <h1 id="auth-title">가입</h1>
-        <p className="auth-card-copy">가입 후 이메일로 받은 인증 토큰을 입력해야 로그인할 수 있습니다.</p>
       </header>
       {step.kind === 'form' && <>
-        <form className="auth-form" onSubmit={(event) => {
+        <form className="auth-form" noValidate onSubmit={(event) => {
           event.preventDefault();
-          if (!email || !passwordLengthValid || !passwordConfirm || !passwordsMatch || pending) return;
+          setSubmitted(true);
+          if (emailError(email) || passwordError(password) || !passwordConfirm || !passwordsMatch || pending) return;
           void run(async () => {
             const result = await client.signup(email, password);
             setStep({ kind: 'verify', accountId: result.accountId, verificationExpiresAt: result.verificationExpiresAt });
           });
         }}>
-          <label><span>이메일</span><input aria-label="가입 이메일" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-          <label><span>비밀번호</span><input aria-label="가입 비밀번호" type="password" autoComplete="new-password" aria-describedby="signup-password-help" aria-invalid={password.length > 0 && !passwordLengthValid} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-          <p id="signup-password-help" className="auth-field-hint">비밀번호는 15자 이상 128자 이하로 입력해 주세요.</p>
-          <label><span>비밀번호 확인</span><input aria-label="가입 비밀번호 확인" type="password" autoComplete="new-password" value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} /></label>
-          {passwordConfirm.length > 0 && !passwordsMatch && <p className="auth-field-hint" role="alert">비밀번호가 일치하지 않습니다.</p>}
-          <Button kind="primary" type="submit" disabled={!email || !passwordLengthValid || !passwordConfirm || !passwordsMatch || pending}>{pending ? '가입 요청 중' : '가입'}</Button>
+          <label><span>이메일</span><input aria-label="가입 이메일" type="email" autoComplete="email" aria-describedby={currentEmailError ? 'signup-email-help' : undefined} aria-invalid={Boolean(currentEmailError || emailRejected)} value={email} onChange={(event) => { setEmail(event.target.value); setFailure(null); }} /></label>
+          {currentEmailError && <p id="signup-email-help" className="auth-field-hint" role="alert">{currentEmailError}</p>}
+          <PasswordInput label="비밀번호" ariaLabel="가입 비밀번호" autoComplete="new-password" describedBy={currentPasswordError ? 'signup-password-help' : undefined} invalid={Boolean(currentPasswordError)} value={password} onChange={setPassword} />
+          {currentPasswordError && <p id="signup-password-help" className="auth-field-hint" role="alert">{currentPasswordError}</p>}
+          <PasswordInput label="비밀번호 확인" ariaLabel="가입 비밀번호 확인" autoComplete="new-password" describedBy={passwordConfirmError ? 'signup-password-confirm-help' : undefined} invalid={Boolean(passwordConfirmError)} value={passwordConfirm} onChange={setPasswordConfirm} />
+          {passwordConfirmError && <p id="signup-password-confirm-help" className="auth-field-hint" role="alert">{passwordConfirmError}</p>}
+          <Button kind="primary" type="submit" disabled={pending}>{pending ? '가입 요청 중' : '가입'}</Button>
         </form>
         <GoogleSignInButton
           client={client}
-          text="signup_with"
           onSignedIn={() => navigate(returnTo ?? pagePaths.account, { replace: true })}
           onFailure={setFailure}
         />
@@ -203,26 +353,29 @@ export function SignupView({ client }: AuthScreenProps) {
         </div>
       </>}
       {step.kind === 'verify' && <>
-        <p role="status">가입 요청을 접수했습니다. 이메일로 받은 인증 토큰을 입력하세요. 인증 기한: {new Date(step.verificationExpiresAt).toLocaleString()}</p>
+        <p role="status">이메일로 보낸 인증 코드를 입력하세요. 만료: {new Date(step.verificationExpiresAt).toLocaleString()}</p>
         <form className="auth-form" onSubmit={(event) => {
           event.preventDefault();
+          setTokenSubmitted(true);
+          if (!token.trim()) return;
           void run(async () => {
             await client.verifyEmail(token);
             setStep({ kind: 'verified' });
           });
         }}>
-          <label><span>인증 토큰</span><input aria-label="가입 인증 토큰" value={token} onChange={(event) => setToken(event.target.value)} /></label>
-          <Button kind="primary" type="submit" disabled={!token || pending}>{pending ? '인증 중' : '이메일 인증'}</Button>
+          <label><span>인증 코드</span><input aria-label="가입 인증 코드" aria-describedby={tokenError ? 'signup-token-help' : undefined} aria-invalid={Boolean(tokenError)} value={token} onChange={(event) => setToken(event.target.value)} /></label>
+          {tokenError && <p id="signup-token-help" className="auth-field-hint" role="alert">{tokenError}</p>}
+          <Button kind="primary" type="submit" disabled={pending}>{pending ? '인증 중' : '이메일 인증'}</Button>
         </form>
         <div className="auth-actions">
           <Button disabled={pending} onClick={() => void run(async () => {
             const result = await client.resendVerification(step.accountId);
-            setMessage(`인증 메일을 다시 보냈습니다. 인증 기한: ${new Date(result.verificationExpiresAt).toLocaleString()}`);
+            setMessage(`인증 메일을 다시 보냈습니다. 만료: ${new Date(result.verificationExpiresAt).toLocaleString()}`);
           })}>인증 메일 다시 보내기</Button>
         </div>
       </>}
       {step.kind === 'verified' && <>
-        <p role="status">이메일 인증을 완료했습니다. 이제 로그인할 수 있습니다.</p>
+        <p role="status">이메일 인증이 완료되었습니다.</p>
         <div className="auth-actions">
           <Button kind="primary" onClick={() => navigate('/login', { state: returnTo ? { returnTo } : undefined })}>로그인하러 가기</Button>
         </div>

@@ -33,8 +33,6 @@ export const SESSION_STORAGE_KEY = 'i2s.session';
 export interface Session {
   /** The bearer token sent as `Authorization: Bearer <token>`. */
   readonly accessToken: string;
-  /** Rotating JWT used only against session-management endpoints. */
-  readonly refreshToken?: string;
   /** The account the token authenticates. Runs owned by anyone else answer 403. */
   readonly accountId: string;
   /** ISO-8601 instant, or `null` when the issuer published no expiry. */
@@ -70,7 +68,8 @@ export interface SessionStore {
   read(): SessionState;
   /** The bearer token to send, or `null`. This is what an API client is given. */
   accessToken(): string | null;
-  refreshToken?(): string | null;
+  /** Whether the server-side HttpOnly refresh cookie may still be usable. */
+  canRefresh(): boolean;
   signIn(session: Session): void;
   /**
    * Drop the stored credential. `'rejected'` records that the server refused it, which
@@ -100,13 +99,12 @@ function parse(raw: string, now: number): SessionState {
   }
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return MALFORMED;
 
-  const { accessToken, refreshToken, accountId, expiresAt, refreshExpiresAt } = value as Record<string, unknown>;
+  const { accessToken, accountId, expiresAt, refreshExpiresAt } = value as Record<string, unknown>;
   if (typeof accessToken !== 'string' || accessToken.trim().length === 0) return MALFORMED;
   if (typeof accountId !== 'string' || accountId.length === 0) return MALFORMED;
   if (expiresAt !== undefined && expiresAt !== null && typeof expiresAt !== 'string') {
     return MALFORMED;
   }
-  if (refreshToken !== undefined && (typeof refreshToken !== 'string' || refreshToken.trim().length === 0)) return MALFORMED;
   if (refreshExpiresAt !== undefined && refreshExpiresAt !== null && typeof refreshExpiresAt !== 'string') return MALFORMED;
 
   const expiry = typeof expiresAt === 'string' ? Date.parse(expiresAt) : null;
@@ -119,7 +117,6 @@ function parse(raw: string, now: number): SessionState {
     status: 'authenticated',
     session: {
       accessToken: accessToken.trim(),
-      ...(typeof refreshToken === 'string' ? { refreshToken: refreshToken.trim() } : {}),
       accountId,
       expiresAt: typeof expiresAt === 'string' ? expiresAt : null,
       ...(typeof refreshExpiresAt === 'string' ? { refreshExpiresAt } : {}),
@@ -199,16 +196,23 @@ export function createSessionStore(
       return state.status === 'authenticated' ? state.session.accessToken : null;
     },
 
-    refreshToken() {
-      const state = read();
-      return state.status === 'authenticated' ? state.session.refreshToken ?? null : null;
+    canRefresh() {
+      const raw = readRaw();
+      if (raw === null) return false;
+      try {
+        const value = JSON.parse(raw) as Record<string, unknown>;
+        if (typeof value.refreshExpiresAt !== 'string') return false;
+        const expiry = Date.parse(value.refreshExpiresAt);
+        return !Number.isNaN(expiry) && expiry > now();
+      } catch {
+        return false;
+      }
     },
 
     signIn(session) {
       refused = null;
       write(JSON.stringify({
         accessToken: session.accessToken,
-        refreshToken: session.refreshToken,
         accountId: session.accountId,
         expiresAt: session.expiresAt,
         refreshExpiresAt: session.refreshExpiresAt,
