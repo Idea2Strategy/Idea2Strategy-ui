@@ -17,7 +17,7 @@ export interface MarketBar {
 export interface MarketBarSnapshot {
   instrumentId: string;
   symbol: string;
-  timeframe: MarketTimeframe;
+  timeframe: ChartTimeframe;
   bars: MarketBar[];
 }
 
@@ -45,7 +45,7 @@ export interface DisplayPriceUpdate {
 export interface MarketDataClient {
   getRecentBars(
     instrumentId: string,
-    timeframe?: MarketTimeframe,
+    timeframe?: ChartTimeframe,
     limit?: number,
     signal?: AbortSignal,
   ): Promise<MarketBarSnapshot>;
@@ -87,43 +87,20 @@ export function createMarketDataClient({
     },
 
     async streamPrices(instrumentId, onPrice, signal) {
-      const response = await fetchImpl(`${root}/api/v1/market-data/websocket-ticket`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: headers('application/json'),
-        signal,
-      });
-      if (!response.ok) throw new Error(`Market data WebSocket ticket failed (${response.status})`);
-      const ticketResponse = object(await response.json(), 'Invalid market data WebSocket ticket');
-      const ticket = string(ticketResponse.ticket, 'ticket');
-      const socketUrl = new URL(root || '/', window.location.origin);
-      socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-      socketUrl.pathname = '/ws/v1/market-data/prices';
-      socketUrl.search = `ticket=${encodeURIComponent(ticket)}`;
-      const socket = webSocketFactory(socketUrl.toString());
-      if (signal?.aborted) {
-        socket.close(1000, 'client navigation');
-        return;
+      let failures = 0;
+      while (!signal?.aborted) {
+        try {
+          await connectPriceSocket(
+            root, instrumentId, onPrice, signal, fetchImpl, headers, webSocketFactory,
+          );
+          return;
+        } catch (error) {
+          if (signal?.aborted) return;
+          failures += 1;
+          const backoff = Math.min(30_000, 500 * (2 ** Math.min(failures - 1, 6)));
+          await abortableDelay(backoff, signal);
+        }
       }
-      await new Promise<void>((resolve, reject) => {
-        const abort = () => {
-          socket.close(1000, 'client navigation');
-          resolve();
-        };
-        signal?.addEventListener('abort', abort, { once: true });
-        socket.onopen = () => socket.send(JSON.stringify({ action: 'subscribe', instrumentId }));
-        socket.onmessage = (event) => {
-          const value = JSON.parse(String(event.data)) as unknown;
-          const parsed = readDisplayPrice(value);
-          if (parsed) onPrice(parsed);
-        };
-        socket.onerror = () => reject(new Error('Market data WebSocket failed'));
-        socket.onclose = (event) => {
-          signal?.removeEventListener('abort', abort);
-          if (signal?.aborted || event.code === 1000) resolve();
-          else reject(new Error(`Market data WebSocket closed (${event.code})`));
-        };
-      });
     },
   };
 }
@@ -132,7 +109,7 @@ function readSnapshot(value: unknown): MarketBarSnapshot {
   const snapshot = object(value, 'Invalid market data snapshot');
   if (!Array.isArray(snapshot.bars)) throw new Error('Invalid market data bars');
   const timeframe = string(snapshot.timeframe, 'timeframe');
-  if (!isStrategyTimeframe(timeframe)) throw new Error(`Unsupported market data timeframe: ${timeframe}`);
+  if (!isChartTimeframe(timeframe)) throw new Error(`Unsupported market data timeframe: ${timeframe}`);
   return {
     instrumentId: string(snapshot.instrumentId, 'instrumentId'),
     symbol: string(snapshot.symbol, 'symbol'),
@@ -169,6 +146,77 @@ export function isStrategyTimeframe(value: string): value is MarketTimeframe {
 
 export function isDisplayTimeframe(value: string): value is DisplayTimeframe {
   return value === '1m' || value === '5m' || value === '15m';
+}
+
+export function isChartTimeframe(value: string): value is ChartTimeframe {
+  return isStrategyTimeframe(value) || isDisplayTimeframe(value);
+}
+
+async function connectPriceSocket(
+  root: string,
+  instrumentId: string,
+  onPrice: (price: DisplayPriceUpdate) => void,
+  signal: AbortSignal | undefined,
+  fetchImpl: typeof fetch,
+  headers: (accept: string) => HeadersInit,
+  webSocketFactory: (url: string) => WebSocket,
+): Promise<void> {
+  const response = await fetchImpl(`${root}/api/v1/market-data/websocket-ticket`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: headers('application/json'),
+    signal,
+  });
+  if (!response.ok) throw new Error(`Market data WebSocket ticket failed (${response.status})`);
+  const ticketResponse = object(await response.json(), 'Invalid market data WebSocket ticket');
+  const ticket = string(ticketResponse.ticket, 'ticket');
+  const socketUrl = new URL(root || '/', window.location.origin);
+  socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+  socketUrl.pathname = '/ws/v1/market-data/prices';
+  socketUrl.search = `ticket=${encodeURIComponent(ticket)}`;
+  const socket = webSocketFactory(socketUrl.toString());
+  if (signal?.aborted) {
+    socket.close(1000, 'client navigation');
+    return;
+  }
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const finish = (failure?: Error) => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener('abort', abort);
+      if (failure) reject(failure); else resolve();
+    };
+    const abort = () => {
+      socket.close(1000, 'client navigation');
+      finish();
+    };
+    signal?.addEventListener('abort', abort, { once: true });
+    socket.onopen = () => socket.send(JSON.stringify({ action: 'subscribe', instrumentId }));
+    socket.onmessage = (event) => {
+      const value = JSON.parse(String(event.data)) as unknown;
+      const parsed = readDisplayPrice(value);
+      if (parsed) onPrice(parsed);
+    };
+    socket.onerror = () => finish(new Error('Market data WebSocket failed'));
+    socket.onclose = (event) => {
+      if (signal?.aborted || event.code === 1000) finish();
+      else finish(new Error(`Market data WebSocket closed (${event.code})`));
+    };
+  });
+}
+
+function abortableDelay(milliseconds: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(done, milliseconds);
+    function done() {
+      window.clearTimeout(timer);
+      signal?.removeEventListener('abort', done);
+      resolve();
+    }
+    signal?.addEventListener('abort', done, { once: true });
+  });
 }
 
 function readBar(value: unknown): MarketBar {

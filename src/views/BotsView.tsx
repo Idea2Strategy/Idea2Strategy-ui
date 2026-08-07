@@ -7,6 +7,7 @@ import type { DataTableColumn } from '../components/common';
 import { EquityChart } from '../components/EquityChart';
 import { LiveExecutionChart } from '../components/LiveExecutionChart';
 import type { LiveMarketBar } from '../components/LiveExecutionChart';
+import { appendDisplayUpdate } from '../components/liveChartBars';
 import {
   BOT_ICON_COLORS,
   BOT_ICON_OPTIONS,
@@ -45,7 +46,7 @@ import type {
   BotOperationsView,
 } from '../api/botOperations';
 import { defaultMarketDataClient } from '../api/marketData';
-import { isStrategyTimeframe } from '../api/marketData';
+import { isDisplayTimeframe } from '../api/marketData';
 import type { ChartTimeframe, DisplayPriceUpdate, MarketBar, MarketDataClient } from '../api/marketData';
 
 /* ---------- Types ----------------------------------------------------------- */
@@ -1585,9 +1586,6 @@ export function BotsView({
     // slow or failed symbol switch can never relabel the previous chart.
     setLiveMarketBars([]);
     setMarketDataError(null);
-    if (!isStrategyTimeframe(chartTimeframe)) {
-      return undefined;
-    }
     const controller = new AbortController();
     const bars = new Map<string, LiveMarketBar>();
     const publish = (items: MarketBar[]) => {
@@ -1634,6 +1632,11 @@ export function BotsView({
       selectedMarketInstrument.instrumentId,
       (price) => {
         setLiveDisplayPrice(price);
+        if (isDisplayTimeframe(chartTimeframe)) {
+          setLiveMarketBars((current) => appendDisplayUpdate(
+            current, price, chartTimeframe,
+          ));
+        }
         setMarketDataError(null);
       },
       controller.signal,
@@ -1645,7 +1648,7 @@ export function BotsView({
     return () => {
       controller.abort();
     };
-  }, [marketDataClient, prototypeMode, selectedMarketInstrument?.instrumentId]);
+  }, [chartTimeframe, marketDataClient, prototypeMode, selectedMarketInstrument?.instrumentId]);
 
   useEffect(() => {
     if (!iconPickerOpen) return undefined;
