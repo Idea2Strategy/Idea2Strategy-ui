@@ -17,21 +17,21 @@ import { BacktestView } from './views/OperationsViews';
 
   라우트를 한 번씩 열어보는 이 테스트가 같은 실수를 다시 들여놓지 못하게 막는다.
 */
-const ROUTES: Array<{ path: string; marker: () => HTMLElement }> = [
-  { path: '/', marker: () => screen.getByRole('heading', { name: /Welcome back/i }) },
-  { path: '/landing', marker: () => screen.getByRole('heading', { name: /Ideas, into strategies/i }) },
-  { path: '/login', marker: () => screen.getByRole('heading', { name: /^Sign in$/i }) },
-  { path: '/signup', marker: () => screen.getByRole('heading', { name: /^Sign up$/i }) },
-  { path: '/strategies', marker: () => screen.getByRole('heading', { name: /^Strategies$/i }) },
-  { path: '/strategies/new/basic', marker: () => screen.getByTestId('basic-editor-workspace') },
-  { path: '/strategies/new/pro', marker: () => screen.getByRole('heading', { name: /Pro editor is being prepared/i }) },
-  { path: '/bots', marker: () => screen.getByRole('heading', { name: /Bot operations/i }) },
-  { path: '/backtests', marker: () => screen.getByRole('heading', { name: /Bots Backtest/i }) },
-  { path: '/competition', marker: () => screen.getByRole('heading', { name: /^Competition$/i }) },
-  { path: '/competition-v2', marker: () => screen.getByRole('heading', { name: /^Competition$/i }) },
-  { path: '/notifications', marker: () => screen.getAllByRole('heading', { name: /Notifications/i })[0] },
-  { path: '/help', marker: () => screen.getByRole('heading', { name: /Help/i }) },
-  { path: '/account', marker: () => screen.getByRole('heading', { name: /My account/i }) },
+const ROUTES: Array<{ path: string; marker: () => Promise<HTMLElement> }> = [
+  { path: '/', marker: () => screen.findByRole('heading', { name: /Welcome back/i }) },
+  { path: '/landing', marker: () => screen.findByRole('heading', { name: /Ideas, into strategies/i }) },
+  { path: '/login', marker: () => screen.findByRole('heading', { name: /^Sign in$/i }) },
+  { path: '/signup', marker: () => screen.findByRole('heading', { name: /^Sign up$/i }) },
+  { path: '/strategies', marker: () => screen.findByRole('heading', { name: /^Strategies$/i }) },
+  { path: '/strategies/new/basic', marker: () => screen.findByTestId('basic-editor-workspace') },
+  { path: '/strategies/new/pro', marker: () => screen.findByRole('heading', { name: /Pro editor is being prepared/i }) },
+  { path: '/bots', marker: () => screen.findByRole('heading', { name: /Bot operations/i }) },
+  { path: '/backtests', marker: () => screen.findByRole('heading', { name: /Bots Backtest/i }) },
+  { path: '/competition', marker: () => screen.findByRole('heading', { name: /^Competition$/i }) },
+  { path: '/competition-v2', marker: () => screen.findByRole('heading', { name: /^Competition$/i }) },
+  { path: '/notifications', marker: () => screen.findByRole('heading', { name: /^Notifications$/i, level: 1 }) },
+  { path: '/help', marker: () => screen.findByRole('heading', { name: /Help/i }) },
+  { path: '/account', marker: () => screen.findByRole('heading', { name: /My account/i }) },
 ];
 
 describe('English locale', () => {
@@ -54,21 +54,21 @@ describe('English locale', () => {
   });
 
   ROUTES.forEach(({ path, marker }) => {
-    test(`renders ${path} without crashing`, () => {
+    test(`renders ${path} without crashing`, async () => {
       window.history.replaceState({}, '', path);
       const { container } = render(<App />);
 
       // 화면이 죽으면 root가 비어 버린다. 검은 화면의 정체가 이것이다.
+      expect(await marker()).toBeInTheDocument();
       expect(container.querySelectorAll('*').length).toBeGreaterThan(20);
-      expect(marker()).toBeInTheDocument();
     });
   });
 
-  test('translates the complete sign-in surface instead of only replacing the word login', () => {
+  test('translates the complete sign-in surface instead of only replacing the word login', async () => {
     window.history.replaceState({}, '', '/login');
     const { container } = render(<App />);
 
-    expect(screen.getByLabelText('Sign-in email')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Sign-in email')).toBeInTheDocument();
     expect(screen.getByLabelText('Sign-in password')).toBeInTheDocument();
     expect(screen.getByText('Forgot your password?')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign up' })).toBeInTheDocument();

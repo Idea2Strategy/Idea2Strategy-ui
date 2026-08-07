@@ -191,6 +191,26 @@ export function ErrorState({ title, detail, onRetry, retryLabel = '다시 시도
   </div>;
 }
 
+export interface StaleStateProps {
+  title: ReactNode;
+  detail?: ReactNode;
+  onRetry?: () => void;
+  retryLabel?: string;
+}
+
+/**
+ * A refresh failure after a successful read is not the same as having no
+ * usable data. Keep the last confirmed snapshot visible and identify its age.
+ */
+export function StaleState({ title, detail, onRetry, retryLabel = '새로고침' }: StaleStateProps) {
+  return <div className="result-state is-stale" role="status">
+    <span className="result-state-icon"><AlertTriangle size={20} aria-hidden="true" /></span>
+    <strong>{title}</strong>
+    {detail && <p>{detail}</p>}
+    {onRetry && <Button icon={RotateCcw} onClick={onRetry}>{retryLabel}</Button>}
+  </div>;
+}
+
 interface SignInRequiredStateProps {
   /* Overridable for the session-gate variants (expired, rejected) that need to
      name why the previous session ended; the visual stays the same. */

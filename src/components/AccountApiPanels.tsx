@@ -25,6 +25,7 @@ function dropTabSession(reason?: 'rejected') {
 interface AccountApiPanelsProps {
   client: AccountClient;
   createIdempotencyKey?: () => string;
+  onPreferences?: (preferences: AccountPreferences) => void;
 }
 
 type LoadState =
@@ -46,6 +47,7 @@ const fallbackError = (error: unknown) => error instanceof AccountApiError
 export function AccountApiPanels({
   client,
   createIdempotencyKey = () => crypto.randomUUID(),
+  onPreferences,
 }: AccountApiPanelsProps) {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading' });
@@ -53,7 +55,7 @@ export function AccountApiPanels({
   const [lifecycleState, setLifecycleState] = useState<ActionState>({ kind: 'idle' });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [logoutPending, setLogoutPending] = useState(false);
+  const [sessionAction, setSessionAction] = useState<{ kind: 'idle' | 'pending' | 'saved' } | { kind: 'error'; error: AccountApiError }>({ kind: 'idle' });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -63,7 +65,10 @@ export function AccountApiPanels({
     setLifecycleState({ kind: 'idle' });
     Promise.all([client.sessions(controller.signal), client.preferences(controller.signal)])
       .then(([sessions, preferences]) => {
-        if (current) setLoadState({ kind: 'ready', sessions, preferences });
+        if (current) {
+          setLoadState({ kind: 'ready', sessions, preferences });
+          onPreferences?.(preferences);
+        }
       })
       .catch((error: unknown) => {
         if (!current || controller.signal.aborted) return;
@@ -79,20 +84,7 @@ export function AccountApiPanels({
       current = false;
       controller.abort();
     };
-  }, [client, loadAttempt]);
-
-  const logout = useCallback(async () => {
-    setLogoutPending(true);
-    try {
-      await client.logoutCurrent();
-    } catch {
-      // A server that cannot revoke the session must not keep this tab signed
-      // in; the deliberate sign-out still happens locally.
-      dropTabSession();
-    } finally {
-      setLogoutPending(false);
-    }
-  }, [client]);
+  }, [client, loadAttempt, onPreferences]);
 
   const updateDraft = (patch: Partial<AccountPreferences>) => {
     setLoadState((current) => current.kind === 'ready'
@@ -112,11 +104,49 @@ export function AccountApiPanels({
     try {
       const preferences = await client.updatePreferences(input);
       setLoadState((current) => current.kind === 'ready' ? { ...current, preferences } : current);
+      onPreferences?.(preferences);
       setPreferenceState({ kind: 'saved' });
     } catch (error) {
       setPreferenceState({ kind: 'error', error: fallbackError(error), retry: () => void savePreferences() });
     }
-  }, [client, loadState]);
+  }, [client, loadState, onPreferences]);
+
+  const refreshSessions = useCallback(async () => {
+    const sessions = await client.sessions();
+    setLoadState((current) => current.kind === 'ready' ? { ...current, sessions } : current);
+  }, [client]);
+
+  const rotate = useCallback(async () => {
+    setSessionAction({ kind: 'pending' });
+    try {
+      await client.rotateSession();
+      await refreshSessions();
+      setSessionAction({ kind: 'saved' });
+    } catch (cause) { setSessionAction({ kind: 'error', error: fallbackError(cause) }); }
+  }, [client, refreshSessions]);
+
+  const revoke = useCallback(async (session: SessionView) => {
+    setSessionAction({ kind: 'pending' });
+    try {
+      if (session.current) {
+        await client.logoutCurrent();
+        dropTabSession();
+        return;
+      }
+      await client.logoutSession(session.sessionId);
+      await refreshSessions();
+      setSessionAction({ kind: 'saved' });
+    } catch (cause) {
+      if (session.current) dropTabSession();
+      else setSessionAction({ kind: 'error', error: fallbackError(cause) });
+    }
+  }, [client, refreshSessions]);
+
+  const revokeAll = useCallback(async () => {
+    setSessionAction({ kind: 'pending' });
+    try { await client.logoutAll(); }
+    finally { dropTabSession(); }
+  }, [client]);
 
   const runLifecycle = useCallback(async (
     operation: 'withdraw' | 'cancel' | 'reactivate',
@@ -153,20 +183,27 @@ export function AccountApiPanels({
     </Panel>;
   }
 
-  const currentSession = loadState.sessions.find((session) => session.current) ?? loadState.sessions[0];
   return <>
-    <Panel title="현재 세션" subtitle={`${loadState.sessions.length}개 세션이 서버에 등록됨`}>
+    <Panel title="로그인 세션" subtitle={`${loadState.sessions.length}개 세션이 서버에 등록됨`}>
       <div className="settings-rows">
-        <div className="settings-row">
+        {loadState.sessions.map((session) => <div className="settings-row" key={session.sessionId}>
           <span className="settings-row-icon"><KeyRound size={17} /></span>
           <span className="settings-row-copy">
-            <strong>{currentSession?.deviceLabel || '이 기기'}</strong>
-            <small>{currentSession ? `만료 ${currentSession.expiresAt}` : '활성 세션 없음'}</small>
+            <strong>{session.deviceLabel || '알 수 없는 기기'}</strong>
+            <small>최근 사용 {session.lastSeenAt ?? session.issuedAt} · 만료 {session.expiresAt}</small>
           </span>
-          {currentSession?.current && <Status tone="positive">현재</Status>}
-          <Button onClick={() => void logout()} disabled={logoutPending}>{logoutPending ? '로그아웃 중' : '로그아웃'}</Button>
-        </div>
+          {session.current && <Status tone="positive">현재</Status>}
+          <Button onClick={() => void revoke(session)} disabled={sessionAction.kind === 'pending'}>{session.current ? '로그아웃' : '세션 해제'}</Button>
+        </div>)}
+        {loadState.sessions.length === 0 && <p>활성 로그인 세션이 없습니다.</p>}
       </div>
+      <div className="account-api-actions">
+        <Button onClick={() => void rotate()} disabled={sessionAction.kind === 'pending' || loadState.sessions.length === 0}>현재 토큰 갱신</Button>
+        <Button onClick={() => void revokeAll()} disabled={sessionAction.kind === 'pending' || loadState.sessions.length === 0}>모든 기기에서 로그아웃</Button>
+      </div>
+      {sessionAction.kind === 'pending' && <p role="status">세션 요청을 처리하는 중입니다.</p>}
+      {sessionAction.kind === 'saved' && <p role="status">세션 상태를 최신화했습니다.</p>}
+      {sessionAction.kind === 'error' && <ApiErrorState error={sessionAction.error} onRetry={() => setLoadAttempt((attempt) => attempt + 1)} />}
     </Panel>
 
     <Panel title="서버 환경설정" subtitle="저장하면 모든 기기에 반영됩니다">

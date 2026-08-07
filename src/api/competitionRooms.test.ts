@@ -78,7 +78,7 @@ describe('competition rooms API client', () => {
         feePolicies: [{ id: 'fee-1', policyCode: 'OFFICIAL', version: '1.0.0', feeRateBps: 20, calculationRulesVersion: '1.0.0', rulesHash: 'b'.repeat(64), effectiveFrom: '2026-08-04T00:00:00Z', effectiveTo: null, publishedAt: '2026-08-03T00:00:00Z' }],
         buyingPowerBufferPolicies: [{ id: 'buffer-1', policyCode: 'DEFAULT', version: '1.0.0', bufferBps: 100, roundingRulesVersion: '1.0.0', rulesHash: 'c'.repeat(64), effectiveFrom: '2026-08-04T00:00:00Z', effectiveTo: null, publishedAt: '2026-08-03T00:00:00Z' }],
       })
-      : jsonResponse({ items: [{ validationRunId: 'validation-1', strategyId: 'strategy-1', strategyName: 'Momentum', requestedEditSequence: 7, semanticHash: 'd'.repeat(64), elementCatalogVersionId: 'catalog-1', completedAt: '2026-08-04T09:59:00Z' }] }));
+      : jsonResponse({ items: [{ validationRunId: 'validation-1', strategyId: 'strategy-1', strategyName: 'Momentum', requestedEditSequence: 7, semanticHash: 'd'.repeat(64), elementCatalogVersionId: 'catalog-1', languageVersion: 'basic/v1', schemaVersion: 'schema/v1', catalogVersion: 'catalog/v1', completedAt: '2026-08-04T09:59:00Z' }] }));
     const client = createCompetitionRoomsClient({ fetchImpl });
 
     await expect(client.roomInputCatalog()).resolves.toMatchObject({
@@ -90,5 +90,52 @@ describe('competition rooms API client', () => {
     expect(fetchImpl.mock.calls.map(([url]) => String(url))).toEqual([
       '/api/v1/competition/room-input-catalog', '/api/v1/strategy-validations/current',
     ]);
+  });
+
+  test('uses every room owner, invitation and operator command route', async () => {
+    const occurredAt = '2026-08-04T00:00:00Z';
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/strategy-release-inputs')) return jsonResponse({ executionPolicies: [], datasets: [], observedAt: occurredAt });
+      if (url.includes('/competition/rooms/mine?')) return jsonResponse({ items: [] });
+      if (url.endsWith('/invitations') && init?.method === 'POST') return jsonResponse({ id: 'invite-1', roomId: room.id, credentialType: 'LINK', secret: 'one-use-secret', expiresAt: occurredAt }, 201);
+      if (url.endsWith('/invitations/consume')) return jsonResponse({ invitationId: 'invite-1', roomId: room.id });
+      if (init?.method === 'DELETE' || init?.method === 'PUT') return new Response(null, { status: 204 });
+      if (url === '/api/v1/operations/competition/rooms' && init?.method === 'POST') return jsonResponse({ id: room.id, organizerType: 'PLATFORM', accessType: 'PUBLIC', status: 'RECRUITING', lockedAt: occurredAt }, 201);
+      if (url === `/api/v1/operations/competition/rooms/${room.id}`) return jsonResponse({ room: { roomId: room.id, name: room.name, competitionType: 'LIVE_PAPER', accessType: 'PUBLIC', status: 'RECRUITING', createdAt: occurredAt, evaluationStartsAt: occurredAt, evaluationEndsAt: occurredAt, endedAt: null, invalidatedAt: null, invalidationReasonCode: null, scoringTemplateVersionId: 'score-1', rulesHash: 'hash' }, roomEvents: [], participationEvents: [], finalResult: null });
+      return jsonResponse({ roomId: room.id, participationsTerminated: 1, occurredAt });
+    });
+    const client = createCompetitionRoomsClient({ fetchImpl, getAccessToken: () => 'user-token', getOperatorAccessToken: () => 'operator-token' });
+
+    await client.strategyReleaseInputs();
+    await client.ownedRooms(25);
+    await client.updateRoom(room.id, { name: 'Updated' } as never);
+    await client.issueInvitation(room.id, 'LINK', 3600);
+    await client.revokeInvitation(room.id, 'invite-1');
+    await client.consumeInvitation('one-use-secret');
+    await client.withdrawParticipation(room.id, 'participation-1', 'CONTINUE_PRIVATE', 'USER_REQUEST');
+    await client.cancelRoom(room.id, 'CREATOR_REQUEST');
+    await client.expelParticipation(room.id, 'participation-2');
+    await client.operatorRoom(room.id);
+    await client.createOfficialRoom({ name: 'Official' } as never);
+    await client.cancelOperatorRoom(room.id, 'OPERATOR_REQUEST');
+    await client.invalidateOperatorRoom(room.id, 'RESULT_INTEGRITY_FAILURE');
+
+    expect(fetchImpl.mock.calls.map(([url]) => String(url))).toEqual([
+      '/api/v1/strategy-release-inputs',
+      '/api/v1/competition/rooms/mine?limit=25',
+      `/api/v1/competition/rooms/${room.id}/configuration`,
+      `/api/v1/competition/rooms/${room.id}/invitations`,
+      `/api/v1/competition/rooms/${room.id}/invitations/invite-1`,
+      '/api/v1/competition/rooms/invitations/consume',
+      `/api/v1/competition/rooms/${room.id}/participations/participation-1/withdrawal`,
+      `/api/v1/competition/rooms/${room.id}/cancellation`,
+      `/api/v1/competition/rooms/${room.id}/participations/participation-2/expulsion`,
+      `/api/v1/operations/competition/rooms/${room.id}`,
+      '/api/v1/operations/competition/rooms',
+      `/api/v1/operations/competition/rooms/${room.id}/cancellation`,
+      `/api/v1/operations/competition/rooms/${room.id}/invalidation`,
+    ]);
+    expect(fetchImpl.mock.calls.slice(-4).every(([, init]) => (init?.headers as Record<string, string>).Authorization === 'Bearer operator-token')).toBe(true);
   });
 });

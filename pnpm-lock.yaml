@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@fontsource-variable/noto-sans-kr':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@types/three':
         specifier: ^0.185.1
         version: 0.185.1
@@ -162,6 +165,9 @@ packages:
     peerDependenciesMeta:
       '@noble/hashes':
         optional: true
+
+  '@fontsource-variable/noto-sans-kr@5.3.0':
+    resolution: {integrity: sha512-h863ZOIVMKjX0PSr0hLMUp/SjrwOul2yp0f5P61avqXdhqDABSkakzG2Ee07d3W8gVYgS9dMmxULdCkoN09f1A==}
 
   '@inquirer/ansi@2.0.7':
     resolution: {integrity: sha512-3eTuUO1vH2cZm2ZKHeQxnOqlTi9EfZDGgIe3BL3I4u+rJHocr9Fz86M4fjYABPvFnQG/gGK551HqDiIcETwU6Q==}
@@ -1284,6 +1290,8 @@ snapshots:
     optional: true
 
   '@exodus/bytes@1.15.1': {}
+
+  '@fontsource-variable/noto-sans-kr@5.3.0': {}
 
   '@inquirer/ansi@2.0.7': {}
 

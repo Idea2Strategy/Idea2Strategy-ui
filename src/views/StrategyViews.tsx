@@ -10,13 +10,17 @@ import type {
   WheelEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Activity, ArrowDown, ArrowLeft, ArrowUp, BarChart3, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, CircleDot, Gauge, GitBranch, Grid3X3, GripVertical, History, Import, Layers3, LayoutGrid, Link2, LockKeyhole, Minus, Mouse, MousePointer2, Pencil, Play, Plus, Redo2, RefreshCw, Repeat2, Rocket, Save, Scale, Search, Settings2, ShieldCheck, Sparkles, Split, Star, Target, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, Undo2, X } from 'lucide-react';
+import { Activity, ArrowDown, ArrowLeft, ArrowUp, BarChart3, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, CircleDot, Copy, Gauge, GitBranch, Grid3X3, GripVertical, History, Import, Layers3, LayoutGrid, Link2, LockKeyhole, Minus, Mouse, MousePointer2, Pencil, Play, Plus, Redo2, RefreshCw, Repeat2, Rocket, Save, Scale, Search, Settings2, ShieldCheck, Sparkles, Split, Star, Target, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, Undo2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { strategies } from '../data/mockData';
 import type { StrategySummary } from '../data/mockData';
 import { Button, EmptyState, ErrorState, LoadingState, PageHeading, Panel, Status } from '../components/common';
 import { ErrorPage, SignInRequiredPage } from '../components/StatePages';
 import { splitPartitionSymbols } from '../lib/strategyPreview';
+import type { PreviewCandle, PreviewFlow } from '../lib/strategyPreview';
+import { StrategyPreviewChart } from '../components/StrategyPreviewChart';
+import { defaultMarketDataClient } from '../api/marketData';
+import type { MarketDataClient } from '../api/marketData';
 import { Localized } from '../lib/i18n';
 import { browserSessionStore } from '../lib/session';
 import { setSessionAccessToken } from '../api/sessionAccessToken';
@@ -29,7 +33,7 @@ import {
 } from '../lib/strategyCanvasLayout';
 import type { CanvasPoint, CanvasSize, CardMoveGesture } from '../lib/strategyCanvasLayout';
 import { defaultStrategyAuthoringClient, defaultStrategyCatalogClient, defaultStrategyLibraryClient, StrategyApiError } from '../api/strategies';
-import type { BasicCatalogInstrument, BasicStrategyCatalog, StrategyAuthoringClient, StrategyCatalogClient, StrategyLibraryClient, StrategyLibraryItem } from '../api/strategies';
+import type { BasicCatalogInstrument, BasicStrategyCatalog, StrategyAuthoringClient, StrategyCatalogClient, StrategyLibraryClient, StrategyLibraryItem, StrategyReleaseInputs, StrategyValidationResult } from '../api/strategies';
 
 type EditorMode = 'basic' | 'pro';
 type EditorLoadFailure = 'sign-in' | 'missing' | 'conflict' | 'transport';
@@ -206,6 +210,8 @@ const cloneBasicEditorSnapshot = (snapshot: BasicEditorSnapshot): BasicEditorSna
 interface StrategyListItem extends StrategySummary {
   id: string;
   symbols: string[];
+  kind: StrategyLibraryItem['kind'];
+  editable: boolean;
 }
 
 type LibraryDragPayload =
@@ -290,9 +296,13 @@ const strategyListItem = (item: StrategyLibraryItem): StrategyListItem => ({
   mode: item.mode === 'BASIC' ? 'Basic' : 'Pro',
   state: item.validationStatus === 'VALID' ? '출시 가능' : '미완성',
   updated: item.updatedAt.slice(0, 10),
-  blocks: 0,
-  backtest: item.backtestStatus === 'AVAILABLE' ? '가능' : '데이터 확인',
-  symbols: [],
+  blocks: item.blockCount,
+  backtest: item.backtestStatus === 'COMPLETED' || item.backtestStatus === 'AVAILABLE'
+    ? '완료'
+    : item.backtestStatus ? '진행 중' : '데이터 없음',
+  symbols: item.symbols,
+  kind: item.kind,
+  editable: item.editable,
 });
 
 export function StrategyHome({ openEditor, client = automaticStrategyLibraryClient, authoringClient = automaticStrategyAuthoringClient }: StrategyHomeProps) {
@@ -300,6 +310,8 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
     ...strategy,
     id: `strategy-${index}`,
     symbols: index === 0 ? ['AAPL', 'MSFT'] : index === 1 ? ['SPY', 'QQQ'] : ['NVDA'],
+    kind: 'draft',
+    editable: true,
   })), []);
   const [items, setItems] = useState<StrategyListItem[] | null>(() => client ? null : prototypeItems);
   const [query, setQuery] = useState('');
@@ -307,7 +319,6 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
   const [state, setState] = useState<'all' | 'launchable' | 'incomplete'>('all');
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [draggedStrategyId, setDraggedStrategyId] = useState<string | null>(null);
   const [libraryError, setLibraryError] = useState<string | null>(null);
   const [signInRequired, setSignInRequired] = useState(false);
   const [libraryAttempt, setLibraryAttempt] = useState(0);
@@ -315,6 +326,8 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
   const [draftName, setDraftName] = useState('새 Basic 전략');
   const [createPending, setCreatePending] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [copyPendingId, setCopyPendingId] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!client) {
@@ -357,26 +370,6 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
   const launchableCount = (items ?? []).filter((strategy) => strategy.state === '출시 가능').length;
   const incompleteCount = (items ?? []).filter((strategy) => strategy.state === '미완성').length;
 
-  const reorderStrategy = (sourceId: string | null, targetId: string) => {
-    if (!sourceId || sourceId === targetId) return;
-    setItems((current) => {
-      if (current === null) return current;
-      const sourceIndex = current.findIndex((strategy) => strategy.id === sourceId);
-      const targetIndex = current.findIndex((strategy) => strategy.id === targetId);
-      if (sourceIndex < 0 || targetIndex < 0) return current;
-      const next = [...current];
-      const [source] = next.splice(sourceIndex, 1);
-      next.splice(targetIndex, 0, source);
-      return next;
-    });
-  };
-
-  const dropOnStrategy = (event: DragEvent<HTMLElement>, strategyId: string) => {
-    event.preventDefault();
-    reorderStrategy(draggedStrategyId, strategyId);
-    setDraggedStrategyId(null);
-  };
-
   const beginBasicStrategy = async () => {
     if (!authoringClient) {
       setShowCreate(false);
@@ -393,6 +386,30 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
       setCreateError('새 전략을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setCreatePending(false);
+    }
+  };
+
+  const copyOwnedStrategy = async (strategy: StrategyListItem) => {
+    if (strategy.kind !== 'draft' || !strategy.editable) return;
+    if (!authoringClient) {
+      setShowCreate(false);
+      setShowImport(false);
+      openEditor(strategy.mode.toLowerCase() as EditorMode, false);
+      return;
+    }
+    setCopyPendingId(strategy.id);
+    setCopyError(null);
+    try {
+      const copied = await authoringClient.copyStrategy(strategy.id);
+      setShowCreate(false);
+      setShowImport(false);
+      openEditor(strategy.mode.toLowerCase() as EditorMode, false, copied.id);
+    } catch (error) {
+      setCopyError(error instanceof StrategyApiError && error.status === 404
+        ? '복사할 전략을 찾을 수 없습니다. 최신 목록을 다시 불러와 주세요.'
+        : '전략을 복사하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setCopyPendingId(null);
     }
   };
 
@@ -427,6 +444,7 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
           detail="최신 목록을 불러오지 못해 이전에 서버에서 확인한 결과를 유지합니다."
         />}
         {items === null && !libraryError && !signInRequired && <LoadingState label="전략 목록을 불러오는 중입니다." />}
+        {copyError && <ErrorState title={copyError} onRetry={() => setCopyError(null)} retryLabel="닫기" />}
         {items !== null && <>
         <header className="strategy-library-head">
           <div className="strategy-title-group"><div><h2>내 전략</h2><span>{filteredItems.length}</span></div><div className="strategy-counts" data-testid="strategy-counts"><span>전체 <b>{items.length}</b></span><span>출시 가능 <b>{launchableCount}</b></span><span>미완성 <b>{incompleteCount}</b></span></div></div>
@@ -449,21 +467,22 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
             className="strategy-row"
             key={strategy.id}
             data-testid={`strategy-row-${strategy.name}`}
-            draggable
-            onDragStart={() => setDraggedStrategyId(strategy.id)}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => dropOnStrategy(event, strategy.id)}
           >
-            <GripVertical className="strategy-drag-handle" size={16} aria-hidden="true" />
             <span className={`strategy-mode-icon mode-${strategy.mode.toLowerCase()}`} aria-hidden="true">{strategy.mode[0]}</span>
             <div className="strategy-row-main"><strong>{strategy.name}</strong><span>{[strategy.symbols.join(' · '), strategy.updated].filter(Boolean).join(' · ')}</span></div>
             <span className="strategy-mode-label">{strategy.mode}</span>
             <Status tone={statusTone(strategy.state)}>{strategy.state}</Status>
             <div className="strategy-row-actions">
+              {strategy.kind === 'draft' && strategy.editable && <button
+                aria-label={`${strategy.name} 복사`}
+                title="복사"
+                disabled={copyPendingId !== null}
+                onClick={(event) => { event.stopPropagation(); void copyOwnedStrategy(strategy); }}
+              >{copyPendingId === strategy.id ? <RefreshCw className="is-spinning" size={15} /> : <Copy size={15} />}</button>}
               <button
                 aria-label={strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? `${strategy.name} 열기 (Pro 준비 중)` : `${strategy.name} 열기`}
-                title={strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? 'Pro 편집기는 준비 중입니다' : '열기'}
-                disabled={strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE}
+                title={!strategy.editable ? '출시된 전략은 편집할 수 없습니다' : strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? 'Pro 편집기는 준비 중입니다' : '열기'}
+                disabled={!strategy.editable || strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE}
                 onClick={(event) => { event.stopPropagation(); openEditor(strategy.mode.toLowerCase() as EditorMode, false, strategy.id); }}
               >{strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? <LockKeyhole size={15} /> : <ChevronRight size={17} />}</button>
             </div>
@@ -488,7 +507,8 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
           <button className="create-import-option" aria-label="기존 전략 가져오기" onClick={() => setShowImport(true)}><span className="create-icon is-import"><Import size={20} /></span><span><strong>기존 전략 가져오기</strong><small>원본은 그대로 두고 새 초안 생성</small></span><ChevronRight size={18} /></button>
         </div> : <div className="strategy-import-list">{(items ?? []).map((strategy) => {
           const proLocked = strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE;
-          return <button key={strategy.id} aria-label={proLocked ? `${strategy.name} 가져오기 (Pro 준비 중)` : `${strategy.name} 가져오기`} disabled={proLocked} onClick={() => { setShowCreate(false); setShowImport(false); openEditor(strategy.mode.toLowerCase() as EditorMode, false, strategy.id); }}><span className={`strategy-mode-icon mode-${strategy.mode.toLowerCase()}`}>{strategy.mode[0]}</span><span><strong>{strategy.name}</strong><small>{proLocked ? 'Pro · 현재 사용할 수 없습니다' : `${strategy.mode} · ${strategy.symbols.join(', ')}`}</small></span>{proLocked ? <LockKeyhole size={16} /> : <Import size={16} />}</button>;
+          const copyable = strategy.kind === 'draft' && strategy.editable && !proLocked;
+          return <button key={strategy.id} aria-label={proLocked ? `${strategy.name} 가져오기 (Pro 준비 중)` : `${strategy.name} 가져오기`} disabled={!copyable || copyPendingId !== null} onClick={() => { void copyOwnedStrategy(strategy); }}><span className={`strategy-mode-icon mode-${strategy.mode.toLowerCase()}`}>{strategy.mode[0]}</span><span><strong>{strategy.name}</strong><small>{proLocked ? 'Pro · 현재 사용할 수 없습니다' : !copyable ? '이 항목은 복사할 수 없습니다' : `${strategy.mode} · ${strategy.symbols.join(', ')}`}</small></span>{proLocked ? <LockKeyhole size={16} /> : copyPendingId === strategy.id ? <RefreshCw size={16} /> : <Import size={16} />}</button>;
         })}</div>}
       </section>
     </div>}
@@ -629,6 +649,70 @@ const isRecord = (value: unknown): value is Record<string, unknown> => (
 const serializeBasicEditorSnapshot = (snapshot: BasicEditorSnapshot): Record<string, unknown> => (
   JSON.parse(JSON.stringify(snapshot)) as Record<string, unknown>
 );
+
+const BASIC_RSI_ELEMENT_CODES = new Set([
+  'BASIC_RSI_READ',
+  'BASIC_VALUE_COMPARE',
+  'BASIC_EQUAL_ALLOCATION_ORDER',
+]);
+
+const basicCompareOperator = (operator: string | undefined): string => {
+  if (operator === '>' || operator === '↑') return 'GT';
+  if (operator === '≥') return 'GTE';
+  if (operator === '=') return 'EQ';
+  return 'LT';
+};
+
+/**
+ * Converts only editor state that the published Basic runtime can execute into
+ * the canonical server document. Unsupported cards stay visible in the
+ * presentation snapshot, but are rejected by local/server validation rather
+ * than being silently translated into a different strategy.
+ */
+export const buildBasicSemanticDocument = (
+  snapshot: BasicEditorSnapshot,
+  catalog: BasicStrategyCatalog,
+): Record<string, unknown> => ({
+  mode: 'BASIC',
+  catalogId: catalog.version.id,
+  groups: snapshot.sections.flatMap((section) => section.cardOrder.flatMap((cardId) => {
+    const side: Side | null = section.cards.buy.includes(cardId)
+      ? 'buy'
+      : section.cards.sell.includes(cardId)
+        ? 'sell'
+        : section.cards.risk.includes(cardId)
+          ? 'risk'
+          : null;
+    const condition = snapshot.cardBlocks[cardId]?.[0];
+    if (!side || side === 'risk' || !condition || condition.label !== 'RSI 반등') return [];
+    const readId = `${cardId}-rsi-read`;
+    const compareId = `${cardId}-compare`;
+    const orderId = `${cardId}-order`;
+    return [{
+      id: cardId,
+      container: side.toUpperCase(),
+      evaluationMode: 'INDEPENDENT',
+      allocationMode: 'EQUAL',
+      instrumentIds: [...(section.instrumentIds ?? [])],
+      blocks: [
+        { id: readId, elementCode: 'BASIC_RSI_READ', parameters: { resolution: '1m' } },
+        {
+          id: compareId,
+          elementCode: 'BASIC_VALUE_COMPARE',
+          parameters: {
+            operator: basicCompareOperator(condition.op),
+            threshold: String(condition.value ?? '').trim(),
+          },
+        },
+        { id: orderId, elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: {} },
+      ],
+      connections: [
+        { fromBlockId: readId, outputPort: 'value', toBlockId: compareId, inputPort: 'value' },
+        { fromBlockId: compareId, outputPort: 'passed', toBlockId: orderId, inputPort: 'passed' },
+      ],
+    }];
+  })),
+});
 
 const readBasicEditorSnapshot = (presentation: Record<string, unknown>): BasicEditorSnapshot | null => {
   const editor = presentation.basicEditor;
@@ -1228,14 +1312,17 @@ export const ReadOnlyStrategyBlock = ({
 interface BasicEditorProps {
   goBack: () => void;
   openEditor?: (mode: EditorMode, blank?: boolean, strategyId?: string) => void;
-  onLaunchBot?: (bot: { name: string; description: string }) => void;
+  onLaunchBot?: (bot: { name: string; description: string; botId?: string }) => void;
   blank?: boolean;
   strategyId?: string;
   authoringClient?: StrategyAuthoringClient | null;
   catalogClient?: StrategyCatalogClient | null;
+  marketDataClient?: MarketDataClient | null;
 }
 
-export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, strategyId, authoringClient = automaticStrategyAuthoringClient, catalogClient = automaticStrategyCatalogClient }: BasicEditorProps) {
+const automaticStrategyMarketDataClient = import.meta.env.MODE === 'test' ? null : defaultMarketDataClient;
+
+export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, strategyId, authoringClient = automaticStrategyAuthoringClient, catalogClient = automaticStrategyCatalogClient, marketDataClient = automaticStrategyMarketDataClient }: BasicEditorProps) {
   /*
     When a real strategy is behind the editor, the canvas starts empty and the
     saved document fills it. Seeding the demo strategy here would show — and on
@@ -1296,7 +1383,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const presentationDocumentRef = useRef<Record<string, unknown>>({});
   const [basicCatalog, setBasicCatalog] = useState<BasicStrategyCatalog | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [serverValidation, setServerValidation] = useState<StrategyValidationResult | null>(null);
   const [pendingInstrumentKey, setPendingInstrumentKey] = useState('');
+  const [instrumentQuery, setInstrumentQuery] = useState('');
   // Two-phase dismissal so the toast can slide back down (mirroring its entry)
   // instead of vanishing instantly.
   const [saveFeedbackClosing, setSaveFeedbackClosing] = useState(false);
@@ -1304,6 +1393,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const [launchDialogOpen, setLaunchDialogOpen] = useState(false);
   const [botName, setBotName] = useState('');
   const [botDescription, setBotDescription] = useState('');
+  const [releaseInputs, setReleaseInputs] = useState<StrategyReleaseInputs | null>(null);
+  const [releaseInputsPending, setReleaseInputsPending] = useState(false);
+  const [releasePending, setReleasePending] = useState(false);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
+  const [selectedExecutionPolicy, setSelectedExecutionPolicy] = useState('');
+  const [selectedDataset, setSelectedDataset] = useState('');
+  const [initialCashAmount, setInitialCashAmount] = useState('100000');
+  const [budgetPercent, setBudgetPercent] = useState('100');
   const [templateQuery, setTemplateQuery] = useState('');
   const [blockQuery, setBlockQuery] = useState('');
   const [libraryView, setLibraryView] = useState<'packages' | 'blocks'>('blocks');
@@ -1348,13 +1445,23 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const [redoStack, setRedoStack] = useState<BasicEditorSnapshot[]>([]);
   /* 미리보기 차트를 열어 둔 파티션. 파티션을 누르면 그 파티션 기준으로 열린다. */
   const [previewSectionId, setPreviewSectionId] = useState<string | null>(null);
-  const filteredTemplates = useMemo(() => TEMPLATE_LIBRARY.filter((template) => (
+  const [previewCandles, setPreviewCandles] = useState<PreviewCandle[] | null>(null);
+  const [previewPending, setPreviewPending] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const catalogSupportsRsiFlow = basicCatalog?.elements.length
+    ? [...BASIC_RSI_ELEMENT_CODES].every((code) => basicCatalog.elements.some((element) => element.elementCode === code))
+    : !catalogClient;
+  const supportedTemplates = catalogClient ? TEMPLATE_LIBRARY.filter((template) => template.id === 'rsi' && catalogSupportsRsiFlow) : TEMPLATE_LIBRARY;
+  const supportedBlockLibrary = catalogClient
+    ? BLOCK_LIBRARY.map((category) => ({ ...category, items: category.items.filter((item) => item === 'RSI 반등' && catalogSupportsRsiFlow) })).filter((category) => category.items.length > 0)
+    : BLOCK_LIBRARY;
+  const filteredTemplates = useMemo(() => supportedTemplates.filter((template) => (
     `${template.name} ${template.category} ${template.indicator}`.toLowerCase().includes(templateQuery.trim().toLowerCase())
-  )), [templateQuery]);
-  const filteredBlockLibrary = useMemo(() => BLOCK_LIBRARY.map((category) => ({
+  )), [supportedTemplates, templateQuery]);
+  const filteredBlockLibrary = useMemo(() => supportedBlockLibrary.map((category) => ({
     ...category,
     items: category.items.filter((item) => item.toLowerCase().includes(blockQuery.trim().toLowerCase())),
-  })).filter((category) => category.items.length > 0), [blockQuery]);
+  })).filter((category) => category.items.length > 0), [blockQuery, supportedBlockLibrary]);
   const validationIssues = useMemo<ValidationIssue[]>(() => {
     if (sections.length === 0) {
       return [{
@@ -1367,12 +1474,28 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
 
     return sections.flatMap((section, sectionIndex): ValidationIssue[] => {
       const sectionLabel = `PARTITION ${String(sectionIndex + 1).padStart(2, '0')}`;
+      if (catalogClient && (section.instrumentIds?.length ?? 0) === 0) {
+        return [{
+          id: `${section.id}-no-instruments`,
+          sectionId: section.id,
+          cardId: null,
+          message: `${sectionLabel}에 거래 종목을 하나 이상 추가해 주세요.`,
+        }];
+      }
       if (section.cards.buy.length === 0) {
         return [{
           id: `${section.id}-no-buy`,
           sectionId: section.id,
           cardId: null,
           message: `${sectionLabel}에 매수 전략 카드가 필요합니다.`,
+        }];
+      }
+      if (catalogClient && section.cards.risk.length > 0) {
+        return [{
+          id: `${section.id}-unsupported-risk`,
+          sectionId: section.id,
+          cardId: section.cards.risk[0],
+          message: `${sectionLabel}의 위기관리 카드는 현재 공개된 실행 카탈로그에서 지원하지 않습니다.`,
         }];
       }
       return (['buy', 'sell', 'risk'] as Side[]).flatMap((side) => {
@@ -1387,6 +1510,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
               sectionId: section.id,
               cardId,
               message: `${sectionLabel}의 ${sideLabel} 전략 카드에 조건 블록을 하나 이상 추가해 주세요.`,
+            }];
+          }
+          if (catalogClient && (blocks.length !== 1 || blocks[0]?.label !== 'RSI 반등')) {
+            return [{
+              id: `${cardId}-unsupported-catalog-block`,
+              sectionId: section.id,
+              cardId,
+              message: `${sectionLabel}의 ${sideLabel} 전략 카드는 현재 실행 가능한 RSI 조건 블록 하나만 사용할 수 있습니다.`,
             }];
           }
           const hasNullField = blocks.some((block) => {
@@ -1413,9 +1544,20 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         });
       });
     });
-  }, [cardBlocks, sections, sellSettings, buySettings]);
+  }, [cardBlocks, sections, sellSettings, buySettings, catalogClient]);
   const validationSignature = validationIssues.map((issue) => issue.id).join('|');
-  const isLaunchable = validationIssues.length === 0;
+  const isLocallyComplete = validationIssues.length === 0 && (!catalogClient || catalogSupportsRsiFlow);
+  const requiresServerValidation = Boolean(strategyId && authoringClient);
+  const isLaunchable = isLocallyComplete && (!requiresServerValidation || serverValidation?.status === 'VALID');
+  const serverErrorFindings = serverValidation?.findings.filter((finding) => finding.severity === 'ERROR') ?? [];
+  const serverWarningFindings = serverValidation?.findings.filter((finding) => finding.severity === 'WARNING') ?? [];
+  const validationTriggerLabel = isLaunchable
+    ? serverWarningFindings.length > 0 ? `완성 · 경고 ${serverWarningFindings.length}` : '완성'
+    : validationIssues.length > 0
+      ? `미완성 · 오류 ${validationIssues.length}`
+      : serverValidation?.status === 'INVALID'
+        ? `검증 오류 ${serverErrorFindings.length}`
+        : '서버 검증 필요';
   const groupedValidationIssues = useMemo(() => {
     const groups = new Map<string, { label: string; issues: ValidationIssue[] }>();
     validationIssues.forEach((issue) => {
@@ -1698,6 +1840,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   }, [validationSignature]);
 
   useEffect(() => {
+    setServerValidation(null);
+  }, [sections, cardBlocks, buySettings, sellSettings, basicCatalog?.version.id]);
+
+  useEffect(() => {
     if (!saveFeedback) return undefined;
     setSaveFeedbackClosing(false);
 
@@ -1719,17 +1865,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   }, [saveFeedbackClosing]);
 
   const saveStrategy = async () => {
-    const nextFeedback: SaveFeedback = isLaunchable
-      ? {
-        tone: 'positive',
-        title: '출시 가능 상태로 저장했습니다.',
-        detail: '현재 확인 항목을 모두 만족합니다.',
-      }
-      : {
-        tone: 'warning',
-        title: '미완성 상태로 저장했습니다.',
-        detail: '모든 전략 카드의 조건을 완성하면 출시할 수 있습니다.',
-      };
+    const nextFeedback: SaveFeedback = isLocallyComplete
+      ? { tone: 'positive', title: '전략 구성을 저장했습니다.', detail: '서버 검증 결과를 확인하고 있습니다.' }
+      : { tone: 'warning', title: '미완성 상태로 저장했습니다.', detail: '모든 전략 카드의 조건을 완성하면 검증할 수 있습니다.' };
     if (!strategyId || !authoringClient) {
       setSaveFeedback(nextFeedback);
       setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
@@ -1744,25 +1882,46 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     }
     setSavePending(true);
     try {
+      if (!basicCatalog) {
+        throw new Error('Published Basic catalog is unavailable');
+      }
+      const editorSnapshot = captureEditorSnapshot();
+      const semanticDocument = buildBasicSemanticDocument(editorSnapshot, basicCatalog);
       const presentationDocument = {
         ...presentationDocumentRef.current,
         basicEditor: {
           version: 1,
-          snapshot: serializeBasicEditorSnapshot(captureEditorSnapshot()),
+          snapshot: serializeBasicEditorSnapshot(editorSnapshot),
           viewport: { pan, zoom },
         },
       };
       const saved = await authoringClient.saveDocument(strategyId, {
         expectedEditSequence: editSequenceRef.current,
         leaseToken,
-        semanticDocument: semanticDocumentRef.current,
+        semanticDocument,
         presentationDocument,
       });
       editSequenceRef.current = saved.editSequence;
       semanticDocumentRef.current = saved.semanticDocument;
       presentationDocumentRef.current = saved.presentationDocument;
-      setSaveFeedback(nextFeedback);
-      setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
+      if (!isLocallyComplete) {
+        setServerValidation(null);
+        setSaveFeedback(nextFeedback);
+        setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
+      } else if (!authoringClient.validateStrategy) {
+        const unavailable = { tone: 'warning' as const, title: '전략은 저장했지만 검증하지 못했습니다.', detail: '서버 검증 기능을 사용할 수 없습니다.' };
+        setSaveFeedback(unavailable);
+        setAnnouncement(`${unavailable.title} ${unavailable.detail}`);
+      } else {
+        const validation = await authoringClient.validateStrategy(strategyId, basicCatalog.version.id);
+        setServerValidation(validation);
+        const blocking = validation.findings.filter((finding) => finding.severity === 'ERROR');
+        const feedback: SaveFeedback = validation.status === 'VALID'
+          ? { tone: 'positive', title: '검증된 출시 가능 상태로 저장했습니다.', detail: validation.findings.length > 0 ? `경고 ${validation.findings.length}개를 확인해 주세요.` : '서버 검증을 모두 통과했습니다.' }
+          : { tone: 'warning', title: '전략은 저장했지만 서버 검증을 통과하지 못했습니다.', detail: blocking[0]?.message ?? '검증 결과를 확인해 주세요.' };
+        setSaveFeedback(feedback);
+        setAnnouncement(`${feedback.title} ${feedback.detail}`);
+      }
     } catch (error) {
       const conflict = error instanceof StrategyApiError && error.status === 409;
       const failed = {
@@ -1778,17 +1937,24 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   };
 
   const closeLaunchDialog = () => {
+    if (releasePending) return;
     setLaunchDialogOpen(false);
     setBotName('');
     setBotDescription('');
+    setReleaseError(null);
   };
 
-  const preparePersonalBotLaunch = () => {
+  const preparePersonalBotLaunch = async () => {
     if (!isLaunchable) {
+      const firstIssue = validationIssues[0]?.message
+        ?? (serverValidation?.status === 'INVALID'
+          ? serverValidation.findings.find((finding) => finding.severity === 'ERROR')?.message
+          : '저장 버튼을 눌러 현재 전략을 서버에서 검증해 주세요.')
+        ?? '현재 전략을 서버에서 다시 검증해 주세요.';
       const nextFeedback: SaveFeedback = {
         tone: 'warning',
-        title: `출시하려면 ${validationIssues.length}개 항목을 완성해 주세요.`,
-        detail: validationIssues[0].message,
+        title: validationIssues.length > 0 ? `출시하려면 ${validationIssues.length}개 항목을 완성해 주세요.` : '출시 전 서버 검증이 필요합니다.',
+        detail: firstIssue,
       };
       setSaveFeedback(nextFeedback);
       setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
@@ -1797,11 +1963,68 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
 
     setSaveFeedback(null);
     setLaunchDialogOpen(true);
-    setAnnouncement('개인 운용 봇 정보를 입력해 주세요.');
+    setReleaseError(null);
+    if (!strategyId || !authoringClient) {
+      setAnnouncement('개인 운용 봇 정보를 입력해 주세요.');
+      return;
+    }
+    setReleaseInputsPending(true);
+    try {
+      const inputs = await authoringClient.getReleaseInputs();
+      setReleaseInputs(inputs);
+      setSelectedExecutionPolicy(inputs.executionPolicies[0]?.version ?? '');
+      setSelectedDataset(inputs.datasets[0]?.id ?? '');
+      if (inputs.executionPolicies.length === 0 || inputs.datasets.length === 0) {
+        setReleaseError('현재 사용할 수 있는 실행 정책 또는 공식 백테스트 데이터셋이 없습니다.');
+      }
+      setAnnouncement('서버에서 확인한 출시 설정을 불러왔습니다.');
+    } catch {
+      setReleaseError('출시 설정을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setReleaseInputsPending(false);
+    }
   };
 
-  const launchPersonalBot = (event: FormEvent<HTMLFormElement>) => {
+  const launchPersonalBot = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (strategyId && authoringClient) {
+      const policy = releaseInputs?.executionPolicies.find((item) => item.version === selectedExecutionPolicy);
+      const dataset = releaseInputs?.datasets.find((item) => item.id === selectedDataset);
+      if (!serverValidation || serverValidation.status !== 'VALID' || !policy || !dataset) return;
+      const cash = Number(initialCashAmount);
+      const budget = Number(budgetPercent);
+      if (!Number.isFinite(cash) || cash <= 0 || !Number.isFinite(budget) || budget <= 0 || budget > 100) {
+        setReleaseError('초기 자금과 운용 예산 비율을 올바르게 입력해 주세요.');
+        return;
+      }
+      setReleasePending(true);
+      setReleaseError(null);
+      try {
+        const released = await authoringClient.releaseStrategy(strategyId, {
+          validationRunId: serverValidation.validationRunId,
+          initialCashAmount: String(cash),
+          budgetCapBps: Math.round(budget * 100),
+          brokerRulesVersion: policy.brokerRulesVersion,
+          accountingRulesVersion: policy.accountingRulesVersion,
+          precisionRulesVersion: policy.precisionRulesVersion,
+          feePolicyId: policy.feePolicyId,
+          buyingPowerBufferPolicyId: policy.buyingPowerBufferPolicyId,
+          datasetManifestId: dataset.id,
+          executionPolicyVersion: policy.version,
+          candidateConflictPolicy: { policy: 'FIRST_WINS' },
+        });
+        setLaunchDialogOpen(false);
+        setAnnouncement('검증된 전략으로 개인 운용 봇을 출시했습니다.');
+        onLaunchBot?.({ name: '', description: '', botId: released.botId });
+      } catch (error) {
+        setReleaseError(error instanceof StrategyApiError && error.status === 409
+          ? '전략 검증이 오래되었거나 같은 release가 다른 내용에 사용되었습니다. 다시 저장·검증해 주세요.'
+          : '봇을 출시하지 못했습니다. 서버 상태를 확인한 뒤 다시 시도해 주세요.');
+      } finally {
+        setReleasePending(false);
+      }
+      return;
+    }
     const name = botName.trim();
     const description = botDescription.trim();
     if (!name || !description) return;
@@ -2375,7 +2598,56 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const previewSectionNumber = previewSection
     ? String(sections.findIndex((section) => section.id === previewSection.id) + 1).padStart(2, '0')
     : '';
-  const previewSymbols = previewSection ? splitPartitionSymbols(previewSection.symbol) : [];
+  const previewSymbols = useMemo(
+    () => previewSection ? splitPartitionSymbols(previewSection.symbol) : [],
+    [previewSection],
+  );
+  const previewFlows = useMemo<PreviewFlow[]>(() => previewSection
+    ? previewSection.cardOrder.flatMap((cardId): PreviewFlow[] => {
+      const side = previewSection.cards.buy.includes(cardId) ? 'buy' : previewSection.cards.sell.includes(cardId) ? 'sell' : null;
+      if (!side) return [];
+      return [{
+        id: cardId,
+        label: cardMeta[cardId]?.title ?? (side === 'buy' ? '매수 전략' : '매도 전략'),
+        side,
+        blocks: (cardBlocks[cardId] ?? []).map(({ label, op, value, tone }) => ({ label, op, value, tone })),
+      }];
+    })
+    : [], [cardBlocks, cardMeta, previewSection]);
+
+  useEffect(() => {
+    if (!previewSection || !marketDataClient) {
+      setPreviewCandles(null);
+      setPreviewPending(false);
+      setPreviewError(null);
+      return undefined;
+    }
+    const instrumentId = previewSection.instrumentIds?.[0]
+      ?? basicCatalog?.instruments.find((instrument) => instrument.symbol === previewSymbols[0])?.id;
+    if (!instrumentId) {
+      setPreviewCandles([]);
+      setPreviewError('미리보기를 조회할 공식 종목 식별자가 없습니다.');
+      return undefined;
+    }
+    const controller = new AbortController();
+    setPreviewPending(true);
+    setPreviewError(null);
+    void marketDataClient.getRecentBars(instrumentId, 300, controller.signal)
+      .then((snapshot) => {
+        setPreviewCandles(snapshot.bars.map((bar) => ({
+          time: Math.floor(new Date(bar.occurredAt).getTime() / 1000),
+          open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume,
+        })));
+      })
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setPreviewCandles(null);
+          setPreviewError('실제 시장 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+        }
+      })
+      .finally(() => setPreviewPending(false));
+    return () => controller.abort();
+  }, [basicCatalog, marketDataClient, previewSection, previewSymbols]);
 
   const addStrategyCard = (sectionId: string, side: Side) => {
     const section = sections.find((item) => item.id === sectionId)!;
@@ -2943,7 +3215,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     : catalogClient
       ? []
       : LOCAL_PREVIEW_SYMBOLS.map((symbol) => ({ id: '', symbol }));
-  const availableInstruments = selectableInstruments.filter((instrument) => !managedSymbols.includes(instrument.symbol));
+  const normalizedInstrumentQuery = instrumentQuery.trim().toLocaleUpperCase('en-US');
+  const availableInstruments = selectableInstruments.filter((instrument) => !managedSymbols.includes(instrument.symbol)
+    && (!normalizedInstrumentQuery || instrument.symbol.toLocaleUpperCase('en-US').includes(normalizedInstrumentQuery)));
   const selectedInstrument = availableInstruments.find((instrument) => (instrument.id || instrument.symbol) === pendingInstrumentKey)
     ?? availableInstruments[0];
   const removeManagedSymbol = (symbol: string) => {
@@ -2974,6 +3248,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       [symbolManagerSection.id]: { ...(current[symbolManagerSection.id] ?? {}), [symbol]: 25 },
     }));
     setPendingInstrumentKey('');
+    setInstrumentQuery('');
   };
 
   const trashItemLabel = draggedBlock
@@ -3003,7 +3278,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   return <Localized><div className="page editor-page basic-editor-page editor-shell-page">
     <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
     <div className="basic-editor-commandbar floating-editor-controls" role="toolbar" aria-label="Basic 편집 작업">
-      <div className="basic-editor-context"><Button className="floating-editor-button" kind="ghost" icon={ArrowLeft} onClick={goBack}>목록</Button><div className="floating-editor-mode-controls" role="group" aria-label="편집기 전환"><Button className="floating-editor-button active" onClick={() => openEditor?.('basic')}>Basic 편집기</Button><Button className="floating-editor-button" onClick={() => openEditor?.('pro')}>Pro 편집기</Button></div><div className="basic-history-controls" role="group" aria-label="편집 기록">
+      <div className="basic-editor-context"><Button className="floating-editor-button" kind="ghost" icon={ArrowLeft} onClick={goBack}>목록</Button><div className="floating-editor-mode-controls" role="group" aria-label="편집기 전환"><Button className="floating-editor-button active" onClick={() => openEditor?.('basic')}>Basic 편집기</Button><Button className="floating-editor-button" disabled={!PRO_EDITOR_AVAILABLE} title="Pro 편집기는 준비 중입니다" onClick={() => openEditor?.('pro')}>Pro 편집기</Button></div><div className="basic-history-controls" role="group" aria-label="편집 기록">
         <button type="button" className="floating-editor-button" aria-label="되돌리기" disabled={undoStack.length === 0} onClick={undoEditorChange}><Undo2 size={15} /></button>
         <button type="button" className="floating-editor-button" aria-label="다시 실행" disabled={redoStack.length === 0} onClick={redoEditorChange}><Redo2 size={15} /></button>
       </div></div>
@@ -3011,11 +3286,11 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         <Button
           className={`floating-editor-button basic-validation-trigger ${highlightValidation ? 'is-active' : ''} ${isLaunchable ? 'is-launchable' : 'is-incomplete'}`}
           icon={isLaunchable ? Check : TriangleAlert}
-          aria-label="미완성 오류 강조"
+          aria-label={isLaunchable ? '검증 완료 상태 보기' : '미완성 오류 강조'}
           aria-pressed={highlightValidation}
           onClick={() => setHighlightValidation((current) => !current)}
         >
-          {isLaunchable ? '완성' : `미완성 · 오류 ${validationIssues.length}`}
+          {validationTriggerLabel}
         </Button>
         <Button className="floating-editor-button" icon={Save} disabled={documentPending || savePending} onClick={() => { void saveStrategy(); }}>{savePending ? '저장 중…' : '저장'}</Button>
         <div className="editor-launch-action">
@@ -3025,7 +3300,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
             icon={Rocket}
             aria-disabled={!isLaunchable}
             aria-describedby="personal-bot-launch-tooltip"
-            onClick={preparePersonalBotLaunch}
+            onClick={() => { void preparePersonalBotLaunch(); }}
           >개인 봇 출시</Button>
           <span className="editor-action-tooltip" id="personal-bot-launch-tooltip" role="tooltip">
             <strong>개인 운용 봇</strong>
@@ -3153,7 +3428,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
                 <button className="section-move-handle" data-testid={`${section.id}-move-handle`} aria-label={`PARTITION ${sectionNumber} 이동`} onPointerDown={(event) => beginSectionMove(event, section)}><GripVertical size={16} /></button>
                 <div className="section-identity"><span>PARTITION {sectionNumber}</span><strong>{section.symbol}</strong><small>매수 {section.cards.buy.length} · 매도 {section.cards.sell.length}</small></div>
                 <div className="section-settings">
-                  <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="거래 종목">종목</span><button type="button" className="section-symbol-manager" aria-label={`PARTITION ${sectionNumber} 종목 관리`} onClick={() => { setPendingInstrumentKey(''); setSymbolManagerSectionId(section.id); }}><strong>{splitPartitionSymbols(section.symbol).length || 0}개 종목</strong><small>한도 설정</small></button></label>
+                  <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="거래 종목">종목</span><button type="button" className="section-symbol-manager" aria-label={`PARTITION ${sectionNumber} 종목 관리`} onClick={() => { setPendingInstrumentKey(''); setInstrumentQuery(''); setSymbolManagerSectionId(section.id); }}><strong>{splitPartitionSymbols(section.symbol).length || 0}개 종목</strong><small>한도 설정</small></button></label>
                   <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="전체 전략 대비 예산">예산</span><span className="section-allocation"><input type="number" min=".1" max="100" step=".1" aria-label={`PARTITION ${sectionNumber} 전체 전략 대비 예산`} value={section.allocation} onWheel={(event) => event.stopPropagation()} onChange={(event) => updateSection(section.id, { allocation: Number(event.target.value) })} /><b>%</b></span></label>
                   <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="기본 봉 주기">봉 주기</span><select aria-label={`PARTITION ${sectionNumber} 기본 봉 주기`} value={section.timeframe} onChange={(event) => updateSection(section.id, { timeframe: event.target.value })}>{['1분봉', '3분봉', '5분봉', '15분봉', '30분봉', '1시간봉', '4시간봉', '일봉', '주봉'].map((timeframe) => <option key={timeframe}>{timeframe}</option>)}</select></label>
                 </div>
@@ -3205,8 +3480,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           <button type="button" aria-label="전략 오류 안내 닫기" onClick={() => setHighlightValidation(false)}><X size={14} /></button>
         </header>
         <div className="basic-validation-drawer-summary">
-          <strong>{isLaunchable ? '모든 필수 설정을 완료했어요' : `${validationIssues.length}개 항목을 확인해 주세요`}</strong>
-          <small>{isLaunchable ? '현재 구성으로 개인 봇을 출시할 수 있습니다.' : '항목을 선택하면 수정할 전략 카드로 이동합니다.'}</small>
+          <strong>{isLaunchable
+            ? serverWarningFindings.length > 0 ? `출시 가능 · 경고 ${serverWarningFindings.length}개` : '모든 필수 설정을 완료했어요'
+            : validationIssues.length > 0
+              ? `${validationIssues.length}개 항목을 확인해 주세요`
+              : serverValidation?.status === 'INVALID'
+                ? `서버 검증 오류 ${serverErrorFindings.length}개`
+                : '저장 후 서버 검증이 필요합니다'}</strong>
+          <small>{isLaunchable ? '현재 구성으로 개인 봇을 출시할 수 있습니다.' : validationIssues.length > 0 ? '항목을 선택하면 수정할 전략 카드로 이동합니다.' : '저장하면 현재 구성을 서버 기준으로 검증합니다.'}</small>
         </div>
         {!isLaunchable && <div className="basic-validation-groups">
           {groupedValidationIssues.map((group) => <section key={group.key} className="basic-validation-group" role="region" aria-label={`${group.label} 오류`}>
@@ -3214,22 +3495,43 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
             <ul>{group.issues.map((issue, index) => <li key={issue.id}><button type="button" onClick={() => focusValidationIssue(issue)}><span>{String(index + 1).padStart(2, '0')}</span><span>{renderBasicValidationMessage(issue.message.replace(`${group.label}의 `, ''))}</span><ChevronRight size={13} /></button></li>)}</ul>
           </section>)}
         </div>}
+        {serverValidation && serverValidation.findings.length > 0 && <section className="basic-validation-group" role="region" aria-label="서버 검증 결과">
+          <header><strong>서버 검증 결과</strong><span>{serverValidation.findings.length}</span></header>
+          <ul>{serverValidation.findings.map((finding, index) => <li key={`${finding.code}-${finding.location}-${index}`}>
+            <div className="basic-validation-server-finding">
+              <span>{finding.severity === 'ERROR' ? '오류' : '경고'}</span>
+              <span><strong>{finding.message}</strong><small>{finding.location}</small></span>
+            </div>
+          </li>)}</ul>
+        </section>}
       </aside>}
     </div>
     {/*
       미리보기는 PiP 창이다. 확대·이동하는 캔버스 안에 두면 좌표가 따라 움직이고
       transform이 fixed 기준을 바꿔 버리므로, 캔버스 밖 화면 단위에 띄운다.
     */}
-    {previewSection && <aside className="strategy-preview-card strategy-preview-unavailable" data-testid="strategy-preview-unavailable" aria-label={`PARTITION ${previewSectionNumber} 전략 미리보기`}>
+    {previewSection && marketDataClient && previewCandles && previewCandles.length > 0
+      ? <StrategyPreviewChart
+        partitionLabel={`PARTITION ${previewSectionNumber}`}
+        symbols={previewSymbols.slice(0, 1)}
+        flows={previewFlows}
+        candles={previewCandles}
+        onClose={() => setPreviewSectionId(null)}
+      />
+      : previewSection && <aside className="strategy-preview-card strategy-preview-unavailable" data-testid="strategy-preview-unavailable" aria-label={`PARTITION ${previewSectionNumber} 전략 미리보기`}>
       <header className="strategy-preview-head">
         <div className="strategy-preview-identity"><strong>{previewSymbols.length > 0 ? previewSymbols.join(' · ') : '종목 미선택'}</strong><small>{`PARTITION ${previewSectionNumber}`}</small></div>
         <button type="button" className="strategy-preview-close" aria-label="미리보기 닫기" onClick={() => setPreviewSectionId(null)}><X size={13} /></button>
       </header>
-      <EmptyState
-        icon={CandlestickChart}
-        title="실제 시장 데이터 기반 미리보기만 표시합니다."
-        detail="현재 편집기에는 검증된 미리보기 시세 API가 연결되어 있지 않습니다. 저장 후 공식 백테스트에서 실제 데이터 기반 결과를 확인해 주세요."
-      />
+      {previewPending
+        ? <LoadingState label="실제 시장 데이터를 불러오는 중입니다." />
+        : previewError
+          ? <ErrorState title={previewError} />
+          : <EmptyState
+            icon={CandlestickChart}
+            title="표시할 실제 시장 데이터가 없습니다."
+            detail="실제 시장 데이터 기반 미리보기만 표시합니다."
+          />}
     </aside>}
     {trashItemLabel && <div
       ref={(element) => { trashZoneRef.current = element; }}
@@ -3268,9 +3570,11 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           {managedSymbols.map((symbol) => <div key={symbol}><span><strong>{symbol}</strong><small>미국 주식</small></span><label><span>최대 보유 비율</span><span className="setting-with-unit"><input type="number" min=".1" max="100" step=".1" aria-label={`${symbol} 종목별 최대 보유 비율`} value={symbolLimits[symbolManagerSection.id]?.[symbol] ?? 25} onChange={(event) => setSymbolLimits((current) => ({ ...current, [symbolManagerSection.id]: { ...(current[symbolManagerSection.id] ?? {}), [symbol]: Number(event.target.value) } }))} /><b>%</b></span></label><button type="button" aria-label={`${symbol} 삭제`} onClick={() => removeManagedSymbol(symbol)}><Trash2 size={14} /></button></div>)}
         </div>
         <footer>
+          <label className="symbol-manager-add"><span>종목 검색</span><input type="search" aria-label="종목 검색" placeholder="티커 입력 (예: AAPL)" value={instrumentQuery} onChange={(event) => { setInstrumentQuery(event.target.value); setPendingInstrumentKey(''); }} /></label>
           <label className="symbol-manager-add"><span>추가할 종목</span><select aria-label="추가할 종목" value={selectedInstrument ? (selectedInstrument.id || selectedInstrument.symbol) : ''} disabled={availableInstruments.length === 0} onChange={(event) => setPendingInstrumentKey(event.target.value)}>
             {availableInstruments.map((instrument) => <option key={instrument.id || instrument.symbol} value={instrument.id || instrument.symbol}>{instrument.symbol}</option>)}
           </select></label>
+          {!catalogError && basicCatalog && normalizedInstrumentQuery && availableInstruments.length === 0 && <small role="status">일치하는 공식 지원 종목이 없습니다.</small>}
           <Button type="button" icon={Plus} disabled={!selectedInstrument} onClick={addManagedSymbol}>종목 추가</Button><Button type="button" kind="primary" onClick={() => setSymbolManagerSectionId(null)}>완료</Button>
         </footer>
       </section>
@@ -3292,11 +3596,37 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           <div>
             <small>PERSONAL BOT</small>
             <h2 id="personal-bot-launch-title">개인 운용 봇 출시</h2>
-            <p>전략을 실행할 봇의 이름과 설명을 정해 주세요.</p>
+            <p>{strategyId && authoringClient ? '검증된 전략에 적용할 공식 실행 설정을 확인해 주세요.' : '전략을 실행할 봇의 이름과 설명을 정해 주세요.'}</p>
           </div>
           <button type="button" aria-label="출시 창 닫기" onClick={closeLaunchDialog}><X size={17} /></button>
         </header>
-        <form onSubmit={launchPersonalBot}>
+        <form onSubmit={(event) => { void launchPersonalBot(event); }}>
+          {strategyId && authoringClient ? <>
+            {releaseInputsPending && <LoadingState label="출시 설정을 불러오는 중입니다." />}
+            {releaseError && <ErrorState title={releaseError} />}
+            {!releaseInputsPending && releaseInputs && <>
+              <label className="personal-bot-launch-field">
+                <span><strong>초기 운용 자금</strong><small>USD</small></span>
+                <input autoFocus type="number" min="1" step="0.01" aria-label="초기 운용 자금" value={initialCashAmount} onChange={(event) => setInitialCashAmount(event.target.value)} />
+              </label>
+              <label className="personal-bot-launch-field">
+                <span><strong>전략 운용 예산</strong><small>%</small></span>
+                <input type="number" min="0.01" max="100" step="0.01" aria-label="전략 운용 예산 비율" value={budgetPercent} onChange={(event) => setBudgetPercent(event.target.value)} />
+              </label>
+              <label className="personal-bot-launch-field">
+                <span><strong>실행 정책</strong><small>서버 고정</small></span>
+                <select aria-label="실행 정책" value={selectedExecutionPolicy} onChange={(event) => setSelectedExecutionPolicy(event.target.value)}>
+                  {releaseInputs.executionPolicies.map((policy) => <option key={policy.version} value={policy.version}>{policy.version} · 수수료 {policy.feeRateBps}bps · 버퍼 {policy.buyingPowerBufferBps}bps</option>)}
+                </select>
+              </label>
+              <label className="personal-bot-launch-field">
+                <span><strong>공식 백테스트 데이터</strong><small>{releaseInputs.datasets.length}개</small></span>
+                <select aria-label="공식 백테스트 데이터" value={selectedDataset} onChange={(event) => setSelectedDataset(event.target.value)}>
+                  {releaseInputs.datasets.map((dataset) => <option key={dataset.id} value={dataset.id}>{dataset.feedCode} · {dataset.resolution} · {dataset.periodStart}~{dataset.periodEnd}</option>)}
+                </select>
+              </label>
+            </>}
+          </> : <>
           <label className="personal-bot-launch-field">
             <span><strong>봇 이름</strong><small>{botName.length}/40</small></span>
             <input
@@ -3320,6 +3650,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
               onChange={(event) => setBotDescription(event.target.value)}
             />
           </label>
+          </>}
           <div className="personal-bot-launch-note">
             <ShieldCheck size={16} aria-hidden="true" />
             <span><strong>개인 운용으로 시작합니다</strong><small>출시 후 봇 운영 화면에서 상태를 확인할 수 있어요.</small></span>
@@ -3330,8 +3661,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
               type="submit"
               kind="primary"
               icon={Rocket}
-              disabled={!botName.trim() || !botDescription.trim()}
-            >봇 출시하기</Button>
+              disabled={strategyId && authoringClient
+                ? releaseInputsPending || releasePending || !selectedExecutionPolicy || !selectedDataset
+                : !botName.trim() || !botDescription.trim()}
+            >{releasePending ? '출시 중…' : '봇 출시하기'}</Button>
           </footer>
         </form>
       </section>

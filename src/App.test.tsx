@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { App } from './App';
+import type { AccountClient } from './api/account';
 import { NotificationApiError } from './api/notifications';
 import type { NotificationClient } from './api/notifications';
 import { setSessionAccessToken } from './api/sessionAccessToken';
@@ -12,6 +13,8 @@ import { ProEditor } from './views/StrategyViews';
 
 const balancedStyles = readFileSync(resolve(process.cwd(), 'src/styles/balanced.css'), 'utf8');
 const baseStyles = readFileSync(resolve(process.cwd(), 'src/styles/base.css'), 'utf8');
+const indexHtml = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+const appSource = readFileSync(resolve(process.cwd(), 'src/App.tsx'), 'utf8');
 
 /* Theme, market colours and language live behind the nav gear, so open it
    first. The trigger keeps its accessible name in both languages. */
@@ -57,10 +60,20 @@ describe('Signal product UI', () => {
     unmount();
     window.history.replaceState({}, '', '/backtests');
     render(<App />);
-    expect(screen.getByRole('heading', { name: '봇 백테스트' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '봇 백테스트' })).toBeInTheDocument();
   });
 
-  test('sends a signed-out visit to an account-scoped route straight to the sign-in screen', () => {
+  test('does not expose the comparison lab or prototype metadata from the product app', async () => {
+    window.history.replaceState({}, '', '/concepts');
+    render(<App />);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/'));
+    expect(screen.queryByText(/Concept Lab/i)).not.toBeInTheDocument();
+    expect(indexHtml).toContain('<title>Idea2Strategy</title>');
+    expect(indexHtml).not.toMatch(/UI Lab|comparison prototypes/);
+  });
+
+  test('sends a signed-out visit to an account-scoped route straight to the sign-in screen', async () => {
     signOut();
     window.history.replaceState({}, '', '/backtests');
     render(<App />);
@@ -68,7 +81,7 @@ describe('Signal product UI', () => {
     // No intermediate "sign-in required" page and no loading flash: the visit
     // lands on the sign-in screen itself, and returns after login.
     expect(window.location.pathname).toBe('/login');
-    expect(screen.getByRole('heading', { name: '로그인' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '로그인' })).toBeInTheDocument();
   });
 
   test('shows sign-in and sign-up instead of notifications and account while signed out', async () => {
@@ -93,13 +106,14 @@ describe('Signal product UI', () => {
     const { unmount } = render(<App />);
 
     await user.click(screen.getByRole('button', { name: '전략' }));
-    await user.click(screen.getByRole('button', { name: '새 전략' }));
+    await user.click(await screen.findByRole('button', { name: '새 전략' }));
     await user.click(screen.getByRole('button', { name: 'Basic으로 시작' }));
     expect(window.location.pathname).toBe('/strategies/new/basic');
     const editorSurface = screen.getByTestId('strategy-editor-surface');
-    expect(editorSurface).toContainElement(screen.getByRole('region', { name: 'Basic 전략 캔버스' }));
+    expect(editorSurface).toContainElement(await screen.findByRole('region', { name: 'Basic 전략 캔버스' }));
     expect(screen.queryByTestId('strategy-editor-subnav')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Basic 편집기' })).toHaveClass('active');
+    expect(screen.getByRole('button', { name: 'Pro 편집기' })).toBeDisabled();
     const editorPage = screen.getByTestId('basic-editor-workspace').closest('.editor-shell-page');
     expect(editorPage).not.toBeNull();
     expect(editorSurface.firstElementChild).toHaveClass('strategy-editor-scroll');
@@ -107,7 +121,7 @@ describe('Signal product UI', () => {
     unmount();
     window.history.replaceState({}, '', '/strategies/new/pro');
     render(<App />);
-    expect(screen.getByRole('heading', { name: 'Pro 편집기는 준비 중입니다' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Pro 편집기는 준비 중입니다' })).toBeInTheDocument();
     expect(screen.queryByRole('toolbar', { name: 'Pro 편집 작업' })).not.toBeInTheDocument();
   });
 
@@ -272,7 +286,7 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('button', { name: '관리자' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '관심종목 설정' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '내 계정' }));
-    expect(screen.getByRole('heading', { name: '내 계정' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '내 계정' })).toBeInTheDocument();
     // The fabricated identity is gone: no made-up profile name, no social
     // login that never existed, only what the real API panels can prove.
     expect(screen.queryByText('김전략')).not.toBeInTheDocument();
@@ -304,6 +318,61 @@ describe('Signal product UI', () => {
     await openDisplaySettings(user);
     expect(within(screen.getByRole('group', { name: 'Language' })).getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('heading', { name: 'Bot operations' })).toBeInTheDocument();
+  });
+
+  test('applies authenticated server display preferences before visiting My account', async () => {
+    const preferences = vi.fn().mockResolvedValue({
+      languageCode: 'en',
+      timezoneName: 'Asia/Seoul',
+      themePreference: 'LIGHT',
+      updatedAt: '2026-08-07T00:00:00Z',
+    });
+    const accountClient = { preferences } as unknown as AccountClient;
+
+    render(<App accountClient={accountClient} />);
+
+    expect(await screen.findByRole('heading', { name: 'Welcome back, KIM' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('app-shell')).toHaveAttribute('data-theme', 'light'));
+    expect(document.documentElement).toHaveAttribute('lang', 'en');
+    expect(preferences).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps a server SYSTEM theme synchronized with the browser colour scheme', async () => {
+    const listeners = new Set<() => void>();
+    const media = {
+      matches: true as boolean,
+      addEventListener: vi.fn((_type: string, listener: () => void) => listeners.add(listener)),
+      removeEventListener: vi.fn((_type: string, listener: () => void) => listeners.delete(listener)),
+    };
+    const previousMatchMedia = window.matchMedia;
+    Object.defineProperty(window, 'matchMedia', { configurable: true, value: vi.fn(() => media) });
+    const accountClient = {
+      preferences: vi.fn().mockResolvedValue({
+        languageCode: 'ko', timezoneName: 'Asia/Seoul', themePreference: 'SYSTEM', updatedAt: '2026-08-07T00:00:00Z',
+      }),
+    } as unknown as AccountClient;
+
+    const view = render(<App accountClient={accountClient} />);
+    try {
+      await waitFor(() => expect(media.addEventListener).toHaveBeenCalledWith('change', expect.any(Function)));
+      expect(screen.getByTestId('app-shell')).toHaveAttribute('data-theme', 'dark');
+
+      media.matches = false;
+      act(() => listeners.forEach((listener) => listener()));
+      expect(screen.getByTestId('app-shell')).toHaveAttribute('data-theme', 'light');
+    } finally {
+      view.unmount();
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: previousMatchMedia });
+    }
+  });
+
+  test('loads product screens through route-level dynamic imports', () => {
+    expect(appSource).toContain("lazy(() => import('./views/DashboardView')");
+    expect(appSource).toContain("lazy(() => import('./views/StrategyViews')");
+    expect(appSource).toContain("lazy(() => import('./views/BotsView')");
+    expect(appSource).toContain("lazy(() => import('./views/OperationsViews')");
+    expect(appSource).not.toMatch(/import \{[^}]*DashboardView[^}]*\} from '\.\/views\/DashboardView'/);
+    expect(appSource).not.toMatch(/import \{[^}]*BotsView[^}]*\} from '\.\/views\/BotsView'/);
   });
 
   test('closes an open top-bar panel on the next press outside it', async () => {
@@ -517,7 +586,7 @@ describe('Signal product UI', () => {
       ['모의투자', '모의투자'],
     ]) {
       await user.click(screen.getByRole('button', { name: navigation }));
-      expect(screen.getByRole('heading', { name: heading }).closest('.page-heading')).not.toBeNull();
+      expect((await screen.findByRole('heading', { name: heading })).closest('.page-heading')).not.toBeNull();
       const activeItems = document.querySelectorAll('.signal-product-nav > nav button.active');
       expect(activeItems).toHaveLength(1);
       expect(activeItems[0]).toHaveAccessibleName(navigation);
@@ -643,7 +712,7 @@ describe('Signal product UI', () => {
     await user.click(screen.getByRole('button', { name: '전략' }));
 
     expect(screen.queryByRole('searchbox', { name: '블록 검색' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Opening Range Flow 복사' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Opening Range Flow 복사' })).toBeInTheDocument();
     expect(screen.queryByText('7 blocks')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '새 전략' }));

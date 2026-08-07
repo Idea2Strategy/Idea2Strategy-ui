@@ -32,6 +32,8 @@ describe('strategy library API client', () => {
         editable: true,
         updatedAt: '2026-08-01T12:00:00Z',
         version: null,
+        blockCount: 3,
+        symbols: ['AAPL', 'MSFT'],
       }],
       nextCursor: null,
       hasMore: false,
@@ -46,6 +48,8 @@ describe('strategy library API client', () => {
       mode: 'BASIC',
       validationStatus: 'VALID',
       editable: true,
+      blockCount: 3,
+      symbols: ['AAPL', 'MSFT'],
     });
     expect(fetchImpl).toHaveBeenCalledWith(
       'https://api.example.com/api/v1/strategies?limit=50',
@@ -58,7 +62,7 @@ describe('strategy library API client', () => {
       items: [{
         id: 'id', kind: 'draft', mode: 'UNKNOWN', name: 'Broken', status: 'DRAFT',
         validationStatus: null, backtestStatus: null, editable: true,
-        updatedAt: '2026-08-01T12:00:00Z', version: null, description: null,
+        updatedAt: '2026-08-01T12:00:00Z', version: null, description: null, blockCount: 0, symbols: [],
       }],
       nextCursor: null,
       hasMore: false,
@@ -92,6 +96,18 @@ describe('strategy authoring API client', () => {
     }));
   });
 
+  it('creates an owned strategy copy through the dedicated command', async () => {
+    const copyId = '20000000-0000-4000-8000-000000000002';
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: copyId }), { status: 201 }));
+    const client = createStrategyAuthoringClient({ fetchImpl });
+
+    await expect(client.copyStrategy(document.strategyId)).resolves.toEqual({ id: copyId });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `/api/v1/strategies/${document.strategyId}/copies`,
+      expect.objectContaining({ method: 'POST', credentials: 'include' }),
+    );
+  });
+
   it('loads, leases, heartbeats, saves, and releases an owned document', async () => {
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(document), { status: 200 }))
@@ -118,6 +134,67 @@ describe('strategy authoring API client', () => {
       [`/api/v1/strategies/${document.strategyId}/edit-lease`, 'PUT'],
       [`/api/v1/strategies/${document.strategyId}/document`, 'PUT'],
       [`/api/v1/strategies/${document.strategyId}/edit-lease`, 'DELETE'],
+    ]);
+  });
+
+  it('validates the saved revision against an explicit published catalog', async () => {
+    const validation = {
+      validationRunId: '21000000-0000-4000-8000-000000000001',
+      strategyId: document.strategyId,
+      status: 'VALID',
+      requestedEditSequence: 4,
+      semanticHash: 'a'.repeat(64),
+      elementCatalogVersionId: '0f1a0000-0000-4000-8000-000000000001',
+      findings: [{
+        severity: 'WARNING', code: 'BACKTEST_FEED_UNAVAILABLE', location: 'groups[0]',
+        message: 'Historical coverage is unavailable', details: ['feed:ADJUSTED_BAR@1m'],
+      }],
+      completedAt: '2026-08-07T12:00:00Z',
+    };
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify(validation), { status: 201 }));
+    const client = createStrategyAuthoringClient({ fetchImpl });
+
+    await expect(client.validateStrategy(document.strategyId, validation.elementCatalogVersionId))
+      .resolves.toEqual(validation);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `/api/v1/strategies/${document.strategyId}/validations`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ catalogId: validation.elementCatalogVersionId }),
+      }),
+    );
+  });
+
+  it('loads server-owned release inputs and creates an immutable release', async () => {
+    const inputs = {
+      executionPolicies: [{
+        version: 'policy-v1', brokerRulesVersion: 'market-v1', accountingRulesVersion: 'accounting-v1',
+        precisionRulesVersion: 'precision-v1', feePolicyId: 'fee-id', feeRateBps: 20,
+        buyingPowerBufferPolicyId: 'buffer-id', buyingPowerBufferBps: 1,
+      }],
+      datasets: [{
+        id: 'dataset-id', feedCode: 'alpaca-sip', dataLayer: 'ADJUSTED', resolution: '1m',
+        periodStart: '2025-01-01', periodEnd: '2026-01-01', schemaVersion: 'market-bars-v2',
+      }],
+      observedAt: '2026-08-07T12:00:00Z',
+    };
+    const release = {
+      validationRunId: 'validation-id', initialCashAmount: '100000', budgetCapBps: 10000,
+      brokerRulesVersion: 'market-v1', accountingRulesVersion: 'accounting-v1',
+      precisionRulesVersion: 'precision-v1', feePolicyId: 'fee-id',
+      buyingPowerBufferPolicyId: 'buffer-id', datasetManifestId: 'dataset-id',
+      executionPolicyVersion: 'policy-v1', candidateConflictPolicy: { policy: 'FIRST_WINS' },
+    };
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(inputs), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ botId: 'bot-id', backtestLane: 'BASIC' }), { status: 201 }));
+    const client = createStrategyAuthoringClient({ fetchImpl });
+
+    await expect(client.getReleaseInputs()).resolves.toEqual(inputs);
+    await expect(client.releaseStrategy(document.strategyId, release)).resolves.toEqual({ botId: 'bot-id', backtestLane: 'BASIC' });
+    expect(fetchImpl.mock.calls.map(([url, init]) => [url, (init as RequestInit).method ?? 'GET'])).toEqual([
+      ['/api/v1/strategy-release-inputs', 'GET'],
+      [`/api/v1/strategies/${document.strategyId}/releases`, 'POST'],
     ]);
   });
 
@@ -168,7 +245,7 @@ describe('Basic strategy catalog API client', () => {
     expect(catalog.elements[0].parameterSchema).toEqual({ required: ['period'] });
     expect(catalog.instruments[0]).toMatchObject({ id: 'instrument-id', symbol: 'AAPL' });
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://api.example.com/api/v1/strategy-catalogs/basic?languageVersion=basic%2Fv1&schemaVersion=schema%2Fv1&catalogVersion=catalog%2Fv1',
+      'https://api.example.com/api/v1/strategy-catalogs/basic',
       expect.objectContaining({ credentials: 'include' }),
     );
   });

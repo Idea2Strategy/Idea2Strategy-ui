@@ -3,17 +3,20 @@ import { KeyRound, LoaderCircle, ShieldCheck, Users } from 'lucide-react';
 import { Button, EmptyState, ErrorState, PageHeading, Panel, Status } from './common';
 import { OperatorRbacApiError } from '../api/operatorRbac';
 import type { OperatorAssignments, OperatorCatalog, OperatorRbacClient, OperatorSelf } from '../api/operatorRbac';
+import { AccountOperationsApiError } from '../api/accountOperations';
+import type { AccountOperationsClient } from '../api/accountOperations';
 
 type State<T> = { kind: 'loading' } | { kind: 'ready'; value: T } | { kind: 'error'; error: OperatorRbacApiError };
-type Tab = 'self' | 'catalog' | 'assignments';
+type Tab = 'self' | 'catalog' | 'assignments' | 'mutations';
 
 const apiError = (cause: unknown) => cause instanceof OperatorRbacApiError
   ? cause : new OperatorRbacApiError(0, 'NETWORK_ERROR', null);
 
 export function OperatorRbacWorkspace({
-  client, catalogReadPermissionId, assignmentReadPermissionId,
+  client, mutationsClient, catalogReadPermissionId, assignmentReadPermissionId,
 }: {
   client: OperatorRbacClient;
+  mutationsClient?: AccountOperationsClient;
   catalogReadPermissionId?: string;
   assignmentReadPermissionId?: string;
 }) {
@@ -39,11 +42,59 @@ export function OperatorRbacWorkspace({
       <button type="button" aria-current={visibleTab === 'self' ? 'page' : undefined} onClick={() => setTab('self')}>내 권한</button>
       {canReadCatalog && <button type="button" aria-current={visibleTab === 'catalog' ? 'page' : undefined} onClick={() => setTab('catalog')}>권한 카탈로그</button>}
       {canReadAssignments && <button type="button" aria-current={visibleTab === 'assignments' ? 'page' : undefined} onClick={() => setTab('assignments')}>운영자 할당 조회</button>}
+      {mutationsClient && <button type="button" aria-current={visibleTab === 'mutations' ? 'page' : undefined} onClick={() => setTab('mutations')}>역할 부여·회수</button>}
     </nav>
     {visibleTab === 'self' && <SelfView value={self.value} />}
     {visibleTab === 'catalog' && <CatalogView client={client} />}
     {visibleTab === 'assignments' && <AssignmentsView client={client} />}
+    {visibleTab === 'mutations' && mutationsClient && <RbacMutationView client={mutationsClient} />}
   </OperatorPage>;
+}
+
+function RbacMutationView({ client, createIdempotencyKey = () => crypto.randomUUID() }: { client: AccountOperationsClient; createIdempotencyKey?: () => string }) {
+  const [targetOperatorId, setTargetOperatorId] = useState('');
+  const [roleId, setRoleId] = useState('');
+  const [assignmentId, setAssignmentId] = useState('');
+  const [reasonCode, setReasonCode] = useState('OPERATOR_DUTY_CHANGE');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [pending, setPending] = useState<'GRANT' | 'REVOKE' | null>(null);
+  const [confirmation, setConfirmation] = useState('');
+  const [state, setState] = useState<{ kind: 'idle' | 'processing' } | { kind: 'ready'; code: string; correlationId: string } | { kind: 'error'; error: AccountOperationsApiError; retry: () => void }>({ kind: 'idle' });
+
+  const execute = async (retryKey?: string) => {
+    if (!pending) return;
+    const action = pending;
+    const key = retryKey ?? createIdempotencyKey();
+    setState({ kind: 'processing' });
+    try {
+      const receipt = action === 'GRANT'
+        ? await client.grantOperator({ targetOperatorId: targetOperatorId.trim(), roleId: roleId.trim(), expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null, reasonCode: reasonCode.trim() }, key)
+        : await client.revokeOperator({ targetOperatorId: targetOperatorId.trim(), assignmentId: assignmentId.trim(), reasonCode: reasonCode.trim() }, key);
+      setPending(null); setConfirmation('');
+      setState({ kind: 'ready', code: receipt.code, correlationId: receipt.correlationId });
+    } catch (cause) {
+      const failure = cause instanceof AccountOperationsApiError ? cause : new AccountOperationsApiError(0, 'NETWORK_ERROR', null);
+      setState({ kind: 'error', error: failure, retry: () => void execute(key) });
+    }
+  };
+
+  return <Panel title="운영자 역할 부여·회수" subtitle="고위험 변경은 서버의 권한·MFA·역할 계층 검증을 다시 거칩니다.">
+    <div className="settings-fields account-api-fields">
+      <label><span>대상 운영자 ID</span><input aria-label="RBAC target operator ID" value={targetOperatorId} onChange={(event) => setTargetOperatorId(event.target.value)} /></label>
+      <label><span>역할 ID</span><input aria-label="RBAC role ID" value={roleId} onChange={(event) => setRoleId(event.target.value)} /></label>
+      <label><span>할당 ID</span><input aria-label="RBAC assignment ID" value={assignmentId} onChange={(event) => setAssignmentId(event.target.value)} /></label>
+      <label><span>사유 코드</span><input aria-label="RBAC reason code" value={reasonCode} onChange={(event) => setReasonCode(event.target.value)} /></label>
+      <label><span>역할 만료 시각</span><input aria-label="RBAC role expiry" type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></label>
+    </div>
+    <div className="account-api-actions">
+      <Button disabled={!targetOperatorId.trim() || !roleId.trim() || !reasonCode.trim() || state.kind === 'processing'} onClick={() => { setPending('GRANT'); setConfirmation(''); }}>역할 부여</Button>
+      <Button disabled={!targetOperatorId.trim() || !assignmentId.trim() || !reasonCode.trim() || state.kind === 'processing'} onClick={() => { setPending('REVOKE'); setConfirmation(''); }}>역할 회수</Button>
+    </div>
+    {pending && <div className="case-api-confirm" role="alertdialog" aria-label="Confirm RBAC mutation"><strong>{pending} 변경을 실행할까요?</strong><label><span>확인을 위해 {pending} 입력</span><input aria-label={`Type ${pending} to confirm`} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label><div className="account-api-actions"><Button kind="primary" disabled={confirmation !== pending || state.kind === 'processing'} onClick={() => void execute()}>확인 후 실행</Button><Button onClick={() => setPending(null)}>취소</Button></div></div>}
+    {state.kind === 'processing' && <p role="status">역할 변경을 처리하는 중입니다.</p>}
+    {state.kind === 'ready' && <p role="status">{state.code} · 문의 코드 {state.correlationId}</p>}
+    {state.kind === 'error' && <ErrorState title={state.error.status === 403 ? '역할 변경 권한 또는 최신 MFA가 없습니다.' : '역할 변경을 처리하지 못했습니다.'} detail={<>오류 코드 {state.error.code}{state.error.correlationId && <> · 문의 코드 {state.error.correlationId}</>}</>} onRetry={state.error.retryable ? state.retry : undefined} />}
+  </Panel>;
 }
 
 function OperatorPage({ children }: { children: React.ReactNode }) {

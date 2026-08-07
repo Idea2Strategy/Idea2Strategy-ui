@@ -4,6 +4,8 @@ import { describe, expect, test, vi } from 'vitest';
 import { CompetitionApiWorkspace } from './components/CompetitionApiWorkspace';
 import { CompetitionApiError } from './api/competitionRooms';
 import type { CompetitionRoomsClient, PublicRoom, RoomInputCatalog } from './api/competitionRooms';
+import { LanguageProvider } from './lib/i18n';
+import { RoomsView } from './views/OperationsViews';
 
 const room: PublicRoom = {
   id: '11111111-1111-4111-8111-111111111111', name: '실전 API 대회', organizerType: 'USER',
@@ -16,11 +18,16 @@ const roomInputCatalog: RoomInputCatalog = {
   feePolicies: [{ id: '33333333-3333-4333-8333-333333333333', policyCode: 'OFFICIAL', version: '1.0.0', feeRateBps: 20, calculationRulesVersion: '1.0.0', rulesHash: 'b'.repeat(64), effectiveFrom: '2026-08-01T00:00:00Z', effectiveTo: null, publishedAt: '2026-08-01T00:00:00Z' }],
   buyingPowerBufferPolicies: [{ id: '44444444-4444-4444-8444-444444444444', policyCode: 'DEFAULT', version: '1.0.0', bufferBps: 100, roundingRulesVersion: '1.0.0', rulesHash: 'c'.repeat(64), effectiveFrom: '2026-08-01T00:00:00Z', effectiveTo: null, publishedAt: '2026-08-01T00:00:00Z' }],
 };
-const validation = { validationRunId: '55555555-5555-4555-8555-555555555555', strategyId: 'strategy-1', strategyName: 'Momentum', requestedEditSequence: 7, semanticHash: 'd'.repeat(64), elementCatalogVersionId: 'catalog-1', completedAt: '2026-08-04T09:59:00Z' };
+const validation = { validationRunId: '55555555-5555-4555-8555-555555555555', strategyId: 'strategy-1', strategyName: 'Momentum', requestedEditSequence: 7, semanticHash: 'd'.repeat(64), elementCatalogVersionId: 'catalog-1', languageVersion: 'basic/v1', schemaVersion: 'schema/v1', catalogVersion: 'catalog/v1', completedAt: '2026-08-04T09:59:00Z' };
 
 function client(overrides: Partial<CompetitionRoomsClient> = {}): CompetitionRoomsClient {
   return {
     roomInputCatalog: vi.fn(async () => roomInputCatalog),
+    strategyReleaseInputs: vi.fn(async () => ({
+      executionPolicies: [{ version: 'policy-1', brokerRulesVersion: 'broker-1', accountingRulesVersion: 'accounting-1', precisionRulesVersion: 'precision-1', feePolicyId: roomInputCatalog.feePolicies[0].id, feeRateBps: 20, buyingPowerBufferPolicyId: roomInputCatalog.buyingPowerBufferPolicies[0].id, buyingPowerBufferBps: 100 }],
+      datasets: [], observedAt: '2026-08-04T10:00:00Z',
+    })),
+    ownedRooms: vi.fn(async () => []),
     currentStrategyValidations: vi.fn(async () => ({ items: [validation] })),
     searchRooms: vi.fn(async () => ({ items: [room], nextCursor: null, hasMore: false })),
     createRoom: vi.fn(async () => ({ id: room.id, accessType: 'PUBLIC' as const, status: 'RECRUITING' as const })),
@@ -33,6 +40,17 @@ function client(overrides: Partial<CompetitionRoomsClient> = {}): CompetitionRoo
     ] })),
     getPostEvaluationChoice: vi.fn(async () => ({ roomId: room.id, participationId: 'p1', action: 'STOP_AFTER_EVALUATION' as const, recordedAt: room.createdAt, lockedAt: null })),
     setPostEvaluationChoice: vi.fn(async (_room, _participation, action) => ({ roomId: room.id, participationId: 'p1', action, recordedAt: room.createdAt, lockedAt: null })),
+    updateRoom: vi.fn(async () => undefined),
+    issueInvitation: vi.fn(async () => ({ id: 'invite-1', roomId: room.id, credentialType: 'LINK' as const, secret: 'secret-1', expiresAt: '2026-08-08T00:00:00Z' })),
+    revokeInvitation: vi.fn(async () => undefined),
+    consumeInvitation: vi.fn(async () => ({ invitationId: 'invite-1', roomId: room.id })),
+    withdrawParticipation: vi.fn(async () => ({ roomId: room.id, participationsTerminated: 1, occurredAt: room.createdAt })),
+    cancelRoom: vi.fn(async () => ({ roomId: room.id, participationsTerminated: 1, occurredAt: room.createdAt })),
+    expelParticipation: vi.fn(async () => ({ roomId: room.id, participationsTerminated: 1, occurredAt: room.createdAt })),
+    operatorRoom: vi.fn(async () => { throw new CompetitionApiError(403, 'Forbidden', '', 'OPERATOR_PERMISSION_REQUIRED'); }),
+    createOfficialRoom: vi.fn(async () => ({ id: room.id, organizerType: 'PLATFORM' as const, accessType: 'PUBLIC' as const, status: 'RECRUITING' as const, lockedAt: room.createdAt })),
+    cancelOperatorRoom: vi.fn(async () => ({ roomId: room.id, participationsTerminated: 1, occurredAt: room.createdAt })),
+    invalidateOperatorRoom: vi.fn(async () => ({ roomId: room.id, participationsTerminated: 1, occurredAt: room.createdAt })),
     ...overrides,
   };
 }
@@ -41,7 +59,7 @@ describe('real competition room workspace', () => {
   test('shows loading, schedule, anonymous ranking, owned comparison and post-end choice', async () => {
     const api = client();
     render(<CompetitionApiWorkspace client={api} />);
-    expect(screen.getByRole('status')).toHaveTextContent('대회 목록을 불러오는 중');
+    expect(screen.getByText('대회 목록을 불러오는 중입니다.')).toBeInTheDocument();
 
     await screen.findByRole('listitem', { name: '실전 API 대회 열기' });
     await userEvent.click(screen.getByRole('listitem', { name: '실전 API 대회 열기' }));
@@ -94,9 +112,12 @@ describe('real competition room workspace', () => {
     const join = screen.getByRole('dialog', { name: '대회 참가' });
     expect(await within(join).findByRole('option', { name: /Momentum · 편집 7/ })).toBeInTheDocument();
     expect(within(join).queryByLabelText('검증 실행 ID')).not.toBeInTheDocument();
+    const budget = within(join).getByLabelText('봇 예산 비율');
+    await userEvent.clear(budget);
+    await userEvent.type(budget, '25.5');
     await userEvent.type(within(join).getByLabelText('익명 봇 별칭'), 'Bot 7ABC');
     await userEvent.click(within(join).getByRole('button', { name: '참가 확정' }));
-    await waitFor(() => expect(api.joinRoom).toHaveBeenCalledWith(room.id, expect.objectContaining({ validationRunId: validation.validationRunId, anonymousAlias: 'Bot 7ABC' })));
+    await waitFor(() => expect(api.joinRoom).toHaveBeenCalledWith(room.id, expect.objectContaining({ validationRunId: validation.validationRunId, anonymousAlias: 'Bot 7ABC', budgetCapBps: 2550 })));
   });
 
   test('keeps creation fail closed while catalog inputs load or are empty', async () => {
@@ -126,7 +147,7 @@ describe('real competition room workspace', () => {
   test('recovers from a catalog load failure only after an explicit retry', async () => {
     const roomInputCatalogCall = vi.fn()
       .mockRejectedValueOnce(new Error('temporary catalog outage'))
-      .mockResolvedValueOnce(roomInputCatalog);
+      .mockResolvedValue(roomInputCatalog);
     render(<CompetitionApiWorkspace client={client({ roomInputCatalog: roomInputCatalogCall })} />);
     await screen.findByRole('listitem', { name: '실전 API 대회 열기' });
     await userEvent.click(screen.getByRole('button', { name: '대회 만들기' }));
@@ -146,6 +167,34 @@ describe('real competition room workspace', () => {
     await userEvent.click(await screen.findByRole('button', { name: '이 대회 참가하기' }));
     const join = screen.getByRole('dialog', { name: '대회 참가' });
     expect(await within(join).findByText('현재 제출 가능한 검증 완료 전략이 없습니다.')).toBeInTheDocument();
+    expect(within(join).queryByRole('alert')).not.toBeInTheDocument();
     expect(within(join).getByRole('button', { name: '참가 확정' })).toBeDisabled();
+  });
+
+  test('translates the live create and join dialogs completely in English', async () => {
+    window.localStorage.setItem('i2s-language', 'en');
+    try {
+      const api = client();
+      const englishRoom = { ...room, name: 'Live API Competition' };
+      api.searchRooms = vi.fn(async () => ({ items: [englishRoom], nextCursor: null, hasMore: false }));
+      const first = render(<LanguageProvider><RoomsView client={api} /></LanguageProvider>);
+      await screen.findByRole('listitem', { name: 'Live API Competition Open' });
+      await userEvent.click(screen.getByRole('button', { name: 'Create competition' }));
+      const create = screen.getByRole('dialog', { name: 'Create competition' });
+      expect(create.textContent).not.toMatch(/[가-힣]/);
+      first.unmount();
+
+      render(<LanguageProvider><RoomsView client={api} /></LanguageProvider>);
+      await userEvent.click(await screen.findByRole('listitem', { name: 'Live API Competition Open' }));
+      const detail = await screen.findByRole('region', { name: 'Live API Competition details' });
+      await within(detail).findByText('Bot 3F9A');
+      expect(detail.textContent).not.toMatch(/[가-힣]/);
+      await userEvent.click(await screen.findByRole('button', { name: 'Join this competition' }));
+      const join = screen.getByRole('dialog', { name: 'Competition' });
+      await within(join).findByRole('option', { name: /Momentum/ });
+      expect(join.textContent).not.toMatch(/[가-힣]/);
+    } finally {
+      window.localStorage.clear();
+    }
   });
 });

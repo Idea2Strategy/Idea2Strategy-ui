@@ -669,6 +669,8 @@ export const buildOverlays = (blocks: PreviewBlock[], candles: PreviewCandle[]):
 export interface PreviewInput {
   symbol: string;
   flows: PreviewFlow[];
+  /** Real server bars. Omit only for the isolated prototype/test surface. */
+  candles?: PreviewCandle[];
   /* 기본은 고정 1개월 창. 테스트에서만 다른 해상도를 확인한다. */
   timeframeSeconds?: number;
   candleCount?: number;
@@ -687,10 +689,11 @@ const emptySummary: PreviewSummary = {
 export const evaluateStrategyPreview = ({
   symbol,
   flows,
+  candles: suppliedCandles,
   timeframeSeconds = PREVIEW_WINDOW.seconds,
   candleCount = PREVIEW_WINDOW.count,
 }: PreviewInput): StrategyPreview => {
-  const candles = generatePreviewCandles(symbol, timeframeSeconds, candleCount);
+  const candles = suppliedCandles ?? generatePreviewCandles(symbol, timeframeSeconds, candleCount);
   const unsupported = new Set<string>();
   /* 플로우별로 규칙을 따로 만든다. 여러 매수 플로우의 블록을 한 벌로 합치면
      첫 지표만 남아 나머지 플로우의 판단이 사라진다. */

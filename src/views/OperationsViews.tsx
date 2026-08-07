@@ -1950,7 +1950,7 @@ interface RoomsViewProps {
 
 export function RoomsView({ client, ...props }: RoomsViewProps) {
   return client
-    ? <Localized><CompetitionApiWorkspace client={client} /></Localized>
+    ? <CompetitionApiWorkspace client={client} />
     : <StaticRoomsView {...props} />;
 }
 

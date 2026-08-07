@@ -1,4 +1,4 @@
-import { render as renderBare, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render as renderBare, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactElement } from 'react';
 
@@ -9,6 +9,8 @@ import { describe, expect, test, vi } from 'vitest';
 import { BotOperationsApiError } from './api/botOperations';
 import { setSessionAccessToken } from './api/sessionAccessToken';
 import type { BotOperationsClient, BotOperationsView } from './api/botOperations';
+import type { DashboardClient, DashboardSnapshot } from './api/dashboard';
+import type { MarketBar, MarketDataClient } from './api/marketData';
 import { StrategyApiError } from './api/strategies';
 import type { StrategyLibraryClient, StrategyLibraryPage } from './api/strategies';
 import { LanguageProvider } from './lib/i18n';
@@ -39,6 +41,8 @@ const strategyPage = (name?: string): StrategyLibraryPage => ({
     editable: true,
     updatedAt: '2026-08-04T12:00:00Z',
     version: null,
+    blockCount: 2,
+    symbols: ['AAPL'],
   }] : [],
   nextCursor: null,
   hasMore: false,
@@ -56,6 +60,7 @@ const operation = (name: string): BotOperationsView => ({
   executionBlockedAt: null,
   executionBlockReasonCode: null,
   lastEventSequence: 0,
+  instruments: [],
 });
 
 const botClient = (read: () => Promise<BotOperationsView[]>): BotOperationsClient => ({
@@ -63,6 +68,29 @@ const botClient = (read: () => Promise<BotOperationsView[]>): BotOperationsClien
   listJudgments: vi.fn().mockResolvedValue({ entries: [], nextAfterSequence: 0, hasMore: false }),
   runBot: vi.fn(),
   stopBot: vi.fn(),
+});
+
+const dashboardSnapshot = (name?: string, withPerformance = true): DashboardSnapshot => ({
+  generatedAt: '2026-08-07T12:00:00Z',
+  bots: name ? [{
+    botId: '30000000-0000-4000-8000-000000000001',
+    name,
+    state: 'running',
+    lifecycleChangedAt: '2026-08-07T11:59:00Z',
+    performance: withPerformance ? {
+      equityAmount: 10540,
+      totalReturnPct: 5.4,
+      maxDrawdownPct: -2.1,
+      sharpeRatio: 1.25,
+      calculationRulesVersion: 'performance-v1',
+      updatedAt: '2026-08-07T11:59:30Z',
+    } : null,
+    competition: null,
+  }] : [],
+});
+
+const dashboardClient = (read: () => Promise<DashboardSnapshot>): DashboardClient => ({
+  getSnapshot: vi.fn(read),
 });
 
 describe('production runtime honesty', () => {
@@ -183,18 +211,17 @@ describe('production runtime honesty', () => {
     expect(screen.queryByLabelText(/수익률 차트/)).not.toBeInTheDocument();
   });
 
-  test('a signed-in production dashboard loads real bot operations without synthetic performance', async () => {
+  test('a signed-in production dashboard loads the server aggregate without synthetic charts', async () => {
     setSessionAccessToken('dashboard-session');
     try {
       render(<DashboardView
         setPage={() => {}}
         dataSource="live"
-        operationsClient={botClient(() => Promise.resolve([operation('Confirmed Bot')]))}
+        dashboardClient={dashboardClient(() => Promise.resolve(dashboardSnapshot('Confirmed Bot')))}
       />);
 
-      expect(await screen.findByText('Confirmed Bot')).toBeInTheDocument();
-      expect(screen.getByText('실제 자산 성과 데이터가 아직 없습니다.')).toBeInTheDocument();
-      expect(screen.queryByText('$10,540.00')).not.toBeInTheDocument();
+      expect(await screen.findAllByText('Confirmed Bot')).not.toHaveLength(0);
+      expect(screen.getAllByText(/10,540\.00/)).not.toHaveLength(0);
       expect(screen.queryByLabelText(/수익률 차트/)).not.toBeInTheDocument();
     } finally {
       setSessionAccessToken(null);
@@ -208,7 +235,7 @@ describe('production runtime honesty', () => {
       render(<LanguageProvider><DashboardView
         setPage={() => {}}
         dataSource="live"
-        operationsClient={botClient(() => Promise.resolve([operation('Confirmed Bot')]))}
+        dashboardClient={dashboardClient(() => Promise.resolve(dashboardSnapshot('Confirmed Bot')))}
       /></LanguageProvider>);
 
       expect(await screen.findByText('1 of 1 bots are running.')).toBeInTheDocument();
@@ -226,7 +253,7 @@ describe('production runtime honesty', () => {
       const empty = render(<DashboardView
         setPage={() => {}}
         dataSource="live"
-        operationsClient={botClient(() => Promise.resolve([]))}
+        dashboardClient={dashboardClient(() => Promise.resolve(dashboardSnapshot()))}
       />);
       expect(await screen.findByText('운용 중인 봇이 없습니다.')).toBeInTheDocument();
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -235,9 +262,63 @@ describe('production runtime honesty', () => {
       render(<DashboardView
         setPage={() => {}}
         dataSource="live"
-        operationsClient={botClient(() => Promise.reject(new Error('offline')))}
+        dashboardClient={dashboardClient(() => Promise.reject(new Error('offline')))}
       />);
       expect(await screen.findByRole('alert')).toHaveTextContent('Home 데이터를 불러오지 못했습니다.');
+    } finally {
+      setSessionAccessToken(null);
+    }
+  });
+
+  test('clears the previous symbol market bars while the next symbol is loading', async () => {
+    const nextSnapshot = deferred<{ instrumentId: string; symbol: string; timeframe: '1m'; bars: MarketBar[] }>();
+    const bar: MarketBar = {
+      eventId: 'event-aapl', occurredAt: '2026-08-07T12:00:00Z', sequence: 1, revision: 0,
+      open: 100, high: 102, low: 99, close: 101, volume: 1000, provider: 'ALPACA', feed: 'SIP',
+    };
+    const marketDataClient: MarketDataClient = {
+      getRecentBars: vi.fn((instrumentId) => instrumentId === 'instrument-aapl'
+        ? Promise.resolve({ instrumentId, symbol: 'AAPL', timeframe: '1m' as const, bars: [bar] })
+        : nextSnapshot.promise),
+      streamBars: vi.fn((_instrumentId, _onBar, signal) => new Promise<void>((resolve) => {
+        signal?.addEventListener('abort', () => resolve(), { once: true });
+      })),
+    };
+    const runtime = { ...operation('Two Symbols'), instruments: [
+      { instrumentId: 'instrument-aapl', symbol: 'AAPL' },
+      { instrumentId: 'instrument-msft', symbol: 'MSFT' },
+    ] };
+
+    render(<BotsView
+      operationsClient={botClient(() => Promise.resolve([runtime]))}
+      tradingClient={null}
+      marketDataClient={marketDataClient}
+    />);
+
+    expect(await screen.findByText('실시간 API')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'MSFT 차트 보기' }));
+    expect(await screen.findByText('시세 데이터 대기')).toBeInTheDocument();
+    expect(screen.queryByText('실시간 API')).not.toBeInTheDocument();
+  });
+
+  test('a failed refresh keeps the last confirmed dashboard and marks it stale', async () => {
+    setSessionAccessToken('dashboard-session');
+    const read = vi.fn()
+      .mockResolvedValueOnce(dashboardSnapshot('Confirmed Bot'))
+      .mockRejectedValueOnce(new Error('offline'));
+    try {
+      render(<DashboardView
+        setPage={() => {}}
+        dataSource="live"
+        dashboardClient={dashboardClient(read)}
+      />);
+      expect(await screen.findAllByText('Confirmed Bot')).not.toHaveLength(0);
+
+      fireEvent.click(screen.getByRole('button', { name: '새로고침' }));
+
+      expect(await screen.findByRole('status', { name: '' })).toBeInTheDocument();
+      expect(screen.getByText('마지막으로 확인한 데이터를 표시하고 있습니다.')).toBeInTheDocument();
+      expect(screen.getAllByText('Confirmed Bot')).not.toHaveLength(0);
     } finally {
       setSessionAccessToken(null);
     }

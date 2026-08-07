@@ -37,6 +37,8 @@ import type {
   BotTradingClient,
 } from '../api/botTrading';
 import type {
+  BotContinuation,
+  BotExecutionPreflight,
   BotJudgmentLogEntry,
   BotOperationsClient,
   BotOperationsState,
@@ -1261,6 +1263,9 @@ export function BotsView({
   const [judgmentsError, setJudgmentsError] = useState<string | null>(null);
   const [commandPending, setCommandPending] = useState(false);
   const [commandMessage, setCommandMessage] = useState<string | null>(null);
+  const [preflight, setPreflight] = useState<BotExecutionPreflight | null | undefined>(undefined);
+  const [continuation, setContinuation] = useState<BotContinuation | null | undefined>(undefined);
+  const [botControlError, setBotControlError] = useState<string | null>(null);
   const cursorByBot = useRef<Record<string, number>>({});
   const activeBots = useMemo(
     () => prototypeMode ? staticBotList : operations === null ? [] : mergeBotOperations(operations),
@@ -1360,12 +1365,60 @@ export function BotsView({
   const attention = activeBots.filter((bot) => ['action-required', 'data-degraded', 'settlement-failed'].includes(bot.operationState ?? ''));
   const healthyCount = activeBots.filter((bot) => !bot.operationState || ['waiting', 'running'].includes(bot.operationState)).length;
 
+  useEffect(() => {
+    if (!operationsClient || !selected?.id) {
+      setPreflight(undefined);
+      setContinuation(undefined);
+      setBotControlError(null);
+      return undefined;
+    }
+    const controller = new AbortController();
+    setPreflight(undefined);
+    setContinuation(undefined);
+    setBotControlError(null);
+    if (operationsClient.getPreflight) {
+      operationsClient.getPreflight(selected.id, controller.signal)
+        .then(setPreflight)
+        .catch((error) => {
+          if (!(error instanceof DOMException && error.name === 'AbortError')) {
+            setPreflight(null);
+            setBotControlError('실행 전 점검 결과를 불러오지 못했습니다.');
+          }
+        });
+    } else {
+      setPreflight(null);
+    }
+    if (operationsClient.getContinuation) {
+      operationsClient.getContinuation(selected.id, controller.signal)
+        .then(setContinuation)
+        .catch((error) => {
+          if (error instanceof BotOperationsApiError && error.status === 404) {
+            setContinuation(null);
+          } else if (!(error instanceof DOMException && error.name === 'AbortError')) {
+            setContinuation(null);
+            setBotControlError((current) => current ?? '운용 지속 기한을 불러오지 못했습니다.');
+          }
+        });
+    } else {
+      setContinuation(null);
+    }
+    return () => controller.abort();
+  }, [operationsClient, selected?.id]);
+
   const issueBotCommand = async (command: 'run' | 'stop') => {
     if (!operationsClient || !selected?.id || commandPending) return;
     setCommandPending(true);
     setCommandMessage(null);
     try {
       if (command === 'run') {
+        if (operationsClient.getPreflight) {
+          const report = await operationsClient.getPreflight(selected.id);
+          setPreflight(report);
+          if (!report.ready) {
+            setCommandMessage(`실행 전 점검을 통과하지 못했습니다: ${report.issues.map((issue) => issue.detail).join(' · ')}`);
+            return;
+          }
+        }
         await operationsClient.runBot(selected.id);
       } else {
         await operationsClient.stopBot(selected.id, 'USER_REQUESTED');
@@ -1378,6 +1431,21 @@ export function BotsView({
       setCommandMessage(command === 'run'
         ? '봇 실행 명령을 전달하지 못했습니다.'
         : '영구 중단 명령을 전달하지 못했습니다.');
+    } finally {
+      setCommandPending(false);
+    }
+  };
+
+  const renewBotContinuation = async () => {
+    if (!operationsClient?.renewContinuation || !selected?.id || commandPending) return;
+    setCommandPending(true);
+    setCommandMessage(null);
+    try {
+      const renewed = await operationsClient.renewContinuation(selected.id);
+      setContinuation(renewed);
+      setCommandMessage('운용 지속 기한을 갱신했습니다.');
+    } catch {
+      setCommandMessage('운용 지속 기한을 갱신하지 못했습니다. 갱신 가능 시각과 봇 상태를 확인해 주세요.');
     } finally {
       setCommandPending(false);
     }
@@ -1486,11 +1554,12 @@ export function BotsView({
       if (ticker && ticker !== UNVALUED) bySymbol.set(ticker, instrumentId);
     };
     (livePositions ?? []).forEach((item) => add(item.instrumentId, null, item.currentSymbol));
+    (selectedOperations?.instruments ?? []).forEach((item) => add(item.instrumentId, item.symbol, item.symbol));
     (liveFills ?? []).forEach((item) => add(item.instrumentId, item.symbol, item.currentSymbol));
     (liveOrders ?? []).forEach((item) => add(item.instrumentId, item.symbol, item.currentSymbol));
     (liveDecisionReasons ?? []).forEach((item) => add(item.instrumentId, item.symbol, item.currentSymbol));
     return Array.from(bySymbol, ([symbol, instrumentId]) => ({ symbol, instrumentId }));
-  }, [liveDecisionReasons, liveFills, liveOrders, livePositions]);
+  }, [liveDecisionReasons, liveFills, liveOrders, livePositions, selectedOperations?.instruments]);
   const decisionSymbols = useMemo(() => Array.from(new Set([
     ...marketInstruments.map((item) => item.symbol),
     ...fillEvents.map((event) => event.symbol),
@@ -1509,6 +1578,10 @@ export function BotsView({
       setMarketDataError(null);
       return undefined;
     }
+    // Bars belong to one instrument. Clear them before the next request so a
+    // slow or failed symbol switch can never relabel the previous chart.
+    setLiveMarketBars([]);
+    setMarketDataError(null);
     const controller = new AbortController();
     const bars = new Map<string, LiveMarketBar>();
     const publish = (items: MarketBar[]) => {
@@ -1533,26 +1606,44 @@ export function BotsView({
         setMarketDataError(null);
       } catch (error) {
         if (!(error instanceof DOMException && error.name === 'AbortError')) {
-          setMarketDataError('실시간 시장 데이터 연결을 확인하는 중입니다. 마지막으로 수신한 봉을 표시합니다.');
+          setMarketDataError('실시간 시장 데이터 연결을 확인하는 중입니다. 수신이 재개되면 새 시세를 표시합니다.');
         }
       }
     };
     void refreshSnapshot();
-    void marketDataClient.streamBars(
-      selectedMarketInstrument.instrumentId,
-      (bar) => {
-        publish([bar]);
-        setMarketDataError(null);
-      },
-      controller.signal,
-    ).catch((error) => {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        setMarketDataError('실시간 시장 데이터 스트림이 끊어졌습니다. 스냅샷을 계속 갱신합니다.');
-      }
-    });
+    let reconnectTimer: number | null = null;
+    let reconnectAttempt = 0;
+    const connectStream = () => {
+      if (controller.signal.aborted) return;
+      void marketDataClient.streamBars(
+        selectedMarketInstrument.instrumentId,
+        (bar) => {
+          publish([bar]);
+          reconnectAttempt = 0;
+          setMarketDataError(null);
+        },
+        controller.signal,
+      ).then(() => {
+        if (!controller.signal.aborted) scheduleReconnect();
+      }).catch((error) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) scheduleReconnect();
+      });
+    };
+    const scheduleReconnect = () => {
+      if (controller.signal.aborted || reconnectTimer !== null) return;
+      const delay = Math.min(30_000, 1_000 * (2 ** Math.min(reconnectAttempt, 5)));
+      reconnectAttempt += 1;
+      setMarketDataError(`실시간 시장 데이터 연결이 끊어져 ${Math.round(delay / 1000)}초 후 다시 연결합니다. 스냅샷은 계속 갱신합니다.`);
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        connectStream();
+      }, delay);
+    };
+    connectStream();
     const snapshotTimer = window.setInterval(() => void refreshSnapshot(), Math.max(30_000, pollIntervalMs));
     return () => {
       controller.abort();
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
       window.clearInterval(snapshotTimer);
     };
   }, [marketDataClient, pollIntervalMs, prototypeMode, selectedMarketInstrument?.instrumentId]);
@@ -1826,6 +1917,17 @@ export function BotsView({
           </div>
         </header>
         {commandMessage && <p className="bots-decision-note" role="status">{commandMessage}</p>}
+        {botControlError && <p className="bots-decision-note" role="alert">{botControlError}</p>}
+        {preflight && !preflight.ready && <div className="bots-decision-note" role="status">
+          <strong>실행 전 점검 필요</strong>
+          <ul>{preflight.issues.map((issue) => <li key={issue.code}>{issue.detail} <code>{issue.code}</code></li>)}</ul>
+        </div>}
+        {continuation && <div className="bots-decision-note bots-continuation" role="status">
+          <span><strong>운용 지속 확인 기한</strong><small>{new Date(continuation.dueAt).toLocaleString('ko-KR')}</small></span>
+          <Button disabled={!continuation.renewalAllowed || commandPending} onClick={() => { void renewBotContinuation(); }}>
+            {continuation.renewalAllowed ? '지속 기한 갱신' : `갱신 가능 ${new Date(continuation.renewalAvailableFrom).toLocaleString('ko-KR')}`}
+          </Button>
+        </div>}
         {selectedOperations?.executionBlockReasonCode && <p className="bots-decision-note" role="status">
           {`실행 차단 사유: ${selectedOperations.executionBlockReasonCode}`}
         </p>}

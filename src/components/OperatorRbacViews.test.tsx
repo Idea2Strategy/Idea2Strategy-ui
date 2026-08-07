@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { OperatorRbacApiError } from '../api/operatorRbac';
 import type { OperatorRbacClient, OperatorSelf } from '../api/operatorRbac';
+import type { AccountOperationsClient } from '../api/accountOperations';
 import { OperatorRbacWorkspace, OperatorReadError } from './OperatorRbacViews';
 
 const catalogPermission = { id: 'catalog-read-id', code: 'OPERATOR_RBAC_CATALOG_READ' };
@@ -25,6 +26,11 @@ const client = (overrides: Partial<OperatorRbacClient> = {}): OperatorRbacClient
   }),
   assignments: vi.fn().mockResolvedValue({ view: { operatorId: 'operator-2', assignments: [] }, correlationId: 'corr-assignments' }),
   ...overrides,
+});
+
+const mutationsClient = (overrides: Partial<AccountOperationsClient> = {}): AccountOperationsClient => ({
+  submitCase: vi.fn(), addCaseEvidence: vi.fn(), userCase: vi.fn(), operatorCaseQueue: vi.fn(), operatorCase: vi.fn(), commandCase: vi.fn(),
+  grantOperator: vi.fn(), revokeOperator: vi.fn(), applySanction: vi.fn(), liftSanction: vi.fn(), ...overrides,
 });
 
 describe('operator RBAC workspace', () => {
@@ -85,5 +91,24 @@ describe('operator RBAC workspace', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('OPERATOR_RBAC_READ_FORBIDDEN');
     expect(screen.queryByRole('button', { name: '권한 카탈로그' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '운영자 할당 조회' })).not.toBeInTheDocument();
+  });
+
+  it('requires typed confirmation and sends a complete role grant command', async () => {
+    const grantOperator = vi.fn().mockResolvedValue({ code: 'OPERATOR_ROLE_GRANTED', correlationId: 'corr-grant' });
+    render(<OperatorRbacWorkspace client={client()} mutationsClient={mutationsClient({ grantOperator })} />);
+    await userEvent.click(await screen.findByRole('button', { name: '역할 부여·회수' }));
+    await userEvent.type(screen.getByLabelText('RBAC target operator ID'), 'operator-2');
+    await userEvent.type(screen.getByLabelText('RBAC role ID'), 'role-2');
+    await userEvent.clear(screen.getByLabelText('RBAC reason code'));
+    await userEvent.type(screen.getByLabelText('RBAC reason code'), 'ON_CALL');
+    await userEvent.click(screen.getByRole('button', { name: '역할 부여' }));
+    expect(screen.getByRole('button', { name: '확인 후 실행' })).toBeDisabled();
+    await userEvent.type(screen.getByLabelText('Type GRANT to confirm'), 'GRANT');
+    await userEvent.click(screen.getByRole('button', { name: '확인 후 실행' }));
+
+    await waitFor(() => expect(grantOperator).toHaveBeenCalledWith({
+      targetOperatorId: 'operator-2', roleId: 'role-2', expiresAt: null, reasonCode: 'ON_CALL',
+    }, expect.any(String)));
+    expect(await screen.findByText(/OPERATOR_ROLE_GRANTED/)).toBeInTheDocument();
   });
 });

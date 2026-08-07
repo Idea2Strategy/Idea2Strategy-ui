@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { GripVertical, X } from 'lucide-react';
 import { PREVIEW_WINDOW, evaluateStrategyPreview } from '../lib/strategyPreview';
-import type { PreviewFlow } from '../lib/strategyPreview';
+import type { PreviewCandle, PreviewFlow } from '../lib/strategyPreview';
 import { useLanguage } from '../lib/i18n';
 
 export interface StrategyPreviewChartProps {
   partitionLabel: string;
   symbols: string[];
   flows: PreviewFlow[];
+  candles?: PreviewCandle[];
   onClose: () => void;
 }
 
@@ -69,6 +70,7 @@ export function StrategyPreviewChart({
   partitionLabel,
   symbols,
   flows,
+  candles,
   onClose,
 }: StrategyPreviewChartProps) {
   const cardRef = useRef<HTMLElement | null>(null);
@@ -101,7 +103,7 @@ export function StrategyPreviewChart({
     setPosition((current) => clampToViewport(current, cardRef.current?.offsetHeight || CARD_HEIGHT));
   }, [flows.length, symbols.length]);
 
-  const preview = useMemo(() => evaluateStrategyPreview({ symbol, flows }), [flows, symbol]);
+  const preview = useMemo(() => evaluateStrategyPreview({ symbol, flows, candles }), [candles, flows, symbol]);
 
   const geometry = useMemo(() => {
     const closes = preview.candles.map((candle) => candle.close);

@@ -5,8 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { hasActiveProjectRun, interpretDockerInspect, isDockerContainerNameConflict, shouldReapContainer, shouldReapNetwork } from './dockerResourcePolicy';
 
-const backendRevision = '3be5215bacd7aa1d6611330f0a22ca3272cdbfbd';
-const rootRevision = '137d64055feacc2cb42259435315116b0e44d47b';
 const projectLabel = 'com.idea2strategy.a23-real-api=true';
 const backendPort = Number(process.env.A23_BACKEND_PORT);
 if (!Number.isInteger(backendPort) || backendPort < 1024 || backendPort > 65_535) {
@@ -23,15 +21,15 @@ const dockerLogs = (container: string) => {
 };
 
 export default async function globalSetup(): Promise<() => void> {
-  const backendDir = exactCleanRepository(
-    process.env.A23_BACKEND_DIR ?? path.join('..', 'a23-real-backend-develop'),
-    backendRevision,
-    'A23_BACKEND_DIR',
-  );
   const rootDir = exactCleanRepository(
-    process.env.A23_ROOT_DIR ?? path.join('..', 'a23-real-root-develop'),
-    rootRevision,
+    process.env.A23_ROOT_DIR ?? path.join('..'),
+    process.env.A23_ROOT_REVISION,
     'A23_ROOT_DIR',
+  );
+  const backendDir = exactCleanRepository(
+    process.env.A23_BACKEND_DIR ?? path.join('..', 'backend'),
+    process.env.A23_BACKEND_REVISION ?? run('git', ['rev-parse', 'HEAD:backend'], rootDir),
+    'A23_BACKEND_DIR',
   );
   const bundle = path.join(rootDir, 'db', 'flyway-ci-bundle');
   if (!existsSync(path.join(bundle, 'migration-bundle.manifest'))) {
@@ -143,13 +141,13 @@ function gradleCacheSource(): string {
   return volume;
 }
 
-function exactCleanRepository(value: string, revision: string, variable: string): string {
+function exactCleanRepository(value: string, revision: string | undefined, variable: string): string {
   const repository = path.resolve(value);
   if (!existsSync(path.join(repository, '.git'))) {
     throw new Error(`${variable} must point to a Git worktree: ${repository}`);
   }
   const actual = run('git', ['rev-parse', 'HEAD'], repository);
-  if (actual !== revision) throw new Error(`${variable} must be exact ${revision}; found ${actual}`);
+  if (revision && actual !== revision) throw new Error(`${variable} must be exact ${revision}; found ${actual}`);
   const status = run('git', ['status', '--porcelain=v1'], repository);
   if (status !== '') throw new Error(`${variable} must be clean; found:\n${status}`);
   return repository;

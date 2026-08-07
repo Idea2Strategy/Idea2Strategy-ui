@@ -19,7 +19,12 @@ export function UserCasePanel({ client, createIdempotencyKey = () => crypto.rand
   const [description, setDescription] = useState('');
   const [caseId, setCaseId] = useState('');
   const [state, setState] = useState<AsyncState<UserCaseView>>({ kind: 'idle' });
+  const [storageObjectId, setStorageObjectId] = useState('');
+  const [sourceDomain, setSourceDomain] = useState('');
+  const [sourceResourceId, setSourceResourceId] = useState('');
+  const [evidenceState, setEvidenceState] = useState<AsyncState<UserCaseView>>({ kind: 'idle' });
   const retrySubmit = useRef<(() => void) | null>(null);
+  const retryEvidence = useRef<(() => void) | null>(null);
 
   const submit = async (retryKey?: string) => {
     setState({ kind: 'loading' });
@@ -41,6 +46,24 @@ export function UserCasePanel({ client, createIdempotencyKey = () => crypto.rand
     try { setState({ kind: 'ready', value: await client.userCase(caseId.trim()) }); }
     catch (cause) { setState({ kind: 'error', error: error(cause) }); }
   };
+  const addEvidence = async (retryKey?: string) => {
+    if (state.kind !== 'ready') return;
+    setEvidenceState({ kind: 'loading' });
+    const idempotencyKey = retryKey ?? createIdempotencyKey();
+    try {
+      const value = await client.addCaseEvidence(state.value.id, state.value.version, [{
+        storageObjectId: storageObjectId.trim(), sourceDomain: sourceDomain.trim(), sourceResourceId: sourceResourceId.trim(),
+      }], idempotencyKey);
+      retryEvidence.current = null;
+      setState({ kind: 'ready', value });
+      setEvidenceState({ kind: 'ready', value });
+      setStorageObjectId(''); setSourceDomain(''); setSourceResourceId('');
+    } catch (cause) {
+      const failure = error(cause);
+      setEvidenceState({ kind: 'error', error: failure });
+      retryEvidence.current = failure.retryable ? () => void addEvidence(idempotencyKey) : null;
+    }
+  };
 
   return <Panel className="span-2 case-api-panel" title="문의 · 신고 · 이의 제기" subtitle="접수 결과와 추적 번호는 서버 응답으로만 확정됩니다.">
     <div className="settings-fields case-api-form">
@@ -60,6 +83,19 @@ export function UserCasePanel({ client, createIdempotencyKey = () => crypto.rand
     {state.kind === 'ready' && <div className="case-api-receipt" role="status">
       <CheckCircle2 size={17} /><div><strong>{state.value.status}</strong><span>추적 번호 {state.value.id} · 버전 {state.value.version}</span></div>
     </div>}
+    {state.kind === 'ready' && <fieldset className="case-evidence-form">
+      <legend>후속 증거 추가</legend>
+      <p>이미 업로드된 저장 객체의 식별자와 출처를 현재 케이스 버전에 연결합니다.</p>
+      <div className="settings-fields case-api-form">
+        <label><span>저장 객체 ID</span><input aria-label="Evidence storage object ID" value={storageObjectId} onChange={(event) => setStorageObjectId(event.target.value)} /></label>
+        <label><span>출처 도메인</span><input aria-label="Evidence source domain" value={sourceDomain} onChange={(event) => setSourceDomain(event.target.value)} /></label>
+        <label><span>출처 리소스 ID</span><input aria-label="Evidence source resource ID" value={sourceResourceId} onChange={(event) => setSourceResourceId(event.target.value)} /></label>
+      </div>
+      <Button disabled={!storageObjectId.trim() || !sourceDomain.trim() || !sourceResourceId.trim() || evidenceState.kind === 'loading'} onClick={() => { retryEvidence.current = null; void addEvidence(); }}>증거 연결</Button>
+      {evidenceState.kind === 'loading' && <p role="status">증거를 연결하는 중입니다.</p>}
+      {evidenceState.kind === 'ready' && <p role="status">증거가 연결되었습니다. 현재 버전 {evidenceState.value.version}</p>}
+      {evidenceState.kind === 'error' && <CaseError error={evidenceState.error} retry={retryEvidence.current ?? undefined} />}
+    </fieldset>}
   </Panel>;
 }
 
@@ -70,7 +106,8 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
   createIdempotencyKey?: () => string;
   createSanctionId?: () => string;
 }) {
-  const [queue, setQueue] = useState<AsyncState<OperatorCaseSummary[]>>({ kind: 'loading' });
+  const [queue, setQueue] = useState<AsyncState<{ items: OperatorCaseSummary[]; nextCursor: string | null }>>({ kind: 'loading' });
+  const [queueMoreLoading, setQueueMoreLoading] = useState(false);
   const [detail, setDetail] = useState<AsyncState<OperatorCaseDetail>>({ kind: 'idle' });
   const [reasonCode, setReasonCode] = useState('REVIEW_COMPLETED');
   const [assigneeOperatorId, setAssigneeOperatorId] = useState('');
@@ -81,12 +118,13 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
   const [confirmation, setConfirmation] = useState('');
   const [pendingAction, setPendingAction] = useState<OperatorCaseAction | null>(null);
   const [commandState, setCommandState] = useState<{ kind: 'idle' | 'processing' } | { kind: 'succeeded'; code: string; correlationId: string } | { kind: 'error'; error: AccountOperationsApiError }>({ kind: 'idle' });
-  const loadQueue = async () => {
-    setQueue({ kind: 'loading' });
+  const loadQueue = async (cursor?: string, append = false) => {
+    if (append) setQueueMoreLoading(true); else setQueue({ kind: 'loading' });
     try {
-      const page = await client.operatorCaseQueue({ types: ['INQUIRY', 'REPORT', 'APPEAL'], statuses: ['OPEN', 'NEEDS_INFORMATION', 'UNDER_REVIEW'] });
-      setQueue({ kind: 'ready', value: page.items });
-    } catch (cause) { setQueue({ kind: 'error', error: error(cause) }); }
+      const page = await client.operatorCaseQueue({ types: ['INQUIRY', 'REPORT', 'APPEAL'], statuses: ['OPEN', 'NEEDS_INFORMATION', 'UNDER_REVIEW'], cursor });
+      setQueue((current) => ({ kind: 'ready', value: { items: append && current.kind === 'ready' ? [...current.value.items, ...page.items] : page.items, nextCursor: page.nextCursor } }));
+    } catch (cause) { if (!append) setQueue({ kind: 'error', error: error(cause) }); }
+    finally { setQueueMoreLoading(false); }
   };
   useEffect(() => { void loadQueue(); }, [client]);
   const select = async (caseId: string) => {
@@ -123,13 +161,14 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
   return <div className="page narrow-page operator-case-page">
     <PageHeading eyebrow="OPERATIONS" title="운영 케이스" description="권한이 확인된 운영자만 대기열을 조회하고 상태를 변경할 수 있습니다." />
     <div className="settings-grid">
-      <Panel title="처리 대기열" action={<Button onClick={loadQueue}><RefreshCw size={14} />새로고침</Button>}>
+      <Panel title="처리 대기열" action={<Button onClick={() => void loadQueue()}><RefreshCw size={14} />새로고침</Button>}>
         {queue.kind === 'loading' && <div role="status"><LoaderCircle size={16} /> 불러오는 중</div>}
         {queue.kind === 'error' && <CaseError error={queue.error} retry={loadQueue} />}
-        {queue.kind === 'ready' && queue.value.length === 0 && <EmptyState icon={ShieldCheck} title="처리할 케이스가 없습니다." detail="현재 필터에 열린 케이스가 없습니다." />}
-        {queue.kind === 'ready' && queue.value.map((item) => <button className="operator-case-row" key={item.caseId} onClick={() => select(item.caseId)}>
+        {queue.kind === 'ready' && queue.value.items.length === 0 && <EmptyState icon={ShieldCheck} title="처리할 케이스가 없습니다." detail="현재 필터에 열린 케이스가 없습니다." />}
+        {queue.kind === 'ready' && queue.value.items.map((item) => <button className="operator-case-row" key={item.caseId} onClick={() => select(item.caseId)}>
           <span><strong>{item.type}</strong><small>{item.caseId}</small></span><Status>{item.status}</Status>
         </button>)}
+        {queue.kind === 'ready' && queue.value.nextCursor && <Button disabled={queueMoreLoading} onClick={() => void loadQueue(queue.value.nextCursor ?? undefined, true)}>{queueMoreLoading ? '불러오는 중' : '다음 케이스 불러오기'}</Button>}
       </Panel>
       <Panel title="케이스 상세">
         {detail.kind === 'idle' && <EmptyState icon={ShieldCheck} title="케이스를 선택하세요." detail="대기열에서 한 건을 선택하면 검증된 증거와 현재 버전을 표시합니다." />}

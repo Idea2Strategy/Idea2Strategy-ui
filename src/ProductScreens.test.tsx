@@ -47,6 +47,54 @@ describe('Bot operations', () => {
     await waitFor(() => expect(screen.getAllByText('중지 중').length).toBeGreaterThan(0));
   });
 
+  test('blocks run on failed preflight and renews an allowed continuation deadline', async () => {
+    const waiting = {
+      botId: '30000000-0000-4000-8000-000000000001',
+      name: 'Atlas 07',
+      state: 'waiting' as const,
+      lifecycleChangedAt: '2026-08-01T12:00:00Z',
+      executionBlockedAt: null,
+      executionBlockReasonCode: null,
+      lastEventSequence: 0,
+      instruments: [{ instrumentId: 'instrument-1', symbol: 'AAPL' }],
+    };
+    const runBot = vi.fn();
+    const renewContinuation = vi.fn().mockResolvedValue({
+      botId: waiting.botId,
+      dueAt: '2026-10-01T00:00:00Z',
+      renewalAvailableFrom: '2026-08-01T00:00:00Z',
+      lastRenewedAt: '2026-08-07T00:00:00Z',
+      renewalAllowed: false,
+    });
+    const client: BotOperationsClient = {
+      listOperations: vi.fn().mockResolvedValue([waiting]),
+      listJudgments: vi.fn().mockResolvedValue({ entries: [], nextAfterSequence: 0, hasMore: false }),
+      runBot,
+      stopBot: vi.fn(),
+      getPreflight: vi.fn().mockResolvedValue({
+        botId: waiting.botId, ready: false, issues: [{ code: 'DATA_STALE', detail: '시장 데이터가 오래되었습니다.' }],
+      }),
+      getContinuation: vi.fn().mockResolvedValue({
+        botId: waiting.botId,
+        dueAt: '2026-09-01T00:00:00Z',
+        renewalAvailableFrom: '2026-08-01T00:00:00Z',
+        lastRenewedAt: null,
+        renewalAllowed: true,
+      }),
+      renewContinuation,
+    };
+    const user = userEvent.setup();
+
+    render(<BotsView operationsClient={client} pollIntervalMs={60_000} />);
+
+    expect(await screen.findByText('시장 데이터가 오래되었습니다.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Atlas 07 실행' }));
+    expect(runBot).not.toHaveBeenCalled();
+    expect(await screen.findByText(/실행 전 점검을 통과하지 못했습니다/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '지속 기한 갱신' }));
+    await waitFor(() => expect(renewContinuation).toHaveBeenCalledWith(waiting.botId));
+  });
+
   test('polls live operation state and appends judgment events once by sequence', async () => {
     const firstEvent = {
       eventId: '40000000-0000-4000-8000-000000000001',

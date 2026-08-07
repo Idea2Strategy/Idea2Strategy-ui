@@ -48,6 +48,24 @@ describe('UserCasePanel', () => {
     expect(submitCase).toHaveBeenNthCalledWith(1, expect.any(Object), 'idem-lost-response');
     expect(submitCase).toHaveBeenNthCalledWith(2, expect.any(Object), 'idem-lost-response');
   });
+
+  it('links follow-up evidence with the exact current case version', async () => {
+    const addCaseEvidence = vi.fn().mockResolvedValue({ ...userCase, version: 2, evidenceObjectIds: ['object-1'] });
+    render(<UserCasePanel client={client({ addCaseEvidence })} createIdempotencyKey={() => 'idem-evidence'} />);
+    await userEvent.type(screen.getByLabelText('케이스 제목'), '문의');
+    await userEvent.type(screen.getByLabelText('케이스 설명'), '내용');
+    await userEvent.click(screen.getByRole('button', { name: '접수하기' }));
+    await screen.findByText('추적 번호 case-1 · 버전 1');
+    await userEvent.type(screen.getByLabelText('Evidence storage object ID'), 'object-1');
+    await userEvent.type(screen.getByLabelText('Evidence source domain'), 'BACKTEST');
+    await userEvent.type(screen.getByLabelText('Evidence source resource ID'), 'run-1');
+    await userEvent.click(screen.getByRole('button', { name: '증거 연결' }));
+
+    await waitFor(() => expect(addCaseEvidence).toHaveBeenCalledWith('case-1', 1, [{
+      storageObjectId: 'object-1', sourceDomain: 'BACKTEST', sourceResourceId: 'run-1',
+    }], 'idem-evidence'));
+    expect(await screen.findByText('증거가 연결되었습니다. 현재 버전 2')).toBeInTheDocument();
+  });
 });
 
 describe('OperatorCaseWorkspace', () => {
@@ -74,6 +92,20 @@ describe('OperatorCaseWorkspace', () => {
     render(<OperatorCaseWorkspace client={client({ operatorCaseQueue: vi.fn().mockRejectedValue(new AccountOperationsApiError(403, 'OPERATOR_PERMISSION_REQUIRED', 'corr-permission')) })} />);
     expect(await screen.findByText('이 작업에 필요한 운영 권한이 없습니다.')).toBeInTheDocument();
     expect(screen.getByText(/문의 코드 corr-permission/)).toBeInTheDocument();
+  });
+
+  it('loads the next operator queue page with the server cursor', async () => {
+    const first = { caseId: 'case-1', type: 'REPORT' as const, status: 'OPEN' as const, version: 1, assigneeOperatorId: null, updatedAt: '2026-08-03T00:00:00Z' };
+    const second = { ...first, caseId: 'case-2', type: 'INQUIRY' as const };
+    const operatorCaseQueue = vi.fn()
+      .mockResolvedValueOnce({ items: [first], nextCursor: 'cursor-2' })
+      .mockResolvedValueOnce({ items: [second], nextCursor: null });
+    render(<OperatorCaseWorkspace client={client({ operatorCaseQueue })} />);
+
+    await screen.findByRole('button', { name: /REPORT/ });
+    await userEvent.click(screen.getByRole('button', { name: '다음 케이스 불러오기' }));
+    expect(await screen.findByRole('button', { name: /INQUIRY/ })).toBeInTheDocument();
+    expect(operatorCaseQueue).toHaveBeenNthCalledWith(2, expect.objectContaining({ cursor: 'cursor-2' }));
   });
 
   it('requires an explicit high-risk confirmation and sends the complete sanction command', async () => {

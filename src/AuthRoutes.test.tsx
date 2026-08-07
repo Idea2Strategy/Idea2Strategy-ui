@@ -45,6 +45,7 @@ describe('customer login screen', () => {
     window.history.replaceState({}, '', '/login');
     render(<App accountClient={client} />);
 
+    await screen.findByLabelText('로그인 이메일');
     await userEvent.type(screen.getByLabelText('로그인 이메일'), 'customer@example.com');
     await userEvent.type(screen.getByLabelText('로그인 비밀번호'), 'correct horse battery staple');
     await userEvent.click(screen.getByRole('button', { name: '로그인' }));
@@ -58,6 +59,7 @@ describe('customer login screen', () => {
     window.history.replaceState({ usr: { returnTo: '/bots' } }, '', '/login');
     render(<App accountClient={client} />);
 
+    await screen.findByLabelText('로그인 이메일');
     await userEvent.type(screen.getByLabelText('로그인 이메일'), 'customer@example.com');
     await userEvent.type(screen.getByLabelText('로그인 비밀번호'), 'pw');
     await userEvent.click(screen.getByRole('button', { name: '로그인' }));
@@ -72,6 +74,7 @@ describe('customer login screen', () => {
     window.history.replaceState({}, '', '/login');
     render(<App accountClient={client} />);
 
+    await screen.findByLabelText('로그인 이메일');
     await userEvent.type(screen.getByLabelText('로그인 이메일'), 'customer@example.com');
     await userEvent.type(screen.getByLabelText('로그인 비밀번호'), 'wrong');
     await userEvent.click(screen.getByRole('button', { name: '로그인' }));
@@ -87,6 +90,7 @@ describe('customer login screen', () => {
     window.history.replaceState({}, '', '/login');
     render(<App accountClient={client} />);
 
+    await screen.findByText('비밀번호를 잊으셨나요?', { selector: 'summary' });
     await userEvent.click(screen.getByText('비밀번호를 잊으셨나요?', { selector: 'summary' }));
     await userEvent.type(screen.getByLabelText('재설정 이메일'), 'customer@example.com');
     await userEvent.click(screen.getByRole('button', { name: '재설정 요청' }));
@@ -106,6 +110,7 @@ describe('customer signup screen', () => {
     window.history.replaceState({}, '', '/signup');
     render(<App accountClient={client} />);
 
+    await screen.findByLabelText('가입 이메일');
     await userEvent.type(screen.getByLabelText('가입 이메일'), 'new@example.com');
     await userEvent.type(screen.getByLabelText('가입 비밀번호'), 'strong password 2026!');
     await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'strong password 2026!');
@@ -125,6 +130,7 @@ describe('customer signup screen', () => {
     window.history.replaceState({}, '', '/signup');
     render(<App accountClient={client} />);
 
+    await screen.findByLabelText('가입 이메일');
     await userEvent.type(screen.getByLabelText('가입 이메일'), 'new@example.com');
     await userEvent.type(screen.getByLabelText('가입 비밀번호'), 'strong password 2026!');
     await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'strong password 2026!');
@@ -139,11 +145,40 @@ describe('customer signup screen', () => {
     window.history.replaceState({}, '', '/signup');
     render(<App accountClient={client} />);
 
+    await screen.findByLabelText('가입 이메일');
     await userEvent.type(screen.getByLabelText('가입 이메일'), 'new@example.com');
     await userEvent.type(screen.getByLabelText('가입 비밀번호'), 'strong password 2026!');
     await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'different password');
 
     expect(screen.getByRole('alert')).toHaveTextContent('비밀번호가 일치하지 않습니다.');
+    expect(screen.getByRole('button', { name: '가입' })).toBeDisabled();
+    expect(client.signup).not.toHaveBeenCalled();
+  });
+
+  it('explains and enforces the server password length before signup', async () => {
+    const client = accountClient();
+    window.history.replaceState({}, '', '/signup');
+    render(<App accountClient={client} />);
+
+    const password = await screen.findByLabelText('가입 비밀번호');
+    expect(screen.getByText('비밀번호는 15자 이상 128자 이하로 입력해 주세요.')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('가입 이메일'), 'new@example.com');
+    await userEvent.type(password, 'too-short');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'too-short');
+    expect(screen.getByRole('button', { name: '가입' })).toBeDisabled();
+    expect(client.signup).not.toHaveBeenCalled();
+  });
+
+  it('counts Unicode code points the same way as the server password policy', async () => {
+    const client = accountClient();
+    window.history.replaceState({}, '', '/signup');
+    render(<App accountClient={client} />);
+
+    await userEvent.type(await screen.findByLabelText('가입 이메일'), 'emoji@example.com');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호'), '😀'.repeat(14));
+    await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), '😀'.repeat(14));
+
     expect(screen.getByRole('button', { name: '가입' })).toBeDisabled();
     expect(client.signup).not.toHaveBeenCalled();
   });
@@ -155,9 +190,9 @@ describe('customer signup screen', () => {
     window.history.replaceState({}, '', '/signup');
     render(<App accountClient={client} />);
 
-    await userEvent.type(screen.getByLabelText('가입 이메일'), 'taken@example.com');
-    await userEvent.type(screen.getByLabelText('가입 비밀번호'), 'pw');
-    await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'pw');
+    await userEvent.type(await screen.findByLabelText('가입 이메일'), 'taken@example.com');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호'), 'valid password 2026!');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'valid password 2026!');
     await userEvent.click(screen.getByRole('button', { name: '가입' }));
 
     const alert = await screen.findByRole('alert');

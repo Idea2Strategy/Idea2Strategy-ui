@@ -91,9 +91,16 @@ describe('AccountApiPanels', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('계정 정보를 불러오는 중');
     sessions.resolve([session]);
-    expect(await screen.findByRole('heading', { name: '현재 세션' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '로그인 세션' })).toBeInTheDocument();
     expect(screen.getByText('Chrome')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Asia/Seoul')).toBeInTheDocument();
+  });
+
+  it('publishes the server preference on load so the active locale can follow the account', async () => {
+    const onPreferences = vi.fn();
+    render(<AccountApiPanels client={client({ preferences: vi.fn().mockResolvedValue({ ...preferences, languageCode: 'en' }) })} onPreferences={onPreferences} />);
+    await screen.findByRole('heading', { name: '로그인 세션' });
+    expect(onPreferences).toHaveBeenCalledWith(expect.objectContaining({ languageCode: 'en' }));
   });
 
   it('renders a 401 as the shared sign-in state and drops the rejected session', async () => {
@@ -140,6 +147,34 @@ describe('AccountApiPanels', () => {
 
     await waitFor(() => expect(getSessionAccessToken()).toBeNull());
     expect(browserSessionStore.read().status).toBe('anonymous');
+  });
+
+  it('lists every server session and revokes a selected remote session', async () => {
+    const user = userEvent.setup();
+    const remote = { ...session, sessionId: 'session-2', deviceLabel: 'Safari', current: false };
+    const sessions = vi.fn().mockResolvedValueOnce([session, remote]).mockResolvedValueOnce([session]);
+    const logoutSession = vi.fn().mockResolvedValue(undefined);
+
+    render(<AccountApiPanels client={client({ sessions, logoutSession })} />);
+
+    expect(await screen.findByText('Safari')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '세션 해제' }));
+    await waitFor(() => expect(logoutSession).toHaveBeenCalledWith('session-2'));
+    await waitFor(() => expect(screen.queryByText('Safari')).toBeNull());
+  });
+
+  it('rotates the current token pair and can revoke every session', async () => {
+    const user = userEvent.setup();
+    seedTabSession();
+    const rotateSession = vi.fn().mockResolvedValue({});
+    const logoutAll = vi.fn().mockResolvedValue(undefined);
+    render(<AccountApiPanels client={client({ rotateSession, logoutAll })} />);
+
+    await user.click(await screen.findByRole('button', { name: '현재 토큰 갱신' }));
+    await waitFor(() => expect(rotateSession).toHaveBeenCalledTimes(1));
+    await user.click(screen.getByRole('button', { name: '모든 기기에서 로그아웃' }));
+    await waitFor(() => expect(logoutAll).toHaveBeenCalledTimes(1));
+    expect(getSessionAccessToken()).toBeNull();
   });
 
   it('renders a 403 action error with correlation evidence and retries safely', async () => {
