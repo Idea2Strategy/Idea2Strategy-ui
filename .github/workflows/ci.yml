@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [develop]
   push:
-    branches: [develop]
+    branches: [develop, main]
 
 permissions:
   contents: read
@@ -29,13 +29,39 @@ jobs:
       - name: Validate immutable GitHub Action runtime pins
         run: node --test scripts/test-github-action-pins.mjs
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Typecheck
-        run: pnpm typecheck
-      - name: Test
-        run: pnpm exec vitest run
-      - name: Build
-        run: pnpm build
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Typecheck, unit test, and build in parallel
+        shell: bash
+        run: |
+          set -uo pipefail
+          pnpm typecheck &
+          typecheck_pid=$!
+          pnpm exec vitest run &
+          unit_pid=$!
+          pnpm build &
+          build_pid=$!
+
+          status=0
+          wait "$typecheck_pid" || status=$?
+          wait "$unit_pid" || status=$?
+          wait "$build_pid" || status=$?
+          exit "$status"
+
+  e2e:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
       # Chromium only: the suite drives one browser against a mock of the backtest
       # engine's HTTP contract, so a second engine would cost minutes and prove the
       # same thing twice.
@@ -51,7 +77,7 @@ jobs:
           retention-days: 7
 
   real-account-api:
-    needs: verify
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -78,7 +104,7 @@ jobs:
           cache-dependency-path: ui/pnpm-lock.yaml
       - name: Install UI dependencies
         working-directory: ui
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
       - name: Install Chromium
         working-directory: ui
         run: pnpm exec playwright install --with-deps chromium
