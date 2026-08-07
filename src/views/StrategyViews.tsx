@@ -3569,7 +3569,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         >
           {validationTriggerLabel}
         </Button>
-        <span className="basic-save-state" data-testid="save-state" data-dirty={hasUnsavedChanges} role="status" aria-live="polite">
+        {/* Not a live region: the editor already has one, and save outcomes are
+            narrated through it. A second one would double every announcement. */}
+        <span className="basic-save-state" data-testid="save-state" data-dirty={hasUnsavedChanges}>
           {savePending
             ? '저장 중…'
             : hasUnsavedChanges
