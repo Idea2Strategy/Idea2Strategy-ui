@@ -4352,6 +4352,28 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--negative) 24%, transparent);
 }
 .auth-form input[aria-invalid="true"]:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--negative) 20%, transparent); }
+.auth-password-control { display: grid; gap: 6px; }
+.auth-password-field { position: relative; }
+.auth-password-field input { width: 100%; padding-right: 44px; }
+.auth-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: color var(--motion-fast), background var(--motion-fast), box-shadow var(--motion-fast);
+}
+.auth-password-toggle:hover { color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.auth-password-toggle:focus-visible { outline: none; color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
 .auth-form .button-primary { min-height: 42px; margin-top: var(--space-1); font-weight: 700; }
 .auth-policy-list { display: grid; gap: var(--space-2); }
 .auth-policy-item {

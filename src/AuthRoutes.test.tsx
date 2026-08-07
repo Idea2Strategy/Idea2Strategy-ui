@@ -68,6 +68,23 @@ describe('customer login screen', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/bots'));
   });
 
+  it('reveals and hides the login password without changing its value', async () => {
+    window.history.replaceState({}, '', '/login');
+    render(<App accountClient={accountClient()} />);
+
+    const password = await screen.findByLabelText('로그인 비밀번호');
+    await userEvent.type(password, 'visible password 2026!');
+    expect(password).toHaveAttribute('type', 'password');
+
+    await userEvent.click(screen.getByRole('button', { name: '로그인 비밀번호 표시' }));
+    expect(password).toHaveAttribute('type', 'text');
+    expect(password).toHaveValue('visible password 2026!');
+
+    await userEvent.click(screen.getByRole('button', { name: '로그인 비밀번호 숨기기' }));
+    expect(password).toHaveAttribute('type', 'password');
+    expect(password).toHaveValue('visible password 2026!');
+  });
+
   it('shows the API failure code and correlation id instead of pretending success', async () => {
     const client = accountClient({
       login: vi.fn().mockRejectedValue(new AccountApiError(401, 'INVALID_CREDENTIALS', 'corr-login-1')),
@@ -120,10 +137,9 @@ describe('customer login screen', () => {
     const loginPassword = await screen.findByLabelText('로그인 비밀번호');
     const loginForm = loginPassword.closest('form');
     expect(loginForm).not.toBeNull();
-    expect(within(loginForm!).getAllByRole('button').map((button) => button.textContent)).toEqual([
-      '비밀번호를 잊으셨나요?',
-      '로그인',
-    ]);
+    expect(within(loginForm!).getByRole('button', { name: '로그인 비밀번호 표시' })).toBeInTheDocument();
+    expect(within(loginForm!).getByRole('button', { name: '비밀번호를 잊으셨나요?' })).toBeInTheDocument();
+    expect(within(loginForm!).getByRole('button', { name: '로그인' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: '비밀번호를 잊으셨나요?' }));
 
     await waitFor(() => expect(window.location.pathname).toBe('/password-reset'));
@@ -148,6 +164,29 @@ describe('customer login screen', () => {
     expect(screen.getByRole('status')).toHaveTextContent('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.');
   });
 
+  it('reveals each password independently while setting a replacement password', async () => {
+    window.history.replaceState({}, '', '/password-reset');
+    render(<App accountClient={accountClient()} />);
+
+    await userEvent.type(await screen.findByLabelText('재설정 이메일'), 'customer@example.com');
+    await userEvent.click(screen.getByRole('button', { name: '인증 코드 받기' }));
+    await userEvent.type(await screen.findByLabelText('인증 코드'), 'reset-token');
+    await userEvent.click(screen.getByRole('button', { name: '다음' }));
+
+    const password = await screen.findByLabelText('새 비밀번호');
+    const confirmation = screen.getByLabelText('새 비밀번호 확인');
+    await userEvent.type(password, 'replacement password 2026!');
+    await userEvent.type(confirmation, 'replacement password 2026!');
+
+    await userEvent.click(screen.getByRole('button', { name: '새 비밀번호 표시' }));
+    expect(password).toHaveAttribute('type', 'text');
+    expect(confirmation).toHaveAttribute('type', 'password');
+
+    await userEvent.click(screen.getByRole('button', { name: '새 비밀번호 확인 표시' }));
+    expect(password).toHaveAttribute('type', 'text');
+    expect(confirmation).toHaveAttribute('type', 'text');
+  });
+
   it.each(['/login', '/signup'])('redirects an authenticated direct visit away from %s', async (path) => {
     setSessionAccessToken('already-signed-in');
     window.history.replaceState({}, '', path);
@@ -159,6 +198,24 @@ describe('customer login screen', () => {
 });
 
 describe('customer signup screen', () => {
+  it('reveals each signup password independently from its trailing eye button', async () => {
+    window.history.replaceState({}, '', '/signup');
+    render(<App accountClient={accountClient()} />);
+
+    const password = await screen.findByLabelText('가입 비밀번호');
+    const confirmation = screen.getByLabelText('가입 비밀번호 확인');
+    await userEvent.type(password, 'signup password 2026!');
+    await userEvent.type(confirmation, 'signup password 2026!');
+
+    await userEvent.click(screen.getByRole('button', { name: '가입 비밀번호 표시' }));
+    expect(password).toHaveAttribute('type', 'text');
+    expect(confirmation).toHaveAttribute('type', 'password');
+
+    await userEvent.click(screen.getByRole('button', { name: '가입 비밀번호 확인 표시' }));
+    expect(password).toHaveAttribute('type', 'text');
+    expect(confirmation).toHaveAttribute('type', 'text');
+  });
+
   it('walks signup, verification and the hop to login as separate confirmed steps', async () => {
     const client = accountClient();
     window.history.replaceState({}, '', '/signup');

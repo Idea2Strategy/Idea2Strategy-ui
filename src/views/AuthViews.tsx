@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Eye, EyeOff } from 'lucide-react';
 import { AccountApiError } from '../api/account';
 import type { AccountClient } from '../api/account';
 import { Button } from '../components/common';
@@ -43,6 +43,48 @@ function ApiFailure({ error }: { error: AccountApiError }) {
 
 interface AuthScreenProps {
   client: AccountClient;
+}
+
+interface PasswordInputProps {
+  label: string;
+  ariaLabel: string;
+  value: string;
+  onChange: (value: string) => void;
+  autoComplete: 'current-password' | 'new-password';
+  describedBy?: string;
+  invalid?: boolean;
+}
+
+function PasswordInput({ label, ariaLabel, value, onChange, autoComplete, describedBy, invalid = false }: PasswordInputProps) {
+  const inputId = useId();
+  const [visible, setVisible] = useState(false);
+  const toggleLabel = `${ariaLabel} ${visible ? '숨기기' : '표시'}`;
+
+  return <div className="auth-password-control">
+    <label htmlFor={inputId}>{label}</label>
+    <div className="auth-password-field">
+      <input
+        id={inputId}
+        aria-label={ariaLabel}
+        type={visible ? 'text' : 'password'}
+        autoComplete={autoComplete}
+        aria-describedby={describedBy}
+        aria-invalid={invalid}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <button
+        type="button"
+        className="auth-password-toggle"
+        aria-label={toggleLabel}
+        aria-pressed={visible}
+        title={toggleLabel}
+        onClick={() => setVisible((current) => !current)}
+      >
+        {visible ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+      </button>
+    </div>
+  </div>;
 }
 
 const MIN_PASSWORD_LENGTH = 15;
@@ -106,7 +148,7 @@ export function LoginView({ client }: AuthScreenProps) {
       <form className="auth-form" noValidate onSubmit={(event) => { event.preventDefault(); void submit(); }}>
         <label><span>이메일</span><input aria-label="로그인 이메일" type="email" autoComplete="email" aria-describedby={currentEmailError ? 'login-email-help' : undefined} aria-invalid={Boolean(currentEmailError || credentialsRejected)} value={email} onChange={(event) => { setEmail(event.target.value); setFailure(null); }} /></label>
         {currentEmailError && <p id="login-email-help" className="auth-field-hint" role="alert">{currentEmailError}</p>}
-        <label><span>비밀번호</span><input aria-label="로그인 비밀번호" type="password" autoComplete="current-password" aria-describedby={currentPasswordError ? 'login-password-help' : undefined} aria-invalid={Boolean(currentPasswordError || credentialsRejected)} value={password} onChange={(event) => { setPassword(event.target.value); setFailure(null); }} /></label>
+        <PasswordInput label="비밀번호" ariaLabel="로그인 비밀번호" autoComplete="current-password" describedBy={currentPasswordError ? 'login-password-help' : undefined} invalid={Boolean(currentPasswordError || credentialsRejected)} value={password} onChange={(value) => { setPassword(value); setFailure(null); }} />
         {currentPasswordError && <p id="login-password-help" className="auth-field-hint" role="alert">{currentPasswordError}</p>}
         <div className="auth-field-link-row">
           <button type="button" className="auth-link auth-inline-link" onClick={() => navigate('/password-reset', { state: { returnTo } })}>비밀번호를 잊으셨나요?</button>
@@ -304,9 +346,9 @@ export function PasswordResetView({ client }: AuthScreenProps) {
         <div className="auth-resend"><span>인증 코드를 받지 못하셨나요?</span><button type="button" className="auth-link" disabled={pending} onClick={() => void requestCode(false)}>인증 코드 다시 받기</button></div>
       </>}
       {step === 'password' && <form className="auth-form" onSubmit={(event) => { event.preventDefault(); setPasswordSubmitted(true); if (newPasswordValid && newPasswordConfirm && passwordsMatch && !pending) void changePassword(); }}>
-        <label><span>새 비밀번호</span><input aria-label="새 비밀번호" type="password" autoComplete="new-password" aria-describedby={currentPasswordError ? 'reset-password-help' : undefined} aria-invalid={Boolean(currentPasswordError)} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>
+        <PasswordInput label="새 비밀번호" ariaLabel="새 비밀번호" autoComplete="new-password" describedBy={currentPasswordError ? 'reset-password-help' : undefined} invalid={Boolean(currentPasswordError)} value={newPassword} onChange={setNewPassword} />
         {currentPasswordError && <p id="reset-password-help" className="auth-field-hint" role="alert">{currentPasswordError}</p>}
-        <label><span>새 비밀번호 확인</span><input aria-label="새 비밀번호 확인" type="password" autoComplete="new-password" aria-describedby={passwordConfirmError ? 'reset-password-confirm-help' : undefined} aria-invalid={Boolean(passwordConfirmError)} value={newPasswordConfirm} onChange={(event) => setNewPasswordConfirm(event.target.value)} /></label>
+        <PasswordInput label="새 비밀번호 확인" ariaLabel="새 비밀번호 확인" autoComplete="new-password" describedBy={passwordConfirmError ? 'reset-password-confirm-help' : undefined} invalid={Boolean(passwordConfirmError)} value={newPasswordConfirm} onChange={setNewPasswordConfirm} />
         {passwordConfirmError && <p id="reset-password-confirm-help" className="auth-field-hint" role="alert">{passwordConfirmError}</p>}
         <Button type="submit" kind="primary" disabled={pending}>{pending ? '변경 중' : '비밀번호 변경'}</Button>
       </form>}
@@ -378,9 +420,9 @@ export function SignupView({ client }: AuthScreenProps) {
         }}>
           <label><span>이메일</span><input aria-label="가입 이메일" type="email" autoComplete="email" aria-describedby={currentEmailError ? 'signup-email-help' : undefined} aria-invalid={Boolean(currentEmailError || emailRejected)} value={email} onChange={(event) => { setEmail(event.target.value); setFailure(null); }} /></label>
           {currentEmailError && <p id="signup-email-help" className="auth-field-hint" role="alert">{currentEmailError}</p>}
-          <label><span>비밀번호</span><input aria-label="가입 비밀번호" type="password" autoComplete="new-password" aria-describedby={currentPasswordError ? 'signup-password-help' : undefined} aria-invalid={Boolean(currentPasswordError)} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+          <PasswordInput label="비밀번호" ariaLabel="가입 비밀번호" autoComplete="new-password" describedBy={currentPasswordError ? 'signup-password-help' : undefined} invalid={Boolean(currentPasswordError)} value={password} onChange={setPassword} />
           {currentPasswordError && <p id="signup-password-help" className="auth-field-hint" role="alert">{currentPasswordError}</p>}
-          <label><span>비밀번호 확인</span><input aria-label="가입 비밀번호 확인" type="password" autoComplete="new-password" aria-describedby={passwordConfirmError ? 'signup-password-confirm-help' : undefined} aria-invalid={Boolean(passwordConfirmError)} value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} /></label>
+          <PasswordInput label="비밀번호 확인" ariaLabel="가입 비밀번호 확인" autoComplete="new-password" describedBy={passwordConfirmError ? 'signup-password-confirm-help' : undefined} invalid={Boolean(passwordConfirmError)} value={passwordConfirm} onChange={setPasswordConfirm} />
           {passwordConfirmError && <p id="signup-password-confirm-help" className="auth-field-hint" role="alert">{passwordConfirmError}</p>}
           <Button kind="primary" type="submit" disabled={pending}>{pending ? '가입 요청 중' : '가입'}</Button>
         </form>
