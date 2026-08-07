@@ -1288,6 +1288,7 @@ const english: Record<string, string> = {
   '로그인 중': 'Signing in',
   '이메일': 'Email',
   '비밀번호': 'Password',
+  '비밀번호 찾기': 'Find your password',
   '비밀번호를 잊으셨나요?': 'Forgot your password?',
   '가입 이메일로 재설정 요청을 보내고, 메일로 받은 토큰과 새 비밀번호를 입력하세요.': 'Send a reset request to your sign-up email, then enter the token from the email and a new password.',
   '가입 이메일': 'Sign-up email',

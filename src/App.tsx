@@ -38,6 +38,7 @@ const AccountView = lazy(() => import('./views/SupportViews').then((module) => (
 const LoginView = lazy(() => import('./views/AuthViews').then((module) => ({ default: module.LoginView })));
 const SignupView = lazy(() => import('./views/AuthViews').then((module) => ({ default: module.SignupView })));
 const ReactivationView = lazy(() => import('./views/AuthViews').then((module) => ({ default: module.ReactivationView })));
+const PasswordResetView = lazy(() => import('./views/AuthViews').then((module) => ({ default: module.PasswordResetView })));
 const OperatorCaseWorkspace = lazy(() => import('./components/CaseApiPanels').then((module) => ({ default: module.OperatorCaseWorkspace })));
 const OperatorRbacWorkspace = lazy(() => import('./components/OperatorRbacViews').then((module) => ({ default: module.OperatorRbacWorkspace })));
 const OperatorCompetitionWorkspace = lazy(() => import('./components/OperatorCompetitionWorkspace').then((module) => ({ default: module.OperatorCompetitionWorkspace })));
@@ -495,6 +496,7 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/login" element={<LoginView client={accountClient} />} />
     <Route path="/signup" element={<SignupView client={accountClient} />} />
     <Route path="/reactivate" element={<ReactivationView client={accountClient} />} />
+    <Route path="/password-reset" element={<PasswordResetView client={accountClient} />} />
     <Route path="/operations/login" element={operatorAuthentication
       ? <OperatorAuthenticationView authentication={operatorAuthentication} />
       : <Navigate to="/" replace />} />

@@ -86,13 +86,17 @@ describe('customer login screen', () => {
     expect(window.location.pathname).toBe('/login');
   });
 
-  it('requests and applies a password reset from the fold', async () => {
+  it('opens password reset as a dedicated screen and keeps the existing API flow', async () => {
     const client = accountClient();
     window.history.replaceState({}, '', '/login');
     render(<App accountClient={client} />);
 
-    await screen.findByText('비밀번호를 잊으셨나요?', { selector: 'summary' });
-    await userEvent.click(screen.getByText('비밀번호를 잊으셨나요?', { selector: 'summary' }));
+    expect(screen.queryByRole('group', { name: '비밀번호 찾기' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('재설정 이메일')).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: '비밀번호 찾기' }));
+
+    await waitFor(() => expect(window.location.pathname).toBe('/password-reset'));
+    expect(await screen.findByRole('heading', { name: '비밀번호 찾기' })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('재설정 이메일'), 'customer@example.com');
     await userEvent.click(screen.getByRole('button', { name: '재설정 요청' }));
     expect(client.requestPasswordReset).toHaveBeenCalledWith('customer@example.com');
@@ -162,11 +166,12 @@ describe('customer signup screen', () => {
     render(<App accountClient={client} />);
 
     const password = await screen.findByLabelText('가입 비밀번호');
-    expect(screen.getByText('비밀번호는 15자 이상 128자 이하로 입력해 주세요.')).toBeInTheDocument();
+    expect(screen.queryByText('비밀번호는 15자 이상 128자 이하로 입력해 주세요.')).not.toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText('가입 이메일'), 'new@example.com');
     await userEvent.type(password, 'too-short');
     await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'too-short');
+    expect(screen.getByRole('alert')).toHaveTextContent('비밀번호는 15자 이상 128자 이하로 입력해 주세요.');
     expect(screen.getByRole('button', { name: '가입' })).toBeDisabled();
     expect(client.signup).not.toHaveBeenCalled();
   });
