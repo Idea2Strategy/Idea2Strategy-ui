@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import type { CSSProperties, ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowRight, Bell, CircleHelp, Moon, Palette, Settings, Sun, UserRound, X } from 'lucide-react';
+import { ArrowRight, Bell, CircleHelp, Moon, Settings, Sun, UserRound, X } from 'lucide-react';
 import i2sLogo from './assets/i2s-logo.svg';
 import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation';
 import type { PageId } from './lib/navigation';
@@ -392,28 +392,6 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
   </header></Localized>;
 }
 
-/*
-  Colour templates: each swaps only the brand accent (per theme, in
-  tokens.css). The dot previews the accent the current theme would get.
-*/
-type PaletteId = 'teal' | 'blue' | 'violet' | 'green' | 'amber' | 'rose';
-
-interface PaletteTemplate {
-  id: PaletteId;
-  label: string;
-  dark: string;
-  light: string;
-}
-
-const paletteTemplates: PaletteTemplate[] = [
-  { id: 'teal', label: '틸', dark: '#5ecfca', light: '#0e7476' },
-  { id: 'blue', label: '블루', dark: '#8fb3ff', light: '#2563eb' },
-  { id: 'violet', label: '바이올렛', dark: '#bda4ff', light: '#6d4bc4' },
-  { id: 'green', label: '그린', dark: '#7fd1a4', light: '#1f7a55' },
-  { id: 'amber', label: '앰버', dark: '#eec27e', light: '#8c5c0d' },
-  { id: 'rose', label: '로즈', dark: '#f79ab0', light: '#b42a52' },
-];
-
 function ProductApp({ accountClient, operationsClient, notificationClient, competitionRoomsClient, operatorCompetitionClient, operatorRbacClient, operatorCaseAccessVerified, operatorAuthentication, catalogReadPermissionId, assignmentReadPermissionId }: {
   accountClient: AccountClient;
   operationsClient: AccountOperationsClient;
@@ -438,13 +416,6 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
   // Up/down colour convention: Korean charts paint gains red and losses blue,
   // US charts the opposite hues. Korean is the default for this product.
   const [updown, setUpdown] = useState<Updown>('kr');
-  const [palette, setPalette] = useState<PaletteId>(() => {
-    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('i2s-palette') : null;
-    return paletteTemplates.some((template) => template.id === saved) ? (saved as PaletteId) : 'teal';
-  });
-  useEffect(() => {
-    localStorage.setItem('i2s-palette', palette);
-  }, [palette]);
   useEffect(() => {
     localStorage.setItem(BOT_ICON_STORAGE_KEY, JSON.stringify(botIcons));
   }, [botIcons]);
@@ -575,7 +546,6 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     data-theme={theme}
     data-timezone={timezone}
     data-updown={updown}
-    data-palette={palette}
     className={`app-shell variant-balanced signal-product theme-${theme}${reduceMotion ? ' reduce-motion' : ''}`}
   >
     <div className="app-main">
@@ -594,18 +564,6 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
            never scrolls — the sticky stage would simply not stick. */
         : <div className={`page-scroll${page === 'landing' ? ' landing-scroll' : ''}`}>{content}</div>}
     </div>
-    <Localized><div className="palette-dock" role="group" aria-label="색상 템플릿 선택">
-      <Palette size={13} aria-hidden="true" />
-      {paletteTemplates.map((template) => <button
-        key={template.id}
-        type="button"
-        aria-label={`${template.label} 템플릿`}
-        aria-pressed={palette === template.id}
-        className={palette === template.id ? 'active' : ''}
-        style={{ '--swatch': theme === 'light' ? template.light : template.dark } as CSSProperties}
-        onClick={() => setPalette(template.id)}
-      />)}
-    </div></Localized>
   </main>;
 }
 

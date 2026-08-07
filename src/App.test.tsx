@@ -13,6 +13,7 @@ import { ProEditor } from './views/StrategyViews';
 
 const balancedStyles = readFileSync(resolve(process.cwd(), 'src/styles/balanced.css'), 'utf8');
 const baseStyles = readFileSync(resolve(process.cwd(), 'src/styles/base.css'), 'utf8');
+const tokenStyles = readFileSync(resolve(process.cwd(), 'src/styles/tokens.css'), 'utf8');
 const indexHtml = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
 const appSource = readFileSync(resolve(process.cwd(), 'src/App.tsx'), 'utf8');
 
@@ -623,6 +624,18 @@ describe('Signal product UI', () => {
     expect(screen.getByTestId('app-shell')).toHaveAttribute('data-theme', 'dark');
   });
 
+  test('keeps one fixed teal accent per light and dark theme without a palette picker', () => {
+    render(<App initialVariant="balanced" />);
+
+    expect(screen.getByTestId('app-shell')).not.toHaveAttribute('data-palette');
+    expect(screen.queryByRole('group', { name: '색상 템플릿 선택' })).not.toBeInTheDocument();
+    expect(appSource).not.toContain('i2s-palette');
+    expect(balancedStyles).not.toContain('.palette-dock');
+    expect(tokenStyles).toMatch(/:root,[\s\S]*?\.theme-dark\s*\{[\s\S]*?--accent:\s*#5ecfca;/);
+    expect(tokenStyles).toMatch(/\.theme-light\s*\{[\s\S]*?--accent:\s*#0e7476;/);
+    expect(tokenStyles).not.toContain('[data-palette=');
+  });
+
   test('switches theme without losing the active page', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
@@ -736,6 +749,12 @@ describe('Signal product UI', () => {
     const strategyRowsRule = balancedStyles.match(/\.strategy-rows\s*\{([^}]*)\}/)?.[1] ?? '';
 
     expect(strategyRowsRule).not.toMatch(/(?:min-)?height\s*:/);
+  });
+
+  test('gives strategy names and dates the flexible column instead of a removed drag-handle track', () => {
+    expect(balancedStyles).toMatch(/\.strategy-row\s*\{[^}]*grid-template-columns:\s*38px minmax\(180px,\s*1fr\) 64px 90px auto;/s);
+    expect(balancedStyles).toMatch(/\.variant-balanced\[data-design="signal-studio"\] \.strategy-row\s*\{[^}]*grid-template-columns:\s*30px minmax\(180px,\s*1fr\) 72px 96px auto;/s);
+    expect(balancedStyles).not.toMatch(/grid-template-columns:\s*(?:16px 38px|13px 30px)/);
   });
 
   test('keeps market status out of navigation and uses topbar notifications', async () => {
