@@ -1,8 +1,29 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { LiveExecutionChart } from './LiveExecutionChart';
 
 describe('LiveExecutionChart API market source', () => {
+  test('offers one, five, and fifteen minute display-only chart periods', async () => {
+    const user = userEvent.setup();
+    const onTimeframeChange = vi.fn();
+    render(<LiveExecutionChart
+      botName="Atlas 07"
+      executions={[]}
+      marketBars={[]}
+      symbols={['AAPL']}
+      symbol="AAPL"
+      onSymbolChange={vi.fn()}
+      onTimeframeChange={onTimeframeChange}
+    />);
+
+    await user.click(screen.getByRole('button', { name: '1분' }));
+    await user.click(screen.getByRole('button', { name: '5분' }));
+    await user.click(screen.getByRole('button', { name: '15분' }));
+
+    expect(onTimeframeChange.mock.calls.map(([timeframe]) => timeframe)).toEqual(['1m', '5m', '15m']);
+  });
+
   test('labels connected OHLCV bars as API data instead of a simulation', () => {
     render(<LiveExecutionChart
       botName="Atlas 07"

@@ -453,7 +453,7 @@ describe('Bot operations', () => {
     expect(within(dialog).getByText('빈 공간 드래그: 화면 이동 · 블록 드래그: 위치 변경')).toBeInTheDocument();
     expect(within(dialog).getByTestId('snapshot-layout-item-section-01')).toHaveAttribute('data-x', '290');
     expect(within(dialog).getAllByText('AAPL · MSFT · SPY').length).toBeGreaterThan(0);
-    expect(within(dialog).getByText('1m BAR')).toBeInTheDocument();
+    expect(within(dialog).getByText('30m BAR')).toBeInTheDocument();
     expect(within(dialog).getByText('OPENING RANGE')).toBeInTheDocument();
     expect(within(dialog).getByText('OR HIGH')).toBeInTheDocument();
     expect(within(dialog).getByText('OR LOW')).toBeInTheDocument();
@@ -483,7 +483,7 @@ describe('Bot operations', () => {
     const buyExplanation = within(dialog).getByRole('button', { name: '매수 전략 자연어 설명' });
     await user.click(buyExplanation);
     expect(within(dialog).getAllByRole('note')).toHaveLength(5);
-    expect(within(dialog).getByRole('note', { name: '1단계 규칙 설명' })).toHaveTextContent('1m BAR');
+    expect(within(dialog).getByRole('note', { name: '1단계 규칙 설명' })).toHaveTextContent('30m BAR');
     expect(within(dialog).getByRole('note', { name: '2단계 규칙 설명' })).toHaveTextContent('OPENING RANGE');
     expect(within(dialog).getByRole('note', { name: '4단계 규칙 설명' })).toHaveTextContent('25%');
     expect(within(dialog).getByRole('note', { name: '5단계 규칙 설명' })).toHaveTextContent('시장가 매수');

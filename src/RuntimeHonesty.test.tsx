@@ -271,16 +271,16 @@ describe('production runtime honesty', () => {
   });
 
   test('clears the previous symbol market bars while the next symbol is loading', async () => {
-    const nextSnapshot = deferred<{ instrumentId: string; symbol: string; timeframe: '1m'; bars: MarketBar[] }>();
+    const nextSnapshot = deferred<{ instrumentId: string; symbol: string; timeframe: '30m'; bars: MarketBar[] }>();
     const bar: MarketBar = {
       eventId: 'event-aapl', occurredAt: '2026-08-07T12:00:00Z', sequence: 1, revision: 0,
       open: 100, high: 102, low: 99, close: 101, volume: 1000, provider: 'ALPACA', feed: 'SIP',
     };
     const marketDataClient: MarketDataClient = {
       getRecentBars: vi.fn((instrumentId) => instrumentId === 'instrument-aapl'
-        ? Promise.resolve({ instrumentId, symbol: 'AAPL', timeframe: '1m' as const, bars: [bar] })
+        ? Promise.resolve({ instrumentId, symbol: 'AAPL', timeframe: '30m' as const, bars: [bar] })
         : nextSnapshot.promise),
-      streamBars: vi.fn((_instrumentId, _onBar, signal) => new Promise<void>((resolve) => {
+      streamPrices: vi.fn((_instrumentId, _onPrice, signal) => new Promise<void>((resolve) => {
         signal?.addEventListener('abort', () => resolve(), { once: true });
       })),
     };
