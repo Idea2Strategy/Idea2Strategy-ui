@@ -9,10 +9,20 @@ import {
   type CandlestickData,
   type HistogramData,
   type IChartApi,
+  type ISeriesApi,
   type SeriesMarker,
   type Time,
   type UTCTimestamp,
 } from 'lightweight-charts';
+import { isDisplayTimeframe } from '../api/marketData';
+import type {
+  ChartTimeframe,
+  DisplayPriceUpdate,
+} from '../api/marketData';
+import { appendDisplayUpdate } from './liveChartBars';
+import type { LiveMarketBar } from './liveChartBars';
+
+export type { LiveMarketBar } from './liveChartBars';
 
 export interface LiveExecution {
   time: string;
@@ -23,25 +33,19 @@ export interface LiveExecution {
   price: string;
 }
 
-export interface LiveMarketBar {
-  time: string | number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume?: number;
-}
-
 interface LiveExecutionChartProps {
   botName: string;
   executions: LiveExecution[];
   marketBars?: LiveMarketBar[];
+  livePrice?: DisplayPriceUpdate;
+  timeframe?: ChartTimeframe;
+  onTimeframeChange?: (timeframe: ChartTimeframe) => void;
   symbols: string[];
   symbol: string;
   onSymbolChange: (symbol: string) => void;
 }
 
-type TimeframeId = '1m' | '5m' | '1h' | '1d';
+type TimeframeId = ChartTimeframe;
 
 interface Timeframe {
   id: TimeframeId;
@@ -57,12 +61,14 @@ interface GeneratedMarket {
 const TIMEFRAMES: Timeframe[] = [
   { id: '1m', label: '1분', seconds: 60 },
   { id: '5m', label: '5분', seconds: 300 },
+  { id: '15m', label: '15분', seconds: 900 },
+  { id: '30m', label: '30분', seconds: 1800 },
   { id: '1h', label: '1시간', seconds: 3600 },
+  { id: '4h', label: '4시간', seconds: 14400 },
   { id: '1d', label: '1일', seconds: 86400 },
 ];
 
 const CANDLE_COUNT = 120;
-
 function numberFromPrice(value: string): number {
   return Number(value.replace(/[$,]/g, '')) || 100;
 }
@@ -108,13 +114,14 @@ function generateMarket(symbol: string, seconds: number, referencePrice: number)
 }
 
 function aggregateMarketBars(bars: LiveMarketBar[], seconds: number): GeneratedMarket {
+  void seconds;
   const buckets = new Map<number, { open: number; high: number; low: number; close: number; volume: number }>();
   bars
     .map((bar) => ({ ...bar, timestamp: marketTimestamp(bar.time) }))
     .filter((bar): bar is LiveMarketBar & { timestamp: number } => bar.timestamp !== null)
     .sort((left, right) => left.timestamp - right.timestamp)
     .forEach((bar) => {
-      const time = Math.floor(bar.timestamp / seconds) * seconds;
+      const time = bar.timestamp;
       const current = buckets.get(time);
       if (!current) {
         buckets.set(time, {
@@ -169,13 +176,21 @@ export function LiveExecutionChart({
   botName,
   executions,
   marketBars,
+  livePrice: priceUpdate,
+  timeframe: controlledTimeframe,
+  onTimeframeChange,
   symbols,
   symbol,
   onSymbolChange,
 }: LiveExecutionChartProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const [timeframe, setTimeframe] = useState<TimeframeId>('1m');
+  const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const liveCandleRef = useRef<CandlestickData<UTCTimestamp> | null>(null);
+  const liveVolumeRef = useRef<HistogramData<UTCTimestamp> | null>(null);
+  const [internalTimeframe, setInternalTimeframe] = useState<TimeframeId>('30m');
+  const timeframe = controlledTimeframe ?? internalTimeframe;
   const [livePrice, setLivePrice] = useState(0);
   const [liveChange, setLiveChange] = useState(0);
 
@@ -189,15 +204,16 @@ export function LiveExecutionChart({
     : numberFromPrice(symbolExecutions[0]?.price ?? '$100');
   const selectedTimeframe = TIMEFRAMES.find((item) => item.id === timeframe) ?? TIMEFRAMES[0];
   const market = useMemo(
-    () => usesApiMarket
-      ? aggregateMarketBars(marketBars ?? [], selectedTimeframe.seconds)
-      : generateMarket(symbol, selectedTimeframe.seconds, referencePrice),
-    [marketBars, referencePrice, selectedTimeframe.seconds, symbol, usesApiMarket],
+    () => {
+      if (!usesApiMarket) return generateMarket(symbol, selectedTimeframe.seconds, referencePrice);
+      return aggregateMarketBars(marketBars ?? [], selectedTimeframe.seconds);
+    },
+    [marketBars, referencePrice, selectedTimeframe.seconds, symbol, timeframe, usesApiMarket],
   );
 
   useEffect(() => {
     const container = frameRef.current;
-    if (!container || market.candles.length === 0 || navigator.userAgent.toLowerCase().includes('jsdom')) return undefined;
+    if (!container || navigator.userAgent.toLowerCase().includes('jsdom')) return undefined;
 
     const colors = getThemeColors(container);
     const chart = createChart(container, {
@@ -245,12 +261,14 @@ export function LiveExecutionChart({
       lastValueVisible: false,
       priceLineVisible: false,
     });
+    candleSeriesRef.current = candleSeries;
+    volumeSeriesRef.current = volumeSeries;
     volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
     candleSeries.setData(market.candles);
     volumeSeries.setData(market.volumes);
 
     const markerIndexes = symbolExecutions.map((_, index) => Math.max(0, market.candles.length - 22 - (index * 18)));
-    const markers: SeriesMarker<Time>[] = symbolExecutions.map((execution, index) => {
+    const markers: SeriesMarker<Time>[] = market.candles.length === 0 ? [] : symbolExecutions.map((execution, index) => {
       const executionTime = execution.timestamp ? marketTimestamp(execution.timestamp) : null;
       const nearest = executionTime === null
         ? market.candles[markerIndexes[index]]
@@ -271,28 +289,39 @@ export function LiveExecutionChart({
     chart.timeScale().fitContent();
 
     let tick = 0;
-    let lastCandle = { ...market.candles[market.candles.length - 1] } as CandlestickData<UTCTimestamp>;
-    let lastVolume = { ...market.volumes[market.volumes.length - 1] } as HistogramData<UTCTimestamp>;
-    const initialClose = lastCandle.close;
-    setLivePrice(initialClose);
-    const firstOpen = market.candles[0].open;
-    setLiveChange(((initialClose / firstOpen) - 1) * 100);
+    let lastCandle = market.candles.length > 0
+      ? { ...market.candles[market.candles.length - 1] } as CandlestickData<UTCTimestamp>
+      : null;
+    let lastVolume = market.volumes.length > 0
+      ? { ...market.volumes[market.volumes.length - 1] } as HistogramData<UTCTimestamp>
+      : null;
+    liveCandleRef.current = lastCandle;
+    liveVolumeRef.current = lastVolume;
+    if (lastCandle) {
+      const initialClose = lastCandle.close;
+      setLivePrice(initialClose);
+      const firstOpen = market.candles[0].open;
+      setLiveChange(((initialClose / firstOpen) - 1) * 100);
+    } else {
+      setLivePrice(0);
+      setLiveChange(0);
+    }
     const random = seededRandom(hashSeed(`${botName}-${symbol}-${timeframe}-live`));
 
-    const timer = usesApiMarket ? null : window.setInterval(() => {
+    const timer = usesApiMarket || !lastCandle || !lastVolume ? null : window.setInterval(() => {
       tick += 1;
       const startNewBar = tick % 6 === 0;
       const time = (startNewBar
-        ? Number(lastCandle.time) + selectedTimeframe.seconds
-        : Number(lastCandle.time)) as UTCTimestamp;
-      const open = startNewBar ? lastCandle.close : lastCandle.open;
-      const close = Math.max(referencePrice * 0.7, lastCandle.close + ((random() - 0.48) * referencePrice * 0.0009));
-      const high = Math.max(startNewBar ? open : lastCandle.high, close);
-      const low = Math.min(startNewBar ? open : lastCandle.low, close);
+        ? Number(lastCandle!.time) + selectedTimeframe.seconds
+        : Number(lastCandle!.time)) as UTCTimestamp;
+      const open = startNewBar ? lastCandle!.close : lastCandle!.open;
+      const close = Math.max(referencePrice * 0.7, lastCandle!.close + ((random() - 0.48) * referencePrice * 0.0009));
+      const high = Math.max(startNewBar ? open : lastCandle!.high, close);
+      const low = Math.min(startNewBar ? open : lastCandle!.low, close);
       lastCandle = { time, open, high, low, close };
       lastVolume = {
         time,
-        value: startNewBar ? Math.round(14000 + random() * 52000) : Number(lastVolume.value) + Math.round(random() * 4500),
+        value: startNewBar ? Math.round(14000 + random() * 52000) : Number(lastVolume!.value) + Math.round(random() * 4500),
         color: close >= open ? 'rgba(240, 66, 81, .28)' : 'rgba(67, 145, 255, .28)',
       };
       candleSeries.update(lastCandle);
@@ -326,14 +355,71 @@ export function LiveExecutionChart({
       themeObserver?.disconnect();
       chart.remove();
       chartRef.current = null;
+      candleSeriesRef.current = null;
+      volumeSeriesRef.current = null;
+      liveCandleRef.current = null;
+      liveVolumeRef.current = null;
     };
   }, [botName, market, referencePrice, selectedTimeframe.seconds, symbol, symbolExecutions, timeframe, usesApiMarket]);
+
+  useEffect(() => {
+    if (!usesApiMarket || !priceUpdate) return;
+    if (priceUpdate.symbol !== symbol || !candleSeriesRef.current || !volumeSeriesRef.current) return;
+    const occurredAt = marketTimestamp(priceUpdate.occurredAt);
+    const previous = liveCandleRef.current;
+    if (occurredAt === null) return;
+    const bucket = Math.floor(occurredAt / selectedTimeframe.seconds) * selectedTimeframe.seconds;
+    const previousTime = previous === null ? null : Number(previous.time);
+    if (previousTime !== null && bucket < previousTime) return;
+    const bufferedBar = isDisplayTimeframe(timeframe)
+      ? appendDisplayUpdate(marketBars ?? [], priceUpdate, timeframe).at(-1)
+      : null;
+    const next: CandlestickData<UTCTimestamp> = bufferedBar
+      ? {
+          time: Number(bufferedBar.time) as UTCTimestamp,
+          open: bufferedBar.open,
+          high: bufferedBar.high,
+          low: bufferedBar.low,
+          close: bufferedBar.close,
+        }
+      : previousTime === bucket && previous
+        ? {
+            ...previous,
+            high: Math.max(previous.high, priceUpdate.intervalHigh),
+            low: Math.min(previous.low, priceUpdate.intervalLow),
+            close: priceUpdate.intervalClose,
+          }
+        : {
+            time: bucket as UTCTimestamp,
+            open: priceUpdate.intervalOpen,
+            high: priceUpdate.intervalHigh,
+            low: priceUpdate.intervalLow,
+            close: priceUpdate.intervalClose,
+          };
+    const previousVolume = liveVolumeRef.current;
+    const nextVolume: HistogramData<UTCTimestamp> = {
+      time: next.time,
+      value: bufferedBar?.volume ?? (Number(previousVolume?.time) === Number(next.time)
+        ? Number(previousVolume?.value ?? 0) + priceUpdate.intervalVolume
+        : priceUpdate.intervalVolume),
+      color: next.close >= next.open ? 'rgba(240, 66, 81, .28)' : 'rgba(67, 145, 255, .28)',
+    };
+    candleSeriesRef.current.update(next);
+    volumeSeriesRef.current.update(nextVolume);
+    liveCandleRef.current = next;
+    liveVolumeRef.current = nextVolume;
+    setLivePrice(priceUpdate.intervalClose);
+    const changeReference = market.candles[0]?.open ?? priceUpdate.intervalOpen;
+    setLiveChange(((priceUpdate.intervalClose / changeReference) - 1) * 100);
+  }, [market.candles, marketBars, priceUpdate, referencePrice, selectedTimeframe.seconds, symbol, timeframe, usesApiMarket]);
+
+  const hasConnectedData = market.candles.length > 0 || (usesApiMarket && livePrice > 0);
 
   return <section className="bots-live-chart" role="region" aria-label={`${botName} 실시간 체결 차트`}>
     <header className="bots-live-chart-head">
       <div>
         <span className="bots-live-kicker"><i aria-hidden="true" />{
-          usesApiMarket ? market.candles.length > 0 ? '실시간 API' : '시세 데이터 대기' : '실시간 데모'
+          usesApiMarket ? hasConnectedData ? '실시간 API' : '시세 데이터 대기' : '실시간 데모'
         }</span>
         <h3>{symbol} 실시간 차트</h3>
         <small>체결 판단과 시세 흐름을 한 화면에서 확인합니다.</small>
@@ -363,7 +449,10 @@ export function LiveExecutionChart({
           type="button"
           aria-pressed={timeframe === item.id}
           className={timeframe === item.id ? 'active' : ''}
-          onClick={() => setTimeframe(item.id)}
+          onClick={() => {
+            setInternalTimeframe(item.id);
+            onTimeframeChange?.(item.id);
+          }}
         >{item.label}</button>)}
         <button type="button" className="bots-live-realtime" onClick={() => chartRef.current?.timeScale().scrollToRealTime()}>
           실시간으로 이동
@@ -375,7 +464,7 @@ export function LiveExecutionChart({
       ref={frameRef}
       className="bots-live-chart-frame"
       data-testid="live-candlestick-canvas"
-      data-market-source={usesApiMarket ? market.candles.length > 0 ? 'api' : 'api-pending' : 'demo'}
+      data-market-source={usesApiMarket ? hasConnectedData ? 'api' : 'api-pending' : 'demo'}
     />
 
     <footer className="bots-live-chart-foot">

@@ -15,7 +15,7 @@ import {
 import type { PreviewBlock, PreviewFlow } from './lib/strategyPreview';
 
 const BUY_BLOCKS: PreviewBlock[] = [
-  { label: '1m BAR', tone: 'time' },
+  { label: '30m BAR', tone: 'time' },
   { label: 'RSI', op: '<', value: '30', tone: 'indicator' },
   { label: 'BUDGET', value: '25%', tone: 'risk' },
 ];

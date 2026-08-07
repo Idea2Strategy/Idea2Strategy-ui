@@ -7,6 +7,7 @@ import type { DataTableColumn } from '../components/common';
 import { EquityChart } from '../components/EquityChart';
 import { LiveExecutionChart } from '../components/LiveExecutionChart';
 import type { LiveMarketBar } from '../components/LiveExecutionChart';
+import { appendDisplayUpdate } from '../components/liveChartBars';
 import {
   BOT_ICON_COLORS,
   BOT_ICON_OPTIONS,
@@ -45,7 +46,8 @@ import type {
   BotOperationsView,
 } from '../api/botOperations';
 import { defaultMarketDataClient } from '../api/marketData';
-import type { MarketBar, MarketDataClient } from '../api/marketData';
+import { isDisplayTimeframe } from '../api/marketData';
+import type { ChartTimeframe, DisplayPriceUpdate, MarketBar, MarketDataClient } from '../api/marketData';
 
 /* ---------- Types ----------------------------------------------------------- */
 
@@ -229,7 +231,7 @@ const botDetails: Record<string, BotDetail> = {
           symbol: 'AAPL · MSFT · SPY',
           allocation: '40%',
           buy: [
-            { tone: 'time', name: '1m BAR', value: '' },
+            { tone: 'time', name: '30m BAR', value: '' },
             { tone: 'indicator', name: 'OPENING RANGE', value: '15m' },
             { tone: 'condition', name: 'BREAKOUT', op: '>', value: 'OR HIGH' },
             { tone: 'risk', name: 'BUDGET', value: '25%' },
@@ -1254,6 +1256,8 @@ export function BotsView({
   const [liveDecisionReasons, setLiveDecisionReasons] = useState<BotDecisionReason[] | null>(null);
   const [liveStopSettlement, setLiveStopSettlement] = useState<BotStopSettlementAction[] | null>(null);
   const [liveMarketBars, setLiveMarketBars] = useState<LiveMarketBar[]>([]);
+  const [liveDisplayPrice, setLiveDisplayPrice] = useState<DisplayPriceUpdate | null>(null);
+  const [chartTimeframe, setChartTimeframe] = useState<ChartTimeframe>('30m');
   const [marketDataError, setMarketDataError] = useState<string | null>(null);
   const [operations, setOperations] = useState<BotOperationsView[] | null>(null);
   const [judgmentsByBot, setJudgmentsByBot] = useState<Record<string, BotJudgmentLogEntry[]>>({});
@@ -1600,7 +1604,7 @@ export function BotsView({
     const refreshSnapshot = async () => {
       try {
         const snapshot = await marketDataClient.getRecentBars(
-          selectedMarketInstrument.instrumentId, 300, controller.signal,
+          selectedMarketInstrument.instrumentId, chartTimeframe, 300, controller.signal,
         );
         publish(snapshot.bars);
         setMarketDataError(null);
@@ -1611,42 +1615,40 @@ export function BotsView({
       }
     };
     void refreshSnapshot();
-    let reconnectTimer: number | null = null;
-    let reconnectAttempt = 0;
-    const connectStream = () => {
-      if (controller.signal.aborted) return;
-      void marketDataClient.streamBars(
-        selectedMarketInstrument.instrumentId,
-        (bar) => {
-          publish([bar]);
-          reconnectAttempt = 0;
-          setMarketDataError(null);
-        },
-        controller.signal,
-      ).then(() => {
-        if (!controller.signal.aborted) scheduleReconnect();
-      }).catch((error) => {
-        if (!(error instanceof DOMException && error.name === 'AbortError')) scheduleReconnect();
-      });
-    };
-    const scheduleReconnect = () => {
-      if (controller.signal.aborted || reconnectTimer !== null) return;
-      const delay = Math.min(30_000, 1_000 * (2 ** Math.min(reconnectAttempt, 5)));
-      reconnectAttempt += 1;
-      setMarketDataError(`실시간 시장 데이터 연결이 끊어져 ${Math.round(delay / 1000)}초 후 다시 연결합니다. 스냅샷은 계속 갱신합니다.`);
-      reconnectTimer = window.setTimeout(() => {
-        reconnectTimer = null;
-        connectStream();
-      }, delay);
-    };
-    connectStream();
     const snapshotTimer = window.setInterval(() => void refreshSnapshot(), Math.max(30_000, pollIntervalMs));
     return () => {
       controller.abort();
-      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
       window.clearInterval(snapshotTimer);
     };
-  }, [marketDataClient, pollIntervalMs, prototypeMode, selectedMarketInstrument?.instrumentId]);
+  }, [chartTimeframe, marketDataClient, pollIntervalMs, prototypeMode, selectedMarketInstrument?.instrumentId]);
+
+  useEffect(() => {
+    if (prototypeMode || !marketDataClient || !selectedMarketInstrument) {
+      setLiveDisplayPrice(null);
+      return undefined;
+    }
+    const controller = new AbortController();
+    void marketDataClient.streamPrices(
+      selectedMarketInstrument.instrumentId,
+      (price) => {
+        setLiveDisplayPrice(price);
+        if (isDisplayTimeframe(chartTimeframe)) {
+          setLiveMarketBars((current) => appendDisplayUpdate(
+            current, price, chartTimeframe,
+          ));
+        }
+        setMarketDataError(null);
+      },
+      controller.signal,
+    ).catch((error) => {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        setMarketDataError('실시간 시장 데이터 스트림이 끊어졌습니다. 연결을 다시 시도해 주세요.');
+      }
+    });
+    return () => {
+      controller.abort();
+    };
+  }, [chartTimeframe, marketDataClient, prototypeMode, selectedMarketInstrument?.instrumentId]);
 
   useEffect(() => {
     if (!iconPickerOpen) return undefined;
@@ -1959,6 +1961,9 @@ export function BotsView({
             botName={selected.name}
             executions={fillEvents}
             marketBars={prototypeMode ? undefined : liveMarketBars}
+            livePrice={prototypeMode ? undefined : liveDisplayPrice ?? undefined}
+            timeframe={chartTimeframe}
+            onTimeframeChange={setChartTimeframe}
             symbols={decisionSymbols}
             symbol={decisionSymbol}
             onSymbolChange={setDecisionSymbol}

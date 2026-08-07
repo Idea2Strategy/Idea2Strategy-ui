@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { BasicStrategyCatalog } from './api/strategies';
-import { buildBasicSemanticDocument } from './views/StrategyViews';
+import { BASIC_TIMEFRAMES, DEFAULT_BASIC_TIMEFRAME, buildBasicSemanticDocument } from './views/StrategyViews';
 
 const catalog = {
   version: {
@@ -16,7 +16,7 @@ describe('Basic semantic document catalog parity', () => {
     const snapshot = {
       sections: [{
         id: 'section-1', symbol: 'AAPL', instrumentIds: ['instrument-aapl'], allocation: 100,
-        timeframe: '1분봉', x: 0, y: 0,
+        timeframe: '30분봉', x: 0, y: 0,
         cards: { buy: ['buy'], sell: ['sell'], risk: [] },
         cardOrder: ['buy', 'sell'], cardPositions: { buy: { x: 0, y: 0 }, sell: { x: 1, y: 0 } },
       }],
@@ -73,7 +73,7 @@ describe('Basic semantic document catalog parity', () => {
     const snapshot = {
       sections: [{
         id: 'section-1', symbol: 'SPY', instrumentIds: ['instrument-spy'], allocation: 100,
-        timeframe: '1분봉', x: 0, y: 0,
+        timeframe: '30분봉', x: 0, y: 0,
         cards: { buy: ['scheduled'], sell: [], risk: [] }, cardOrder: ['scheduled'],
         cardPositions: { scheduled: { x: 0, y: 0 } },
       }],
@@ -88,5 +88,41 @@ describe('Basic semantic document catalog parity', () => {
       expect.objectContaining({ elementCode: 'BASIC_SCHEDULE', parameters: expect.objectContaining({ cycle: 'MONTH_FIRST_TRADING_DAY' }) }),
       expect.objectContaining({ elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: expect.objectContaining({ orderPercent: '25' }) }),
     ]));
+  });
+
+  /* The Basic strategy has exactly four bar periods. One-minute bars are the
+     aggregation source and the basis for evaluating fills, which is a different
+     layer and must not leak back into the resolutions a user can select. */
+  test('offers exactly the four Basic bar periods and defaults to the shortest', () => {
+    expect(BASIC_TIMEFRAMES).toEqual(['30분봉', '1시간봉', '4시간봉', '일봉']);
+    expect(DEFAULT_BASIC_TIMEFRAME).toBe('30분봉');
+  });
+
+  test('compiles each Basic bar period to its runtime resolution code', () => {
+    const expected: Record<string, string> = {
+      '30분봉': '30m', '1시간봉': '1h', '4시간봉': '4h', '일봉': '1d',
+    };
+
+    for (const timeframe of BASIC_TIMEFRAMES) {
+      const snapshot = {
+        sections: [{
+          id: 'section-1', symbol: 'SPY', instrumentIds: ['instrument-spy'], allocation: 100,
+          timeframe, x: 0, y: 0,
+          cards: { buy: ['buy'], sell: [], risk: [] }, cardOrder: ['buy'],
+          cardPositions: { buy: { x: 0, y: 0 } },
+        }],
+        cardBlocks: { buy: [{ id: 'rsi', label: 'RSI 반등', op: '↑', value: '30', tone: 'condition' }] },
+        cardMeta: {},
+        buySettings: { buy: { maxOrderPercent: 100, entryMode: '1회만', cycle: '매 거래일', cycleInterval: 1, reentryWait: '조건 재충족', reentryInterval: 1, maxEntries: 1 } },
+        sellSettings: {}, symbolLimits: {},
+      };
+
+      const document = buildBasicSemanticDocument(snapshot as never, catalog) as { groups: Array<{ blocks: Array<{ elementCode: string; parameters: Record<string, unknown> }> }> };
+
+      expect(document.groups[0].blocks[0]).toMatchObject({
+        elementCode: 'BASIC_RSI_CROSS',
+        parameters: expect.objectContaining({ resolution: expected[timeframe] }),
+      });
+    }
   });
 });
