@@ -37,6 +37,13 @@ afterEach(() => {
 });
 
 describe('customer login screen', () => {
+  it('confirms email verification after the backend link redirects to login', async () => {
+    window.history.replaceState({}, '', '/login?emailVerified=true');
+    render(<App accountClient={accountClient()} />);
+
+    expect(await screen.findByText('이메일 인증이 완료되었습니다. 로그인해 주세요.')).toBeInTheDocument();
+  });
+
   it('does not expose a separate account reactivation flow from login', async () => {
     window.history.replaceState({}, '', '/login');
     render(<App accountClient={accountClient()} />);
@@ -236,7 +243,7 @@ describe('customer signup screen', () => {
     expect(confirmation).toHaveAttribute('type', 'text');
   });
 
-  it('walks signup, verification and the hop to login as separate confirmed steps', async () => {
+  it('asks the user to follow the email link and then continue to login', async () => {
     const client = accountClient();
     window.history.replaceState({}, '', '/signup');
     render(<App accountClient={client} />);
@@ -251,16 +258,12 @@ describe('customer signup screen', () => {
     await userEvent.click(screen.getByRole('button', { name: '가입' }));
     expect(client.signup).toHaveBeenCalledWith('new@example.com', 'strong password 2026!');
 
-    const verificationToken = await screen.findByLabelText('가입 인증 코드');
-    expect(screen.getByRole('status')).toHaveTextContent('이메일로 보낸 인증 코드를 입력하세요.');
-    await userEvent.click(screen.getByRole('button', { name: '이메일 인증' }));
-    expect(screen.getByText('인증 코드를 입력해 주세요.')).toBeInTheDocument();
-    expect(verificationToken).toHaveAttribute('aria-invalid', 'true');
-
-    await userEvent.type(verificationToken, 'verification-token');
-    await userEvent.click(screen.getByRole('button', { name: '이메일 인증' }));
-    expect(client.verifyEmail).toHaveBeenCalledWith('verification-token');
-    expect(await screen.findByRole('status')).toHaveTextContent('이메일 인증이 완료되었습니다.');
+    expect(await screen.findByRole('status')).toHaveTextContent('인증 링크를 이메일로 보냈습니다.');
+    expect(screen.getByText('new@example.com')).toBeInTheDocument();
+    expect(screen.getByText("메일의 '이메일 인증하기' 버튼을 눌러 인증을 완료해 주세요.")).toBeInTheDocument();
+    expect(screen.queryByLabelText('가입 인증 코드')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '이메일 인증' })).not.toBeInTheDocument();
+    expect(client.verifyEmail).not.toHaveBeenCalled();
 
     await userEvent.click(await screen.findByRole('button', { name: '로그인하러 가기' }));
     await waitFor(() => expect(window.location.pathname).toBe('/login'));

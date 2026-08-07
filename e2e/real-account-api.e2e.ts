@@ -34,14 +34,11 @@ test('browser completes the production account principal and user-case journey',
     '-v', 'ON_ERROR_STOP=1', '-c',
     `update identity.email_verification_requests set token_digest='${digest}' where account_id='${accountId}' and consumed_at is null and revoked_at is null`]);
 
-  await page.getByLabel('가입 인증 코드').fill(verificationToken);
-  const [verification] = await Promise.all([
-    page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/verify-email')),
-    page.getByRole('button', { name: '이메일 인증' }).click(),
-  ]);
-  expect(verification.status()).toBe(204);
-  await page.getByRole('button', { name: '로그인하러 가기' }).click();
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('status')).toContainText('인증 링크를 이메일로 보냈습니다.');
+  await expect(page.getByLabel('가입 인증 코드')).toHaveCount(0);
+  await page.goto(`/api/v1/auth/verify-email?token=${encodeURIComponent(verificationToken)}`);
+  await expect(page).toHaveURL(/\/login\?emailVerified=true$/);
+  await expect(page.getByRole('status')).toContainText('이메일 인증이 완료되었습니다. 로그인해 주세요.');
 
   // Wrong password first: the screen reports the API's code and stays put.
   await page.getByLabel('로그인 이메일').fill(email);
