@@ -63,14 +63,14 @@ export interface AccountClient {
   signup(email: string, password: string, signal?: AbortSignal): Promise<{ accountId: string; verificationExpiresAt: string }>;
   verifyEmail(verificationToken: string, signal?: AbortSignal): Promise<void>;
   resendVerification(accountId: string, signal?: AbortSignal): Promise<{ verificationRequired: boolean; verificationExpiresAt: string }>;
-  login(email: string, password: string, deviceLabel?: string, signal?: AbortSignal): Promise<LoginResult>;
+  login(email: string, password: string, signal?: AbortSignal): Promise<LoginResult>;
   /*
     Optional because the backend endpoint (POST /api/v1/auth/oauth/google) is
     a proposed contract, not yet in the published API spec. The auth screens
     only offer Google sign-in when a client id is configured AND the client
     implements this — never a dead button.
   */
-  loginWithGoogle?(idToken: string, expectedNonce: string, deviceLabel?: string, signal?: AbortSignal): Promise<LoginResult>;
+  loginWithGoogle?(idToken: string, expectedNonce: string, signal?: AbortSignal): Promise<LoginResult>;
   requestPasswordReset(email: string, signal?: AbortSignal): Promise<boolean>;
   resetPassword(resetToken: string, newPassword: string, signal?: AbortSignal): Promise<void>;
   rotateSession(signal?: AbortSignal): Promise<RotatedTokenPair>;
@@ -188,18 +188,18 @@ export function createAccountClient({
         verificationExpiresAt: string(value.verificationExpiresAt, 'verificationExpiresAt'),
       };
     },
-    async login(email, password, deviceLabel, signal) {
+    async login(email, password, signal) {
       const value = object(await (await request('/api/v1/auth/login', {
-        method: 'POST', signal, body: JSON.stringify({ email, password, deviceLabel: deviceLabel ?? null }),
+        method: 'POST', signal, body: JSON.stringify({ email, password }),
       })).json());
       const result = readLoginResult(value);
       publishTokens(result);
       return result;
     },
-    async loginWithGoogle(idToken, expectedNonce, deviceLabel, signal) {
+    async loginWithGoogle(idToken, expectedNonce, signal) {
       const value = object(await (await request('/api/v1/auth/oidc/login', {
         method: 'POST', signal, body: JSON.stringify({
-          providerCode: 'GOOGLE', idToken, expectedNonce, deviceLabel: deviceLabel ?? null,
+          providerCode: 'GOOGLE', idToken, expectedNonce,
         }),
       })).json());
       const result = readLoginResult(value);

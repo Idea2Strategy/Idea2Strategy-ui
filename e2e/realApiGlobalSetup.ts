@@ -46,7 +46,7 @@ export default async function globalSetup(): Promise<() => void> {
   const emailEncryptionKey = randomBytes(32).toString('base64');
   const lookupHmacKey = randomBytes(32).toString('base64');
   const verificationHmacKey = randomBytes(32).toString('base64');
-  const sessionHmacKey = randomBytes(32).toString('base64');
+  const refreshTokenHmacKey = randomBytes(32).toString('base64');
   const customerJwtSigningKey = randomBytes(32).toString('base64');
   const gradleCache = gradleCacheSource();
   const ownedContainers = new Set<string>();
@@ -114,7 +114,7 @@ export default async function globalSetup(): Promise<() => void> {
       '-e', `IDENTITY_CRYPTO_EMAIL_ENCRYPTION_KEY=${emailEncryptionKey}`,
       '-e', `IDENTITY_CRYPTO_LOOKUP_HMAC_KEY=${lookupHmacKey}`,
       '-e', `IDENTITY_CRYPTO_VERIFICATION_HMAC_KEY=${verificationHmacKey}`,
-      '-e', `IDENTITY_CRYPTO_SESSION_HMAC_KEY=${sessionHmacKey}`,
+      '-e', `IDENTITY_CRYPTO_REFRESH_TOKEN_HMAC_KEY=${refreshTokenHmacKey}`,
       '-e', `IDENTITY_CRYPTO_CUSTOMER_JWT_SIGNING_KEY=${customerJwtSigningKey}`,
       'gradle:8.14.3-jdk21', 'gradle', ':apps:backend-api:bootRun', '--no-daemon',
       '--project-cache-dir', '/tmp/a23-project-cache');

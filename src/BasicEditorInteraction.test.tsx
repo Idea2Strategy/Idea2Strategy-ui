@@ -417,7 +417,11 @@ describe('Basic editor interactions', () => {
       await user.type(within(block).getByLabelText('RSI 반등 값'), value);
     }
     await user.type(screen.getByRole('spinbutton', { name: '매도 비율' }), '50');
-    await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
+    const launch = screen.getByRole('button', { name: '개인 봇 출시' });
+    expect(launch).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: '저장' }));
+    expect(launch).toBeEnabled();
+    await user.click(launch);
 
     const dialog = screen.getByRole('dialog', { name: '개인 운용 봇 출시' });
     await user.type(within(dialog).getByRole('textbox', { name: '봇 이름' }), 'Basic Scout');

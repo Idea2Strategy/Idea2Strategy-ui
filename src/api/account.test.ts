@@ -14,7 +14,7 @@ describe('account API client', () => {
       createCorrelationId: () => 'correlation-1',
     });
 
-    await client.login('user@example.com', 'password', 'browser');
+    await client.login('user@example.com', 'password');
 
     expect(setAccessToken).toHaveBeenCalledWith('access-jwt');
     expect(fetchImpl).toHaveBeenCalledWith('https://api.example.com/api/v1/auth/login', expect.objectContaining({
@@ -37,11 +37,11 @@ describe('account API client', () => {
       createCorrelationId: () => 'correlation-google',
     });
 
-    await client.loginWithGoogle!('google-id-token', 'nonce-1', 'Web browser');
+    await client.loginWithGoogle!('google-id-token', 'nonce-1');
 
     expect(fetchImpl).toHaveBeenCalledWith('https://api.example.com/api/v1/auth/oidc/login', expect.objectContaining({
       method: 'POST',
-      body: JSON.stringify({ providerCode: 'GOOGLE', idToken: 'google-id-token', expectedNonce: 'nonce-1', deviceLabel: 'Web browser' }),
+      body: JSON.stringify({ providerCode: 'GOOGLE', idToken: 'google-id-token', expectedNonce: 'nonce-1' }),
     }));
     expect(setAccessToken).toHaveBeenCalledWith('google-access');
     expect(signIn).toHaveBeenCalledWith({

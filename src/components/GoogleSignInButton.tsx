@@ -104,7 +104,7 @@ export function GoogleSignInButton({
             return;
           }
           setExchanging(true);
-          client.loginWithGoogle!(response.credential, nonce, 'Web browser')
+          client.loginWithGoogle!(response.credential, nonce)
             .then(() => onSignedIn())
             .catch((cause: unknown) => {
               onFailure(cause instanceof AccountApiError ? cause : new AccountApiError(0, 'NETWORK_ERROR', null));

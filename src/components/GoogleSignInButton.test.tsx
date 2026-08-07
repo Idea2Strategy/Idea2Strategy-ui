@@ -72,6 +72,6 @@ describe('GoogleSignInButton', () => {
     credentialCallback!({ credential: 'google-jwt' });
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
-    expect(loginWithGoogle).toHaveBeenCalledWith('google-jwt', expect.any(String), 'Web browser');
+    expect(loginWithGoogle).toHaveBeenCalledWith('google-jwt', expect.any(String));
   });
 });

@@ -10,6 +10,13 @@ import type { BasicStrategyCatalog, StrategyAuthoringClient, StrategyCatalogClie
 import type { MarketDataClient } from './api/marketData';
 import { BasicEditor, StrategyHome } from './views/StrategyViews';
 
+const BASIC_EDITOR_CODES = [
+  'BASIC_PRICE_COMPARE', 'BASIC_PRICE_CHANGE_PERCENT', 'BASIC_VOLUME_COMPARE', 'BASIC_STREAK',
+  'BASIC_SMA_CROSS', 'BASIC_RSI_CROSS', 'BASIC_MACD_CROSS', 'BASIC_BOLLINGER_REVERSAL',
+  'BASIC_POSITION_RETURN', 'BASIC_HOLDING_PERIOD', 'BASIC_PEAK_RETURN',
+  'BASIC_DRAWDOWN_FROM_PEAK', 'BASIC_SCHEDULE', 'BASIC_EQUAL_ALLOCATION_ORDER',
+];
+
 describe('Strategy API view', () => {
   test('renders owner strategies returned by the live library API', async () => {
     const client: StrategyLibraryClient = {
@@ -103,7 +110,12 @@ describe('Strategy API view', () => {
       heartbeatLease: vi.fn(),
       releaseLease: vi.fn().mockResolvedValue(undefined),
       saveDocument: vi.fn().mockResolvedValue({ ...document, editSequence: 1 }),
-      validateStrategy: vi.fn(),
+      validateStrategy: vi.fn().mockResolvedValue({
+        validationRunId: 'invalid-run', strategyId: 'strategy-id', status: 'INVALID',
+        requestedEditSequence: 1, semanticHash: 'semantic-hash', elementCatalogVersionId: 'catalog-id',
+        findings: [{ severity: 'BLOCKING_ERROR', code: 'CONDITION_REQUIRED', message: '조건이 필요합니다.' }],
+        completedAt: '2026-08-01T12:01:00Z',
+      }),
       getReleaseInputs: vi.fn(),
       releaseStrategy: vi.fn(),
     };
@@ -159,6 +171,8 @@ describe('Strategy API view', () => {
         }),
       }),
     })));
+    await waitFor(() => expect(authoringClient.validateStrategy).toHaveBeenCalledWith('strategy-id', 'catalog-id'));
+    expect(screen.getByRole('button', { name: '개인 봇 출시' })).toBeDisabled();
     unmount();
     await waitFor(() => expect(authoringClient.releaseLease).toHaveBeenCalledWith('strategy-id', 'lease-token'));
   });
@@ -217,6 +231,12 @@ describe('Strategy API view', () => {
         ...document, semanticDocument: input.semanticDocument, presentationDocument: input.presentationDocument,
         semanticHash: 'new-hash', editSequence: 1,
       })),
+      previewValidation: vi.fn().mockImplementation(async (_id, input) => ({
+        ...validation,
+        validationRunId: `preview-${input.clientRevision}`,
+        requestedEditSequence: input.clientRevision,
+        semanticHash: 'preview-hash',
+      })),
       validateStrategy: vi.fn().mockResolvedValue(validation),
       getReleaseInputs: vi.fn().mockResolvedValue(releaseInputs),
       releaseStrategy: vi.fn().mockResolvedValue({ botId: 'bot-id', backtestLane: 'BASIC' }),
@@ -227,24 +247,34 @@ describe('Strategy API view', () => {
     });
     const catalog: BasicStrategyCatalog = {
       version: { id: catalogId, languageVersion: 'basic/v1', schemaVersion: 'basic-semantic/v1', catalogVersion: 'basic-elements:2026-08-04', dataRequirementVersion: 'alpaca-sip/v1', definitionHash: 'catalog-hash', publishedAt: '2026-08-04T00:00:00Z', retiredAt: null },
-      elements: [element('BASIC_RSI_READ'), element('BASIC_VALUE_COMPARE'), element('BASIC_EQUAL_ALLOCATION_ORDER')],
+      elements: BASIC_EDITOR_CODES.map(element),
       features: [], instruments: [{ id: 'aapl-id', assetType: 'STOCK', primaryExchangeMic: 'XNAS', currencyCode: 'USD', symbol: 'AAPL' }],
     };
 
     render(<BasicEditor goBack={() => {}} strategyId={strategyId} authoringClient={authoringClient} catalogClient={{ getBasic: vi.fn().mockResolvedValue(catalog) }} onLaunchBot={onLaunchBot} />);
     const save = await screen.findByRole('button', { name: '저장' });
     await waitFor(() => expect(save).toBeEnabled());
+    expect(screen.getByRole('button', { name: '개인 봇 출시' })).toBeDisabled();
+    const rsiValue = screen.getByRole('spinbutton', { name: 'RSI 반등 값' });
+    await user.clear(rsiValue);
+    await user.type(rsiValue, '31');
+    await waitFor(() => expect(authoringClient.previewValidation).toHaveBeenCalled());
+    await waitFor(() => expect(vi.mocked(authoringClient.previewValidation!).mock.calls.at(-1)?.[1].semanticDocument).toEqual(expect.objectContaining({
+      groups: expect.arrayContaining([expect.objectContaining({
+        blocks: expect.arrayContaining([expect.objectContaining({ elementCode: 'BASIC_RSI_CROSS', parameters: expect.objectContaining({ threshold: '31' }) })]),
+      })]),
+    })));
     await user.click(save);
 
     await waitFor(() => expect(authoringClient.validateStrategy).toHaveBeenCalledWith(strategyId, catalogId));
+    await waitFor(() => expect(screen.getByRole('button', { name: '개인 봇 출시' })).toBeEnabled());
     const savedInput = vi.mocked(authoringClient.saveDocument).mock.calls[0][1];
     expect(savedInput.semanticDocument).toMatchObject({
       mode: 'BASIC', catalogId,
       groups: [expect.objectContaining({
         id: 'buy-card', container: 'BUY', instrumentIds: ['aapl-id'],
         blocks: [
-          expect.objectContaining({ elementCode: 'BASIC_RSI_READ', parameters: { resolution: '1m' } }),
-          expect.objectContaining({ elementCode: 'BASIC_VALUE_COMPARE', parameters: { operator: 'LT', threshold: '30' } }),
+          expect.objectContaining({ elementCode: 'BASIC_RSI_CROSS', parameters: { resolution: '1m', direction: 'DOWN', period: '14', threshold: '31' } }),
           expect.objectContaining({ elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER' }),
         ],
       })],

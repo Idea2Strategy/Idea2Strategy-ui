@@ -133,7 +133,7 @@ export function LoginView({ client }: AuthScreenProps) {
     setPending(true);
     setFailure(null);
     try {
-      await client.login(email, password, 'Web browser');
+      await client.login(email, password);
       navigate(returnTo, { replace: true });
     } catch (cause) {
       setFailure(fallbackError(cause));

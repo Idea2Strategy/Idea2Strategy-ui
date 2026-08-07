@@ -67,7 +67,7 @@ describe('customer login screen', () => {
     await userEvent.type(screen.getByLabelText('로그인 비밀번호'), 'correct horse battery staple');
     await userEvent.click(screen.getByRole('button', { name: '로그인' }));
 
-    expect(client.login).toHaveBeenCalledWith('customer@example.com', 'correct horse battery staple', 'Web browser');
+    expect(client.login).toHaveBeenCalledWith('customer@example.com', 'correct horse battery staple');
     await waitFor(() => expect(window.location.pathname).toBe('/account'));
   });
 
