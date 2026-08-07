@@ -16,7 +16,7 @@ const clientWithGoogle = (loginWithGoogle = vi.fn().mockResolvedValue({
   loginWithGoogle,
   requestPasswordReset: vi.fn(), resetPassword: vi.fn(), sessions: vi.fn(), rotateSession: vi.fn(),
   logoutCurrent: vi.fn(), logoutSession: vi.fn(), logoutAll: vi.fn(), preferences: vi.fn(),
-  updatePreferences: vi.fn(), requestWithdrawal: vi.fn(), cancelWithdrawal: vi.fn(), reactivationPolicies: vi.fn(), reactivateWithPassword: vi.fn(),
+  updatePreferences: vi.fn(), requestWithdrawal: vi.fn(), cancelWithdrawal: vi.fn(),
 });
 
 afterEach(() => {

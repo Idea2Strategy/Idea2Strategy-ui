@@ -11,7 +11,6 @@ import { BacktestView } from './views/OperationsViews';
 
 const englishPreferencesClient = {
   sessions: async () => [],
-  reactivationPolicies: async () => [],
   preferences: async () => ({
     languageCode: 'en' as const,
     timezoneName: 'Asia/Seoul',
@@ -52,7 +51,6 @@ const ROUTES: Array<{ path: string; marker: () => Promise<HTMLElement> }> = [
   { path: '/landing', marker: () => screen.findByRole('heading', { name: /Ideas, into strategies/i }, ROUTE_WAIT) },
   { path: '/login', marker: () => screen.findByRole('heading', { name: /^Sign in$/i }, ROUTE_WAIT) },
   { path: '/signup', marker: () => screen.findByRole('heading', { name: /^Sign up$/i }, ROUTE_WAIT) },
-  { path: '/reactivate', marker: () => screen.findByRole('heading', { name: /^Reactivate account$/i }, ROUTE_WAIT) },
   { path: '/password-reset', marker: () => screen.findByRole('heading', { name: /^Reset password$/i }, ROUTE_WAIT) },
   { path: '/strategies', marker: () => screen.findByRole('heading', { name: /^Strategies$/i }, ROUTE_WAIT) },
   { path: '/strategies/new/basic', marker: () => screen.findByTestId('basic-editor-workspace', {}, ROUTE_WAIT) },

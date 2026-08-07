@@ -59,8 +59,6 @@ function client(overrides: Partial<AccountClient> = {}): AccountClient {
     updatePreferences: vi.fn().mockResolvedValue(preferences),
     requestWithdrawal: vi.fn().mockResolvedValue(lifecycle),
     cancelWithdrawal: vi.fn().mockResolvedValue({ ...lifecycle, status: 'ACTIVE' }),
-    reactivationPolicies: vi.fn().mockResolvedValue([]),
-    reactivateWithPassword: vi.fn().mockResolvedValue({ ...lifecycle, status: 'ACTIVE' }),
     ...overrides,
   };
 }

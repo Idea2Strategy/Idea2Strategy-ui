@@ -37,7 +37,6 @@ const HelpView = lazy(() => import('./views/SupportViews').then((module) => ({ d
 const AccountView = lazy(() => import('./views/SupportViews').then((module) => ({ default: module.AccountView })));
 const LoginView = lazy(() => import('./views/AuthViews').then((module) => ({ default: module.LoginView })));
 const SignupView = lazy(() => import('./views/AuthViews').then((module) => ({ default: module.SignupView })));
-const ReactivationView = lazy(() => import('./views/AuthViews').then((module) => ({ default: module.ReactivationView })));
 const PasswordResetView = lazy(() => import('./views/AuthViews').then((module) => ({ default: module.PasswordResetView })));
 const OperatorCaseWorkspace = lazy(() => import('./components/CaseApiPanels').then((module) => ({ default: module.OperatorCaseWorkspace })));
 const OperatorRbacWorkspace = lazy(() => import('./components/OperatorRbacViews').then((module) => ({ default: module.OperatorRbacWorkspace })));
@@ -508,7 +507,7 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/notifications" element={<RequireSignIn><NotificationsView setPage={setPage} client={notificationClient} /></RequireSignIn>} />
     <Route path="/login" element={<RequireSignedOut><LoginView client={accountClient} /></RequireSignedOut>} />
     <Route path="/signup" element={<RequireSignedOut><SignupView client={accountClient} /></RequireSignedOut>} />
-    <Route path="/reactivate" element={<ReactivationView client={accountClient} />} />
+    <Route path="/reactivate" element={<Navigate to="/login" replace />} />
     <Route path="/password-reset" element={<PasswordResetView client={accountClient} />} />
     <Route path="/operations/login" element={operatorAuthentication
       ? <OperatorAuthenticationView authentication={operatorAuthentication} />

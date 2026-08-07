@@ -29,8 +29,6 @@ const accountClient = (overrides: Partial<AccountClient> = {}): AccountClient =>
   updatePreferences: vi.fn(),
   requestWithdrawal: vi.fn(),
   cancelWithdrawal: vi.fn(),
-  reactivationPolicies: vi.fn().mockResolvedValue([]),
-  reactivateWithPassword: vi.fn(),
   ...overrides,
 });
 
@@ -41,6 +39,23 @@ afterEach(() => {
 });
 
 describe('customer login screen', () => {
+  it('does not expose a separate account reactivation flow from login', async () => {
+    window.history.replaceState({}, '', '/login');
+    render(<App accountClient={accountClient()} />);
+
+    await screen.findByRole('heading', { name: '로그인' });
+    expect(screen.queryByText('휴면 또는 닫힌 계정인가요?')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '계정 재활성화' })).not.toBeInTheDocument();
+  });
+
+  it('redirects the retired reactivation URL to login', async () => {
+    window.history.replaceState({}, '', '/reactivate');
+    render(<App accountClient={accountClient()} />);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(await screen.findByRole('heading', { name: '로그인' })).toBeInTheDocument();
+  });
+
   it('logs in through the real client and lands on the account page by default', async () => {
     const client = accountClient();
     window.history.replaceState({}, '', '/login');
