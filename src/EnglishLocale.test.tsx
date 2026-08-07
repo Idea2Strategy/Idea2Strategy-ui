@@ -2,10 +2,38 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { App } from './App';
+import type { AccountClient } from './api/account';
+import type { NotificationClient } from './api/notifications';
 import { setSessionAccessToken } from './api/sessionAccessToken';
 import { SESSION_STORAGE_KEY } from './lib/session';
 import { LanguageProvider } from './lib/i18n';
 import { BacktestView } from './views/OperationsViews';
+
+const englishPreferencesClient = {
+  sessions: async () => [],
+  preferences: async () => ({
+    languageCode: 'en' as const,
+    timezoneName: 'Asia/Seoul',
+    themePreference: 'DARK' as const,
+    updatedAt: '2026-08-07T00:00:00Z',
+  }),
+} as unknown as AccountClient;
+
+const emptyNotificationClient = {
+  list: async () => ({ items: [], nextCreatedAt: null, nextId: null }),
+  markRead: async () => undefined,
+  preferences: async () => [],
+  replacePreference: async () => ({
+    notificationTypeCode: 'TEST',
+    inAppEnabled: true,
+    emailEnabled: false,
+    updatedAt: '2026-08-07T00:00:00Z',
+  }),
+} as unknown as NotificationClient;
+
+const renderEnglishApp = () => render(
+  <App accountClient={englishPreferencesClient} notificationClient={emptyNotificationClient} />,
+);
 
 /*
   영어 로케일 화면 점검.
@@ -56,7 +84,7 @@ describe('English locale', () => {
   ROUTES.forEach(({ path, marker }) => {
     test(`renders ${path} without crashing`, async () => {
       window.history.replaceState({}, '', path);
-      const { container } = render(<App />);
+      const { container } = renderEnglishApp();
 
       // 화면이 죽으면 root가 비어 버린다. 검은 화면의 정체가 이것이다.
       expect(await marker()).toBeInTheDocument();
@@ -66,7 +94,7 @@ describe('English locale', () => {
 
   test('translates the complete sign-in surface instead of only replacing the word login', async () => {
     window.history.replaceState({}, '', '/login');
-    const { container } = render(<App />);
+    const { container } = renderEnglishApp();
 
     expect(await screen.findByLabelText('Sign-in email')).toBeInTheDocument();
     expect(screen.getByLabelText('Sign-in password')).toBeInTheDocument();
