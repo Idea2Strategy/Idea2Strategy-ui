@@ -328,6 +328,10 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
   const [createError, setCreateError] = useState<string | null>(null);
   const [copyPendingId, setCopyPendingId] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
+  /* The library API pages with an opaque snapshot cursor. Holding the cursor keeps
+     every page from the same instant, so appending cannot duplicate or skip a row. */
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [morePending, setMorePending] = useState(false);
 
   useEffect(() => {
     if (!client) {
@@ -338,12 +342,14 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
     setItems(confirmedItemsRef.current);
     setLibraryError(null);
     setSignInRequired(false);
+    setNextCursor(null);
     const controller = new AbortController();
     void client.list(50, undefined, controller.signal)
       .then((page) => {
         const confirmedItems = page.items.map(strategyListItem);
         confirmedItemsRef.current = confirmedItems;
         setItems(confirmedItems);
+        setNextCursor(page.hasMore ? page.nextCursor : null);
         setLibraryError(null);
       })
       .catch((error) => {
@@ -358,6 +364,27 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
       });
     return () => controller.abort();
   }, [client, prototypeItems, libraryAttempt]);
+
+  const loadMoreStrategies = async () => {
+    if (!client || !nextCursor || morePending) return;
+    setMorePending(true);
+    try {
+      const page = await client.list(50, nextCursor);
+      const appended = [...(confirmedItemsRef.current ?? []), ...page.items.map(strategyListItem)];
+      confirmedItemsRef.current = appended;
+      setItems(appended);
+      setNextCursor(page.hasMore ? page.nextCursor : null);
+      setLibraryError(null);
+    } catch (error) {
+      if (error instanceof StrategyApiError && error.status === 401) {
+        setSignInRequired(true);
+        return;
+      }
+      setLibraryError('다음 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setMorePending(false);
+    }
+  };
 
   const filteredItems = useMemo(() => (items ?? []).filter((strategy) => {
     const matchesQuery = strategy.name.toLowerCase().includes(query.trim().toLowerCase());
@@ -447,7 +474,7 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
         {copyError && <ErrorState title={copyError} onRetry={() => setCopyError(null)} retryLabel="닫기" />}
         {items !== null && <>
         <header className="strategy-library-head">
-          <div className="strategy-title-group"><div><h2>내 전략</h2><span>{filteredItems.length}</span></div><div className="strategy-counts" data-testid="strategy-counts"><span>전체 <b>{items.length}</b></span><span>출시 가능 <b>{launchableCount}</b></span><span>미완성 <b>{incompleteCount}</b></span></div></div>
+          <div className="strategy-title-group"><div><h2>내 전략</h2><span>{filteredItems.length}</span></div><div className="strategy-counts" data-testid="strategy-counts"><span>전체 <b>{items.length}{nextCursor ? '+' : ''}</b></span><span>출시 가능 <b>{launchableCount}</b></span><span>미완성 <b>{incompleteCount}</b></span></div></div>
           <label className="strategy-search"><Search size={16} /><input type="search" aria-label="전략 검색" placeholder="이름으로 검색" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
         </header>
         <div className="strategy-filter-row">
@@ -490,6 +517,13 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
           {filteredItems.length === 0 && (items.length === 0 && !query && mode === 'all' && state === 'all'
             ? <EmptyState title="아직 만든 전략이 없습니다." detail="새 전략을 만들면 이 목록에 표시됩니다." />
             : <div className="strategy-empty"><Search size={20} /><strong>조건에 맞는 전략이 없습니다.</strong><button onClick={() => { setQuery(''); setMode('all'); setState('all'); }}>필터 초기화</button></div>)}
+          {nextCursor && <button
+            type="button"
+            className="strategy-load-more"
+            data-testid="strategy-load-more"
+            disabled={morePending}
+            onClick={() => { void loadMoreStrategies(); }}
+          >{morePending ? '불러오는 중…' : '더 보기'}</button>}
         </div>
         </>}
       </section>
@@ -647,6 +681,15 @@ const getBasicBlockIcon = (label: string, tone: BlockTone): LucideIcon => {
   if (tone === 'order') return CircleDollarSign;
   if (tone === 'indicator') return Sparkles;
   return CandlestickChart;
+};
+
+/* Local wall-clock time of the last successful save. The server sends an instant;
+   showing it in the reader's own timezone is what makes "did my save land?"
+   answerable at a glance. */
+const savedAtLabel = (isoInstant: string): string => {
+  const saved = new Date(isoInstant);
+  if (Number.isNaN(saved.getTime())) return '';
+  return saved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> => (
@@ -1521,6 +1564,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const [serverValidation, setServerValidation] = useState<StrategyValidationResult | null>(null);
   const [savedValidation, setSavedValidation] = useState<StrategyValidationResult | null>(null);
   const [savedReadySignature, setSavedReadySignature] = useState<string | null>(null);
+  /* savedReadySignature is cleared whenever a save was not release-ready, so it
+     cannot tell "saved but incomplete" apart from "never saved" or "dirty".
+     savedSignature records every successful save regardless of validity, which is
+     what an unsaved-changes indicator has to be derived from. */
+  const [savedSignature, setSavedSignature] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [validationPending, setValidationPending] = useState(false);
   const validationPreviewRevisionRef = useRef(0);
   const [pendingInstrumentKey, setPendingInstrumentKey] = useState('');
@@ -1690,6 +1739,19 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   }), [sections, cardBlocks, cardMeta, buySettings, sellSettings, symbolLimits]);
   const editorSignatureRef = useRef(editorSignature);
   editorSignatureRef.current = editorSignature;
+
+  /* A freshly loaded canvas equals its saved document, so the signature at that
+     moment is the saved one. It cannot be captured inside the load effect, because
+     the signature is derived from state that has not re-rendered yet. */
+  useEffect(() => {
+    if (documentPending) {
+      setSavedSignature(null);
+      return;
+    }
+    setSavedSignature((current) => current ?? editorSignatureRef.current);
+  }, [documentPending]);
+
+  const hasUnsavedChanges = savedSignature !== null && savedSignature !== editorSignature;
   const isLocallyComplete = validationIssues.length === 0 && (!catalogClient || catalogSupportsEditor);
   const requiresServerValidation = Boolean(strategyId && authoringClient);
   const isCurrentlyValid = isLocallyComplete && (!requiresServerValidation || serverValidation?.status === 'VALID');
@@ -1867,6 +1929,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         setPan(viewport.pan);
         setZoom(viewport.zoom);
       }
+      setLastSavedAt(document.updatedAt);
       setDocumentPending(false);
       heartbeatTimer = window.setInterval(() => {
         const token = leaseTokenRef.current;
@@ -2066,6 +2129,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     if (!strategyId || !authoringClient) {
       setSavedValidation(null);
       setSavedReadySignature(isLocallyComplete ? signatureAtSave : null);
+      setSavedSignature(signatureAtSave);
       setSaveFeedback(nextFeedback);
       setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
       return;
@@ -2103,6 +2167,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       editSequenceRef.current = saved.editSequence;
       semanticDocumentRef.current = saved.semanticDocument;
       presentationDocumentRef.current = saved.presentationDocument;
+      /* The document is persisted at this point. Validity is decided below and must
+         not change whether the work is saved. */
+      setSavedSignature(signatureAtSave);
+      setLastSavedAt(saved.updatedAt);
       if (!authoringClient.validateStrategy) {
         const unavailable = { tone: 'warning' as const, title: '전략은 저장했지만 검증하지 못했습니다.', detail: '서버 검증 기능을 사용할 수 없습니다.' };
         setSaveFeedback(unavailable);
@@ -3501,6 +3569,15 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         >
           {validationTriggerLabel}
         </Button>
+        <span className="basic-save-state" data-testid="save-state" data-dirty={hasUnsavedChanges} role="status" aria-live="polite">
+          {savePending
+            ? '저장 중…'
+            : hasUnsavedChanges
+              ? '저장되지 않은 변경'
+              : lastSavedAt
+                ? `${savedAtLabel(lastSavedAt)} 저장됨`
+                : '변경 없음'}
+        </span>
         <Button className="floating-editor-button" icon={Save} disabled={documentPending || savePending} onClick={() => { void saveStrategy(); }}>{savePending ? '저장 중…' : '저장'}</Button>
         <div className="editor-launch-action">
           <Button
