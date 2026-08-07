@@ -18,7 +18,6 @@ import { isDisplayTimeframe } from '../api/marketData';
 import type {
   ChartTimeframe,
   DisplayPriceUpdate,
-  DisplayTimeframe,
 } from '../api/marketData';
 import { appendDisplayUpdate } from './liveChartBars';
 import type { LiveMarketBar } from './liveChartBars';
@@ -70,21 +69,6 @@ const TIMEFRAMES: Timeframe[] = [
 ];
 
 const CANDLE_COUNT = 120;
-const DISPLAY_TIMEFRAMES: DisplayTimeframe[] = ['1m', '5m', '15m'];
-
-type DisplayBuffers = Record<DisplayTimeframe, LiveMarketBar[]>;
-
-function displayBuffersFor(
-  buffers: Map<string, DisplayBuffers>,
-  symbol: string,
-): DisplayBuffers {
-  const current = buffers.get(symbol);
-  if (current) return current;
-  const created: DisplayBuffers = { '1m': [], '5m': [], '15m': [] };
-  buffers.set(symbol, created);
-  return created;
-}
-
 function numberFromPrice(value: string): number {
   return Number(value.replace(/[$,]/g, '')) || 100;
 }
@@ -205,8 +189,6 @@ export function LiveExecutionChart({
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const liveCandleRef = useRef<CandlestickData<UTCTimestamp> | null>(null);
   const liveVolumeRef = useRef<HistogramData<UTCTimestamp> | null>(null);
-  const displayBuffersRef = useRef<Map<string, DisplayBuffers>>(new Map());
-  const lastBufferedUpdateRef = useRef<string | null>(null);
   const [internalTimeframe, setInternalTimeframe] = useState<TimeframeId>('30m');
   const timeframe = controlledTimeframe ?? internalTimeframe;
   const [livePrice, setLivePrice] = useState(0);
@@ -224,10 +206,7 @@ export function LiveExecutionChart({
   const market = useMemo(
     () => {
       if (!usesApiMarket) return generateMarket(symbol, selectedTimeframe.seconds, referencePrice);
-      const sourceBars = isDisplayTimeframe(timeframe)
-        ? displayBuffersFor(displayBuffersRef.current, symbol)[timeframe]
-        : marketBars ?? [];
-      return aggregateMarketBars(sourceBars, selectedTimeframe.seconds);
+      return aggregateMarketBars(marketBars ?? [], selectedTimeframe.seconds);
     },
     [marketBars, referencePrice, selectedTimeframe.seconds, symbol, timeframe, usesApiMarket],
   );
@@ -385,16 +364,6 @@ export function LiveExecutionChart({
 
   useEffect(() => {
     if (!usesApiMarket || !priceUpdate) return;
-    const updateKey = `${priceUpdate.instrumentId}:${priceUpdate.providerTradeId}:${priceUpdate.publishedAt}`;
-    const buffers = displayBuffersFor(displayBuffersRef.current, priceUpdate.symbol);
-    if (lastBufferedUpdateRef.current !== updateKey) {
-      DISPLAY_TIMEFRAMES.forEach((displayTimeframe) => {
-        buffers[displayTimeframe] = appendDisplayUpdate(
-          buffers[displayTimeframe], priceUpdate, displayTimeframe,
-        );
-      });
-      lastBufferedUpdateRef.current = updateKey;
-    }
     if (priceUpdate.symbol !== symbol || !candleSeriesRef.current || !volumeSeriesRef.current) return;
     const occurredAt = marketTimestamp(priceUpdate.occurredAt);
     const previous = liveCandleRef.current;
@@ -402,7 +371,9 @@ export function LiveExecutionChart({
     const bucket = Math.floor(occurredAt / selectedTimeframe.seconds) * selectedTimeframe.seconds;
     const previousTime = previous === null ? null : Number(previous.time);
     if (previousTime !== null && bucket < previousTime) return;
-    const bufferedBar = isDisplayTimeframe(timeframe) ? buffers[timeframe].at(-1) : null;
+    const bufferedBar = isDisplayTimeframe(timeframe)
+      ? appendDisplayUpdate(marketBars ?? [], priceUpdate, timeframe).at(-1)
+      : null;
     const next: CandlestickData<UTCTimestamp> = bufferedBar
       ? {
           time: Number(bufferedBar.time) as UTCTimestamp,
@@ -440,7 +411,7 @@ export function LiveExecutionChart({
     setLivePrice(priceUpdate.intervalClose);
     const changeReference = market.candles[0]?.open ?? priceUpdate.intervalOpen;
     setLiveChange(((priceUpdate.intervalClose / changeReference) - 1) * 100);
-  }, [market.candles, priceUpdate, referencePrice, selectedTimeframe.seconds, symbol, timeframe, usesApiMarket]);
+  }, [market.candles, marketBars, priceUpdate, referencePrice, selectedTimeframe.seconds, symbol, timeframe, usesApiMarket]);
 
   const hasConnectedData = market.candles.length > 0 || (usesApiMarket && livePrice > 0);
 
