@@ -38,13 +38,14 @@ describe('GoogleSignInButton', () => {
 
   it('exchanges the Google credential through the client and reports success', async () => {
     let credentialCallback: ((response: { credential?: string }) => void) | undefined;
+    const renderButton = vi.fn();
     window.google = {
       accounts: {
         id: {
           initialize: vi.fn().mockImplementation((config: { callback: (response: { credential?: string }) => void }) => {
             credentialCallback = config.callback;
           }),
-          renderButton: vi.fn(),
+          renderButton,
         },
       },
     };
@@ -63,6 +64,11 @@ describe('GoogleSignInButton', () => {
 
     expect(screen.getByTestId('google-sign-in')).toBeInTheDocument();
     await waitFor(() => expect(credentialCallback).toBeDefined());
+    expect(renderButton).toHaveBeenCalledWith(expect.any(HTMLElement), expect.objectContaining({
+      text: 'signin_with',
+      size: 'medium',
+      locale: 'ko',
+    }));
     credentialCallback!({ credential: 'google-jwt' });
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));

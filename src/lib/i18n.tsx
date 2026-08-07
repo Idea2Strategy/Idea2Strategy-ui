@@ -14,6 +14,15 @@ const STORAGE_KEY = 'i2s-language';
 
 const english: Record<string, string> = {
   '비밀번호는 15자 이상 128자 이하로 입력해 주세요.': 'Enter a password between 15 and 128 characters.',
+  '이메일을 입력해 주세요.': 'Enter your email address.',
+  '올바른 이메일 주소를 입력해 주세요.': 'Enter a valid email address.',
+  '비밀번호를 입력해 주세요.': 'Enter your password.',
+  '비밀번호는 15자 이상이어야 합니다.': 'Password must be at least 15 characters.',
+  '비밀번호는 128자 이하여야 합니다.': 'Password must be no more than 128 characters.',
+  '비밀번호 확인을 입력해 주세요.': 'Confirm your password.',
+  '인증 코드를 입력해 주세요.': 'Enter the verification code.',
+  '입력하신 이메일로 인증 코드를 보냈습니다. 받은편지함과 스팸함을 확인해 주세요.': 'We sent a verification code to the email you entered. Check your inbox and spam folder.',
+  '이미 가입된 이메일입니다. 로그인하거나 다른 이메일을 사용해 주세요.': 'This email is already registered. Sign in or use another email.',
   '실제 대회 API에서 공개 방과 일정을 조회하고, 익명 봇 성과만 비교합니다.': 'Browse public rooms and schedules from the live competition API and compare anonymous bot performance.',
   '초대 코드 참가': 'Join with invite code',
   '대회명 검색': 'Search by competition name',

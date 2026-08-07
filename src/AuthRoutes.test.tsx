@@ -62,7 +62,7 @@ describe('customer login screen', () => {
 
     await screen.findByLabelText('로그인 이메일');
     await userEvent.type(screen.getByLabelText('로그인 이메일'), 'customer@example.com');
-    await userEvent.type(screen.getByLabelText('로그인 비밀번호'), 'pw');
+    await userEvent.type(screen.getByLabelText('로그인 비밀번호'), 'valid password 2026!');
     await userEvent.click(screen.getByRole('button', { name: '로그인' }));
 
     await waitFor(() => expect(window.location.pathname).toBe('/bots'));
@@ -77,13 +77,38 @@ describe('customer login screen', () => {
 
     await screen.findByLabelText('로그인 이메일');
     await userEvent.type(screen.getByLabelText('로그인 이메일'), 'customer@example.com');
-    await userEvent.type(screen.getByLabelText('로그인 비밀번호'), 'wrong');
+    await userEvent.type(screen.getByLabelText('로그인 비밀번호'), 'wrong password 2026!');
     await userEvent.click(screen.getByRole('button', { name: '로그인' }));
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('INVALID_CREDENTIALS');
     expect(alert).toHaveTextContent('corr-login-1');
     expect(window.location.pathname).toBe('/login');
+    expect(screen.getByLabelText('로그인 이메일')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('로그인 비밀번호')).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('highlights invalid fields with specific email and password guidance after submit', async () => {
+    const client = accountClient();
+    window.history.replaceState({}, '', '/login');
+    render(<App accountClient={client} />);
+
+    const email = await screen.findByLabelText('로그인 이메일');
+    const password = screen.getByLabelText('로그인 비밀번호');
+    expect(email).not.toHaveAttribute('aria-invalid', 'true');
+    expect(password).not.toHaveAttribute('aria-invalid', 'true');
+
+    await userEvent.click(screen.getByRole('button', { name: '로그인' }));
+    expect(screen.getByText('이메일을 입력해 주세요.')).toBeInTheDocument();
+    expect(screen.getByText('비밀번호를 입력해 주세요.')).toBeInTheDocument();
+    expect(email).toHaveAttribute('aria-invalid', 'true');
+    expect(password).toHaveAttribute('aria-invalid', 'true');
+
+    await userEvent.type(email, 'not-an-email');
+    await userEvent.type(password, 'too-short');
+    expect(screen.getByText('올바른 이메일 주소를 입력해 주세요.')).toBeInTheDocument();
+    expect(screen.getByText('비밀번호는 15자 이상이어야 합니다.')).toBeInTheDocument();
+    expect(client.login).not.toHaveBeenCalled();
   });
 
   it('walks email, verification code and new password as separate recovery steps', async () => {
@@ -108,6 +133,7 @@ describe('customer login screen', () => {
     expect(client.requestPasswordReset).toHaveBeenCalledWith('customer@example.com');
 
     expect(await screen.findByRole('heading', { name: '인증 코드 입력' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('입력하신 이메일로 인증 코드를 보냈습니다. 받은편지함과 스팸함을 확인해 주세요.');
     expect(screen.getByText('customer@example.com')).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('인증 코드'), 'reset-token');
     await userEvent.click(screen.getByRole('button', { name: '다음' }));
@@ -118,7 +144,17 @@ describe('customer login screen', () => {
     await userEvent.click(screen.getByRole('button', { name: '비밀번호 변경' }));
     expect(client.resetPassword).toHaveBeenCalledWith('reset-token', 'new password 2026!');
     await waitFor(() => expect(window.location.pathname).toBe('/login'));
-    expect(await screen.findByRole('status')).toHaveTextContent('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.');
+    expect(await screen.findByRole('heading', { name: '로그인' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.');
+  });
+
+  it.each(['/login', '/signup'])('redirects an authenticated direct visit away from %s', async (path) => {
+    setSessionAccessToken('already-signed-in');
+    window.history.replaceState({}, '', path);
+    render(<App accountClient={accountClient()} />);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/'));
+    expect(screen.queryByRole('heading', { name: path === '/login' ? '로그인' : '가입' })).not.toBeInTheDocument();
   });
 });
 
@@ -135,7 +171,12 @@ describe('customer signup screen', () => {
     await userEvent.click(screen.getByRole('button', { name: '가입' }));
     expect(client.signup).toHaveBeenCalledWith('new@example.com', 'strong password 2026!');
 
-    await userEvent.type(await screen.findByLabelText('가입 인증 토큰'), 'verification-token');
+    const verificationToken = await screen.findByLabelText('가입 인증 토큰');
+    await userEvent.click(screen.getByRole('button', { name: '이메일 인증' }));
+    expect(screen.getByText('인증 코드를 입력해 주세요.')).toBeInTheDocument();
+    expect(verificationToken).toHaveAttribute('aria-invalid', 'true');
+
+    await userEvent.type(verificationToken, 'verification-token');
     await userEvent.click(screen.getByRole('button', { name: '이메일 인증' }));
     expect(client.verifyEmail).toHaveBeenCalledWith('verification-token');
 
@@ -168,12 +209,13 @@ describe('customer signup screen', () => {
     await userEvent.type(screen.getByLabelText('가입 비밀번호'), 'strong password 2026!');
     await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'different password');
 
+    await userEvent.click(screen.getByRole('button', { name: '가입' }));
     expect(screen.getByRole('alert')).toHaveTextContent('비밀번호가 일치하지 않습니다.');
-    expect(screen.getByRole('button', { name: '가입' })).toBeDisabled();
+    expect(screen.getByLabelText('가입 비밀번호 확인')).toHaveAttribute('aria-invalid', 'true');
     expect(client.signup).not.toHaveBeenCalled();
   });
 
-  it('explains and enforces the server password length before signup', async () => {
+  it('explains and highlights each invalid signup field after submit', async () => {
     const client = accountClient();
     window.history.replaceState({}, '', '/signup');
     render(<App accountClient={client} />);
@@ -181,11 +223,32 @@ describe('customer signup screen', () => {
     const password = await screen.findByLabelText('가입 비밀번호');
     expect(screen.queryByText('비밀번호는 15자 이상 128자 이하로 입력해 주세요.')).not.toBeInTheDocument();
 
-    await userEvent.type(screen.getByLabelText('가입 이메일'), 'new@example.com');
+    await userEvent.type(screen.getByLabelText('가입 이메일'), 'not-an-email');
     await userEvent.type(password, 'too-short');
     await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'too-short');
-    expect(screen.getByRole('alert')).toHaveTextContent('비밀번호는 15자 이상 128자 이하로 입력해 주세요.');
-    expect(screen.getByRole('button', { name: '가입' })).toBeDisabled();
+    expect(screen.queryByText('비밀번호는 15자 이상이어야 합니다.')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: '가입' }));
+    expect(screen.getByText('올바른 이메일 주소를 입력해 주세요.')).toBeInTheDocument();
+    expect(screen.getByText('비밀번호는 15자 이상이어야 합니다.')).toBeInTheDocument();
+    expect(screen.getByLabelText('가입 이메일')).toHaveAttribute('aria-invalid', 'true');
+    expect(password).toHaveAttribute('aria-invalid', 'true');
+    expect(client.signup).not.toHaveBeenCalled();
+  });
+
+  it('distinguishes a password over the maximum length', async () => {
+    const client = accountClient();
+    window.history.replaceState({}, '', '/signup');
+    render(<App accountClient={client} />);
+
+    const tooLong = 'a'.repeat(129);
+    await userEvent.type(await screen.findByLabelText('가입 이메일'), 'new@example.com');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호'), tooLong);
+    await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), tooLong);
+    await userEvent.click(screen.getByRole('button', { name: '가입' }));
+
+    expect(screen.getByText('비밀번호는 128자 이하여야 합니다.')).toBeInTheDocument();
+    expect(screen.getByLabelText('가입 비밀번호')).toHaveAttribute('aria-invalid', 'true');
     expect(client.signup).not.toHaveBeenCalled();
   });
 
@@ -198,7 +261,8 @@ describe('customer signup screen', () => {
     await userEvent.type(screen.getByLabelText('가입 비밀번호'), '😀'.repeat(14));
     await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), '😀'.repeat(14));
 
-    expect(screen.getByRole('button', { name: '가입' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: '가입' }));
+    expect(screen.getByText('비밀번호는 15자 이상이어야 합니다.')).toBeInTheDocument();
     expect(client.signup).not.toHaveBeenCalled();
   });
 

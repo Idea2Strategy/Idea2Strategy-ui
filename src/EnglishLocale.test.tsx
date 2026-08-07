@@ -86,6 +86,10 @@ describe('English locale', () => {
 
   ROUTES.forEach(({ path, marker }) => {
     test(`renders ${path} without crashing`, async () => {
+      if (path === '/login' || path === '/signup') {
+        setSessionAccessToken(null);
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      }
       window.history.replaceState({}, '', path);
       const { container } = renderEnglishApp();
 
@@ -96,13 +100,15 @@ describe('English locale', () => {
   });
 
   test('translates the complete sign-in surface instead of only replacing the word login', async () => {
+    setSessionAccessToken(null);
+    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     window.history.replaceState({}, '', '/login');
     const { container } = renderEnglishApp();
 
     expect(await screen.findByLabelText('Sign-in email')).toBeInTheDocument();
     expect(screen.getByLabelText('Sign-in password')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Forgot your password?' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Sign up' })).toBeInTheDocument();
+    expect(within(screen.getByRole('heading', { name: 'Sign in' }).closest('.auth-card')!).getByRole('button', { name: 'Sign up' })).toBeInTheDocument();
     expect(container).toHaveTextContent('Sign in with your email and password.');
     expect(container.textContent).not.toMatch(/[가-힣]/);
   });

@@ -18,7 +18,7 @@ import { defaultNotificationClient, NotificationApiError } from './api/notificat
 import type { NotificationClient, NotificationRecord } from './api/notifications';
 import type { CompetitionRoomsClient } from './api/competitionRooms';
 import type { OperatorAuthentication } from './components/OperatorAuthenticationView';
-import { useSessionAccessToken } from './api/sessionAccessToken';
+import { setSessionAccessToken, useSessionAccessToken } from './api/sessionAccessToken';
 import { browserSessionStore, useSessionState } from './lib/session';
 import './styles/tokens.css';
 import './styles/base.css';
@@ -68,6 +68,14 @@ function RequireSignIn({ children }: { children: ReactElement }) {
   const signedIn = useSignedIn();
   const location = useLocation();
   if (!signedIn) return <Navigate to="/login" replace state={{ returnTo: location.pathname }} />;
+  return children;
+}
+
+/* Authenticated accounts have no useful work on credential-entry screens.
+   This also blocks direct URL entry and browser refreshes. */
+function RequireSignedOut({ children }: { children: ReactElement }) {
+  const signedIn = useSignedIn();
+  if (signedIn) return <Navigate to={pagePaths.home} replace />;
   return children;
 }
 
@@ -301,7 +309,12 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
                   <button
                     type="button"
                     className="button button-primary"
-                    onClick={() => { setOpenPanel(null); navigate('/login', { state: { returnTo: location.pathname } }); }}
+                    onClick={() => {
+                      setOpenPanel(null);
+                      setSessionAccessToken(null);
+                      browserSessionStore.signOut('rejected');
+                      navigate('/login', { state: { returnTo: location.pathname } });
+                    }}
                   >로그인</button>
                 </div>
                 : <div className="notifications-popover-state" role="alert">
@@ -493,8 +506,8 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/competition" element={<RoomsView client={competitionRoomsClient} openBot={openBot} />} />
     <Route path="/competition-v2" element={<Navigate to="/competition" replace />} />
     <Route path="/notifications" element={<RequireSignIn><NotificationsView setPage={setPage} client={notificationClient} /></RequireSignIn>} />
-    <Route path="/login" element={<LoginView client={accountClient} />} />
-    <Route path="/signup" element={<SignupView client={accountClient} />} />
+    <Route path="/login" element={<RequireSignedOut><LoginView client={accountClient} /></RequireSignedOut>} />
+    <Route path="/signup" element={<RequireSignedOut><SignupView client={accountClient} /></RequireSignedOut>} />
     <Route path="/reactivate" element={<ReactivationView client={accountClient} />} />
     <Route path="/password-reset" element={<PasswordResetView client={accountClient} />} />
     <Route path="/operations/login" element={operatorAuthentication
