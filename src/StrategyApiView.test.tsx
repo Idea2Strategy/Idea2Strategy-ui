@@ -188,7 +188,7 @@ describe('Strategy API view', () => {
         snapshot: {
           sections: [{
             id: 'section-1', symbol: 'AAPL', instrumentIds: ['aapl-id'], allocation: 100,
-            timeframe: '1분봉', x: 290, y: 108,
+            timeframe: '30분봉', x: 290, y: 108,
             cards: { buy: ['buy-card'], sell: [], risk: [] }, cardOrder: ['buy-card'],
             cardPositions: { 'buy-card': { x: 24, y: 136 } },
           }],
@@ -274,7 +274,7 @@ describe('Strategy API view', () => {
       groups: [expect.objectContaining({
         id: 'buy-card', container: 'BUY', instrumentIds: ['aapl-id'],
         blocks: [
-          expect.objectContaining({ elementCode: 'BASIC_RSI_CROSS', parameters: { resolution: '1m', direction: 'DOWN', period: '14', threshold: '31' } }),
+          expect.objectContaining({ elementCode: 'BASIC_RSI_CROSS', parameters: { resolution: '30m', direction: 'DOWN', period: '14', threshold: '31' } }),
           expect.objectContaining({ elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER' }),
         ],
       })],

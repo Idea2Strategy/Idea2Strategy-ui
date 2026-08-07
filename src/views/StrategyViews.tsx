@@ -529,12 +529,19 @@ const INITIAL_BASIC_BLOCKS: Record<Side, BasicBlock[]> = {
   risk: [],
 };
 
+/* The Basic strategy offers four bar periods. Sub-30-minute and weekly bars are
+   not strategy resolutions: the one-minute bar is the aggregation source and the
+   basis on which fills are evaluated, which is a different layer. */
+export const BASIC_TIMEFRAMES = ['30분봉', '1시간봉', '4시간봉', '일봉'] as const;
+
+export const DEFAULT_BASIC_TIMEFRAME = BASIC_TIMEFRAMES[0];
+
 const INITIAL_STRATEGY_SECTIONS: StrategySection[] = [{
   id: 'section-1',
   symbol: 'AAPL · MSFT · SPY',
   instrumentIds: [],
   allocation: 40,
-  timeframe: '1분봉',
+  timeframe: DEFAULT_BASIC_TIMEFRAME,
   x: 290,
   y: 108,
   cards: { buy: ['primary-buy'], sell: ['primary-sell'], risk: [] },
@@ -559,7 +566,7 @@ const createBlankStrategySections = (): StrategySection[] => [{
   symbol: '',
   instrumentIds: [],
   allocation: 100,
-  timeframe: '1분봉',
+  timeframe: DEFAULT_BASIC_TIMEFRAME,
   x: 290,
   y: 108,
   cards: { buy: [], sell: [], risk: [] },
@@ -606,7 +613,7 @@ const INITIAL_CARD_META: Record<string, CardMeta> = {
   'primary-buy': {
     title: '매수 전략',
     detail: '가격 갱신 · 종목별 평가',
-    explanation: '새로운 1분봉이 완성되고, RSI가 30 아래로 내려오면 전략 예산의 25%로 시장가 매수 후보를 만듭니다.',
+    explanation: '새로운 30분봉이 완성되고, RSI가 30 아래로 내려오면 전략 예산의 25%로 시장가 매수 후보를 만듭니다.',
   },
   'primary-sell': {
     title: '매도 전략',
@@ -690,9 +697,8 @@ const allNumbers = (value: string | undefined): number[] => (
 );
 
 const resolutionCode = (timeframe: string): string => ({
-  '1분봉': '1m', '3분봉': '3m', '5분봉': '5m', '15분봉': '15m', '30분봉': '30m',
-  '1시간봉': '1h', '4시간봉': '4h', '일봉': '1d', '주봉': '1w',
-}[timeframe] ?? '1m');
+  '30분봉': '30m', '1시간봉': '1h', '4시간봉': '4h', '일봉': '1d',
+}[timeframe] ?? '30m');
 
 const priceReferenceCode = (value: string | undefined): string => {
   const exact: Record<string, string> = {
@@ -1027,7 +1033,6 @@ const positionValueCopy: Record<string, string> = {
 };
 
 const getBlockRule = (block: BlockRuleInput, side?: string): ReactNode => {
-  if (block.id === 'buy-trigger-block') return <><b>1분봉</b> 하나가 새로 완성될 때마다</>;
   if (block.id === 'buy-rsi-block') return <><b>RSI(14)</b>가 <b>{block.value} {blockOperatorCopy[block.op as string] ?? block.op}</b>인지 확인하고</>;
   if (block.id === 'buy-budget-block') return <>조건을 만족하면 전략 예산의 <b>{block.value}</b>를 사용해</>;
   if (block.id === 'sell-position-block') return <>먼저 현재 <b>{positionValueCopy[block.value as string] ?? block.value}</b>인지 확인하고</>;
@@ -3047,7 +3052,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         id: sectionId,
         symbol: '종목 선택',
         allocation: 10,
-        timeframe: '1분봉',
+        timeframe: DEFAULT_BASIC_TIMEFRAME,
         x: draftRect.x,
         y: draftRect.y,
         // Keep the drawn size; getSectionLayout clamps it up to the minimum.
@@ -3635,7 +3640,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
                 <div className="section-settings">
                   <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="거래 종목">종목</span><button type="button" className="section-symbol-manager" aria-label={`PARTITION ${sectionNumber} 종목 관리`} onClick={() => { setPendingInstrumentKey(''); setInstrumentQuery(''); setSymbolManagerSectionId(section.id); }}><strong>{splitPartitionSymbols(section.symbol).length || 0}개 종목</strong><small>한도 설정</small></button></label>
                   <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="전체 전략 대비 예산">예산</span><span className="section-allocation"><input type="number" min=".1" max="100" step=".1" aria-label={`PARTITION ${sectionNumber} 전체 전략 대비 예산`} value={section.allocation} onWheel={(event) => event.stopPropagation()} onChange={(event) => updateSection(section.id, { allocation: Number(event.target.value) })} /><b>%</b></span></label>
-                  <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="기본 봉 주기">봉 주기</span><select aria-label={`PARTITION ${sectionNumber} 기본 봉 주기`} value={section.timeframe} onChange={(event) => updateSection(section.id, { timeframe: event.target.value })}>{['1분봉', '3분봉', '5분봉', '15분봉', '30분봉', '1시간봉', '4시간봉', '일봉', '주봉'].map((timeframe) => <option key={timeframe}>{timeframe}</option>)}</select></label>
+                  <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="기본 봉 주기">봉 주기</span><select aria-label={`PARTITION ${sectionNumber} 기본 봉 주기`} value={section.timeframe} onChange={(event) => updateSection(section.id, { timeframe: event.target.value })}>{BASIC_TIMEFRAMES.map((timeframe) => <option key={timeframe}>{timeframe}</option>)}</select></label>
                 </div>
                 <div className="section-card-actions">
                   <button className="tone-buy" aria-label={`PARTITION ${sectionNumber} 매수 전략 추가`} onClick={() => addStrategyCard(section.id, 'buy')}><Plus size={13} /> 매수</button>
