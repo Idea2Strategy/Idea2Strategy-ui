@@ -69,7 +69,7 @@ test('browser completes the production account principal and user-case journey',
   const [sessions, loadedPreferences] = await Promise.all([sessionsLoaded, preferencesLoaded]);
   expect(sessions.status()).toBe(200);
   expect(loadedPreferences.status()).toBe(200);
-  await expect(page.getByRole('heading', { name: '현재 세션' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '로그인 세션' })).toBeVisible();
   await expect(page.getByText('Web browser')).toBeVisible();
 
   await page.getByLabel('서버 시간대').fill('Asia/Seoul');
