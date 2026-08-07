@@ -20,7 +20,7 @@ test('browser completes the production account principal and user-case journey',
   await page.goto('/signup');
   await page.getByLabel('가입 이메일').fill(email);
   await page.getByLabel('가입 비밀번호', { exact: true }).fill(password);
-  await page.getByLabel('가입 비밀번호 확인').fill(password);
+  await page.getByLabel('가입 비밀번호 확인', { exact: true }).fill(password);
   const [signup] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/signup')),
     page.getByRole('button', { name: '가입', exact: true }).click(),
@@ -34,7 +34,7 @@ test('browser completes the production account principal and user-case journey',
     '-v', 'ON_ERROR_STOP=1', '-c',
     `update identity.email_verification_requests set token_digest='${digest}' where account_id='${accountId}' and consumed_at is null and revoked_at is null`]);
 
-  await page.getByLabel('가입 인증 토큰').fill(verificationToken);
+  await page.getByLabel('가입 인증 코드').fill(verificationToken);
   const [verification] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/verify-email')),
     page.getByRole('button', { name: '이메일 인증' }).click(),
@@ -45,7 +45,7 @@ test('browser completes the production account principal and user-case journey',
 
   // Wrong password first: the screen reports the API's code and stays put.
   await page.getByLabel('로그인 이메일').fill(email);
-  await page.getByLabel('로그인 비밀번호').fill('wrong password on purpose');
+  await page.getByLabel('로그인 비밀번호', { exact: true }).fill('wrong password on purpose');
   const [rejectedLogin] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/login')),
     page.getByRole('button', { name: '로그인', exact: true }).click(),
@@ -54,7 +54,7 @@ test('browser completes the production account principal and user-case journey',
   await expect(page.getByRole('alert')).toBeVisible();
   await expect(page).toHaveURL(/\/login$/);
 
-  await page.getByLabel('로그인 비밀번호').fill(password);
+  await page.getByLabel('로그인 비밀번호', { exact: true }).fill(password);
   const sessionsLoaded = page.waitForResponse((response) =>
     response.url().endsWith('/api/v1/auth/sessions') && response.request().method() === 'GET');
   const preferencesLoaded = page.waitForResponse((response) =>
@@ -69,17 +69,20 @@ test('browser completes the production account principal and user-case journey',
   const [sessions, loadedPreferences] = await Promise.all([sessionsLoaded, preferencesLoaded]);
   expect(sessions.status()).toBe(200);
   expect(loadedPreferences.status()).toBe(200);
-  await expect(page.getByRole('heading', { name: '로그인 세션' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '로그인 및 보안' })).toBeVisible();
   await expect(page.getByText('Web browser')).toBeVisible();
 
-  await page.getByLabel('서버 시간대').fill('Asia/Seoul');
+  await expect(page.getByLabel('서버 시간대')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: '서버 시간대' })).toHaveCount(0);
   const [preferences] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/account/preferences') && response.request().method() === 'PATCH'),
-    page.getByRole('button', { name: '서버 설정 저장' }).click(),
+    page.getByRole('button', { name: '환경 저장' }).click(),
   ]);
   expect(preferences.status()).toBe(200);
   await expect(page.getByText('서버 설정을 저장했습니다.')).toBeVisible();
 
+  await page.getByRole('button', { name: '문의하기', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: '문의하기' })).toBeVisible();
   await page.getByLabel('케이스 제목').fill('Actual browser API incident');
   await page.getByLabel('케이스 설명').fill('Production bearer principal reaches the PostgreSQL user-case store.');
   const [submittedCase] = await Promise.all([
