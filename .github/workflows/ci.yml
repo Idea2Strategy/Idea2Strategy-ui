@@ -27,7 +27,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - name: Validate immutable GitHub Action runtime pins
-        run: node --test scripts/test-github-action-pins.mjs
+        run: node --test scripts/test-github-action-pins.mjs scripts/test-real-api-integration-workflow.mjs
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Typecheck
@@ -65,7 +65,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Build
-        run: pnpm build
+        run: |
+          pnpm build
+          node scripts/assert-production-bundle.mjs
 
   e2e:
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
@@ -99,21 +101,19 @@ jobs:
   real-account-api:
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: ui
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: Idea2Strategy/Idea2Strategy-backend
-          ref: 742d11bfd5f319ee05b220a16f9ae6a8a6cf323e
-          path: backend
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
           repository: Idea2Strategy/Idea2Strategy
-          ref: f00aacb9a66e48624c13294099457bb4af71555f
+          ref: develop
           path: root
+      - name: Checkout backend pinned by latest root
+        shell: bash
+        run: git -C root submodule update --init --depth 1 backend
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 11.9.0
@@ -122,17 +122,38 @@ jobs:
           node-version: 24
           cache: pnpm
           cache-dependency-path: ui/pnpm-lock.yaml
+      - uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
+        with:
+          path: ${{ runner.temp }}/a23-real-api-gradle-cache
+          key: real-account-gradle-${{ runner.os }}-${{ hashFiles('root/backend/**/*.gradle*', 'root/backend/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            real-account-gradle-${{ runner.os }}-
       - name: Install UI dependencies
         working-directory: ui
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Install Chromium
         working-directory: ui
         run: pnpm exec playwright install --with-deps chromium
+      - name: Confirm exact root integration
+        shell: bash
+        run: |
+          expected_backend="$(git -C root rev-parse HEAD:backend)"
+          actual_backend="$(git -C root/backend rev-parse HEAD)"
+          test "$expected_backend" = "$actual_backend"
+          echo "root=$(git -C root rev-parse HEAD)"
+          echo "backend=$actual_backend"
+      - name: Prepare writable Gradle cache
+        shell: bash
+        run: |
+          mkdir -p "${{ runner.temp }}/a23-real-api-gradle-cache"
+          chmod -R ugo+rwX "${{ runner.temp }}/a23-real-api-gradle-cache"
       - name: Real account API journey
         working-directory: ui
         env:
-          A23_BACKEND_DIR: ${{ github.workspace }}/backend
+          A23_BACKEND_DIR: ${{ github.workspace }}/root/backend
           A23_ROOT_DIR: ${{ github.workspace }}/root
+          A23_BACKEND_READY_TIMEOUT_SECONDS: 600
+          A23_GRADLE_CACHE_DIR: ${{ runner.temp }}/a23-real-api-gradle-cache
         run: pnpm e2e:real-api
       - if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

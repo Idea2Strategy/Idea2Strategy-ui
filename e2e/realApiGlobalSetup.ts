@@ -1,9 +1,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { hasActiveProjectRun, interpretDockerInspect, isDockerContainerNameConflict, shouldReapContainer, shouldReapNetwork } from './dockerResourcePolicy';
+import { backendReadyTimeoutMs, powershellPolicyArguments } from './realApiRuntimePolicy';
 
 const projectLabel = 'com.idea2strategy.a23-real-api=true';
 const backendPort = Number(process.env.A23_BACKEND_PORT);
@@ -135,6 +136,12 @@ export default async function globalSetup(): Promise<() => void> {
 }
 
 function gradleCacheSource(): string {
+  const configured = process.env.A23_GRADLE_CACHE_DIR?.trim();
+  if (configured) {
+    const directory = path.resolve(configured);
+    mkdirSync(directory, { recursive: true });
+    return directory;
+  }
   const volume = 'a23-real-api-gradle-cache';
   if (!resourceExists('volume', volume)) {
     docker('volume', 'create', '--label', projectLabel,
@@ -168,7 +175,7 @@ function verifyCanonicalBundle(rootDir: string): void {
   const policyPath = path.join(temporary, 'verify-pinned-bundle.ps1');
   writeFileSync(policyPath, policy, { encoding: 'utf8', mode: 0o600 });
   const shell = process.platform === 'win32' ? 'powershell.exe' : 'pwsh';
-  try { run(shell, ['-NoProfile', '-File', policyPath], rootDir); }
+  try { run(shell, powershellPolicyArguments(process.platform, policyPath), rootDir); }
   finally { rmSync(temporary, { recursive: true, force: true }); }
 }
 
@@ -244,7 +251,10 @@ async function waitForPostgres(container: string): Promise<void> {
 }
 
 async function waitForBackend(container: string): Promise<void> {
-  for (let attempt = 0; attempt < 300; attempt += 1) {
+  const timeoutMs = backendReadyTimeoutMs(process.env.A23_BACKEND_READY_TIMEOUT_SECONDS);
+  const deadline = Date.now() + timeoutMs;
+  let attempt = 0;
+  while (Date.now() < deadline) {
     try {
       const response = await fetch(`http://127.0.0.1:${backendPort}/actuator/health`);
       if (response.ok) return;
@@ -253,9 +263,10 @@ async function waitForBackend(container: string): Promise<void> {
       const running = docker('inspect', '-f', '{{.State.Running}}', container);
       if (running !== 'true') throw new Error(`backend container exited: ${container}\n${dockerLogs(container)}`);
     }
+    attempt += 1;
     await delay(1_000);
   }
-  throw new Error(`backend did not become healthy: ${container}`);
+  throw new Error(`backend did not become healthy within ${timeoutMs / 1_000}s: ${container}\n${dockerLogs(container)}`);
 }
 
 const delay = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));

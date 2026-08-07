@@ -1,12 +1,20 @@
 /// <reference types="vitest/config" />
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
     plugins: [react()],
+    resolve: mode !== 'test' ? {
+      // Unit and visual tests can explicitly exercise prototype screens, but a
+      // deployable bundle must not contain invented strategies, bots or alerts.
+      alias: {
+        '../data/mockData': fileURLToPath(new URL('./src/data/productionEmptyData.ts', import.meta.url)),
+      },
+    } : undefined,
     build: {
       rolldownOptions: {
         output: {

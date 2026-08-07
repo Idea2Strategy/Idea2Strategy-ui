@@ -98,4 +98,61 @@ test('browser completes the production account principal and user-case journey',
     page.getByRole('button', { name: '상태 확인' }).click(),
   ]);
   expect(loadedCase.status()).toBe(200);
+
+  // Exercise the signed-in product shell against the same real backend. These
+  // reads catch missing controllers, stale root pointers, auth propagation,
+  // and response-shape drift that an account-only journey cannot see.
+  const dashboardResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/api/v1/dashboard') && response.request().method() === 'GET');
+  await page.goto('/');
+  const dashboard = await dashboardResponse;
+  expect(dashboard.status()).toBe(200);
+  expect((await dashboard.json()).bots).toEqual([]);
+  await expect(page.getByText('현재 운용 중인 봇이 없습니다.')).toBeVisible();
+
+  const strategyListResponse = page.waitForResponse((response) =>
+    response.url().includes('/api/v1/strategies?') && response.request().method() === 'GET');
+  await page.goto('/strategies');
+  const strategyList = await strategyListResponse;
+  expect(strategyList.status()).toBe(200);
+  expect((await strategyList.json()).items).toEqual([]);
+  await expect(page.getByText('아직 만든 전략이 없습니다.')).toBeVisible();
+
+  const strategyName = `Browser Basic ${Date.now()}`;
+  await page.getByRole('button', { name: '새 전략' }).click();
+  await page.getByRole('textbox', { name: '전략 이름' }).fill(strategyName);
+  const [createdStrategy] = await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().endsWith('/api/v1/strategies') && response.request().method() === 'POST'),
+    page.getByRole('button', { name: 'Basic으로 시작' }).click(),
+  ]);
+  expect(createdStrategy.status()).toBe(201);
+  const strategyId = String((await createdStrategy.json()).id);
+  await expect(page).toHaveURL(/\/strategies\/new\/basic$/);
+  await expect(page.getByTestId('basic-editor-workspace')).toBeVisible();
+
+  const botListResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/api/v1/bots/operations') && response.request().method() === 'GET');
+  await page.goto('/bots');
+  const botList = await botListResponse;
+  expect(botList.status()).toBe(200);
+  expect(await botList.json()).toEqual([]);
+  await expect(page.getByText('운용 중인 봇이 없습니다.')).toBeVisible();
+
+  const publicRoomsResponse = page.waitForResponse((response) =>
+    response.url().includes('/api/v1/competition/rooms/public?') && response.request().method() === 'GET');
+  await page.goto('/competition');
+  const publicRooms = await publicRoomsResponse;
+  expect(publicRooms.status()).toBe(200);
+  expect(Array.isArray((await publicRooms.json()).items)).toBe(true);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+
+  // The created draft must remain owned by this principal and visible after a
+  // full route transition, proving that creation was not merely optimistic UI.
+  const persistedListResponse = page.waitForResponse((response) =>
+    response.url().includes('/api/v1/strategies?') && response.request().method() === 'GET');
+  await page.goto('/strategies');
+  expect((await persistedListResponse).status()).toBe(200);
+  await expect(page.getByTestId(`strategy-row-${strategyName}`)).toBeVisible();
+  expect(strategyId).toMatch(/^[0-9a-f-]{36}$/);
 });
