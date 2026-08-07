@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Bell, CircleHelp, Moon, Palette, Settings, Sun, UserRound, X } from 'lucide-react';
@@ -6,36 +6,41 @@ import i2sLogo from './assets/i2s-logo.svg';
 import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation';
 import type { PageId } from './lib/navigation';
 import { LanguageProvider, Localized, useLanguage } from './lib/i18n';
-import { BasicEditor, StrategyHome } from './views/StrategyViews';
-import { ProEditorUnavailableView } from './views/ProEditorUnavailableView';
-import { LandingView } from './views/LandingView';
-import { BacktestView, RoomsView } from './views/OperationsViews';
-import { BotsView } from './views/BotsView';
-import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
-import { LoginView, SignupView } from './views/AuthViews';
-import { DashboardView } from './views/DashboardView';
 import { BOT_ICON_STORAGE_KEY, loadBotIcons } from './components/BotGlyph';
 import type { BotIconMap, BotIconSelection } from './components/BotGlyph';
 import { defaultBacktestClient } from './api/backtests';
 import { defaultAccountClient } from './api/account';
-import type { AccountClient } from './api/account';
+import type { AccountClient, ThemePreference } from './api/account';
 import { defaultAccountOperationsClient } from './api/accountOperations';
 import type { AccountOperationsClient } from './api/accountOperations';
-import { OperatorCaseWorkspace } from './components/CaseApiPanels';
-import { OperatorRbacWorkspace } from './components/OperatorRbacViews';
 import type { OperatorRbacClient } from './api/operatorRbac';
 import { defaultNotificationClient, NotificationApiError } from './api/notifications';
 import type { NotificationClient, NotificationRecord } from './api/notifications';
 import type { CompetitionRoomsClient } from './api/competitionRooms';
-import { OperatorCompetitionWorkspace } from './components/OperatorCompetitionWorkspace';
-import { OperatorAuthenticationView } from './components/OperatorAuthenticationView';
 import type { OperatorAuthentication } from './components/OperatorAuthenticationView';
 import { useSessionAccessToken } from './api/sessionAccessToken';
 import { browserSessionStore, useSessionState } from './lib/session';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/balanced.css';
-import './styles/pro-editor.css';
+
+const DashboardView = lazy(() => import('./views/DashboardView').then((module) => ({ default: module.DashboardView })));
+const LandingView = lazy(() => import('./views/LandingView').then((module) => ({ default: module.LandingView })));
+const StrategyHome = lazy(() => import('./views/StrategyViews').then((module) => ({ default: module.StrategyHome })));
+const BasicEditor = lazy(() => import('./views/StrategyViews').then((module) => ({ default: module.BasicEditor })));
+const ProEditorUnavailableView = lazy(() => import('./views/ProEditorUnavailableView').then((module) => ({ default: module.ProEditorUnavailableView })));
+const BotsView = lazy(() => import('./views/BotsView').then((module) => ({ default: module.BotsView })));
+const BacktestView = lazy(() => import('./views/OperationsViews').then((module) => ({ default: module.BacktestView })));
+const RoomsView = lazy(() => import('./views/OperationsViews').then((module) => ({ default: module.RoomsView })));
+const NotificationsView = lazy(() => import('./views/SupportViews').then((module) => ({ default: module.NotificationsView })));
+const HelpView = lazy(() => import('./views/SupportViews').then((module) => ({ default: module.HelpView })));
+const AccountView = lazy(() => import('./views/SupportViews').then((module) => ({ default: module.AccountView })));
+const LoginView = lazy(() => import('./views/AuthViews').then((module) => ({ default: module.LoginView })));
+const SignupView = lazy(() => import('./views/AuthViews').then((module) => ({ default: module.SignupView })));
+const OperatorCaseWorkspace = lazy(() => import('./components/CaseApiPanels').then((module) => ({ default: module.OperatorCaseWorkspace })));
+const OperatorRbacWorkspace = lazy(() => import('./components/OperatorRbacViews').then((module) => ({ default: module.OperatorRbacWorkspace })));
+const OperatorCompetitionWorkspace = lazy(() => import('./components/OperatorCompetitionWorkspace').then((module) => ({ default: module.OperatorCompetitionWorkspace })));
+const OperatorAuthenticationView = lazy(() => import('./components/OperatorAuthenticationView').then((module) => ({ default: module.OperatorAuthenticationView })));
 
 type SetPage = (page: PageId) => void;
 
@@ -66,6 +71,30 @@ function RequireSignIn({ children }: { children: ReactElement }) {
 
 type Theme = 'dark' | 'light';
 type Updown = 'kr' | 'us';
+const THEME_PREFERENCE_STORAGE_KEY = 'i2s-theme-preference';
+
+function storedThemePreference(): ThemePreference {
+  if (typeof localStorage === 'undefined') return 'DARK';
+  const stored = localStorage.getItem(THEME_PREFERENCE_STORAGE_KEY);
+  return stored === 'LIGHT' || stored === 'SYSTEM' ? stored : 'DARK';
+}
+
+function browserTheme(): Theme {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light';
+}
+
+function resolvedTheme(preference: ThemePreference): Theme {
+  if (preference === 'SYSTEM') return browserTheme();
+  return preference === 'LIGHT' ? 'light' : 'dark';
+}
+
+function RouteLoadingState() {
+  return <Localized><div className="route-loading-state" role="status">화면을 불러오는 중입니다.</div></Localized>;
+}
 
 interface TopbarProps {
   theme: Theme;
@@ -398,7 +427,10 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
 }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [theme, setTheme] = useState<Theme>('dark');
+  const signedIn = useSignedIn();
+  const { setLanguage } = useLanguage();
+  const [themePreference, setThemePreference] = useState<ThemePreference>(storedThemePreference);
+  const [theme, setTheme] = useState<Theme>(() => resolvedTheme(storedThemePreference()));
   const [timezone, setTimezone] = useState('et');
   const [reduceMotion, setReduceMotion] = useState(false);
   const [botIcons, setBotIcons] = useState<BotIconMap>(loadBotIcons);
@@ -415,6 +447,33 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
   useEffect(() => {
     localStorage.setItem(BOT_ICON_STORAGE_KEY, JSON.stringify(botIcons));
   }, [botIcons]);
+  useEffect(() => {
+    localStorage.setItem(THEME_PREFERENCE_STORAGE_KEY, themePreference);
+    if (themePreference !== 'SYSTEM' || typeof window.matchMedia !== 'function') {
+      setTheme(resolvedTheme(themePreference));
+      return undefined;
+    }
+    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+    const applySystemTheme = () => setTheme(systemTheme.matches ? 'dark' : 'light');
+    applySystemTheme();
+    systemTheme.addEventListener('change', applySystemTheme);
+    return () => systemTheme.removeEventListener('change', applySystemTheme);
+  }, [themePreference]);
+  useEffect(() => {
+    if (!signedIn) return undefined;
+    const controller = new AbortController();
+    void accountClient.preferences(controller.signal).then((preferences) => {
+      if (controller.signal.aborted) return;
+      if (preferences.languageCode === 'ko' || preferences.languageCode === 'en') {
+        setLanguage(preferences.languageCode);
+      }
+      setThemePreference(preferences.themePreference);
+    }).catch(() => {
+      // Display preferences are progressive enhancement. A temporary account
+      // API failure must not prevent the signed-in product from rendering.
+    });
+    return () => controller.abort();
+  }, [accountClient, setLanguage, signedIn]);
   // html carries the theme too, so body and the overscroll area match the shell
   // instead of showing the dark default behind a light page.
   useEffect(() => {
@@ -445,7 +504,12 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
   };
   const requestedBot = (location.state as { bot?: string } | null)?.bot;
 
-  const content = <Routes>
+  const selectTheme = (nextTheme: Theme) => {
+    setTheme(nextTheme);
+    setThemePreference(nextTheme === 'light' ? 'LIGHT' : 'DARK');
+  };
+
+  const content = <Suspense fallback={<RouteLoadingState />}><Routes>
     <Route path="/" element={<RequireSignIn><DashboardView setPage={setPage} botIcons={botIcons} /></RequireSignIn>} />
     <Route path="/landing" element={<LandingView setPage={setPage} />} />
     <Route path="/strategies" element={<RequireSignIn><StrategyHome openEditor={openEditor} /></RequireSignIn>} />
@@ -487,7 +551,8 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/help" element={<HelpView />} />
     <Route path="/account" element={<RequireSignIn><AccountView
       theme={theme}
-      setTheme={setTheme}
+      setTheme={selectTheme}
+      setThemePreference={setThemePreference}
       timezone={timezone}
       setTimezone={setTimezone}
       reduceMotion={reduceMotion}
@@ -499,7 +564,7 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
       notificationClient={notificationClient}
     /></RequireSignIn>} />
     <Route path="*" element={<Navigate to="/" replace />} />
-  </Routes>;
+  </Routes></Suspense>;
 
   return <main
     data-testid="app-shell"
@@ -512,7 +577,7 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     className={`app-shell variant-balanced signal-product theme-${theme}${reduceMotion ? ' reduce-motion' : ''}`}
   >
     <div className="app-main">
-      <Topbar theme={theme} setTheme={setTheme} page={page} setPage={setPage} updown={updown} setUpdown={setUpdown} notificationClient={notificationClient} />
+      <Topbar theme={theme} setTheme={selectTheme} page={page} setPage={setPage} updown={updown} setUpdown={setUpdown} notificationClient={notificationClient} />
       {operatorAuthentication?.snapshot.kind === 'authenticated' && <button
         className="operator-logout-button"
         type="button"

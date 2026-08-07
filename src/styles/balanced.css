@@ -5,6 +5,33 @@
   grid-template-columns: 72px minmax(0, 1fr);
 }
 
+.route-loading-state {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.route-loading-state::before {
+  width: 22px;
+  height: 22px;
+  margin-bottom: 10px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  content: '';
+  animation: route-loading-spin .8s linear infinite;
+}
+
+@keyframes route-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-loading-state::before { animation: none; }
+}
+
 /* Real competition API workspace: baseline board geometry with explicit async states. */
 .variant-balanced[data-design="signal-studio"] .competition-api-page,
 .variant-balanced[data-design="signal-studio"] .competition-api-detail {

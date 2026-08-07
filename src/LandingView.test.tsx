@@ -34,13 +34,13 @@ describe('Landing page', () => {
     await user.click(screen.getByRole('button', { name: 'Idea2Strategy 소개' }));
 
     expect(window.location.pathname).toBe('/landing');
-    expect(screen.getByRole('heading', { name: '아이디어를, 전략으로' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '아이디어를, 전략으로' })).toBeInTheDocument();
   });
 
-  test('introduces the product areas and states the virtual-trading boundary', () => {
+  test('introduces the product areas and states the virtual-trading boundary', async () => {
     render(<App />);
 
-    const features = screen.getByRole('region', { name: '주요 기능' });
+    const features = await screen.findByRole('region', { name: '주요 기능' });
     ['Basic·Pro 전략 편집기', '서버에서 실행되는 봇', '판단 기록', '자동 백테스트', '모의투자 대회']
       .forEach((title) => expect(within(features).getByRole('heading', { name: title })).toBeInTheDocument());
 
@@ -56,17 +56,18 @@ describe('Landing page', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(screen.getAllByRole('button', { name: '전략 만들기' })[0]);
+    await user.click((await screen.findAllByRole('button', { name: '전략 만들기' }))[0]);
 
     // The strategy workspace is account-scoped: the route guard forwards the
     // visit to sign-in and carries where it was headed.
     expect(window.location.pathname).toBe('/login');
-    expect(screen.getByRole('heading', { name: '로그인' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '로그인' })).toBeInTheDocument();
     expect((window.history.state as { usr?: { returnTo?: string } })?.usr?.returnTo).toBe('/strategies');
   });
 
   test('keeps the poster and instant reveals when WebGL and observers are missing', async () => {
     const { container } = render(<App />);
+    await screen.findByTestId('landing-page');
 
     // jsdom: the WebGL constructor throws → the scene bails to the poster.
     expect(container.querySelector('.landing-stage-poster')).toBeInTheDocument();
@@ -107,10 +108,10 @@ describe('Landing page', () => {
     expect([...seen].sort((a, b) => a - b)).toEqual([-1, 0, 1, 2, 3]);
   });
 
-  test('the stage carries the three story lines, hidden until their act', () => {
+  test('the stage carries the three story lines, hidden until their act', async () => {
     render(<App />);
 
-    const page = screen.getByTestId('landing-page');
+    const page = await screen.findByTestId('landing-page');
     expect(page).toHaveAttribute('data-hero-copy', 'visible');
     expect(page).toHaveAttribute('data-act-line', '-1');
     /* Decorative narration — the cards below carry the accessible copy. */

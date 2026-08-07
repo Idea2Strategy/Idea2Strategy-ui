@@ -16,7 +16,7 @@ import type { NotificationItem } from '../data/mockData';
 import type { PageId } from '../lib/navigation';
 import { Localized, useLanguage } from '../lib/i18n';
 import type { Language } from '../lib/i18n';
-import type { AccountClient, AccountPreferences } from '../api/account';
+import type { AccountClient, AccountPreferences, ThemePreference } from '../api/account';
 import type { AccountOperationsClient } from '../api/accountOperations';
 import { AccountApiPanels } from '../components/AccountApiPanels';
 import { UserCasePanel } from '../components/CaseApiPanels';
@@ -307,6 +307,7 @@ type Updown = 'kr' | 'us';
 interface AccountViewProps {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  setThemePreference?: (preference: ThemePreference) => void;
   timezone: string;
   setTimezone: (timezone: string) => void;
   reduceMotion: boolean;
@@ -318,14 +319,18 @@ interface AccountViewProps {
   notificationClient?: NotificationClient;
 }
 
-export function AccountView({ theme, setTheme, timezone, setTimezone, reduceMotion, setReduceMotion, updown = 'kr', setUpdown = () => {}, accountClient, operationsClient, notificationClient }: AccountViewProps) {
+export function AccountView({ theme, setTheme, setThemePreference, timezone, setTimezone, reduceMotion, setReduceMotion, updown = 'kr', setUpdown = () => {}, accountClient, operationsClient, notificationClient }: AccountViewProps) {
   const { language, setLanguage } = useLanguage();
   const sessionToken = useSessionAccessToken();
   const applyServerPreferences = useCallback((preferences: AccountPreferences) => {
     if (preferences.languageCode === 'ko' || preferences.languageCode === 'en') setLanguage(preferences.languageCode);
-    if (preferences.themePreference === 'DARK') setTheme('dark');
-    if (preferences.themePreference === 'LIGHT') setTheme('light');
-  }, [setLanguage, setTheme]);
+    if (setThemePreference) {
+      setThemePreference(preferences.themePreference);
+    } else {
+      if (preferences.themePreference === 'DARK') setTheme('dark');
+      if (preferences.themePreference === 'LIGHT') setTheme('light');
+    }
+  }, [setLanguage, setTheme, setThemePreference]);
 
   /*
     "내 계정" is meaningless with nobody signed in: every real panel on it is
