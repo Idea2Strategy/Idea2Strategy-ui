@@ -71,6 +71,7 @@ const STATUS_LABELS: Record<BacktestRunStatus, string> = {
   RUNNING: '실행 중',
   COMPLETED: '완료',
   FAILED: '실패',
+  CANCELLED: '취소됨',
   UNAVAILABLE: '실행 불가',
 };
 
@@ -79,6 +80,7 @@ const STATUS_TONES: Record<BacktestRunStatus, StatusTone> = {
   RUNNING: 'info',
   COMPLETED: 'positive',
   FAILED: 'negative',
+  CANCELLED: 'neutral',
   UNAVAILABLE: 'warning',
 };
 
@@ -309,6 +311,12 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
             selectedMonth={selectedMonth}
             onSelectMonth={setSelectedMonth}
             onUnauthenticated={abandonSession}
+            onRunUpdated={(run) => {
+              setDetail((current) => current ? { ...current, run } : current);
+              setRuns((current) => current?.map((item) => (
+                item.backtestRunId === run.backtestRunId ? run : item
+              )) ?? current);
+            }}
           />}
         </section>
       </div>}
@@ -425,22 +433,46 @@ function RunDetailPanels({
   selectedMonth,
   onSelectMonth,
   onUnauthenticated,
+  onRunUpdated,
 }: {
   client: BacktestClient;
   detail: RunDetail;
   selectedMonth: string | null;
   onSelectMonth: (month: string) => void;
   onUnauthenticated: () => void;
+  onRunUpdated: (run: BacktestRun) => void;
 }) {
   const { run } = detail;
+  const [cancelPending, setCancelPending] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const cancellable = run.status === 'QUEUED' || run.status === 'RUNNING';
+  const cancel = async () => {
+    setCancelPending(true);
+    setCancelError(null);
+    try {
+      onRunUpdated(await client.cancelBacktest(run.backtestRunId));
+    } catch (error) {
+      if (error instanceof BacktestApiError && error.unauthenticated) onUnauthenticated();
+      setCancelError('백테스트 취소 요청을 처리하지 못했습니다. 상태를 새로고침한 뒤 다시 시도해 주세요.');
+    } finally {
+      setCancelPending(false);
+    }
+  };
   return <>
     <Panel
       className="backtest-live-status-panel"
       title={`봇 ${shortId(run.botId)}`}
       subtitle={`요청 ${formatTime(run.queuedAt)} · 평가 ${run.evaluationStart} ~ ${run.evaluationEnd}`}
-      action={<Status tone={STATUS_TONES[run.status]}>{STATUS_LABELS[run.status]}</Status>}
+      action={<div className="backtest-live-heading-actions">
+        <Status tone={STATUS_TONES[run.status]}>{STATUS_LABELS[run.status]}</Status>
+        {cancellable && <Button
+          disabled={cancelPending || run.cancellationRequestedAt !== null}
+          onClick={() => { void cancel(); }}
+        >{run.cancellationRequestedAt !== null ? '취소 요청됨' : cancelPending ? '취소 요청 중…' : '실행 취소'}</Button>}
+      </div>}
     >
       <RunState run={run} />
+      {cancelError && <FailureNotice title={cancelError} code={null} />}
       <AttemptTable attempts={detail.attempts} />
     </Panel>
     <RunInputsPanel inputs={detail.inputs} />
@@ -488,7 +520,12 @@ function RunState({ run }: { run: BacktestRun }) {
     return <p className="backtest-live-state-copy"><Clock3 size={16} />공식 백테스트 실행을 기다리고 있습니다.</p>;
   }
   if (run.status === 'RUNNING') {
-    return <p className="backtest-live-state-copy"><Clock3 size={16} />고정된 입력으로 공식 백테스트를 실행하고 있습니다.</p>;
+    return <p className="backtest-live-state-copy"><Clock3 size={16} />{run.cancellationRequestedAt
+      ? '취소 요청을 전달했습니다. 워커가 다음 안전 지점에서 실행을 종료합니다.'
+      : '고정된 입력으로 공식 백테스트를 실행하고 있습니다.'}</p>;
+  }
+  if (run.status === 'CANCELLED') {
+    return <FailureNotice title="사용자가 백테스트 실행을 취소했습니다." code={run.cancellationReasonCode} />;
   }
   if (run.status === 'FAILED') {
     return <FailureNotice title="백테스트 실행이 실패했습니다." code={run.failureCode} />;

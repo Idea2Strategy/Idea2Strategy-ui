@@ -59,6 +59,9 @@ export function runPayload(overrides: Json = {}): Json {
     completedAt: '2026-07-31T12:30:00Z',
     failureCode: null,
     resultHash: RESULT_HASH,
+    cancellationRequestedAt: null,
+    cancellationReasonCode: null,
+    cancelledAt: null,
     attemptCount: 1,
     ...overrides,
   };

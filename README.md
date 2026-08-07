@@ -55,6 +55,9 @@ Gradle cache는 host UID나 bind mount에 의존하지 않는 Docker named volum
 - 퍼즐형 Basic 전략 편집기와 노드형 Pro 전략 편집기
 - 봇 목록에서 선택한 봇의 자산·포지션·판단 기록을 탭으로 보는 봇 운영
 - 봇별 백테스트 비교와 종목별 체결 차트
+- 백테스트 실행은 `30m`, `1h`, `4h`, `1d` dataset만 노출하며, queued/running 실행은
+  소유자가 취소할 수 있습니다. queued 실행은 즉시, running 실행은 worker 안전 지점에서
+  협력 취소되고 화면에 요청·완료 상태가 반영됩니다.
 - 지표를 직접 골라 정렬하는 Competition 순위
 - 심각도·읽음 상태로 걸러 보는 알림 센터
 - 화면별 사용법과 금융 용어집을 검색하는 도움말

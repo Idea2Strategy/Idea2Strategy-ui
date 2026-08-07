@@ -124,6 +124,28 @@ export function backtestHandlers(overrides: Partial<BacktestApiState> = {}): Req
         ?? HttpResponse.json(state.runs.find((run) => run.backtestRunId === runId));
     }),
 
+    http.post(path('/:runId/cancellation'), ({ request, params }) => {
+      const runId = String(params.runId);
+      const rejected = owned(request, runId, state);
+      if (rejected) return rejected;
+      const run = state.runs.find((item) => item.backtestRunId === runId)!;
+      if (!['QUEUED', 'RUNNING', 'CANCELLED'].includes(String(run.status))) {
+        return HttpResponse.json({ detail: `backtest run ${runId} is already ${run.status}` }, { status: 409 });
+      }
+      const immediate = run.status === 'QUEUED' || run.status === 'CANCELLED';
+      return HttpResponse.json({
+        cancellationRequested: true,
+        run: {
+          ...run,
+          status: immediate ? 'CANCELLED' : 'RUNNING',
+          cancellationRequestedAt: '2026-08-08T12:00:00Z',
+          cancellationReasonCode: 'USER_CANCELLED',
+          cancelledAt: immediate ? '2026-08-08T12:00:00Z' : null,
+          completedAt: immediate ? '2026-08-08T12:00:00Z' : run.completedAt,
+        },
+      }, { status: 202 });
+    }),
+
     http.get(path('/:runId/attempts'), ({ request, params }) => (
       owned(request, String(params.runId), state) ?? HttpResponse.json({ items: state.attempts })
     )),
