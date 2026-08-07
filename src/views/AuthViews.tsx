@@ -140,9 +140,7 @@ export function LoginView({ client }: AuthScreenProps) {
     <section className="auth-card auth-panel" aria-labelledby="auth-title">
       <header className="auth-card-head">
         <img src={i2sLogo} alt="" aria-hidden="true" />
-        <p className="auth-eyebrow">ACCOUNT / SIGN IN</p>
         <h1 id="auth-title">로그인</h1>
-        <p className="auth-card-copy">이메일과 비밀번호로 로그인합니다. 로그인 정보는 안전한 쿠키와 현재 브라우저 탭에만 유지됩니다.</p>
       </header>
       {routeState?.passwordResetComplete && <p role="status" className="auth-success">비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.</p>}
       <form className="auth-form" noValidate onSubmit={(event) => { event.preventDefault(); void submit(); }}>
@@ -202,10 +200,10 @@ export function PasswordResetView({ client }: AuthScreenProps) {
     try {
       await client.requestPasswordReset(email);
       if (advance) {
-        setMessage('입력하신 이메일로 인증 코드를 보냈습니다. 받은편지함과 스팸함을 확인해 주세요.');
+        setMessage('인증 코드를 보냈습니다.');
         setStep('code');
       }
-      else setMessage('인증 코드를 다시 요청했습니다. 이메일을 확인해 주세요.');
+      else setMessage('인증 코드를 다시 보냈습니다.');
     } catch (cause) {
       setFailure(fallbackError(cause));
     } finally {
@@ -239,11 +237,10 @@ export function PasswordResetView({ client }: AuthScreenProps) {
     <section className="auth-card auth-panel auth-reset-card" aria-labelledby="password-reset-title">
       <button type="button" className="auth-back-link" onClick={goBack}><ChevronLeft size={16} aria-hidden="true" />뒤로</button>
       <header className="auth-card-head">
-        <p className="auth-eyebrow">ACCOUNT / PASSWORD RESET</p>
         <h1 id="password-reset-title">{step === 'email' ? '비밀번호 재설정' : step === 'code' ? '인증 코드 입력' : '새 비밀번호 설정'}</h1>
-        {step === 'email' && <p className="auth-card-copy">가입한 이메일을 입력하면 비밀번호 재설정 인증 코드를 보내드립니다.</p>}
-        {step === 'code' && <p className="auth-card-copy">계정 존재 여부와 관계없이 복구 요청을 접수했습니다. 이메일로 받은 인증 코드를 입력해 주세요.<strong className="auth-reset-email">{email}</strong></p>}
-        {step === 'password' && <p className="auth-card-copy">15자 이상 128자 이하의 새 비밀번호를 입력하고 한 번 더 확인해 주세요.</p>}
+        {step === 'email' && <p className="auth-card-copy">가입한 이메일을 입력하세요.</p>}
+        {step === 'code' && <p className="auth-card-copy">이메일로 받은 인증 코드를 입력하세요.<strong className="auth-reset-email">{email}</strong></p>}
+        {step === 'password' && <p className="auth-card-copy">15자 이상 128자 이하로 입력하세요.</p>}
       </header>
       {step === 'email' && <form className="auth-form" noValidate onSubmit={(event) => { event.preventDefault(); setEmailSubmitted(true); if (!emailError(email) && !pending) void requestCode(true); }}>
         <label><span>가입 이메일</span><input aria-label="재설정 이메일" type="email" autoComplete="email" aria-describedby={currentEmailError ? 'reset-email-help' : undefined} aria-invalid={Boolean(currentEmailError)} value={email} onChange={(event) => { setEmail(event.target.value); setFailure(null); }} /></label>
@@ -317,9 +314,7 @@ export function SignupView({ client }: AuthScreenProps) {
     <section className="auth-card auth-panel" aria-labelledby="auth-title">
       <header className="auth-card-head">
         <img src={i2sLogo} alt="" aria-hidden="true" />
-        <p className="auth-eyebrow">ACCOUNT / SIGN UP</p>
         <h1 id="auth-title">가입</h1>
-        <p className="auth-card-copy">가입 후 이메일로 받은 인증 토큰을 입력해야 로그인할 수 있습니다.</p>
       </header>
       {step.kind === 'form' && <>
         <form className="auth-form" noValidate onSubmit={(event) => {
@@ -350,7 +345,7 @@ export function SignupView({ client }: AuthScreenProps) {
         </div>
       </>}
       {step.kind === 'verify' && <>
-        <p role="status">가입 요청을 접수했습니다. 이메일로 받은 인증 토큰을 입력하세요. 인증 기한: {new Date(step.verificationExpiresAt).toLocaleString()}</p>
+        <p role="status">이메일로 보낸 인증 코드를 입력하세요. 만료: {new Date(step.verificationExpiresAt).toLocaleString()}</p>
         <form className="auth-form" onSubmit={(event) => {
           event.preventDefault();
           setTokenSubmitted(true);
@@ -360,19 +355,19 @@ export function SignupView({ client }: AuthScreenProps) {
             setStep({ kind: 'verified' });
           });
         }}>
-          <label><span>인증 토큰</span><input aria-label="가입 인증 토큰" aria-describedby={tokenError ? 'signup-token-help' : undefined} aria-invalid={Boolean(tokenError)} value={token} onChange={(event) => setToken(event.target.value)} /></label>
+          <label><span>인증 코드</span><input aria-label="가입 인증 코드" aria-describedby={tokenError ? 'signup-token-help' : undefined} aria-invalid={Boolean(tokenError)} value={token} onChange={(event) => setToken(event.target.value)} /></label>
           {tokenError && <p id="signup-token-help" className="auth-field-hint" role="alert">{tokenError}</p>}
           <Button kind="primary" type="submit" disabled={pending}>{pending ? '인증 중' : '이메일 인증'}</Button>
         </form>
         <div className="auth-actions">
           <Button disabled={pending} onClick={() => void run(async () => {
             const result = await client.resendVerification(step.accountId);
-            setMessage(`인증 메일을 다시 보냈습니다. 인증 기한: ${new Date(result.verificationExpiresAt).toLocaleString()}`);
+            setMessage(`인증 메일을 다시 보냈습니다. 만료: ${new Date(result.verificationExpiresAt).toLocaleString()}`);
           })}>인증 메일 다시 보내기</Button>
         </div>
       </>}
       {step.kind === 'verified' && <>
-        <p role="status">이메일 인증을 완료했습니다. 이제 로그인할 수 있습니다.</p>
+        <p role="status">이메일 인증이 완료되었습니다.</p>
         <div className="auth-actions">
           <Button kind="primary" onClick={() => navigate('/login', { state: returnTo ? { returnTo } : undefined })}>로그인하러 가기</Button>
         </div>

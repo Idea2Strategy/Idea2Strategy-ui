@@ -98,7 +98,7 @@ describe('English locale', () => {
     });
   });
 
-  test('translates the complete sign-in surface instead of only replacing the word login', async () => {
+  test('renders the complete sign-in surface with concise English copy', async () => {
     setSessionAccessToken(null);
     window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     window.history.replaceState({}, '', '/login');
@@ -108,7 +108,7 @@ describe('English locale', () => {
     expect(screen.getByLabelText('Sign-in password')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Forgot your password?' })).toBeInTheDocument();
     expect(within(screen.getByRole('heading', { name: 'Sign in' }).closest('.auth-card')!).getByRole('button', { name: 'Sign up' })).toBeInTheDocument();
-    expect(container).toHaveTextContent('Sign in with your email and password.');
+    expect(container).not.toHaveTextContent('Sign in with your email and password.');
     expect(container.textContent).not.toMatch(/[가-힣]/);
   });
 

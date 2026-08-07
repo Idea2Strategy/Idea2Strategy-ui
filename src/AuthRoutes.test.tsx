@@ -44,6 +44,8 @@ describe('customer login screen', () => {
     render(<App accountClient={accountClient()} />);
 
     await screen.findByRole('heading', { name: '로그인' });
+    expect(screen.queryByText('ACCOUNT / SIGN IN')).not.toBeInTheDocument();
+    expect(screen.queryByText('이메일과 비밀번호로 로그인합니다. 로그인 정보는 안전한 쿠키와 현재 브라우저 탭에만 유지됩니다.')).not.toBeInTheDocument();
     expect(screen.queryByText('휴면 또는 닫힌 계정인가요?')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '계정 재활성화' })).not.toBeInTheDocument();
   });
@@ -159,17 +161,20 @@ describe('customer login screen', () => {
 
     await waitFor(() => expect(window.location.pathname).toBe('/password-reset'));
     expect(await screen.findByRole('heading', { name: '비밀번호 재설정' })).toBeInTheDocument();
+    expect(screen.getByText('가입한 이메일을 입력하세요.')).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('재설정 이메일'), 'customer@example.com');
     await userEvent.click(screen.getByRole('button', { name: '인증 코드 받기' }));
     expect(client.requestPasswordReset).toHaveBeenCalledWith('customer@example.com');
 
     expect(await screen.findByRole('heading', { name: '인증 코드 입력' })).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('입력하신 이메일로 인증 코드를 보냈습니다. 받은편지함과 스팸함을 확인해 주세요.');
+    expect(screen.getByText('이메일로 받은 인증 코드를 입력하세요.')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('인증 코드를 보냈습니다.');
     expect(screen.getByText('customer@example.com')).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('인증 코드'), 'reset-token');
     await userEvent.click(screen.getByRole('button', { name: '다음' }));
 
     expect(await screen.findByRole('heading', { name: '새 비밀번호 설정' })).toBeInTheDocument();
+    expect(screen.getByText('15자 이상 128자 이하로 입력하세요.')).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('새 비밀번호'), 'new password 2026!');
     await userEvent.type(screen.getByLabelText('새 비밀번호 확인'), 'new password 2026!');
     await userEvent.click(screen.getByRole('button', { name: '비밀번호 변경' }));
@@ -237,13 +242,16 @@ describe('customer signup screen', () => {
     render(<App accountClient={client} />);
 
     await screen.findByLabelText('가입 이메일');
+    expect(screen.queryByText('ACCOUNT / SIGN UP')).not.toBeInTheDocument();
+    expect(screen.queryByText('가입 후 이메일로 받은 인증 토큰을 입력해야 로그인할 수 있습니다.')).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('가입 이메일'), 'new@example.com');
     await userEvent.type(screen.getByLabelText('가입 비밀번호'), 'strong password 2026!');
     await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'strong password 2026!');
     await userEvent.click(screen.getByRole('button', { name: '가입' }));
     expect(client.signup).toHaveBeenCalledWith('new@example.com', 'strong password 2026!');
 
-    const verificationToken = await screen.findByLabelText('가입 인증 토큰');
+    const verificationToken = await screen.findByLabelText('가입 인증 코드');
+    expect(screen.getByRole('status')).toHaveTextContent('이메일로 보낸 인증 코드를 입력하세요.');
     await userEvent.click(screen.getByRole('button', { name: '이메일 인증' }));
     expect(screen.getByText('인증 코드를 입력해 주세요.')).toBeInTheDocument();
     expect(verificationToken).toHaveAttribute('aria-invalid', 'true');
@@ -251,6 +259,7 @@ describe('customer signup screen', () => {
     await userEvent.type(verificationToken, 'verification-token');
     await userEvent.click(screen.getByRole('button', { name: '이메일 인증' }));
     expect(client.verifyEmail).toHaveBeenCalledWith('verification-token');
+    expect(await screen.findByRole('status')).toHaveTextContent('이메일 인증이 완료되었습니다.');
 
     await userEvent.click(await screen.findByRole('button', { name: '로그인하러 가기' }));
     await waitFor(() => expect(window.location.pathname).toBe('/login'));
@@ -269,6 +278,7 @@ describe('customer signup screen', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: '인증 메일 다시 보내기' }));
     expect(client.resendVerification).toHaveBeenCalledWith('account-1');
+    expect(await screen.findByText(/인증 메일을 다시 보냈습니다\./)).toBeInTheDocument();
   });
 
   it('refuses to submit while the two passwords differ', async () => {
