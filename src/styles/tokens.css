@@ -275,25 +275,6 @@
 }
 
 /*
-  Colour templates, chosen from the dock at the bottom of the screen. Each
-  template swaps only the brand accent triple — neutrals, status colours and
-  price colours are semantic and never follow the template. Declared per
-  theme: dark accents are pastels with dark ink, light accents are deep hues
-  with white ink, all checked to at least 4.5:1 on their surface. "teal" is
-  the default palette from the logo and needs no override.
-*/
-.theme-dark[data-palette="blue"] { --accent: #8fb3ff; --accent-soft: #1b2540; --accent-ink: #0a1226; }
-.theme-light[data-palette="blue"] { --accent: #2563eb; --accent-soft: #e8effd; --accent-ink: #ffffff; }
-.theme-dark[data-palette="violet"] { --accent: #bda4ff; --accent-soft: #251d40; --accent-ink: #150f30; }
-.theme-light[data-palette="violet"] { --accent: #6d4bc4; --accent-soft: #efeafd; --accent-ink: #ffffff; }
-.theme-dark[data-palette="green"] { --accent: #7fd1a4; --accent-soft: #163325; --accent-ink: #06231a; }
-.theme-light[data-palette="green"] { --accent: #1f7a55; --accent-soft: #e3f2ea; --accent-ink: #ffffff; }
-.theme-dark[data-palette="amber"] { --accent: #eec27e; --accent-soft: #382b18; --accent-ink: #241a07; }
-.theme-light[data-palette="amber"] { --accent: #8c5c0d; --accent-soft: #f9eeda; --accent-ink: #ffffff; }
-.theme-dark[data-palette="rose"] { --accent: #f79ab0; --accent-soft: #38202a; --accent-ink: #260f19; }
-.theme-light[data-palette="rose"] { --accent: #b42a52; --accent-soft: #fbe9ef; --accent-ink: #ffffff; }
-
-/*
   US up/down convention, chosen in the account display settings: gains green,
   losses red. Declared per theme so both palettes keep their contrast checks.
 */

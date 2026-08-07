@@ -11,7 +11,6 @@ import { BacktestView } from './views/OperationsViews';
 
 const englishPreferencesClient = {
   sessions: async () => [],
-  reactivationPolicies: async () => [],
   preferences: async () => ({
     languageCode: 'en' as const,
     timezoneName: 'Asia/Seoul',
@@ -46,22 +45,23 @@ const renderEnglishApp = () => render(
 
   라우트를 한 번씩 열어보는 이 테스트가 같은 실수를 다시 들여놓지 못하게 막는다.
 */
+const ROUTE_WAIT = { timeout: 5_000 };
 const ROUTES: Array<{ path: string; marker: () => Promise<HTMLElement> }> = [
-  { path: '/', marker: () => screen.findByRole('heading', { name: /Welcome back/i }) },
-  { path: '/landing', marker: () => screen.findByRole('heading', { name: /Ideas, into strategies/i }) },
-  { path: '/login', marker: () => screen.findByRole('heading', { name: /^Sign in$/i }) },
-  { path: '/signup', marker: () => screen.findByRole('heading', { name: /^Sign up$/i }) },
-  { path: '/reactivate', marker: () => screen.findByRole('heading', { name: /^Reactivate account$/i }) },
-  { path: '/strategies', marker: () => screen.findByRole('heading', { name: /^Strategies$/i }) },
-  { path: '/strategies/new/basic', marker: () => screen.findByTestId('basic-editor-workspace') },
-  { path: '/strategies/new/pro', marker: () => screen.findByRole('heading', { name: /Pro editor is being prepared/i }) },
-  { path: '/bots', marker: () => screen.findByRole('heading', { name: /Bot operations/i }) },
-  { path: '/backtests', marker: () => screen.findByRole('heading', { name: /Bots Backtest/i }) },
-  { path: '/competition', marker: () => screen.findByRole('heading', { name: /^Competition$/i }) },
-  { path: '/competition-v2', marker: () => screen.findByRole('heading', { name: /^Competition$/i }) },
-  { path: '/notifications', marker: () => screen.findByRole('heading', { name: /^Notifications$/i, level: 1 }) },
-  { path: '/help', marker: () => screen.findByRole('heading', { name: /Help/i }) },
-  { path: '/account', marker: () => screen.findByRole('heading', { name: /My account/i }) },
+  { path: '/', marker: () => screen.findByRole('heading', { name: /Welcome back/i }, ROUTE_WAIT) },
+  { path: '/landing', marker: () => screen.findByRole('heading', { name: /Ideas, into strategies/i }, ROUTE_WAIT) },
+  { path: '/login', marker: () => screen.findByRole('heading', { name: /^Sign in$/i }, ROUTE_WAIT) },
+  { path: '/signup', marker: () => screen.findByRole('heading', { name: /^Sign up$/i }, ROUTE_WAIT) },
+  { path: '/password-reset', marker: () => screen.findByRole('heading', { name: /^Reset password$/i }, ROUTE_WAIT) },
+  { path: '/strategies', marker: () => screen.findByRole('heading', { name: /^Strategies$/i }, ROUTE_WAIT) },
+  { path: '/strategies/new/basic', marker: () => screen.findByTestId('basic-editor-workspace', {}, ROUTE_WAIT) },
+  { path: '/strategies/new/pro', marker: () => screen.findByRole('heading', { name: /Pro editor is being prepared/i }, ROUTE_WAIT) },
+  { path: '/bots', marker: () => screen.findByRole('heading', { name: /Bot operations/i }, ROUTE_WAIT) },
+  { path: '/backtests', marker: () => screen.findByRole('heading', { name: /Bots Backtest/i }, ROUTE_WAIT) },
+  { path: '/competition', marker: () => screen.findByRole('heading', { name: /^Competition$/i }, ROUTE_WAIT) },
+  { path: '/competition-v2', marker: () => screen.findByRole('heading', { name: /^Competition$/i }, ROUTE_WAIT) },
+  { path: '/notifications', marker: () => screen.findByRole('heading', { name: /^Notifications$/i, level: 1 }, ROUTE_WAIT) },
+  { path: '/help', marker: () => screen.findByRole('heading', { name: /Help/i }, ROUTE_WAIT) },
+  { path: '/account', marker: () => screen.findByRole('heading', { name: /My account/i }, ROUTE_WAIT) },
 ];
 
 describe('English locale', () => {
@@ -85,6 +85,10 @@ describe('English locale', () => {
 
   ROUTES.forEach(({ path, marker }) => {
     test(`renders ${path} without crashing`, async () => {
+      if (path === '/login' || path === '/signup') {
+        setSessionAccessToken(null);
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      }
       window.history.replaceState({}, '', path);
       const { container } = renderEnglishApp();
 
@@ -94,15 +98,17 @@ describe('English locale', () => {
     });
   });
 
-  test('translates the complete sign-in surface instead of only replacing the word login', async () => {
+  test('renders the complete sign-in surface with concise English copy', async () => {
+    setSessionAccessToken(null);
+    window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
     window.history.replaceState({}, '', '/login');
     const { container } = renderEnglishApp();
 
     expect(await screen.findByLabelText('Sign-in email')).toBeInTheDocument();
     expect(screen.getByLabelText('Sign-in password')).toBeInTheDocument();
-    expect(screen.getByText('Forgot your password?')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Sign up' })).toBeInTheDocument();
-    expect(container).toHaveTextContent('Sign in with your email and password.');
+    expect(screen.getByRole('button', { name: 'Forgot your password?' })).toBeInTheDocument();
+    expect(within(screen.getByRole('heading', { name: 'Sign in' }).closest('.auth-card')!).getByRole('button', { name: 'Sign up' })).toBeInTheDocument();
+    expect(container).not.toHaveTextContent('Sign in with your email and password.');
     expect(container.textContent).not.toMatch(/[가-힣]/);
   });
 

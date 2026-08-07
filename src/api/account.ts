@@ -35,20 +35,6 @@ export interface LoginResult {
 
 export type RotatedTokenPair = LoginResult;
 
-export interface ReactivationPolicy {
-  id: string;
-  policyCode: string;
-  version: string;
-  languageCode: string;
-  title: string;
-  contentFormat: string;
-  contentText: string;
-  contentHash: string;
-  required: boolean;
-  publishedAt: string;
-  retiredAt: string | null;
-}
-
 export interface LifecycleResult {
   accountId: string;
   status: AccountLifecycleStatus;
@@ -106,8 +92,6 @@ export interface AccountClient {
   updatePreferences(input: Pick<AccountPreferences, 'languageCode' | 'timezoneName' | 'themePreference'>, signal?: AbortSignal): Promise<AccountPreferences>;
   requestWithdrawal(email: string, password: string, idempotencyKey: string, signal?: AbortSignal): Promise<LifecycleResult>;
   cancelWithdrawal(email: string, password: string, idempotencyKey: string, signal?: AbortSignal): Promise<LifecycleResult>;
-  reactivationPolicies(language: 'ko' | 'en', signal?: AbortSignal): Promise<ReactivationPolicy[]>;
-  reactivateWithPassword(email: string, password: string, acceptedPolicyDocumentIds: string[], idempotencyKey: string, signal?: AbortSignal): Promise<LifecycleResult>;
 }
 
 export function createAccountClient({
@@ -268,14 +252,6 @@ export function createAccountClient({
     cancelWithdrawal(email, password, idempotencyKey, signal) {
       return lifecycle('/api/v1/account/withdrawal-cancellations', email, password, [], idempotencyKey, signal);
     },
-    async reactivationPolicies(language, signal) {
-      const value = await (await request(`/api/v1/policies/reactivation?language=${encodeURIComponent(language)}`, { signal }, false)).json();
-      if (!Array.isArray(value)) throw new Error('Invalid reactivation policies response');
-      return value.map(readReactivationPolicy);
-    },
-    reactivateWithPassword(email, password, acceptedPolicyDocumentIds, idempotencyKey, signal) {
-      return lifecycle('/api/v1/account/reactivations/password', email, password, acceptedPolicyDocumentIds, idempotencyKey, signal);
-    },
   };
 }
 
@@ -306,24 +282,6 @@ function readRotatedTokenPair(value: Record<string, unknown>): RotatedTokenPair 
     accessToken: string(value.accessToken, 'accessToken'),
     accessExpiresAt: string(value.accessExpiresAt, 'accessExpiresAt'),
     refreshExpiresAt: string(value.refreshExpiresAt, 'refreshExpiresAt'),
-  };
-}
-
-function readReactivationPolicy(value: unknown): ReactivationPolicy {
-  const result = object(value);
-  if (typeof result.required !== 'boolean') throw new Error('Invalid policy required flag');
-  return {
-    id: string(result.id, 'id'),
-    policyCode: string(result.policyCode, 'policyCode'),
-    version: string(result.version, 'version'),
-    languageCode: string(result.languageCode, 'languageCode'),
-    title: string(result.title, 'title'),
-    contentFormat: string(result.contentFormat, 'contentFormat'),
-    contentText: string(result.contentText, 'contentText'),
-    contentHash: string(result.contentHash, 'contentHash'),
-    required: result.required,
-    publishedAt: string(result.publishedAt, 'publishedAt'),
-    retiredAt: nullableString(result.retiredAt),
   };
 }
 

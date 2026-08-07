@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AccountClient } from '../api/account';
 import { AccountApiError } from '../api/account';
+import { useLanguage } from '../lib/i18n';
 
 /*
   Google sign-in for the auth screens.
@@ -71,8 +72,6 @@ export interface GoogleSignInButtonProps {
   /** Called after the server has issued a session for the Google identity. */
   onSignedIn: () => void;
   onFailure: (error: AccountApiError) => void;
-  /** Google's button copy variant; sign-in and sign-up screens differ. */
-  text?: 'signin_with' | 'signup_with' | 'continue_with';
   clientId?: string;
 }
 
@@ -80,9 +79,9 @@ export function GoogleSignInButton({
   client,
   onSignedIn,
   onFailure,
-  text = 'continue_with',
   clientId = (import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID as string | undefined) ?? '',
 }: GoogleSignInButtonProps) {
+  const { language } = useLanguage();
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [exchanging, setExchanging] = useState(false);
   const available = Boolean(clientId) && typeof client.loginWithGoogle === 'function';
@@ -115,17 +114,21 @@ export function GoogleSignInButton({
       });
       google.accounts.id.renderButton(mountRef.current, {
         type: 'standard',
-        theme: 'filled_black',
-        size: 'large',
-        text,
+        theme: 'outline',
+        // Google documents that medium and small buttons are not personalized.
+        // This keeps account names/avatars out of both auth screens while the
+        // official GIS control continues to own branding and credential UX.
+        size: 'medium',
+        text: 'signin_with',
         width: 320,
+        locale: language,
       });
     }).catch(() => {
       // The script is blocked or offline: the area simply stays empty rather
       // than showing a button that cannot work.
     });
     return () => { disposed = true; };
-  }, [available, client, clientId, onFailure, onSignedIn, text]);
+  }, [available, client, clientId, language, onFailure, onSignedIn]);
 
   if (!available) return null;
   return <div className="auth-google">

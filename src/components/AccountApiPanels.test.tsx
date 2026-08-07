@@ -1,11 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AccountApiError } from '../api/account';
 import type { AccountClient, AccountPreferences, LifecycleResult, SessionView } from '../api/account';
 import { getSessionAccessToken, setSessionAccessToken } from '../api/sessionAccessToken';
 import { browserSessionStore, SESSION_STORAGE_KEY } from '../lib/session';
-import { AccountApiPanels } from './AccountApiPanels';
+import { AccountApiPanels, AccountSignOutButton } from './AccountApiPanels';
 
 const session: SessionView = {
   sessionId: 'session-1',
@@ -59,8 +59,6 @@ function client(overrides: Partial<AccountClient> = {}): AccountClient {
     updatePreferences: vi.fn().mockResolvedValue(preferences),
     requestWithdrawal: vi.fn().mockResolvedValue(lifecycle),
     cancelWithdrawal: vi.fn().mockResolvedValue({ ...lifecycle, status: 'ACTIVE' }),
-    reactivationPolicies: vi.fn().mockResolvedValue([]),
-    reactivateWithPassword: vi.fn().mockResolvedValue({ ...lifecycle, status: 'ACTIVE' }),
     ...overrides,
   };
 }
@@ -92,15 +90,16 @@ describe('AccountApiPanels', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('계정 정보를 불러오는 중');
     sessions.resolve([session]);
-    expect(await screen.findByRole('heading', { name: '로그인 세션' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '로그인 및 보안' })).toBeInTheDocument();
     expect(screen.getByText('Chrome')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('Asia/Seoul')).toBeInTheDocument();
+    expect(screen.getByText('Asia/Seoul')).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: '서버 시간대' })).not.toBeInTheDocument();
   });
 
   it('publishes the server preference on load so the active locale can follow the account', async () => {
     const onPreferences = vi.fn();
     render(<AccountApiPanels client={client({ preferences: vi.fn().mockResolvedValue({ ...preferences, languageCode: 'en' }) })} onPreferences={onPreferences} />);
-    await screen.findByRole('heading', { name: '로그인 세션' });
+    await screen.findByRole('heading', { name: '로그인 및 보안' });
     expect(onPreferences).toHaveBeenCalledWith(expect.objectContaining({ languageCode: 'en' }));
   });
 
@@ -131,7 +130,7 @@ describe('AccountApiPanels', () => {
   it('signs the tab out through the exact session endpoint', async () => {
     const user = userEvent.setup();
     const logoutCurrent = vi.fn().mockResolvedValue(undefined);
-    render(<AccountApiPanels client={client({ logoutCurrent })} />);
+    render(<AccountSignOutButton client={client({ logoutCurrent })} />);
 
     await user.click(await screen.findByRole('button', { name: '로그아웃' }));
 
@@ -142,7 +141,7 @@ describe('AccountApiPanels', () => {
     const user = userEvent.setup();
     seedTabSession();
     const logoutCurrent = vi.fn().mockRejectedValue(new AccountApiError(0, 'NETWORK_ERROR', null));
-    render(<AccountApiPanels client={client({ logoutCurrent })} />);
+    render(<AccountSignOutButton client={client({ logoutCurrent })} />);
 
     await user.click(await screen.findByRole('button', { name: '로그아웃' }));
 
@@ -159,23 +158,40 @@ describe('AccountApiPanels', () => {
     render(<AccountApiPanels client={client({ sessions, logoutSession })} />);
 
     expect(await screen.findByText('Safari')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '세션 해제' }));
+    expect(screen.queryByRole('button', { name: '현재 기기에서 로그아웃' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Safari 세션에서 로그아웃' }));
     await waitFor(() => expect(logoutSession).toHaveBeenCalledWith('session-2'));
     await waitFor(() => expect(screen.queryByText('Safari')).toBeNull());
   });
 
-  it('rotates the current token pair and can revoke every session', async () => {
+  it('confirms before revoking every session', async () => {
     const user = userEvent.setup();
     seedTabSession();
-    const rotateSession = vi.fn().mockResolvedValue({});
     const logoutAll = vi.fn().mockResolvedValue(undefined);
-    render(<AccountApiPanels client={client({ rotateSession, logoutAll })} />);
+    render(<AccountApiPanels client={client({ logoutAll })} />);
 
-    await user.click(await screen.findByRole('button', { name: '현재 토큰 갱신' }));
-    await waitFor(() => expect(rotateSession).toHaveBeenCalledTimes(1));
-    await user.click(screen.getByRole('button', { name: '모든 기기에서 로그아웃' }));
+    await user.click(await screen.findByRole('button', { name: '모든 기기에서 로그아웃' }));
+    expect(logoutAll).not.toHaveBeenCalled();
+    const confirmation = screen.getByRole('alertdialog', { name: '모든 기기에서 로그아웃할까요?' });
+    expect(within(confirmation).getByRole('button', { name: '전체 로그아웃 확인 닫기' })).toHaveFocus();
+    await user.click(within(confirmation).getByRole('button', { name: '모든 기기에서 로그아웃' }));
     await waitFor(() => expect(logoutAll).toHaveBeenCalledTimes(1));
     expect(getSessionAccessToken()).toBeNull();
+  });
+
+  it('ends the local session when the all-session endpoint is unavailable', async () => {
+    const user = userEvent.setup();
+    seedTabSession();
+    const logoutAll = vi.fn().mockRejectedValue(new AccountApiError(0, 'NETWORK_ERROR', null));
+    render(<AccountApiPanels client={client({ logoutAll })} />);
+
+    await user.click(await screen.findByRole('button', { name: '모든 기기에서 로그아웃' }));
+    const confirmation = screen.getByRole('alertdialog', { name: '모든 기기에서 로그아웃할까요?' });
+    await user.click(within(confirmation).getByRole('button', { name: '모든 기기에서 로그아웃' }));
+
+    await waitFor(() => expect(logoutAll).toHaveBeenCalledTimes(1));
+    expect(getSessionAccessToken()).toBeNull();
+    expect(browserSessionStore.read().status).toBe('anonymous');
   });
 
   it('renders a 403 action error with correlation evidence and retries safely', async () => {
@@ -187,7 +203,7 @@ describe('AccountApiPanels', () => {
     const createIdempotencyKey = vi.fn(() => 'withdrawal-key');
 
     render(<AccountApiPanels client={accountClient} createIdempotencyKey={createIdempotencyKey} />);
-    await screen.findByRole('heading', { name: '계정 생명주기' });
+    await screen.findByRole('heading', { name: '계정 관리' });
     // The destructive actions sit behind the danger-zone fold.
     await user.click(screen.getByText('탈퇴 요청 · 취소'));
     await user.type(screen.getByRole('textbox', { name: '계정 확인 이메일' }), 'user@example.com');
@@ -209,20 +225,20 @@ describe('AccountApiPanels', () => {
     const updatePreferences = vi.fn().mockResolvedValue({
       ...preferences,
       languageCode: 'en',
-      themePreference: 'DARK',
     });
     const accountClient = client({ updatePreferences });
 
     render(<AccountApiPanels client={accountClient} />);
-    await screen.findByRole('heading', { name: '서버 환경설정' });
+    await screen.findByRole('heading', { name: '서비스 환경' });
     await user.selectOptions(screen.getByRole('combobox', { name: '서버 언어 선택' }), 'en');
-    await user.selectOptions(screen.getByRole('combobox', { name: '서버 테마 선택' }), 'DARK');
-    await user.click(screen.getByRole('button', { name: '서버 설정 저장' }));
+    expect(screen.queryByRole('combobox', { name: '서버 테마 선택' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: '서버 시간대' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '환경 저장' }));
 
     await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith({
       languageCode: 'en',
       timezoneName: 'Asia/Seoul',
-      themePreference: 'DARK',
+      themePreference: 'SYSTEM',
     }));
     expect(await screen.findByRole('status')).toHaveTextContent('서버 설정을 저장했습니다.');
   });

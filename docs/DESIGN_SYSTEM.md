@@ -69,11 +69,10 @@ Use `-0.035em` tracking only for page titles. Body text and Korean labels use no
   every grey green (sage backgrounds, olive accent), which made both themes —
   light especially — read as muddy. Greys carry at most a hint of cool; the
   semantic colours must be the only visible hue on the page.
-- The brand hue is teal, taken from the product logo (`#347d7e` family) —
-  the default of six **colour templates** (틸·블루·바이올렛·그린·앰버·로즈)
-  picked from a fixed dock at the bottom-right of the screen and persisted as
-  `i2s-palette`. A template swaps only the `--accent` triple per theme;
-  neutrals, status colours and price colours never follow the template.
+- The brand hue is fixed to teal, taken from the product logo (`#347d7e`
+  family). There is no user-selectable accent palette: dark uses `#5ecfca`
+  and light uses `#0e7476`, while neutrals, status colours and price colours
+  remain semantic.
 - Dark is the default product theme. Background `#0f1214`; surface `#15191b`; main text `#dce3e4`; accent pastel teal `#5ecfca` with dark ink.
 - Light is a full peer of dark, not an override of it. Background `#f1f4f4`; surface `#ffffff`; main text `#1a2224`. The brand teal is darkened to `#0e7476` (≈5.5:1 on white), because a pastel only reaches ~2:1.
 - Ink printed on top of `--accent` comes from `--accent-ink`, which flips per theme: dark ink on the pale dark-theme accent, light ink on the dark light-theme accent.

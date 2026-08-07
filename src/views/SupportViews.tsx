@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   AlertTriangle,
@@ -6,8 +6,14 @@ import {
   BookOpen,
   Check,
   CheckCircle2,
+  ChevronRight,
   Info,
+  LifeBuoy,
   Search,
+  Settings,
+  ShieldCheck,
+  UserRound,
+  X,
 } from 'lucide-react';
 import { Button, EmptyState, PageHeading, Panel, Status } from '../components/common';
 import type { StatusTone } from '../components/common';
@@ -15,10 +21,9 @@ import { notifications as seedNotifications } from '../data/mockData';
 import type { NotificationItem } from '../data/mockData';
 import type { PageId } from '../lib/navigation';
 import { Localized, useLanguage } from '../lib/i18n';
-import type { Language } from '../lib/i18n';
 import type { AccountClient, AccountPreferences, ThemePreference } from '../api/account';
 import type { AccountOperationsClient } from '../api/accountOperations';
-import { AccountApiPanels } from '../components/AccountApiPanels';
+import { AccountApiPanels, AccountSignOutButton } from '../components/AccountApiPanels';
 import { UserCasePanel } from '../components/CaseApiPanels';
 import type { NotificationClient } from '../api/notifications';
 import { NotificationCenter, NotificationPreferencesPanel } from '../components/NotificationApiViews';
@@ -282,17 +287,6 @@ export function HelpView() {
   </div></Localized>;
 }
 
-interface TimezoneOption {
-  id: string;
-  label: string;
-}
-
-const timezoneOptions: TimezoneOption[] = [
-  { id: 'kst', label: 'KST · 한국 시각' },
-  { id: 'et', label: 'ET · 미국 동부 시각' },
-  { id: 'both', label: 'ET · KST 병기' },
-];
-
 /*
   Account.
 
@@ -319,9 +313,10 @@ interface AccountViewProps {
   notificationClient?: NotificationClient;
 }
 
-export function AccountView({ theme, setTheme, setThemePreference, timezone, setTimezone, reduceMotion, setReduceMotion, updown = 'kr', setUpdown = () => {}, accountClient, operationsClient, notificationClient }: AccountViewProps) {
-  const { language, setLanguage } = useLanguage();
+export function AccountView({ setTheme, setThemePreference, accountClient, operationsClient, notificationClient }: AccountViewProps) {
+  const { setLanguage } = useLanguage();
   const sessionToken = useSessionAccessToken();
+  const [supportOpen, setSupportOpen] = useState(false);
   const applyServerPreferences = useCallback((preferences: AccountPreferences) => {
     if (preferences.languageCode === 'ko' || preferences.languageCode === 'en') setLanguage(preferences.languageCode);
     if (setThemePreference) {
@@ -346,62 +341,64 @@ export function AccountView({ theme, setTheme, setThemePreference, timezone, set
     <PageHeading
       eyebrow="MY ACCOUNT"
       title="내 계정"
-      description="프로필, 로그인 수단, 화면 설정과 알림을 한곳에서 관리합니다."
+      description="로그인 보안, 서비스 환경, 알림과 문의를 관리합니다."
+      actions={accountClient && <AccountSignOutButton client={accountClient} />}
     />
 
-    <div className="settings-grid">
-      {accountClient && <AccountApiPanels client={accountClient} onPreferences={applyServerPreferences} />}
-      {operationsClient && <UserCasePanel client={operationsClient} />}
-      {notificationClient && <NotificationPreferencesPanel client={notificationClient} />}
-      {/* No fabricated profile: the API deliberately never returns the account
-          email or a display name, and no social login exists. Everything real
-          about the account - sessions, preferences, recovery, cases - already
-          renders above from the actual API panels. */}
-      <Panel className="span-2" title="화면 설정" subtitle="선택한 값은 이 브라우저에 보관됩니다">
-        <div className="settings-fields">
-          <label>
-            <span>테마</span>
-            <select aria-label="테마 선택" value={theme} onChange={(event) => setTheme(event.target.value as Theme)}>
-              <option value="dark">다크</option>
-              <option value="light">라이트</option>
-            </select>
-          </label>
-          <label>
-            <span>언어</span>
-            <select aria-label="화면 언어 선택" value={language} onChange={(event) => setLanguage(event.target.value as Language)}>
-              <option value="ko">한국어</option>
-              <option value="en">English</option>
-            </select>
-          </label>
-          <label>
-            <span>시간대 표기</span>
-            <select aria-label="시간대 표기 선택" value={timezone} onChange={(event) => setTimezone(event.target.value)}>
-              {timezoneOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>상승·하락 색상</span>
-            <select aria-label="상승·하락 색상 선택" value={updown} onChange={(event) => setUpdown(event.target.value as Updown)}>
-              <option value="kr">한국식 · 상승 빨강, 하락 파랑</option>
-              <option value="us">미국식 · 상승 초록, 하락 빨강</option>
-            </select>
-          </label>
-          <label className="settings-switch">
-            <input type="checkbox" checked={reduceMotion} onChange={(event) => setReduceMotion(event.target.checked)} />
-            <span><strong>모션 줄이기</strong><small>화면 전환과 강조 애니메이션을 최소화합니다</small></span>
-          </label>
-        </div>
-      </Panel>
+    <div className="account-settings-layout">
+      <aside className="account-settings-sidebar">
+        <div className="account-sidebar-title"><span><UserRound size={18} aria-hidden="true" /></span><div><strong>계정 설정</strong><small>필요한 항목으로 바로 이동하세요.</small></div></div>
+        <nav aria-label="계정 설정">
+          <a href="#account-security" aria-label="로그인 및 보안"><ShieldCheck size={17} aria-hidden="true" /><span><strong>로그인 및 보안</strong><small>기기와 세션</small></span><ChevronRight size={15} aria-hidden="true" /></a>
+          <a href="#account-environment" aria-label="서비스 환경"><Settings size={17} aria-hidden="true" /><span><strong>서비스 환경</strong><small>언어와 시간대</small></span><ChevronRight size={15} aria-hidden="true" /></a>
+          {notificationClient && <a href="#account-notifications" aria-label="알림"><BellRing size={17} aria-hidden="true" /><span><strong>알림</strong><small>서버 알림 채널</small></span><ChevronRight size={15} aria-hidden="true" /></a>}
+          <a href="#account-management" aria-label="계정 관리"><AlertTriangle size={17} aria-hidden="true" /><span><strong>계정 관리</strong><small>탈퇴 요청과 취소</small></span><ChevronRight size={15} aria-hidden="true" /></a>
+          {operationsClient && <button type="button" aria-label="문의 메뉴 열기" onClick={() => setSupportOpen(true)}><LifeBuoy size={17} aria-hidden="true" /><span><strong>문의하기</strong><small>문의 · 신고 · 이의 제기</small></span><ChevronRight size={15} aria-hidden="true" /></button>}
+        </nav>
+        <p className="account-sidebar-note"><Settings size={15} aria-hidden="true" />테마와 화면 표시는 상단 톱니바퀴에서 변경할 수 있습니다.</p>
+      </aside>
 
-      {/* The local-only "알림" switches are gone: the real notification
-          channel preferences live in the server-backed panel above, and a
-          second set of toggles that reached no server only pretended to. */}
-
-      {/* The seeded "무소속 봇 계속 실행" card (a hardcoded Atlas 07 with a
-          button that called nothing) and the stale "데이터 기준 2026.07.23"
-          note are gone: a dead button pretending to be a real command and a
-          claim that strategies are not stored on the server are both false.
-          The real continuation command lives with the bot it belongs to. */}
+      <main className="account-settings-content">
+        {accountClient && <AccountApiPanels client={accountClient} onPreferences={applyServerPreferences} />}
+        {notificationClient && <div id="account-notifications"><NotificationPreferencesPanel client={notificationClient} /></div>}
+        {operationsClient && <section className="account-support-card" id="account-support" aria-labelledby="account-support-title">
+          <span className="account-support-icon"><LifeBuoy size={21} aria-hidden="true" /></span>
+          <div><h2 id="account-support-title">도움이 필요하신가요?</h2><p>문의, 신고 또는 이의 제기를 접수하고 추적 번호로 상태를 확인할 수 있습니다.</p></div>
+          <Button kind="primary" onClick={() => setSupportOpen(true)}>문의하기</Button>
+        </section>}
+      </main>
     </div>
+    {supportOpen && operationsClient && <AccountSupportModal client={operationsClient} onClose={() => setSupportOpen(false)} />}
   </div></Localized>;
+}
+
+function AccountSupportModal({ client, onClose }: { client: AccountOperationsClient; onClose: () => void }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    dialog?.querySelector<HTMLInputElement>('[aria-label="케이스 제목"]')?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+      const focusable = [...dialog.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')];
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  return <div className="account-modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+    <section className="account-support-modal" role="dialog" aria-modal="true" aria-labelledby="account-support-dialog-title" ref={dialogRef}>
+      <header><div><span>SUPPORT</span><h2 id="account-support-dialog-title">문의하기</h2><p>필요한 내용만 입력하면 접수 후 추적 번호를 안내합니다.</p></div><button type="button" aria-label="문의 창 닫기" onClick={onClose}><X size={18} aria-hidden="true" /></button></header>
+      <div className="account-support-modal-body"><UserCasePanel client={client} /></div>
+    </section>
+  </div>;
 }

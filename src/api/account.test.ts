@@ -137,18 +137,6 @@ describe('account API client', () => {
     }));
   });
 
-  it('loads the signed-out reactivation policy documents', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify([{
-      id: 'policy-1', policyCode: 'TERMS', version: '2', languageCode: 'ko', title: '이용약관',
-      contentFormat: 'text/markdown', contentText: '필수 약관', contentHash: 'sha256:terms',
-      required: true, publishedAt: '2026-08-07T00:00:00Z', retiredAt: null,
-    }]), { status: 200 }));
-
-    await expect(createAccountClient({ fetchImpl }).reactivationPolicies('ko'))
-      .resolves.toEqual([expect.objectContaining({ id: 'policy-1', required: true })]);
-    expect(fetchImpl).toHaveBeenCalledWith('/api/v1/policies/reactivation?language=ko', expect.anything());
-  });
-
   it('uses non-enumerating password recovery request and reset contracts', async () => {
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ accepted: true }), { status: 202 }))
