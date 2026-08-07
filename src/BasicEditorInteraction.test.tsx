@@ -343,6 +343,14 @@ describe('Basic editor interactions', () => {
     expect(screen.queryByRole('button', { name: 'PARTITION 01 위기관리 전략 추가' })).not.toBeInTheDocument();
   });
 
+  test('offers only the four Basic bar periods and starts on 30분봉', () => {
+    renderEditor();
+    const barPeriod = screen.getByRole('combobox', { name: 'PARTITION 01 기본 봉 주기' });
+    expect(Array.from(barPeriod.querySelectorAll('option')).map((option) => option.textContent))
+      .toEqual(['30분봉', '1시간봉', '4시간봉', '일봉']);
+    expect(barPeriod).toHaveValue('30분봉');
+  });
+
   test('does not zoom the canvas while the partition budget input handles the wheel', () => {
     renderEditor();
     const budget = screen.getByRole('spinbutton', { name: 'PARTITION 01 전체 전략 대비 예산' });
