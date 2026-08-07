@@ -167,13 +167,13 @@ describe('Strategy API view', () => {
     const catalogClient: StrategyCatalogClient = { getBasic: vi.fn().mockResolvedValue(catalog) };
     const marketDataClient: MarketDataClient = {
       getRecentBars: vi.fn().mockResolvedValue({
-        instrumentId: 'spy-id', symbol: 'SPY', timeframe: '1m',
+        instrumentId: 'spy-id', symbol: 'SPY', timeframe: '30m',
         bars: [
           { eventId: 'bar-1', occurredAt: '2026-08-07T11:58:00Z', sequence: 1, revision: 0, open: 100, high: 102, low: 99, close: 101, volume: 1000, provider: 'alpaca', feed: 'sip' },
           { eventId: 'bar-2', occurredAt: '2026-08-07T11:59:00Z', sequence: 2, revision: 0, open: 101, high: 103, low: 100, close: 102, volume: 1100, provider: 'alpaca', feed: 'sip' },
         ],
       }),
-      streamBars: vi.fn(),
+      streamPrices: vi.fn(),
     };
 
     const { unmount } = render(<BasicEditor blank goBack={() => {}} strategyId="strategy-id" authoringClient={authoringClient} catalogClient={catalogClient} marketDataClient={marketDataClient} />);
@@ -186,7 +186,9 @@ describe('Strategy API view', () => {
     await user.click(screen.getByRole('button', { name: '완료' }));
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
     expect(await screen.findByTestId('strategy-preview-canvas')).toBeInTheDocument();
-    expect(marketDataClient.getRecentBars).toHaveBeenCalledWith('spy-id', 300, expect.any(AbortSignal));
+    expect(marketDataClient.getRecentBars).toHaveBeenCalledWith(
+      'spy-id', '30m', 300, expect.any(AbortSignal),
+    );
     const save = screen.getByRole('button', { name: '저장' });
     await waitFor(() => expect(save).toBeEnabled());
     await user.click(save);
