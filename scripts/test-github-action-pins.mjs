@@ -8,6 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const expected = new Map([
   ["actions/checkout", ["3d3c42e5aac5ba805825da76410c181273ba90b1", "v7.0.1"]],
   ["actions/setup-node", ["820762786026740c76f36085b0efc47a31fe5020", "v7.0.0"]],
+  ["actions/cache", ["9255dc7a253b0ccc959486e2bca901246202afeb", "v5.0.1"]],
   ["actions/upload-artifact", ["043fb46d1a93c77aae656e7c1c64a875d1fc6a0a", "v7.0.1"]],
   ["pnpm/action-setup", ["0977fd99725f1db4007ccb2928dbb4e90d06cc86", "v6.0.10"]],
 ]);

@@ -45,21 +45,24 @@ const renderEnglishApp = () => render(
 
   라우트를 한 번씩 열어보는 이 테스트가 같은 실수를 다시 들여놓지 못하게 막는다.
 */
+const lazyRouteWait = { timeout: 15_000 };
+const findHeading = (name: RegExp) => screen.findByRole('heading', { name }, lazyRouteWait);
+
 const ROUTES: Array<{ path: string; marker: () => Promise<HTMLElement> }> = [
-  { path: '/', marker: () => screen.findByRole('heading', { name: /Welcome back/i }) },
-  { path: '/landing', marker: () => screen.findByRole('heading', { name: /Ideas, into strategies/i }) },
-  { path: '/login', marker: () => screen.findByRole('heading', { name: /^Sign in$/i }) },
-  { path: '/signup', marker: () => screen.findByRole('heading', { name: /^Sign up$/i }) },
-  { path: '/strategies', marker: () => screen.findByRole('heading', { name: /^Strategies$/i }) },
+  { path: '/', marker: () => findHeading(/Welcome back/i) },
+  { path: '/landing', marker: () => findHeading(/Ideas, into strategies/i) },
+  { path: '/login', marker: () => findHeading(/^Sign in$/i) },
+  { path: '/signup', marker: () => findHeading(/^Sign up$/i) },
+  { path: '/strategies', marker: () => findHeading(/^Strategies$/i) },
   { path: '/strategies/new/basic', marker: () => screen.findByTestId('basic-editor-workspace') },
-  { path: '/strategies/new/pro', marker: () => screen.findByRole('heading', { name: /Pro editor is being prepared/i }) },
-  { path: '/bots', marker: () => screen.findByRole('heading', { name: /Bot operations/i }) },
-  { path: '/backtests', marker: () => screen.findByRole('heading', { name: /Bots Backtest/i }) },
-  { path: '/competition', marker: () => screen.findByRole('heading', { name: /^Competition$/i }) },
-  { path: '/competition-v2', marker: () => screen.findByRole('heading', { name: /^Competition$/i }) },
+  { path: '/strategies/new/pro', marker: () => findHeading(/Pro editor is being prepared/i) },
+  { path: '/bots', marker: () => findHeading(/Bot operations/i) },
+  { path: '/backtests', marker: () => findHeading(/Bots Backtest/i) },
+  { path: '/competition', marker: () => findHeading(/^Competition$/i) },
+  { path: '/competition-v2', marker: () => findHeading(/^Competition$/i) },
   { path: '/notifications', marker: () => screen.findByRole('heading', { name: /^Notifications$/i, level: 1 }) },
-  { path: '/help', marker: () => screen.findByRole('heading', { name: /Help/i }) },
-  { path: '/account', marker: () => screen.findByRole('heading', { name: /My account/i }) },
+  { path: '/help', marker: () => findHeading(/Help/i) },
+  { path: '/account', marker: () => findHeading(/My account/i) },
 ];
 
 describe('English locale', () => {

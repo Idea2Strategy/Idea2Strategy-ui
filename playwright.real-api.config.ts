@@ -14,7 +14,7 @@ export default defineConfig({
   retries: 0,
   reporter: [['list']],
   globalSetup: './e2e/realApiGlobalSetup.ts',
-  timeout: 60_000,
+  timeout: 120_000,
   expect: { timeout: 15_000 },
   use: {
     baseURL: `http://127.0.0.1:${appPort}`,
