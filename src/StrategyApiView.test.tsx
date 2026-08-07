@@ -46,6 +46,39 @@ describe('Strategy API view', () => {
     expect(await screen.findByTestId('strategy-row-Live Momentum')).toBeInTheDocument();
     expect(screen.getByTestId('strategy-counts')).toHaveTextContent('출시 가능 1');
     expect(client.list).toHaveBeenCalledWith(50, undefined, expect.any(AbortSignal));
+    // A single complete page must not offer to load more.
+    expect(screen.queryByTestId('strategy-load-more')).not.toBeInTheDocument();
+  });
+
+  test('appends the next library page from the snapshot cursor', async () => {
+    const user = userEvent.setup();
+    const row = (id: string, name: string) => ({
+      id, kind: 'draft' as const, mode: 'BASIC' as const, name, description: null,
+      status: 'DRAFT', validationStatus: 'VALID', backtestStatus: 'AVAILABLE',
+      editable: true, updatedAt: '2026-08-01T12:00:00Z', version: null,
+      blockCount: 2, symbols: ['AAPL'],
+    });
+    const client: StrategyLibraryClient = {
+      list: vi.fn()
+        .mockResolvedValueOnce({ items: [row('20000000-0000-4000-8000-000000000001', 'First Page')], nextCursor: 'cursor-2', hasMore: true })
+        .mockResolvedValueOnce({ items: [row('20000000-0000-4000-8000-000000000002', 'Second Page')], nextCursor: null, hasMore: false }),
+    };
+
+    render(<StrategyHome openEditor={() => {}} client={client} />);
+
+    expect(await screen.findByTestId('strategy-row-First Page')).toBeInTheDocument();
+    // The count is marked as partial while more pages exist.
+    expect(screen.getByTestId('strategy-counts')).toHaveTextContent('전체 1+');
+
+    await user.click(screen.getByTestId('strategy-load-more'));
+
+    expect(await screen.findByTestId('strategy-row-Second Page')).toBeInTheDocument();
+    // The first page is appended to, never replaced.
+    expect(screen.getByTestId('strategy-row-First Page')).toBeInTheDocument();
+    expect(client.list).toHaveBeenLastCalledWith(50, 'cursor-2');
+    // Exhausted pages retire the control and the partial marker.
+    expect(screen.queryByTestId('strategy-load-more')).not.toBeInTheDocument();
+    expect(screen.getByTestId('strategy-counts')).toHaveTextContent('전체 2');
   });
 
   test('creates a Basic draft before opening the blank editor', async () => {
@@ -369,5 +402,37 @@ describe('Strategy API view', () => {
 
     await waitFor(() => expect(authoringClient.acquireLease).toHaveBeenCalled());
     expect(screen.queryByText('이 전략은 현재 편집기에서 열 수 없습니다.')).not.toBeInTheDocument();
+  });
+
+  test('reports a freshly loaded strategy as saved, using the document time', async () => {
+    const document: StrategyDocument = {
+      strategyId: 'loaded',
+      presentationDocument: {},
+      semanticDocument: { mode: 'BASIC', groups: [] },
+      semanticSchemaVersion: 'basic-semantic/v1',
+      presentationSchemaVersion: 'basic-presentation/v1',
+      semanticHash: 'e'.repeat(64),
+      presentationHash: 'f'.repeat(64),
+      editSequence: 3,
+      updatedAt: '2026-08-08T00:00:00.000Z',
+    };
+    const authoringClient = {
+      createBasic: vi.fn(),
+      copyStrategy: vi.fn(),
+      getDocument: vi.fn().mockResolvedValue(document),
+      acquireLease: vi.fn().mockResolvedValue({ leaseToken: 'lease-token', expiresAt: '2026-08-08T00:02:00.000Z' }),
+      heartbeatLease: vi.fn(),
+      releaseLease: vi.fn().mockResolvedValue(undefined),
+      saveDocument: vi.fn(),
+      validateStrategy: vi.fn(),
+      getReleaseInputs: vi.fn(),
+      releaseStrategy: vi.fn(),
+    } as StrategyAuthoringClient;
+
+    render(<BasicEditor blank goBack={() => {}} strategyId="loaded" authoringClient={authoringClient} catalogClient={null} />);
+
+    // Loading must not read as unsaved work: the canvas equals the saved document.
+    await waitFor(() => expect(screen.getByTestId('save-state')).toHaveTextContent('저장됨'));
+    expect(screen.getByTestId('save-state')).toHaveAttribute('data-dirty', 'false');
   });
 });

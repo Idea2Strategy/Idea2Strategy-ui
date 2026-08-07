@@ -348,6 +348,8 @@
 .strategy-row-actions button:disabled:hover,
 .strategy-import-list > button:disabled:hover { border-color: transparent; color: var(--text-faint); background: transparent; }
 .strategy-empty { min-height: 274px; display: grid; place-items: center; align-content: center; gap: 10px; color: var(--text-faint); }
+.strategy-load-more { justify-self: center; margin-top: 4px; padding: 9px 18px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); font: 600 13px/1 var(--font-sans); cursor: pointer; }
+.strategy-load-more:disabled { color: var(--text-faint); cursor: default; }
 .strategy-empty strong { color: var(--text-soft); font-size: 12px; }
 .strategy-empty button { border: 0; color: var(--accent); background: transparent; cursor: pointer; font-size: 10px; font-weight: 700; }
 
@@ -9060,6 +9062,16 @@ small.dashboard-bot-scope {
   font: 700 12px/1 var(--font-sans);
 }
 .variant-balanced[data-design="signal-studio"] .basic-validation-trigger.is-incomplete {
+  color: var(--warning);
+}
+.variant-balanced[data-design="signal-studio"] .basic-save-state {
+  align-self: center;
+  padding-inline: 4px;
+  color: var(--text-muted);
+  font: 600 12px/1 var(--font-sans);
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .basic-save-state[data-dirty="true"] {
   color: var(--warning);
 }
 .variant-balanced[data-design="signal-studio"] .basic-validation-trigger.is-active {
