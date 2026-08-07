@@ -4446,7 +4446,27 @@
   pointer-events: none;
 }
 .auth-card-head { display: grid; gap: var(--space-2); justify-items: start; }
-.auth-card-head img { width: 34px; height: 34px; margin-bottom: var(--space-1); }
+.auth-product-brand {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: var(--space-2);
+  white-space: nowrap;
+}
+.auth-product-brand img {
+  width: 37px;
+  height: 31px;
+  object-fit: contain;
+}
+.theme-dark .auth-product-brand img { filter: invert(1) brightness(2.4) grayscale(1); }
+.auth-product-brand strong {
+  color: var(--text);
+  font: 700 12px var(--font-sans);
+  letter-spacing: -.02em;
+}
+.auth-product-brand strong span { color: var(--accent); }
 .auth-card-head h1 { margin: 0; font-size: 22px; font-weight: 700; color: var(--text); }
 .auth-card-copy { margin: 0; color: var(--text-faint); font-size: var(--fs-caption); line-height: 1.55; }
 .auth-form { display: grid; gap: var(--space-3); }

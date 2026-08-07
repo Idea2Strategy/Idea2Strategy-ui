@@ -43,7 +43,8 @@ describe('customer login screen', () => {
     window.history.replaceState({}, '', '/login');
     render(<App accountClient={accountClient()} />);
 
-    await screen.findByRole('heading', { name: '로그인' });
+    const loginHeading = await screen.findByRole('heading', { name: '로그인' });
+    expect(within(loginHeading.closest('.auth-panel')!).getByRole('img', { name: 'Idea2Strategy' })).toBeInTheDocument();
     expect(screen.queryByText('ACCOUNT / SIGN IN')).not.toBeInTheDocument();
     expect(screen.queryByText('이메일과 비밀번호로 로그인합니다. 로그인 정보는 안전한 쿠키와 현재 브라우저 탭에만 유지됩니다.')).not.toBeInTheDocument();
     expect(screen.queryByText('휴면 또는 닫힌 계정인가요?')).not.toBeInTheDocument();
@@ -160,7 +161,8 @@ describe('customer login screen', () => {
     await userEvent.click(screen.getByRole('button', { name: '비밀번호를 잊으셨나요?' }));
 
     await waitFor(() => expect(window.location.pathname).toBe('/password-reset'));
-    expect(await screen.findByRole('heading', { name: '비밀번호 재설정' })).toBeInTheDocument();
+    const resetHeading = await screen.findByRole('heading', { name: '비밀번호 재설정' });
+    expect(within(resetHeading.closest('.auth-panel')!).getByRole('img', { name: 'Idea2Strategy' })).toBeInTheDocument();
     expect(screen.getByText('가입한 이메일을 입력하세요.')).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('재설정 이메일'), 'customer@example.com');
     await userEvent.click(screen.getByRole('button', { name: '인증 코드 받기' }));
@@ -241,7 +243,8 @@ describe('customer signup screen', () => {
     window.history.replaceState({}, '', '/signup');
     render(<App accountClient={client} />);
 
-    await screen.findByLabelText('가입 이메일');
+    const signupEmail = await screen.findByLabelText('가입 이메일');
+    expect(within(signupEmail.closest('.auth-panel')!).getByRole('img', { name: 'Idea2Strategy' })).toBeInTheDocument();
     expect(screen.queryByText('ACCOUNT / SIGN UP')).not.toBeInTheDocument();
     expect(screen.queryByText('가입 후 이메일로 받은 인증 토큰을 입력해야 로그인할 수 있습니다.')).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('가입 이메일'), 'new@example.com');

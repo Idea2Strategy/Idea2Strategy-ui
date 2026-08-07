@@ -23,6 +23,13 @@ function fallbackError(cause: unknown): AccountApiError {
   return cause instanceof AccountApiError ? cause : new AccountApiError(0, 'NETWORK_ERROR', null);
 }
 
+function AuthProductBrand() {
+  return <div className="auth-product-brand" role="img" aria-label="Idea2Strategy">
+    <img src={i2sLogo} alt="" aria-hidden="true" />
+    <strong aria-hidden="true">IDEA<span>2</span>STRATEGY</strong>
+  </div>;
+}
+
 function ApiFailure({ error }: { error: AccountApiError }) {
   /* Lead with what the person can act on; the raw code and correlation id stay
      on the second line for support. */
@@ -139,7 +146,7 @@ export function LoginView({ client }: AuthScreenProps) {
     <div className="auth-backdrop" aria-hidden="true" />
     <section className="auth-card auth-panel" aria-labelledby="auth-title">
       <header className="auth-card-head">
-        <img src={i2sLogo} alt="" aria-hidden="true" />
+        <AuthProductBrand />
         <h1 id="auth-title">로그인</h1>
       </header>
       {routeState?.passwordResetComplete && <p role="status" className="auth-success">비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.</p>}
@@ -237,6 +244,7 @@ export function PasswordResetView({ client }: AuthScreenProps) {
     <section className="auth-card auth-panel auth-reset-card" aria-labelledby="password-reset-title">
       <button type="button" className="auth-back-link" onClick={goBack}><ChevronLeft size={16} aria-hidden="true" />뒤로</button>
       <header className="auth-card-head">
+        <AuthProductBrand />
         <h1 id="password-reset-title">{step === 'email' ? '비밀번호 재설정' : step === 'code' ? '인증 코드 입력' : '새 비밀번호 설정'}</h1>
         {step === 'email' && <p className="auth-card-copy">가입한 이메일을 입력하세요.</p>}
         {step === 'code' && <p className="auth-card-copy">이메일로 받은 인증 코드를 입력하세요.<strong className="auth-reset-email">{email}</strong></p>}
@@ -313,7 +321,7 @@ export function SignupView({ client }: AuthScreenProps) {
     <div className="auth-backdrop" aria-hidden="true" />
     <section className="auth-card auth-panel" aria-labelledby="auth-title">
       <header className="auth-card-head">
-        <img src={i2sLogo} alt="" aria-hidden="true" />
+        <AuthProductBrand />
         <h1 id="auth-title">가입</h1>
       </header>
       {step.kind === 'form' && <>
