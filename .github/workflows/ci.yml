@@ -107,7 +107,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: Idea2Strategy/Idea2Strategy-backend
-          ref: 3be5215bacd7aa1d6611330f0a22ca3272cdbfbd
+          ref: 0b4a4ba1eb06aa2d693435c99514a56ec7a57373
           path: backend
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
