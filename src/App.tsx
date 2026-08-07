@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, Bell, CircleHelp, Moon, Settings, Sun, UserRound, X } from 'lucide-react';
 import i2sLogo from './assets/i2s-logo.svg';
 import { navItems, pageFromPathname, pagePaths, strategyModeFromPathname } from './lib/navigation';
@@ -68,6 +68,25 @@ function RequireSignIn({ children }: { children: ReactElement }) {
   const location = useLocation();
   if (!signedIn) return <Navigate to="/login" replace state={{ returnTo: location.pathname }} />;
   return children;
+}
+
+/* Reads the strategy id from the path so the editor survives a refresh, a pasted
+   link, and a browser back-forward step. Router state cannot carry it: state is
+   dropped on reload, and the editor then opened a blank canvas for a saved
+   strategy. blank is false because a saved strategy shows its own document. */
+function SavedBasicEditorRoute(props: {
+  goBack: () => void;
+  openEditor: (mode: 'basic' | 'pro', blank?: boolean, strategyId?: string) => void;
+  onLaunchBot: () => void;
+}) {
+  const { strategyId } = useParams();
+  return <BasicEditor
+    strategyId={strategyId}
+    blank={false}
+    goBack={props.goBack}
+    openEditor={props.openEditor}
+    onLaunchBot={props.onLaunchBot}
+  />;
 }
 
 /* Authenticated accounts have no useful work on credential-entry screens.
@@ -471,13 +490,20 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
   const setPage: SetPage = (next) => {
     navigate(pagePaths[next] ?? pagePaths.home);
   };
+  /* A saved strategy gets its id in the path, so a refresh or a pasted link
+     reopens that strategy instead of a blank canvas. Only the prototype canvas,
+     which has no strategy behind it, stays on /strategies/new/<mode>. */
   const openEditor = (mode: 'basic' | 'pro', blank = false, strategyId?: string) => {
-    navigate(`/strategies/new/${mode}`, { state: { blank, strategyId } });
+    if (strategyId) {
+      navigate(`/strategies/${strategyId}/${mode}`, { state: { blank } });
+      return;
+    }
+    navigate(`/strategies/new/${mode}`, { state: { blank } });
   };
-  // A freshly created strategy opens on a blank canvas. Landing on the editor
-  // URL directly (or refreshing it) also opens blank: there is no strategy
-  // behind it, so seeding a demo strategy would show data the user never made.
-  const editorState = location.state as { blank?: boolean; strategyId?: string } | null;
+  // The prototype canvas opens blank: there is no strategy behind it, so seeding
+  // a demo strategy would show data the user never made. A strategy reached by
+  // its own URL is never blank, because its saved document is what it shows.
+  const editorState = location.state as { blank?: boolean } | null;
   const editorBlank = editorState ? Boolean(editorState.blank) : true;
   const changeBotIcon = (botName: string, selection: BotIconSelection) => {
     setBotIcons((current) => ({ ...current, [botName]: selection }));
@@ -498,8 +524,10 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/" element={<RequireSignIn><DashboardView setPage={setPage} botIcons={botIcons} /></RequireSignIn>} />
     <Route path="/landing" element={<LandingView setPage={setPage} />} />
     <Route path="/strategies" element={<RequireSignIn><StrategyHome openEditor={openEditor} /></RequireSignIn>} />
-    <Route path="/strategies/new/basic" element={<RequireSignIn><BasicEditor strategyId={editorState?.strategyId} blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} /></RequireSignIn>} />
+    <Route path="/strategies/new/basic" element={<RequireSignIn><BasicEditor blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} /></RequireSignIn>} />
     <Route path="/strategies/new/pro" element={<RequireSignIn><ProEditorUnavailableView goBack={() => navigate(pagePaths.strategy)} /></RequireSignIn>} />
+    <Route path="/strategies/:strategyId/basic" element={<RequireSignIn><SavedBasicEditorRoute goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} /></RequireSignIn>} />
+    <Route path="/strategies/:strategyId/pro" element={<RequireSignIn><ProEditorUnavailableView goBack={() => navigate(pagePaths.strategy)} /></RequireSignIn>} />
     <Route path="/bots" element={<RequireSignIn><BotsView key={requestedBot ?? 'bots'} botIcons={botIcons} onBotIconChange={changeBotIcon} initialBot={requestedBot} /></RequireSignIn>} />
     <Route path="/backtests" element={<RequireSignIn><BacktestView client={defaultBacktestClient} /></RequireSignIn>} />
     <Route path="/competition" element={<RoomsView client={competitionRoomsClient} openBot={openBot} />} />

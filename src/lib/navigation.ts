@@ -57,8 +57,11 @@ export function pageFromPathname(pathname = '/'): PageId {
   return 'home';
 }
 
+/* Both the prototype canvas (/strategies/new/<mode>) and a saved strategy
+   (/strategies/<id>/<mode>) are the editor, and the shell chrome depends on
+   telling them apart from the strategy list. */
 export function strategyModeFromPathname(pathname = '/'): StrategyMode {
-  if (pathname === '/strategies/new/basic') return 'basic';
-  if (pathname === '/strategies/new/pro') return 'pro';
+  const editor = /^\/strategies\/[^/]+\/(basic|pro)$/.exec(pathname);
+  if (editor) return editor[1] as StrategyMode;
   return 'home';
 }
