@@ -350,8 +350,10 @@ describe('Basic editor interactions', () => {
     const user = userEvent.setup();
     renderEditor();
 
-    // The library adds to the selected card, so select the sell card first.
-    await user.click(screen.getByRole('group', { name: '매도 전략 카드 이동 영역' }));
+    /* The library adds to the selected card, and the seeded canvas starts on the buy card.
+       Enter on the card header is the deterministic selection path; a pointer click routes
+       through beginCardMove and its toggle ref. */
+    fireEvent.keyDown(screen.getByRole('group', { name: '매도 전략 카드 이동 영역' }), { key: 'Enter' });
     const library = screen.getByTestId('basic-block-library');
     await user.click(within(library).getByRole('button', { name: '현재 수익률 블록 추가' }));
 
