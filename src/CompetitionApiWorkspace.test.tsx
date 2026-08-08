@@ -68,6 +68,7 @@ describe('real competition room workspace', () => {
     expect(within(detail).getByText('Bot 3F9A')).toBeInTheDocument();
     expect(within(detail).getAllByText('Bot Mine').length).toBeGreaterThan(0);
     expect(within(detail).getAllByText('내 봇').length).toBeGreaterThan(0);
+    expect(within(detail).getAllByText('모의 성과 · 실제 투자 결과를 보장하지 않습니다.')).toHaveLength(2);
 
     await userEvent.click(within(detail).getByRole('radio', { name: '비공개 봇으로 계속 운용' }));
     await userEvent.click(within(detail).getByRole('button', { name: '종료 후 선택 저장' }));
@@ -188,6 +189,7 @@ describe('real competition room workspace', () => {
       await userEvent.click(await screen.findByRole('listitem', { name: 'Live API Competition Open' }));
       const detail = await screen.findByRole('region', { name: 'Live API Competition details' });
       await within(detail).findByText('Bot 3F9A');
+      expect(within(detail).getAllByText('Simulated performance · Actual investment results are not guaranteed.')).toHaveLength(2);
       expect(detail.textContent).not.toMatch(/[가-힣]/);
       await userEvent.click(await screen.findByRole('button', { name: 'Join this competition' }));
       const join = screen.getByRole('dialog', { name: 'Competition' });
