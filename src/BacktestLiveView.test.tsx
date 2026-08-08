@@ -324,6 +324,38 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(paths).not.toContain(`/api/v1/backtests/${RUN_ID}/monthly-summaries`);
   });
 
+  it('marks a queued run as an active wait rather than a settled state', async () => {
+    server.use(...backtestHandlers({ runs: [QUEUED_RUN], performance: null }));
+
+    view();
+
+    const waiting = await screen.findByText('공식 백테스트 실행을 기다리고 있습니다.');
+    expect(waiting.closest('[role="status"]')).not.toBeNull();
+    expect(waiting.closest('p')!.querySelector('.is-spinning')).not.toBeNull();
+  });
+
+  /* Reproducibility fingerprints, plan checksums and dataset hashes are audit
+     material, not something a customer reads off the run screen. */
+  it('does not show the locked run inputs or fetch them', async () => {
+    const paths = recordRequests();
+    server.use(...backtestHandlers({ runs: [QUEUED_RUN], performance: null }));
+
+    view();
+
+    await screen.findByText('공식 백테스트 실행을 기다리고 있습니다.');
+    expect(screen.queryByText('잠긴 실행 입력')).not.toBeInTheDocument();
+    expect(paths).not.toContain(`/api/v1/backtests/${RUN_ID}/inputs`);
+  });
+
+  it('carries no manual refresh action in the page heading', async () => {
+    server.use(...backtestHandlers({ runs: [QUEUED_RUN], performance: null }));
+
+    view();
+
+    await screen.findByText('공식 백테스트 실행을 기다리고 있습니다.');
+    expect(screen.queryByRole('button', { name: '새로고침' })).not.toBeInTheDocument();
+  });
+
   it('reports a running run as still executing', async () => {
     server.use(...backtestHandlers({ runs: [RUNNING_RUN], performance: null }));
 

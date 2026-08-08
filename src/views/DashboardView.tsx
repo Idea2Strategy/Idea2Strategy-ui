@@ -148,7 +148,6 @@ function LiveDashboard({ setPage, client }: { setPage: (page: PageId) => void; c
   const [snapshot, setSnapshot] = useState<DashboardSnapshot | null>(null);
   const [failure, setFailure] = useState<'sign-in' | 'transport' | null>(null);
   const [stale, setStale] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
@@ -156,7 +155,6 @@ function LiveDashboard({ setPage, client }: { setPage: (page: PageId) => void; c
     const controller = new AbortController();
     const hadSnapshot = snapshot !== null;
     setFailure(null);
-    setRefreshing(true);
     client.getSnapshot(controller.signal)
       .then((next) => {
         setSnapshot(next);
@@ -173,8 +171,7 @@ function LiveDashboard({ setPage, client }: { setPage: (page: PageId) => void; c
           return;
         }
         setFailure('transport');
-      })
-      .finally(() => setRefreshing(false));
+      });
     return () => controller.abort();
     // The snapshot is intentionally not a dependency: a successful refresh
     // must not immediately trigger another request.
@@ -215,10 +212,10 @@ function LiveDashboard({ setPage, client }: { setPage: (page: PageId) => void; c
               ? `${runningCount} of ${bots.length} bots are running.`
               : `봇 ${bots.length}개 중 ${runningCount}개가 실행 중입니다.`}</p>
       </div>
-      <div className="page-actions"><Button icon={RefreshCw} onClick={() => setRevision((current) => current + 1)} disabled={refreshing}>
-        {refreshing ? '새로고침 중' : '새로고침'}
-      </Button></div>
     </header>
+    {/* Reached only when a reload fails after a snapshot already loaded. With no
+        manual refresh on this screen, nothing triggers that second load today;
+        this stays for the moment a poll or a push update reintroduces one. */}
     {stale && snapshot !== null && <StaleState
       title="마지막으로 확인한 데이터를 표시하고 있습니다."
       detail={language === 'en'
@@ -236,8 +233,7 @@ function LiveDashboard({ setPage, client }: { setPage: (page: PageId) => void; c
         /> : performanceBots.length === 0 ? <EmptyState
           icon={Gauge}
           title="성과 계산이 아직 완료되지 않았습니다."
-          detail="봇은 생성되었지만 검증된 최신 성과 Projection이 없습니다. 잠시 뒤 새로고침해 주세요."
-          action={<Button icon={RefreshCw} onClick={() => setRevision((current) => current + 1)}>새로고침</Button>}
+          detail="봇은 생성되었지만 검증된 최신 성과 Projection이 없습니다. 잠시 뒤 다시 확인해 주세요."
         /> : <>
           <MetricRow label="계정 성과 요약" items={[
             { label: '검증된 평가액', figure: formatMoney(totalEquity), detail: language === 'en' ? `${performanceBots.length} bots included` : `${performanceBots.length}개 봇 합계` },

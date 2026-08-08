@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { AlertTriangle, BarChart3, Clock3, Plus, RefreshCw } from 'lucide-react';
+import { AlertTriangle, BarChart3, Clock3, LoaderCircle, Plus } from 'lucide-react';
 import { BacktestApiError } from '../api/backtests';
 import type {
   BacktestAttempt,
@@ -10,7 +10,6 @@ import type {
   BacktestPerformanceSummary,
   BacktestRequestOptions,
   BacktestRun,
-  BacktestRunInputs,
   BacktestRunStatus,
   BacktestTrade,
 } from '../api/backtests';
@@ -46,7 +45,6 @@ interface RunDetail {
   performance: BacktestPerformanceSummary | null;
   monthlySummaries: BacktestMonthlySummary[];
   detailManifests: BacktestDetailManifest[];
-  inputs: BacktestRunInputs;
 }
 
 const RUN_PAGE_SIZE = 25;
@@ -171,21 +169,18 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
 
     const load = async (): Promise<RunDetail> => {
       const run = await client.getRun(selectedRunId, controller.signal);
-      const [attempts, inputs] = await Promise.all([
-        client.listAttempts(selectedRunId, controller.signal),
-        client.getInputs(selectedRunId, controller.signal),
-      ]);
+      const attempts = await client.listAttempts(selectedRunId, controller.signal);
       if (run.status !== 'COMPLETED') {
         // Result-only endpoints exist for a completed run. Asking early would turn a
         // perfectly normal queued run into a 409 the screen would have to explain away.
-        return { run, attempts, performance: null, monthlySummaries: [], detailManifests: [], inputs };
+        return { run, attempts, performance: null, monthlySummaries: [], detailManifests: [] };
       }
       const [performance, monthlySummaries, detailManifests] = await Promise.all([
         client.getPerformance(selectedRunId, controller.signal).catch(pendingSummary),
         client.listMonthlySummaries(selectedRunId, controller.signal),
         client.listDetailManifests(selectedRunId, controller.signal),
       ]);
-      return { run, attempts, performance, monthlySummaries, detailManifests, inputs };
+      return { run, attempts, performance, monthlySummaries, detailManifests };
     };
 
     void load().then((loaded) => {
@@ -253,7 +248,6 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
       description="출시된 봇의 자동 백테스트 상태와 검증된 결과를 확인합니다."
       actions={<div className="backtest-live-heading-actions">
         <Button icon={Plus} kind="primary" onClick={() => setRequestOpen((open) => !open)}>새 백테스트</Button>
-        <Button icon={RefreshCw} onClick={retry}>새로고침</Button>
       </div>}
     />
     {requestMessage && <p className="bots-decision-note" role="status">{requestMessage}</p>}
@@ -475,7 +469,6 @@ function RunDetailPanels({
       {cancelError && <FailureNotice title={cancelError} code={null} />}
       <AttemptTable attempts={detail.attempts} />
     </Panel>
-    <RunInputsPanel inputs={detail.inputs} />
     {run.status === 'COMPLETED' && <>
       <PerformancePanel performance={detail.performance} />
       <MonthlyPanel
@@ -491,33 +484,13 @@ function RunDetailPanels({
   </>;
 }
 
-function RunInputsPanel({ inputs }: { inputs: BacktestRunInputs }) {
-  return <Panel
-    className="backtest-live-inputs"
-    title="잠긴 실행 입력"
-    subtitle="이 실행을 같은 조건으로 재현하기 위한 서버 확정 식별자입니다."
-  >
-    <dl>
-      <div><dt>입력 묶음</dt><dd><code>{inputs.inputBundleFingerprint}</code></dd></div>
-      <div><dt>전략 스냅샷</dt><dd><code>{inputs.strategySnapshotHash}</code></dd></div>
-      <div><dt>컴파일 계획</dt><dd><code>{inputs.compiledPlanChecksum}</code></dd></div>
-      <div><dt>데이터셋</dt><dd><code>{inputs.datasetManifestId}</code><small>{inputs.datasetHash}</small></dd></div>
-      <div><dt>실행 정책</dt><dd>{inputs.executionPolicyVersion}</dd></div>
-      <div><dt>정밀도 규칙</dt><dd>{inputs.precisionRulesVersion}</dd></div>
-      <div><dt>계산 모델</dt><dd>{inputs.calculationModelVersion ?? '실행되지 않음'}</dd></div>
-      <div><dt>비용 모델</dt><dd>{inputs.costModelVersion ?? '실행되지 않음'}</dd></div>
-      <div><dt>체결 모델</dt><dd>{inputs.executionModelVersion ?? '실행되지 않음'}</dd></div>
-    </dl>
-    {inputs.missingRequirements.length > 0 && <div className="backtest-live-failure">
-      <strong><AlertTriangle size={16} />필수 입력이 부족합니다.</strong>
-      <ul>{inputs.missingRequirements.map((requirement) => <li key={requirement}><code>{requirement}</code></li>)}</ul>
-    </div>}
-  </Panel>;
-}
-
 function RunState({ run }: { run: BacktestRun }) {
   if (run.status === 'QUEUED') {
-    return <p className="backtest-live-state-copy"><Clock3 size={16} />공식 백테스트 실행을 기다리고 있습니다.</p>;
+    /* Queued is a live wait, not a resting state: the spinner says the screen is
+       still watching rather than showing a stalled result. */
+    return <p className="backtest-live-state-copy" role="status">
+      <LoaderCircle className="is-spinning" size={16} aria-hidden="true" />공식 백테스트 실행을 기다리고 있습니다.
+    </p>;
   }
   if (run.status === 'RUNNING') {
     return <p className="backtest-live-state-copy"><Clock3 size={16} />{run.cancellationRequestedAt

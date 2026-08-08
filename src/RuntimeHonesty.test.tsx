@@ -301,11 +301,11 @@ describe('production runtime honesty', () => {
     expect(screen.queryByText('실시간 API')).not.toBeInTheDocument();
   });
 
-  test('a failed refresh keeps the last confirmed dashboard and marks it stale', async () => {
+  /* Home reads the server once per visit. A manual refresh button invited the
+     reader to treat the figures as live-on-demand, which they are not. */
+  test('carries no manual refresh action', async () => {
     setSessionAccessToken('dashboard-session');
-    const read = vi.fn()
-      .mockResolvedValueOnce(dashboardSnapshot('Confirmed Bot'))
-      .mockRejectedValueOnce(new Error('offline'));
+    const read = vi.fn().mockResolvedValue(dashboardSnapshot('Confirmed Bot'));
     try {
       render(<DashboardView
         setPage={() => {}}
@@ -314,11 +314,26 @@ describe('production runtime honesty', () => {
       />);
       expect(await screen.findAllByText('Confirmed Bot')).not.toHaveLength(0);
 
-      fireEvent.click(screen.getByRole('button', { name: '새로고침' }));
+      expect(screen.queryByRole('button', { name: '새로고침' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: '새로고침 중' })).not.toBeInTheDocument();
+      expect(read).toHaveBeenCalledTimes(1);
+    } finally {
+      setSessionAccessToken(null);
+    }
+  });
 
-      expect(await screen.findByRole('status', { name: '' })).toBeInTheDocument();
-      expect(screen.getByText('마지막으로 확인한 데이터를 표시하고 있습니다.')).toBeInTheDocument();
-      expect(screen.getAllByText('Confirmed Bot')).not.toHaveLength(0);
+  test('shows the failure page rather than inventing figures when the first read fails', async () => {
+    setSessionAccessToken('dashboard-session');
+    const read = vi.fn().mockRejectedValue(new Error('offline'));
+    try {
+      render(<DashboardView
+        setPage={() => {}}
+        dataSource="live"
+        dashboardClient={dashboardClient(read)}
+      />);
+
+      expect(await screen.findByText('Home 데이터를 불러오지 못했습니다.')).toBeInTheDocument();
+      expect(screen.queryByText('Confirmed Bot')).not.toBeInTheDocument();
     } finally {
       setSessionAccessToken(null);
     }

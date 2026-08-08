@@ -12478,35 +12478,6 @@ small.dashboard-bot-scope {
   grid-column: 1 / -1;
   justify-content: flex-end;
 }
-.variant-balanced[data-design="signal-studio"] .backtest-live-inputs dl {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin: 0;
-}
-.variant-balanced[data-design="signal-studio"] .backtest-live-inputs dl > div {
-  display: grid;
-  gap: var(--space-1);
-  min-width: 0;
-  padding: var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-}
-.variant-balanced[data-design="signal-studio"] .backtest-live-inputs dt {
-  color: var(--text-faint);
-  font-size: var(--fs-micro);
-  font-weight: 700;
-}
-.variant-balanced[data-design="signal-studio"] .backtest-live-inputs dd {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-  margin: 0;
-}
-.variant-balanced[data-design="signal-studio"] .backtest-live-inputs code,
-.variant-balanced[data-design="signal-studio"] .backtest-live-inputs small {
-  overflow-wrap: anywhere;
-}
 .variant-balanced[data-design="signal-studio"] .backtest-live-detail {
   display: grid;
   min-width: 0;
@@ -12647,8 +12618,7 @@ small.dashboard-bot-scope {
   .variant-balanced[data-design="signal-studio"] .backtest-live-workspace {
     grid-template-columns: 1fr;
   }
-  .variant-balanced[data-design="signal-studio"] .backtest-request-form,
-  .variant-balanced[data-design="signal-studio"] .backtest-live-inputs dl {
+  .variant-balanced[data-design="signal-studio"] .backtest-request-form {
     grid-template-columns: 1fr;
   }
   .variant-balanced[data-design="signal-studio"] .backtest-request-form label:nth-child(2) {

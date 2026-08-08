@@ -48,6 +48,34 @@ describe('Bot operations', () => {
     await waitFor(() => expect(screen.getAllByText('중지 중').length).toBeGreaterThan(0));
   });
 
+  /* The badge reports what the bot is; the button is what you do about it. The
+     badge therefore comes first in the detail header. */
+  test('puts the lifecycle badge before the stop action', async () => {
+    const running = {
+      botId: '30000000-0000-4000-8000-000000000001',
+      name: 'Atlas 07',
+      state: 'running' as const,
+      lifecycleChangedAt: '2026-08-01T12:00:00Z',
+      executionBlockedAt: null,
+      executionBlockReasonCode: null,
+      lastEventSequence: 0,
+    };
+    const client: BotOperationsClient = {
+      listOperations: vi.fn().mockResolvedValue([running]),
+      listJudgments: vi.fn().mockResolvedValue({ entries: [], nextAfterSequence: 0, hasMore: false }),
+      stopBot: vi.fn(),
+      runBot: vi.fn(),
+    };
+
+    render(<BotsView operationsClient={client} pollIntervalMs={60_000} />);
+
+    const stop = await screen.findByRole('button', { name: 'Atlas 07 영구 중단' });
+    const actions = stop.parentElement!;
+    const order = [...actions.children];
+    const badge = actions.querySelector('.status')!;
+    expect(order.indexOf(badge)).toBeLessThan(order.indexOf(stop));
+  });
+
   test('blocks run on failed preflight and renews an allowed continuation deadline', async () => {
     const waiting = {
       botId: '30000000-0000-4000-8000-000000000001',

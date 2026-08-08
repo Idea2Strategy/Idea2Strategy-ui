@@ -1903,7 +1903,10 @@ export function BotsView({
             </span>
             <h2>{selected.name}</h2>
           </div>
+          {/* State first, then what can be done about it: the badge is what the
+              bot is, the button is what you do next. */}
           <div className="bots-detail-actions">
+            <Status tone={botTone(selected.state)}>{selected.state}</Status>
             {selectedOperations?.state === 'waiting' && <Button
               icon={Play}
               disabled={commandPending}
@@ -1915,7 +1918,6 @@ export function BotsView({
               aria-label={`${selected.name} 영구 중단`}
               onClick={() => void issueBotCommand('stop')}
             >영구 중단</Button>}
-            <Status tone={botTone(selected.state)}>{selected.state}</Status>
           </div>
         </header>
         {commandMessage && <p className="bots-decision-note" role="status">{commandMessage}</p>}
