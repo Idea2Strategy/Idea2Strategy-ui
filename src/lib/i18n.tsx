@@ -27,6 +27,7 @@ const english: Record<string, string> = {
   '비밀번호 재설정 링크를 다시 보냈습니다.': 'We sent the password-reset link again.',
   '이미 가입된 이메일입니다. 로그인하거나 다른 이메일을 사용해 주세요.': 'This email is already registered. Sign in or use another email.',
   '실제 대회 API에서 공개 방과 일정을 조회하고, 익명 봇 성과만 비교합니다.': 'Browse public rooms and schedules from the live competition API and compare anonymous bot performance.',
+  '모의 성과 · 실제 투자 결과를 보장하지 않습니다.': 'Simulated performance · Actual investment results are not guaranteed.',
   '초대 코드 참가': 'Join with invite code',
   '대회명 검색': 'Search by competition name',
   '내가 만든 대회': 'My competitions',
