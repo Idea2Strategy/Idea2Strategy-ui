@@ -2440,8 +2440,18 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   });
 
   const moveBlock = (sourceCardId: string, blockId: string, targetCardId: string, targetIndex: number) => {
-    rememberEditorChange();
     const movingLabel = cardBlocks[sourceCardId].find((block) => block.id === blockId)?.label ?? '선택한';
+    /* The same container rule that gates adding a block has to gate moving one.
+       The published catalog declares these elements for the SELL container only, so a
+       buy card would emit CONTAINER_MISMATCH at the server while looking valid here. */
+    if (sourceCardId !== targetCardId && SELL_ONLY_BLOCKS.has(movingLabel)) {
+      const owner = sections.find((item) => item.cardOrder.includes(targetCardId));
+      if (!owner?.cards.sell.includes(targetCardId)) {
+        setAnnouncement(`${movingLabel}은(는) 매도 전략 카드에서만 사용할 수 있어요. 포지션을 보유한 뒤 평가되는 청산 조건입니다.`);
+        return;
+      }
+    }
+    rememberEditorChange();
     setCardBlocks((current) => {
       const sourceBlocks = [...current[sourceCardId]];
       const sourceIndex = sourceBlocks.findIndex((block) => block.id === blockId);
