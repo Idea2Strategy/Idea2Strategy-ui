@@ -13,12 +13,16 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 const STORAGE_KEY = 'i2s-language';
 
 const english: Record<string, string> = {
-  '비밀번호는 15자 이상 128자 이하로 입력해 주세요.': 'Enter a password between 15 and 128 characters.',
+  '비밀번호는 10자 이상 30자 이하로 입력해 주세요.': 'Enter a password between 10 and 30 characters.',
   '이메일을 입력해 주세요.': 'Enter your email address.',
   '올바른 이메일 주소를 입력해 주세요.': 'Enter a valid email address.',
   '비밀번호를 입력해 주세요.': 'Enter your password.',
-  '비밀번호는 15자 이상이어야 합니다.': 'Password must be at least 15 characters.',
-  '비밀번호는 128자 이하여야 합니다.': 'Password must be no more than 128 characters.',
+  '비밀번호는 10자 이상이어야 합니다.': 'Password must be at least 10 characters.',
+  '비밀번호는 30자 이하여야 합니다.': 'Password must be no more than 30 characters.',
+  '비밀번호에는 공백 없이 영문, 숫자, 특수문자만 사용할 수 있습니다.':
+    'Use only English letters, numbers, and ASCII special characters, without spaces.',
+  '영문자를 하나 이상 포함해 주세요.': 'Include at least one English letter.',
+  '특수문자를 하나 이상 포함해 주세요.': 'Include at least one special character.',
   '비밀번호 확인을 입력해 주세요.': 'Confirm your password.',
   '인증 코드를 입력해 주세요.': 'Enter the verification code.',
   '인증 코드를 보냈습니다.': 'Verification code sent.',
@@ -1358,7 +1362,8 @@ const english: Record<string, string> = {
   '인증 코드를 받지 못하셨나요?': 'Did not receive a code?',
   '인증 코드 다시 받기': 'Resend code',
   '새 비밀번호 설정': 'Set new password',
-  '15자 이상 128자 이하로 입력하세요.': 'Enter 15 to 128 characters.',
+  '10~30자의 영문 비밀번호를 입력하세요. 특수문자는 1개 이상 필요하며 숫자는 선택입니다.':
+    'Use 10 to 30 characters with at least one English letter and one special character. Numbers are optional.',
   '새 비밀번호 확인': 'Confirm new password',
   '새 비밀번호 표시': 'Show new password',
   '새 비밀번호 숨기기': 'Hide new password',

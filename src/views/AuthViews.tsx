@@ -94,22 +94,25 @@ function PasswordInput({ label, ariaLabel, value, onChange, autoComplete, descri
   </div>;
 }
 
-const MIN_PASSWORD_LENGTH = 15;
-const MAX_PASSWORD_LENGTH = 128;
+const MIN_PASSWORD_LENGTH = 10;
+const MAX_PASSWORD_LENGTH = 30;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
+const ASCII_PASSWORD_PATTERN = /^[\x21-\x7e]+$/u;
+const ENGLISH_LETTER_PATTERN = /[A-Za-z]/u;
+const SPECIAL_CHARACTER_PATTERN = /[^A-Za-z0-9]/u;
 const passwordLength = (password: string) => Array.from(password).length;
-const passwordLengthIsValid = (password: string) => {
-  const codePointLength = passwordLength(password);
-  return codePointLength >= MIN_PASSWORD_LENGTH && codePointLength <= MAX_PASSWORD_LENGTH;
-};
 const emailError = (email: string) => {
   if (!email.trim()) return '이메일을 입력해 주세요.';
   return EMAIL_PATTERN.test(email.trim()) ? null : '올바른 이메일 주소를 입력해 주세요.';
 };
+const loginPasswordError = (password: string) => password ? null : '비밀번호를 입력해 주세요.';
 const passwordError = (password: string) => {
   if (!password) return '비밀번호를 입력해 주세요.';
-  if (passwordLength(password) < MIN_PASSWORD_LENGTH) return '비밀번호는 15자 이상이어야 합니다.';
-  if (passwordLength(password) > MAX_PASSWORD_LENGTH) return '비밀번호는 128자 이하여야 합니다.';
+  if (passwordLength(password) < MIN_PASSWORD_LENGTH) return '비밀번호는 10자 이상이어야 합니다.';
+  if (passwordLength(password) > MAX_PASSWORD_LENGTH) return '비밀번호는 30자 이하여야 합니다.';
+  if (!ASCII_PASSWORD_PATTERN.test(password)) return '비밀번호에는 공백 없이 영문, 숫자, 특수문자만 사용할 수 있습니다.';
+  if (!ENGLISH_LETTER_PATTERN.test(password)) return '영문자를 하나 이상 포함해 주세요.';
+  if (!SPECIAL_CHARACTER_PATTERN.test(password)) return '특수문자를 하나 이상 포함해 주세요.';
   return null;
 };
 
@@ -125,12 +128,12 @@ export function LoginView({ client }: AuthScreenProps) {
   const [failure, setFailure] = useState<AccountApiError | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const currentEmailError = submitted ? emailError(email) : null;
-  const currentPasswordError = submitted ? passwordError(password) : null;
+  const currentPasswordError = submitted ? loginPasswordError(password) : null;
   const credentialsRejected = failure?.status === 401;
 
   const submit = async () => {
     setSubmitted(true);
-    if (emailError(email) || passwordError(password)) return;
+    if (emailError(email) || loginPasswordError(password)) return;
     setPending(true);
     setFailure(null);
     try {
@@ -194,7 +197,7 @@ export function PasswordResetView({ client }: AuthScreenProps) {
   const [passwordSubmitted, setPasswordSubmitted] = useState(false);
   const currentEmailError = emailSubmitted ? emailError(email) : null;
   const currentPasswordError = (passwordSubmitted || newPassword.length > 0) ? passwordError(newPassword) : null;
-  const newPasswordValid = passwordLengthIsValid(newPassword);
+  const newPasswordValid = !passwordError(newPassword);
   const passwordsMatch = newPassword === newPasswordConfirm;
   const passwordConfirmError = (passwordSubmitted || newPasswordConfirm.length > 0)
     ? !newPasswordConfirm ? '비밀번호 확인을 입력해 주세요.' : !passwordsMatch ? '비밀번호가 일치하지 않습니다.' : null
@@ -247,7 +250,7 @@ export function PasswordResetView({ client }: AuthScreenProps) {
         <h1 id="password-reset-title">{step === 'email' ? '비밀번호 재설정' : step === 'sent' ? '이메일을 확인해 주세요' : '새 비밀번호 설정'}</h1>
         {step === 'email' && <p className="auth-card-copy">가입한 이메일을 입력하세요.</p>}
         {step === 'sent' && <p className="auth-card-copy">메일의 재설정 버튼을 누르면 새 비밀번호를 설정할 수 있습니다.<strong className="auth-reset-email">{email}</strong></p>}
-        {step === 'password' && <p className="auth-card-copy">15자 이상 128자 이하로 입력하세요.</p>}
+        {step === 'password' && <p className="auth-card-copy">10~30자의 영문 비밀번호를 입력하세요. 특수문자는 1개 이상 필요하며 숫자는 선택입니다.</p>}
       </header>
       {step === 'email' && <form className="auth-form" noValidate onSubmit={(event) => { event.preventDefault(); setEmailSubmitted(true); if (!emailError(email) && !pending) void requestLink(true); }}>
         <label><span>가입 이메일</span><input aria-label="재설정 이메일" type="email" autoComplete="email" aria-describedby={currentEmailError ? 'reset-email-help' : undefined} aria-invalid={Boolean(currentEmailError)} value={email} onChange={(event) => { setEmail(event.target.value); setFailure(null); }} /></label>
