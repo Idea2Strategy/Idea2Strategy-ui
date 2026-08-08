@@ -1,4 +1,4 @@
-import { render as renderBare, screen, waitFor } from '@testing-library/react';
+import { render as renderBare, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactElement } from 'react';
 
@@ -179,7 +179,7 @@ describe('Strategy API view', () => {
     const { unmount } = render(<BasicEditor blank goBack={() => {}} strategyId="strategy-id" authoringClient={authoringClient} catalogClient={catalogClient} marketDataClient={marketDataClient} />);
     await waitFor(() => expect(catalogClient.getBasic).toHaveBeenCalledWith(expect.any(AbortSignal)));
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 종목 관리' }));
-    await user.selectOptions(screen.getByRole('combobox', { name: '추가할 종목' }), 'spy-id');
+    await user.click(within(screen.getByRole('listbox', { name: '추가할 종목' })).getByRole('option', { name: /SPY/ }));
     await user.click(screen.getByRole('button', { name: '종목 추가' }));
     expect(screen.getByRole('dialog', { name: 'PARTITION 1 종목 관리' })).toHaveTextContent('SPY');
     expect(loadOrder).toEqual(['document', 'lease']);
@@ -210,6 +210,82 @@ describe('Strategy API view', () => {
     expect(screen.getByRole('button', { name: '개인 봇 출시' })).toBeDisabled();
     unmount();
     await waitFor(() => expect(authoringClient.releaseLease).toHaveBeenCalledWith('strategy-id', 'lease-token'));
+  });
+
+  /* Saving and validating are two calls behind one button. A validation failure
+     after a successful save used to report the save itself as lost. */
+  test('says the document was saved when only the validation call fails', async () => {
+    const user = userEvent.setup();
+    const document: StrategyDocument = {
+      strategyId: 'strategy-id',
+      semanticDocument: { mode: 'BASIC', groups: [] },
+      presentationDocument: {},
+      semanticSchemaVersion: 'basic-semantic.v1',
+      presentationSchemaVersion: 'basic-presentation.v1',
+      semanticHash: 'semantic-hash',
+      presentationHash: 'presentation-hash',
+      editSequence: 0,
+      updatedAt: '2026-08-01T12:00:00Z',
+    };
+    const authoringClient: StrategyAuthoringClient = {
+      createBasic: vi.fn(), copyStrategy: vi.fn(),
+      getDocument: vi.fn().mockResolvedValue(document),
+      acquireLease: vi.fn().mockResolvedValue({ leaseToken: 'lease-token', expiresAt: '2026-08-01T12:02:00Z' }),
+      heartbeatLease: vi.fn(), releaseLease: vi.fn().mockResolvedValue(undefined),
+      saveDocument: vi.fn().mockResolvedValue({ ...document, editSequence: 1 }),
+      validateStrategy: vi.fn().mockRejectedValue(new (await import('./api/strategies')).StrategyApiError(503, 'validation')),
+      getReleaseInputs: vi.fn(), releaseStrategy: vi.fn(),
+    };
+    const catalogClient: StrategyCatalogClient = {
+      getBasic: vi.fn().mockResolvedValue({
+        version: {
+          id: 'catalog-id', languageVersion: 'basic/v1', schemaVersion: 'schema/v1', catalogVersion: 'catalog/v1',
+          dataRequirementVersion: 'data/v1', definitionHash: 'catalog-hash', publishedAt: '2026-08-01T12:00:00Z', retiredAt: null,
+        },
+        elements: [], features: [], instruments: [],
+      } satisfies BasicStrategyCatalog),
+    };
+    render(<BasicEditor blank goBack={() => {}} strategyId="strategy-id" authoringClient={authoringClient} catalogClient={catalogClient} />);
+    const save = screen.getByRole('button', { name: '저장' });
+    await waitFor(() => expect(save).toBeEnabled());
+    await user.click(save);
+
+    await waitFor(() => expect(authoringClient.validateStrategy).toHaveBeenCalled());
+    expect(await screen.findByText('전략은 저장했지만 검증하지 못했습니다.')).toBeInTheDocument();
+    expect(screen.queryByText('전략을 저장하지 못했습니다.')).not.toBeInTheDocument();
+  });
+
+  /* The published catalog is several hundred instruments. A plain dropdown listed
+     every one of them at once, which is unreadable and unscannable. */
+  test('keeps the instrument picker short and searchable for a large catalog', async () => {
+    const user = userEvent.setup();
+    const catalog: BasicStrategyCatalog = {
+      version: {
+        id: 'catalog-id', languageVersion: 'basic/v1', schemaVersion: 'schema/v1', catalogVersion: 'catalog/v1',
+        dataRequirementVersion: 'data/v1', definitionHash: 'catalog-hash', publishedAt: '2026-08-01T12:00:00Z', retiredAt: null,
+      },
+      elements: [],
+      features: [],
+      instruments: Array.from({ length: 320 }, (_, index) => ({
+        id: `id-${index}`, assetType: 'STOCK' as const, primaryExchangeMic: 'XNAS', currencyCode: 'USD',
+        symbol: `SYM${String(index).padStart(3, '0')}`,
+      })),
+    };
+    const catalogClient: StrategyCatalogClient = { getBasic: vi.fn().mockResolvedValue(catalog) };
+    render(<BasicEditor blank goBack={() => {}} catalogClient={catalogClient} />);
+    await waitFor(() => expect(catalogClient.getBasic).toHaveBeenCalledWith(expect.any(AbortSignal)));
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 종목 관리' }));
+
+    expect(within(screen.getByRole('listbox', { name: '추가할 종목' })).getAllByRole('option')).toHaveLength(50);
+    expect(screen.getByText(/270개는 표시하지 않았습니다/)).toBeInTheDocument();
+
+    // Searching is the way to the other 270, and Enter takes the top match.
+    await user.type(screen.getByLabelText('종목 검색'), 'SYM31');
+    await waitFor(() => expect(
+      within(screen.getByRole('listbox', { name: '추가할 종목' })).getAllByRole('option'),
+    ).toHaveLength(10));
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('dialog')).toHaveTextContent('SYM310');
   });
 
   test('retries a transient lease conflict left by a page navigation', async () => {

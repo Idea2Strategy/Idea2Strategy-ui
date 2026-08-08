@@ -15,8 +15,8 @@ import { pagePaths } from '../lib/navigation';
   that path a first-class entry point instead of hiding it behind the 401
   state of the account settings page.
 
-  Both screens report the server's actual outcome: an error shows the API code
-  and correlation id, and nothing renders as success before the API confirmed.
+  Both screens report the server's actual outcome: a failure renders the reason
+  the person can act on, and nothing renders as success before the API confirmed.
 */
 
 function fallbackError(cause: unknown): AccountApiError {
@@ -31,8 +31,9 @@ function AuthProductBrand() {
 }
 
 function ApiFailure({ error }: { error: AccountApiError }) {
-  /* Lead with what the person can act on; the raw code and correlation id stay
-     on the second line for support. */
+  /* Sign-in and sign-up are unauthenticated surfaces, so the screen states only
+     what the person can act on. The raw code and correlation id stay out of the
+     rendered output and remain available to support through the server log. */
   const title = error.code === 'EMAIL_ALREADY_REGISTERED'
     ? '이미 가입된 이메일입니다. 로그인하거나 다른 이메일을 사용해 주세요.'
     : error.status === 401
@@ -44,7 +45,6 @@ function ApiFailure({ error }: { error: AccountApiError }) {
         : '요청을 처리하지 못했습니다.';
   return <div className="auth-error" role="alert">
     <strong>{title}</strong>
-    <small>오류 코드 {error.code}{error.correlationId && <> · 문의 코드 {error.correlationId}</>}</small>
   </div>;
 }
 

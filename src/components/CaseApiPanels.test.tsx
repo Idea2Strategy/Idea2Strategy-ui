@@ -32,7 +32,7 @@ describe('UserCasePanel', () => {
     expect(submitCase).toHaveBeenCalledWith(expect.objectContaining({ type: 'APPEAL', evidence: [] }), 'idem-case');
   });
 
-  it('shows a correlation code and retry action for retryable failures', async () => {
+  it('offers a retry action for retryable failures without exposing the raw code', async () => {
     const createIdempotencyKey = vi.fn(() => 'idem-lost-response');
     const submitCase = vi.fn()
       .mockRejectedValueOnce(new AccountOperationsApiError(503, 'CASE_SERVICE_UNAVAILABLE', 'corr-case'))
@@ -41,7 +41,9 @@ describe('UserCasePanel', () => {
     await userEvent.type(screen.getByLabelText('케이스 제목'), '문의');
     await userEvent.type(screen.getByLabelText('케이스 설명'), '내용');
     await userEvent.click(screen.getByRole('button', { name: '접수하기' }));
-    expect(await screen.findByText(/문의 코드 corr-case/)).toBeInTheDocument();
+    expect(await screen.findByText('일시적으로 서버에 연결할 수 없습니다.')).toBeInTheDocument();
+    expect(screen.queryByText(/corr-case/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/CASE_SERVICE_UNAVAILABLE/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: '다시 시도' }));
     await screen.findByText('추적 번호 case-1 · 버전 1');
     expect(createIdempotencyKey).toHaveBeenCalledTimes(1);

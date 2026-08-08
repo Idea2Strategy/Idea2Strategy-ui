@@ -111,7 +111,7 @@ describe('customer login screen', () => {
     expect(password).toHaveValue('visible password 2026!');
   });
 
-  it('shows the API failure code and correlation id instead of pretending success', async () => {
+  it('states the failure reason without leaking the API code or correlation id', async () => {
     const client = accountClient({
       login: vi.fn().mockRejectedValue(new AccountApiError(401, 'INVALID_CREDENTIALS', 'corr-login-1')),
     });
@@ -124,8 +124,9 @@ describe('customer login screen', () => {
     await userEvent.click(screen.getByRole('button', { name: '로그인' }));
 
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('INVALID_CREDENTIALS');
-    expect(alert).toHaveTextContent('corr-login-1');
+    expect(alert).toHaveTextContent('이메일 또는 비밀번호가 올바르지 않습니다.');
+    expect(alert).not.toHaveTextContent('INVALID_CREDENTIALS');
+    expect(alert).not.toHaveTextContent('corr-login-1');
     expect(window.location.pathname).toBe('/login');
     expect(screen.getByLabelText('로그인 이메일')).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByLabelText('로그인 비밀번호')).toHaveAttribute('aria-invalid', 'true');
@@ -359,7 +360,7 @@ describe('customer signup screen', () => {
     expect(client.signup).not.toHaveBeenCalled();
   });
 
-  it('keeps the signup form with the API code when signup fails', async () => {
+  it('keeps the signup form and explains the conflict when signup fails', async () => {
     const client = accountClient({
       signup: vi.fn().mockRejectedValue(new AccountApiError(409, 'EMAIL_ALREADY_REGISTERED', 'corr-signup-1')),
     });
@@ -372,7 +373,9 @@ describe('customer signup screen', () => {
     await userEvent.click(screen.getByRole('button', { name: '가입' }));
 
     const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('EMAIL_ALREADY_REGISTERED');
+    expect(alert).toHaveTextContent('이미 가입된 이메일입니다. 로그인하거나 다른 이메일을 사용해 주세요.');
+    expect(alert).not.toHaveTextContent('EMAIL_ALREADY_REGISTERED');
+    expect(alert).not.toHaveTextContent('corr-signup-1');
     expect(screen.getByLabelText('가입 이메일')).toBeInTheDocument();
   });
 });

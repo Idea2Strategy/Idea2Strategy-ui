@@ -1903,7 +1903,10 @@ export function BotsView({
             </span>
             <h2>{selected.name}</h2>
           </div>
+          {/* State first, then what can be done about it: the badge is what the
+              bot is, the button is what you do next. */}
           <div className="bots-detail-actions">
+            <Status tone={botTone(selected.state)}>{selected.state}</Status>
             {selectedOperations?.state === 'waiting' && <Button
               icon={Play}
               disabled={commandPending}
@@ -1915,14 +1918,13 @@ export function BotsView({
               aria-label={`${selected.name} 영구 중단`}
               onClick={() => void issueBotCommand('stop')}
             >영구 중단</Button>}
-            <Status tone={botTone(selected.state)}>{selected.state}</Status>
           </div>
         </header>
         {commandMessage && <p className="bots-decision-note" role="status">{commandMessage}</p>}
         {botControlError && <p className="bots-decision-note" role="alert">{botControlError}</p>}
         {preflight && !preflight.ready && <div className="bots-decision-note" role="status">
           <strong>실행 전 점검 필요</strong>
-          <ul>{preflight.issues.map((issue) => <li key={issue.code}>{issue.detail} <code>{issue.code}</code></li>)}</ul>
+          <ul>{preflight.issues.map((issue) => <li key={issue.code}>{issue.detail}</li>)}</ul>
         </div>}
         {continuation && <div className="bots-decision-note bots-continuation" role="status">
           <span><strong>운용 지속 확인 기한</strong><small>{new Date(continuation.dueAt).toLocaleString('ko-KR')}</small></span>

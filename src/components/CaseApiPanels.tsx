@@ -163,7 +163,7 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
     <div className="settings-grid">
       <Panel title="처리 대기열" action={<Button onClick={() => void loadQueue()}><RefreshCw size={14} />새로고침</Button>}>
         {queue.kind === 'loading' && <div role="status"><LoaderCircle size={16} /> 불러오는 중</div>}
-        {queue.kind === 'error' && <CaseError error={queue.error} retry={loadQueue} />}
+        {queue.kind === 'error' && <CaseError operator error={queue.error} retry={loadQueue} />}
         {queue.kind === 'ready' && queue.value.items.length === 0 && <EmptyState icon={ShieldCheck} title="처리할 케이스가 없습니다." detail="현재 필터에 열린 케이스가 없습니다." />}
         {queue.kind === 'ready' && queue.value.items.map((item) => <button className="operator-case-row" key={item.caseId} onClick={() => select(item.caseId)}>
           <span><strong>{item.type}</strong><small>{item.caseId}</small></span><Status>{item.status}</Status>
@@ -173,7 +173,7 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
       <Panel title="케이스 상세">
         {detail.kind === 'idle' && <EmptyState icon={ShieldCheck} title="케이스를 선택하세요." detail="대기열에서 한 건을 선택하면 검증된 증거와 현재 버전을 표시합니다." />}
         {detail.kind === 'loading' && <div role="status"><LoaderCircle size={16} /> 처리 중</div>}
-        {detail.kind === 'error' && <CaseError error={detail.error} />}
+        {detail.kind === 'error' && <CaseError operator error={detail.error} />}
         {detail.kind === 'ready' && <div className="operator-case-detail">
           <div><strong>{detail.value.type} · {detail.value.status}</strong><span>버전 {detail.value.version}</span></div>
           <label><span>사유 코드</span><input aria-label="Operation reason code" value={reasonCode} onChange={(event) => setReasonCode(event.target.value)} /></label>
@@ -201,7 +201,7 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
           </div>}
           {commandState.kind === 'processing' && <div role="status"><LoaderCircle size={16} /> 명령 처리 중</div>}
           {commandState.kind === 'succeeded' && <div className="case-api-receipt" role="status"><CheckCircle2 size={17} /><div><strong>{commandState.code}</strong><small>Correlation {commandState.correlationId}</small></div></div>}
-          {commandState.kind === 'error' && <CaseError error={commandState.error} />}
+          {commandState.kind === 'error' && <CaseError operator error={commandState.error} />}
           <small>증거 {detail.value.evidence.length}건 · 소유권 검증 결과는 서버 응답만 표시합니다.</small>
         </div>}
       </Panel>
@@ -273,7 +273,7 @@ export function OperatorSanctionPanel({ client, createIdempotencyKey = () => cry
     </div>}
     {state.kind === 'processing' && <div role="status"><LoaderCircle size={16} /> 제재 명령 처리 중</div>}
     {state.kind === 'succeeded' && <div className="case-api-receipt" role="status"><CheckCircle2 size={17} /><div><strong>{state.code}</strong><small>Correlation {state.correlationId}</small></div></div>}
-    {state.kind === 'error' && <CaseError error={state.error} />}
+    {state.kind === 'error' && <CaseError operator error={state.error} />}
   </Panel>;
 }
 
@@ -281,7 +281,13 @@ function validSanctionVersion(value: string): boolean {
   return /^\d+$/.test(value);
 }
 
-function CaseError({ error, retry }: { error: AccountOperationsApiError; retry?: () => void | Promise<void> }) {
+function CaseError({ error, retry, operator = false }: {
+  error: AccountOperationsApiError;
+  /* The operator console runs the case against the audit trail, so it keeps the
+     raw code and correlation id. Customer panels state only the outcome. */
+  operator?: boolean;
+  retry?: () => void | Promise<void>;
+}) {
   if (error.status === 401) {
     /* Signed-out is the server answering as designed — the shared sign-in
        state, not a failure alert with a raw error code. */
@@ -292,7 +298,7 @@ function CaseError({ error, retry }: { error: AccountOperationsApiError; retry?:
       : error.retryable ? '일시적으로 서버에 연결할 수 없습니다.' : '요청을 처리하지 못했습니다.';
   return <ErrorState
     title={message}
-    detail={<>오류 코드 {error.code}{error.correlationId && <> · 문의 코드 {error.correlationId}</>}</>}
+    detail={operator ? <>오류 코드 {error.code}{error.correlationId && <> · 문의 코드 {error.correlationId}</>}</> : undefined}
     onRetry={retry ? () => void retry() : undefined}
   />;
 }
