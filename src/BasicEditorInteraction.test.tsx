@@ -343,6 +343,29 @@ describe('Basic editor interactions', () => {
     expect(screen.queryByRole('button', { name: 'PARTITION 01 위기관리 전략 추가' })).not.toBeInTheDocument();
   });
 
+  /* The published catalog declares 현재 수익률 / 보유 기간 / 최고 수익률 / 고점 대비 하락 for the
+     SELL container only. Adding one to a buy card was already refused; moving one had to be
+     refused too, or the document emits CONTAINER_MISMATCH at the server while looking valid here. */
+  test('refuses to move a sell-only block into a buy card', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    /* The library adds to the selected card, and the seeded canvas starts on the buy card.
+       Enter on the card header is the deterministic selection path; a pointer click routes
+       through beginCardMove and its toggle ref. */
+    fireEvent.keyDown(screen.getByRole('group', { name: '매도 전략 카드 이동 영역' }), { key: 'Enter' });
+    const library = screen.getByTestId('basic-block-library');
+    await user.click(within(library).getByRole('button', { name: '현재 수익률 블록 추가' }));
+
+    const moved = await screen.findByLabelText(/^현재 수익률 블록\./);
+    moved.focus();
+    await user.keyboard('{Alt>}{ArrowLeft}{/Alt}');
+
+    // The block stays where the catalog allows it: still exactly one, still on the sell side.
+    expect(screen.getAllByLabelText(/^현재 수익률 블록\./)).toHaveLength(1);
+    expect(screen.getByRole('status')).toHaveTextContent('매도 전략 카드에서만 사용할 수 있어요');
+  });
+
   test('offers only the four Basic bar periods and starts on 30분봉', () => {
     renderEditor();
     const barPeriod = screen.getByRole('combobox', { name: 'PARTITION 01 기본 봉 주기' });
