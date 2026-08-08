@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
       // Unit and visual tests can explicitly exercise prototype screens, but a
       // deployable bundle must not contain invented strategies, bots or alerts.
       alias: {
-        '../data/mockData': fileURLToPath(new URL('./src/data/productionEmptyData.ts', import.meta.url)),
+        '../data/mockData': fileURLToPath(new URL('./src/data/productionFixtureGuard.ts', import.meta.url)),
       },
     } : undefined,
     build: {
