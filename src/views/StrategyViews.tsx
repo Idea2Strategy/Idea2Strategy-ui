@@ -669,6 +669,11 @@ const BLOCK_LIBRARY: BlockLibraryCategory[] = [
 
 const BASIC_FAVORITE_BLOCKS_STORAGE_KEY = 'i2s-basic-editor-favorite-blocks-v1';
 const LOCAL_PREVIEW_SYMBOLS = ['AAPL', 'MSFT', 'SPY', 'NVDA', 'QQQ'];
+/* The local preview list carries no exchange or asset type, so those stay optional
+   and the picker simply omits the second line when the catalog is absent. */
+type SelectableInstrument = Pick<BasicCatalogInstrument, 'id' | 'symbol'>
+  & Partial<Pick<BasicCatalogInstrument, 'assetType' | 'primaryExchangeMic'>>;
+const INSTRUMENT_RESULT_LIMIT = 50;
 const getLibraryBlockTone = (label: string): BlockTone => (
   BLOCK_LIBRARY.find((category) => category.items.includes(label))?.tone ?? 'neutral'
 );
@@ -2183,6 +2188,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     setSavePending(true);
     setSavedReadySignature(null);
     setSavedValidation(null);
+    /* Saving and validating are two server calls in one click. Once the document
+       is persisted, a later validation failure must not be reported as a lost
+       save — the work is on the server either way. */
+    let persisted = false;
     try {
       if (!basicCatalog) {
         throw new Error('Published Basic catalog is unavailable');
@@ -2203,6 +2212,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         semanticDocument,
         presentationDocument,
       });
+      persisted = true;
       editSequenceRef.current = saved.editSequence;
       semanticDocumentRef.current = saved.semanticDocument;
       presentationDocumentRef.current = saved.presentationDocument;
@@ -2236,8 +2246,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       const conflict = error instanceof StrategyApiError && error.status === 409;
       const failed = {
         tone: 'warning' as const,
-        title: conflict ? '다른 변경사항과 충돌했습니다.' : '전략을 저장하지 못했습니다.',
-        detail: conflict ? '목록으로 돌아가 최신 전략을 다시 열어 주세요.' : '잠시 후 다시 시도해 주세요.',
+        title: conflict
+          ? '다른 변경사항과 충돌했습니다.'
+          : persisted ? '전략은 저장했지만 검증하지 못했습니다.' : '전략을 저장하지 못했습니다.',
+        detail: conflict
+          ? '목록으로 돌아가 최신 전략을 다시 열어 주세요.'
+          : persisted ? '저장된 내용은 그대로입니다. 잠시 후 다시 저장해 검증해 주세요.' : '잠시 후 다시 시도해 주세요.',
       };
       setSaveFeedback(failed);
       setAnnouncement(`${failed.title} ${failed.detail}`);
@@ -3532,7 +3546,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
 
   const symbolManagerSection = sections.find((section) => section.id === symbolManagerSectionId) ?? null;
   const managedSymbols = symbolManagerSection ? splitPartitionSymbols(symbolManagerSection.symbol) : [];
-  const selectableInstruments: Array<Pick<BasicCatalogInstrument, 'id' | 'symbol'>> = basicCatalog
+  const selectableInstruments: SelectableInstrument[] = basicCatalog
     ? basicCatalog.instruments
     : catalogClient
       ? []
@@ -3540,8 +3554,21 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const normalizedInstrumentQuery = instrumentQuery.trim().toLocaleUpperCase('en-US');
   const availableInstruments = selectableInstruments.filter((instrument) => !managedSymbols.includes(instrument.symbol)
     && (!normalizedInstrumentQuery || instrument.symbol.toLocaleUpperCase('en-US').includes(normalizedInstrumentQuery)));
+  /* The published catalog runs to several hundred instruments. Rendering them all
+     turns the picker into an unreadable wall, so the list stays short and the
+     search box is the way through it. */
+  const visibleInstruments = availableInstruments.slice(0, INSTRUMENT_RESULT_LIMIT);
+  const hiddenInstrumentCount = availableInstruments.length - visibleInstruments.length;
   const selectedInstrument = availableInstruments.find((instrument) => (instrument.id || instrument.symbol) === pendingInstrumentKey)
-    ?? availableInstruments[0];
+    ?? visibleInstruments[0];
+  const instrumentKey = (instrument: SelectableInstrument) => instrument.id || instrument.symbol;
+  const selectedInstrumentKey = selectedInstrument ? instrumentKey(selectedInstrument) : '';
+  const moveInstrumentSelection = (delta: number) => {
+    if (visibleInstruments.length === 0) return;
+    const current = visibleInstruments.findIndex((instrument) => instrumentKey(instrument) === selectedInstrumentKey);
+    const next = Math.min(Math.max((current < 0 ? 0 : current) + delta, 0), visibleInstruments.length - 1);
+    setPendingInstrumentKey(instrumentKey(visibleInstruments[next]));
+  };
   const removeManagedSymbol = (symbol: string) => {
     if (!symbolManagerSection) return;
     const nextSymbols = managedSymbols.filter((item) => item !== symbol);
@@ -3604,20 +3631,11 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   return <Localized><div className="page editor-page basic-editor-page editor-shell-page">
     <div className="sr-only" role="status" aria-live="polite">{announcement}</div>
     <div className="basic-editor-commandbar floating-editor-controls" role="toolbar" aria-label="Basic 편집 작업">
-      <div className="basic-editor-context"><Button className="floating-editor-button" kind="ghost" icon={ArrowLeft} onClick={goBack}>목록</Button><div className="floating-editor-mode-controls" role="group" aria-label="편집기 전환"><Button className="floating-editor-button active" onClick={() => openEditor?.('basic', false, strategyId)}>Basic 편집기</Button><Button className="floating-editor-button" disabled={!PRO_EDITOR_AVAILABLE} title="Pro 편집기는 준비 중입니다" onClick={() => openEditor?.('pro', false, strategyId)}>Pro 편집기</Button></div><div className="basic-history-controls" role="group" aria-label="편집 기록">
+      <div className="basic-editor-context"><Button className="floating-editor-button" kind="ghost" icon={ArrowLeft} onClick={goBack}>목록</Button><div className="floating-editor-mode-controls" role="group" aria-label="편집기 전환"><Button className="floating-editor-button active" onClick={() => openEditor?.('basic', false, strategyId)}>Basic 편집기</Button><Button className="floating-editor-button" icon={PRO_EDITOR_AVAILABLE ? undefined : LockKeyhole} disabled={!PRO_EDITOR_AVAILABLE} title="Pro 편집기는 준비 중입니다" onClick={() => openEditor?.('pro', false, strategyId)}>Pro 편집기</Button></div><div className="basic-history-controls" role="group" aria-label="편집 기록">
         <button type="button" className="floating-editor-button" aria-label="되돌리기" disabled={undoStack.length === 0} onClick={undoEditorChange}><Undo2 size={15} /></button>
         <button type="button" className="floating-editor-button" aria-label="다시 실행" disabled={redoStack.length === 0} onClick={redoEditorChange}><Redo2 size={15} /></button>
       </div></div>
       <div className="basic-editor-actions">
-        <Button
-          className={`floating-editor-button basic-validation-trigger ${highlightValidation ? 'is-active' : ''} ${isCurrentlyValid ? 'is-launchable' : 'is-incomplete'}`}
-          icon={isCurrentlyValid ? Check : TriangleAlert}
-          aria-label={isCurrentlyValid ? '검증 완료 상태 보기' : '미완성 오류 강조'}
-          aria-pressed={highlightValidation}
-          onClick={() => setHighlightValidation((current) => !current)}
-        >
-          {validationTriggerLabel}
-        </Button>
         {/* Not a live region: the editor already has one, and save outcomes are
             narrated through it. A second one would double every announcement. */}
         <span className="basic-save-state" data-testid="save-state" data-dirty={hasUnsavedChanges}>
@@ -3629,6 +3647,15 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
                 ? `${savedAtLabel(lastSavedAt)} 저장됨`
                 : '변경 없음'}
         </span>
+        <Button
+          className={`floating-editor-button basic-validation-trigger ${highlightValidation ? 'is-active' : ''} ${isCurrentlyValid ? 'is-launchable' : 'is-incomplete'}`}
+          icon={isCurrentlyValid ? Check : TriangleAlert}
+          aria-label={isCurrentlyValid ? '검증 완료 상태 보기' : '미완성 오류 강조'}
+          aria-pressed={highlightValidation}
+          onClick={() => setHighlightValidation((current) => !current)}
+        >
+          {validationTriggerLabel}
+        </Button>
         <Button className="floating-editor-button" icon={Save} disabled={documentPending || savePending} onClick={() => { void saveStrategy(); }}>{savePending ? '저장 중…' : '저장'}</Button>
         <div className="editor-launch-action">
           <Button
@@ -3650,7 +3677,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     <div ref={basicLayoutRef} className={`editor-layout basic-layout full-editor-workspace ${templatesCollapsed ? 'is-library-collapsed' : ''} ${highlightValidation ? 'is-validation-highlighting' : ''}`} data-testid="basic-editor-workspace">
       <div className="basic-editor-left-rail" data-testid="basic-editor-left-rail">
         <aside className={`editor-palette basic-library-panel panel floating-editor-panel ${templatesCollapsed ? 'is-docked-hidden' : ''}`} data-collapse-direction="left" data-testid="basic-library-panel" aria-hidden={templatesCollapsed} onClick={templatesCollapsed ? () => setTemplatesCollapsed(false) : undefined}>
-          <span className="pro-collapsed-label" aria-hidden="true">BLOCK LIBRARY</span>
           <div className="palette-title"><span>LIBRARY</span><Boxes size={15} /><button ref={libraryCollapseButtonRef} type="button" className="sidebar-toggle" aria-label={`라이브러리 ${templatesCollapsed ? '펼치기' : '접기'}`} aria-expanded={!templatesCollapsed} onClick={() => templatesCollapsed ? setTemplatesCollapsed(false) : collapseLibrary()}>{templatesCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}</button></div>
           <p className="library-intro">{libraryView === 'packages'
             ? '원하는 방식을 고르면 매수·매도 전략 카드를 함께 구성합니다.'
@@ -3908,12 +3934,62 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           {managedSymbols.map((symbol) => <div key={symbol}><span><strong>{symbol}</strong><small>미국 주식</small></span><label><span>최대 보유 비율</span><span className="setting-with-unit"><input type="number" min=".1" max="100" step=".1" aria-label={`${symbol} 종목별 최대 보유 비율`} value={symbolLimits[symbolManagerSection.id]?.[symbol] ?? 25} onChange={(event) => setSymbolLimits((current) => ({ ...current, [symbolManagerSection.id]: { ...(current[symbolManagerSection.id] ?? {}), [symbol]: Number(event.target.value) } }))} /><b>%</b></span></label><button type="button" aria-label={`${symbol} 삭제`} onClick={() => removeManagedSymbol(symbol)}><Trash2 size={14} /></button></div>)}
         </div>
         <footer>
-          <label className="symbol-manager-add"><span>종목 검색</span><input type="search" aria-label="종목 검색" placeholder="티커 입력 (예: AAPL)" value={instrumentQuery} onChange={(event) => { setInstrumentQuery(event.target.value); setPendingInstrumentKey(''); }} /></label>
-          <label className="symbol-manager-add"><span>추가할 종목</span><select aria-label="추가할 종목" value={selectedInstrument ? (selectedInstrument.id || selectedInstrument.symbol) : ''} disabled={availableInstruments.length === 0} onChange={(event) => setPendingInstrumentKey(event.target.value)}>
-            {availableInstruments.map((instrument) => <option key={instrument.id || instrument.symbol} value={instrument.id || instrument.symbol}>{instrument.symbol}</option>)}
-          </select></label>
-          {!catalogError && basicCatalog && normalizedInstrumentQuery && availableInstruments.length === 0 && <small role="status">일치하는 공식 지원 종목이 없습니다.</small>}
-          <Button type="button" icon={Plus} disabled={!selectedInstrument} onClick={addManagedSymbol}>종목 추가</Button><Button type="button" kind="primary" onClick={() => setSymbolManagerSectionId(null)}>완료</Button>
+          <div className="symbol-manager-picker">
+            <label className="symbol-manager-add">
+              <span>종목 검색</span>
+              <input
+                type="search"
+                aria-label="종목 검색"
+                placeholder="티커 입력 (예: AAPL)"
+                role="combobox"
+                aria-expanded={visibleInstruments.length > 0}
+                aria-controls="symbol-manager-results"
+                aria-activedescendant={selectedInstrument ? `symbol-option-${selectedInstrumentKey}` : undefined}
+                value={instrumentQuery}
+                onChange={(event) => { setInstrumentQuery(event.target.value); setPendingInstrumentKey(''); }}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowDown') { event.preventDefault(); moveInstrumentSelection(1); }
+                  else if (event.key === 'ArrowUp') { event.preventDefault(); moveInstrumentSelection(-1); }
+                  else if (event.key === 'Enter' && selectedInstrument) { event.preventDefault(); addManagedSymbol(); }
+                }}
+              />
+            </label>
+            <div className="symbol-manager-results-head">
+              <span>추가할 종목</span>
+              <small>{availableInstruments.length}개 선택 가능</small>
+            </div>
+            {visibleInstruments.length > 0 && <ul className="symbol-manager-results" id="symbol-manager-results" role="listbox" aria-label="추가할 종목">
+              {visibleInstruments.map((instrument) => {
+                const key = instrumentKey(instrument);
+                const selected = key === selectedInstrumentKey;
+                return <li key={key}>
+                  <button
+                    type="button"
+                    id={`symbol-option-${key}`}
+                    role="option"
+                    aria-selected={selected}
+                    className={selected ? 'is-selected' : ''}
+                    ref={selected ? (node) => node?.scrollIntoView?.({ block: 'nearest' }) : undefined}
+                    onClick={() => setPendingInstrumentKey(key)}
+                    onDoubleClick={() => { setPendingInstrumentKey(key); addManagedSymbol(); }}
+                  >
+                    <strong>{instrument.symbol}</strong>
+                    {(instrument.assetType || instrument.primaryExchangeMic) && <small>
+                      {[instrument.assetType, instrument.primaryExchangeMic].filter(Boolean).join(' · ')}
+                    </small>}
+                  </button>
+                </li>;
+              })}
+            </ul>}
+            {hiddenInstrumentCount > 0 && <small className="symbol-manager-results-more" role="status">
+              {hiddenInstrumentCount}개는 표시하지 않았습니다. 티커를 입력해 좁혀 주세요.
+            </small>}
+            {!catalogError && basicCatalog && normalizedInstrumentQuery && availableInstruments.length === 0 && <small className="symbol-manager-results-empty" role="status">일치하는 공식 지원 종목이 없습니다.</small>}
+            {!catalogError && basicCatalog && !normalizedInstrumentQuery && availableInstruments.length === 0 && <small className="symbol-manager-results-empty" role="status">추가할 수 있는 종목을 모두 담았습니다.</small>}
+          </div>
+          <div className="symbol-manager-picker-actions">
+            <Button type="button" icon={Plus} disabled={!selectedInstrument} onClick={addManagedSymbol}>종목 추가</Button><Button type="button" kind="primary" onClick={() => setSymbolManagerSectionId(null)}>완료</Button>
+          </div>
         </footer>
       </section>
     </div>, document.body)}

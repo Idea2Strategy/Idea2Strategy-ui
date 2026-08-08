@@ -326,10 +326,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   box-shadow: 0 12px 30px rgba(var(--shadow-rgb), .16), 0 2px 8px rgba(var(--shadow-rgb), .08);
   backdrop-filter: blur(16px);
 }
-.variant-balanced[data-design="signal-studio"] .editor-shell-page .floating-editor-button:hover,
+.variant-balanced[data-design="signal-studio"] .editor-shell-page .floating-editor-button:hover:not(:disabled),
 .variant-balanced[data-design="signal-studio"] .editor-shell-page .floating-editor-button:focus-visible {
   transform: translateY(-2px);
   box-shadow: 0 18px 38px rgba(var(--shadow-rgb), .22), 0 4px 10px rgba(var(--shadow-rgb), .1);
+}
+/* A control that cannot be used has to read as unavailable before it is clicked;
+   the lift and the full-strength surface both said "press me". */
+.variant-balanced[data-design="signal-studio"] .editor-shell-page .floating-editor-button:disabled {
+  color: var(--text-faint);
+  box-shadow: none;
+  opacity: .55;
+  cursor: not-allowed;
 }
 .variant-balanced[data-design="signal-studio"] .editor-shell-page .button-primary.floating-editor-button {
   border-color: var(--accent);
