@@ -171,5 +171,7 @@ export function AccountSignOutButton({ client }: { client: AccountClient }) {
 
 function ApiErrorState({ error, onRetry }: { error: AccountApiError; onRetry: () => void }) {
   if (error.status === 401) return <SignInRequiredState detail="로그인이 만료되었습니다. 다시 로그인해 주세요." />;
-  return <ErrorState title={error.status === 403 ? '이 작업을 수행할 권한이 없습니다.' : '계정 서버 요청에 실패했습니다.'} detail={<>오류 코드 {error.code}{error.correlationId && <> · 문의 코드 {error.correlationId}</>}</>} onRetry={onRetry} />;
+  /* A customer screen states the outcome only; the raw code and correlation id
+     stay in the server log where support can already reach them. */
+  return <ErrorState title={error.status === 403 ? '이 작업을 수행할 권한이 없습니다.' : '계정 서버 요청에 실패했습니다.'} onRetry={onRetry} />;
 }

@@ -1922,7 +1922,7 @@ export function BotsView({
         {botControlError && <p className="bots-decision-note" role="alert">{botControlError}</p>}
         {preflight && !preflight.ready && <div className="bots-decision-note" role="status">
           <strong>실행 전 점검 필요</strong>
-          <ul>{preflight.issues.map((issue) => <li key={issue.code}>{issue.detail} <code>{issue.code}</code></li>)}</ul>
+          <ul>{preflight.issues.map((issue) => <li key={issue.code}>{issue.detail}</li>)}</ul>
         </div>}
         {continuation && <div className="bots-decision-note bots-continuation" role="status">
           <span><strong>운용 지속 확인 기한</strong><small>{new Date(continuation.dueAt).toLocaleString('ko-KR')}</small></span>

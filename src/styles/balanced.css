@@ -4518,7 +4518,6 @@
 .auth-password-toggle:focus-visible { outline: none; color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
 .auth-form .button-primary { min-height: 42px; margin-top: var(--space-1); font-weight: 700; }
 .auth-error { padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--negative) 32%, var(--line)); border-radius: var(--radius-sm); color: var(--text-soft); background: color-mix(in srgb, var(--negative) 7%, transparent); }
-.auth-error small { display: block; color: var(--text-faint); }
 .auth-links {
   display: flex;
   justify-content: center;

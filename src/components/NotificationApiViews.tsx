@@ -57,7 +57,6 @@ export function NotificationCenter({ client }: { client: NotificationClient }) {
     }
     return <ErrorPage
       title={state.error.retryable ? '알림 서버에 일시적으로 연결할 수 없습니다.' : '알림 요청을 처리하지 못했습니다.'}
-      detail={<>오류 코드 {state.error.code}{state.error.correlationId && <> · 문의 코드 {state.error.correlationId}</>}</>}
       onRetry={() => void load()}
     />;
   }
@@ -127,7 +126,6 @@ function NotificationError({ error, retry }: { error: NotificationApiError; retr
   const message = error.retryable ? '알림 서버에 일시적으로 연결할 수 없습니다.' : '알림 요청을 처리하지 못했습니다.';
   return <ErrorState
     title={message}
-    detail={<>오류 코드 {error.code}{error.correlationId && <> · 문의 코드 {error.correlationId}</>}</>}
     onRetry={() => void retry()}
   />;
 }

@@ -89,6 +89,7 @@ describe('Bot operations', () => {
     render(<BotsView operationsClient={client} pollIntervalMs={60_000} />);
 
     expect(await screen.findByText('시장 데이터가 오래되었습니다.')).toBeInTheDocument();
+    expect(screen.queryByText('DATA_STALE')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Atlas 07 실행' }));
     expect(runBot).not.toHaveBeenCalled();
     expect(await screen.findByText(/실행 전 점검을 통과하지 못했습니다/)).toBeInTheDocument();
