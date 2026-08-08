@@ -281,7 +281,7 @@ export function createStrategyAuthoringClient({
     },
     async releaseLease(strategyId, leaseToken, signal) {
       await request(leasePath(strategyId), 'Strategy edit lease release', {
-        method: 'DELETE', signal, body: JSON.stringify({ leaseToken }),
+        method: 'DELETE', signal, keepalive: true, body: JSON.stringify({ leaseToken }),
       });
     },
     async saveDocument(strategyId, input, signal) {

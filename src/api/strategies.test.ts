@@ -135,6 +135,9 @@ describe('strategy authoring API client', () => {
       [`/api/v1/strategies/${document.strategyId}/document`, 'PUT'],
       [`/api/v1/strategies/${document.strategyId}/edit-lease`, 'DELETE'],
     ]);
+    expect(fetchImpl.mock.calls.at(-1)?.[1]).toEqual(expect.objectContaining({
+      method: 'DELETE', keepalive: true,
+    }));
   });
 
   it('validates the saved revision against an explicit published catalog', async () => {
