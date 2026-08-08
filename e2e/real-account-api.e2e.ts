@@ -7,7 +7,7 @@ test('browser completes the production account principal and user-case journey',
   const verificationKey = process.env.A23_VERIFICATION_HMAC_KEY;
   if (!postgres || !verificationKey) throw new Error('real API runtime state is unavailable');
   const email = `a23-browser-${Date.now()}@example.com`;
-  const password = 'correct horse battery staple 2026!';
+  const password = 'CorrectHorse!2026';
   const verificationToken = `a23-verification-${Date.now()}`;
 
   // Logged out, the account route goes straight to the sign-in screen.
