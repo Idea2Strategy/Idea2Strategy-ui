@@ -4388,8 +4388,8 @@
   max-width: none;
   min-height: calc(100vh - 150px);
   display: grid;
-  place-items: center;
-  padding-block: var(--space-8);
+  place-items: start center;
+  padding-block: clamp(var(--space-8), 10vh, 96px) var(--space-8);
 }
 .auth-backdrop {
   /* Fixed to the viewport, not the page box: the glow has to run to the
