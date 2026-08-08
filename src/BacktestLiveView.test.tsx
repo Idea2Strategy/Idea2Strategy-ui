@@ -96,7 +96,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
       ])),
       http.get(`${BACKTEST_API_BASE}/api/v1/strategy-release-inputs`, () => HttpResponse.json({
         executionPolicies: [{ version: 'policy-v1' }],
-        datasets: [{ id: 'dataset-1', feedCode: 'SIP', resolution: '1m', periodStart: '2026-01-01', periodEnd: '2026-06-30' }],
+        datasets: [{ id: 'dataset-1', feedCode: 'SIP', resolution: '30m', periodStart: '2026-01-01', periodEnd: '2026-06-30' }],
       })),
       http.post(`${BACKTEST_API_BASE}/api/v1/bots/:botId/backtests`, async ({ request }) => {
         received = await request.json() as Record<string, unknown>;
@@ -116,6 +116,17 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
       datasetManifestId: 'dataset-1', periodStart: '2026-02-01', executionPolicyVersion: 'policy-v1',
     }));
     expect(await screen.findByText(/백테스트 요청을 접수했습니다/)).toBeInTheDocument();
+  });
+
+  it('lets the owner cancel a queued backtest and renders the terminal state', async () => {
+    server.use(...backtestHandlers({ runs: [QUEUED_RUN] }));
+    const user = userEvent.setup();
+    view();
+
+    await user.click(await screen.findByRole('button', { name: '실행 취소' }));
+
+    expect(await screen.findByText('사용자가 백테스트 실행을 취소했습니다.')).toBeInTheDocument();
+    expect(screen.getAllByText('취소됨').length).toBeGreaterThan(0);
   });
 
   it('renders the completed run overview, performance and provenance', async () => {

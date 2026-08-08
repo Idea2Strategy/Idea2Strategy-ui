@@ -114,6 +114,10 @@ test('browser completes the production account principal and user-case journey',
   const strategyName = `Browser Basic ${Date.now()}`;
   await page.getByRole('button', { name: '새 전략' }).click();
   await page.getByRole('textbox', { name: '전략 이름' }).fill(strategyName);
+  const initialLease = page.waitForResponse((response) =>
+    response.url().endsWith('/edit-lease')
+      && response.request().method() === 'POST'
+      && response.status() === 201);
   const [createdStrategy] = await Promise.all([
     page.waitForResponse((response) =>
       response.url().endsWith('/api/v1/strategies') && response.request().method() === 'POST'),
@@ -124,7 +128,13 @@ test('browser completes the production account principal and user-case journey',
   // The created strategy owns its URL, so a refresh reopens it rather than a blank canvas.
   await expect(page).toHaveURL(`/strategies/${strategyId}/basic`);
   await expect(page.getByTestId('basic-editor-workspace')).toBeVisible();
+  expect((await initialLease).status()).toBe(201);
+  const reacquiredLease = page.waitForResponse((response) =>
+    response.url().endsWith('/edit-lease')
+      && response.request().method() === 'POST'
+      && response.status() === 201);
   await page.reload();
+  expect((await reacquiredLease).status()).toBe(201);
   await expect(page.getByTestId('basic-editor-workspace')).toBeVisible();
 
   const botListResponse = page.waitForResponse((response) =>

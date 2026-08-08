@@ -212,6 +212,61 @@ describe('Strategy API view', () => {
     await waitFor(() => expect(authoringClient.releaseLease).toHaveBeenCalledWith('strategy-id', 'lease-token'));
   });
 
+  test('retries a transient lease conflict left by a page navigation', async () => {
+    const document: StrategyDocument = {
+      strategyId: 'reloaded',
+      semanticDocument: { mode: 'BASIC', groups: [] },
+      presentationDocument: {},
+      semanticSchemaVersion: 'basic-semantic.v1',
+      presentationSchemaVersion: 'basic-presentation.v1',
+      semanticHash: 'a'.repeat(64),
+      presentationHash: 'b'.repeat(64),
+      editSequence: 0,
+      updatedAt: '2026-08-08T00:00:00Z',
+    };
+    const authoringClient = {
+      createBasic: vi.fn(), copyStrategy: vi.fn(), getDocument: vi.fn().mockResolvedValue(document),
+      acquireLease: vi.fn()
+        .mockRejectedValueOnce(new (await import('./api/strategies')).StrategyApiError(409, 'lease'))
+        .mockResolvedValue({ leaseToken: 'lease-token', expiresAt: '2026-08-08T00:02:00Z' }),
+      heartbeatLease: vi.fn(), releaseLease: vi.fn().mockResolvedValue(undefined), saveDocument: vi.fn(),
+      validateStrategy: vi.fn(), getReleaseInputs: vi.fn(), releaseStrategy: vi.fn(),
+    } as StrategyAuthoringClient;
+
+    render(<BasicEditor goBack={() => {}} strategyId="reloaded" authoringClient={authoringClient} catalogClient={null} />);
+
+    await waitFor(() => expect(authoringClient.acquireLease).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId('basic-editor-workspace')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('releases the active lease when the browser page is hidden for navigation', async () => {
+    const document: StrategyDocument = {
+      strategyId: 'pagehide',
+      semanticDocument: { mode: 'BASIC', groups: [] },
+      presentationDocument: {},
+      semanticSchemaVersion: 'basic-semantic.v1',
+      presentationSchemaVersion: 'basic-presentation.v1',
+      semanticHash: 'c'.repeat(64),
+      presentationHash: 'd'.repeat(64),
+      editSequence: 0,
+      updatedAt: '2026-08-08T00:00:00Z',
+    };
+    const authoringClient = {
+      createBasic: vi.fn(), copyStrategy: vi.fn(), getDocument: vi.fn().mockResolvedValue(document),
+      acquireLease: vi.fn().mockResolvedValue({ leaseToken: 'pagehide-token', expiresAt: '2026-08-08T00:02:00Z' }),
+      heartbeatLease: vi.fn(), releaseLease: vi.fn().mockResolvedValue(undefined), saveDocument: vi.fn(),
+      validateStrategy: vi.fn(), getReleaseInputs: vi.fn(), releaseStrategy: vi.fn(),
+    } as StrategyAuthoringClient;
+
+    render(<BasicEditor goBack={() => {}} strategyId="pagehide" authoringClient={authoringClient} catalogClient={null} />);
+    await waitFor(() => expect(authoringClient.acquireLease).toHaveBeenCalled());
+
+    window.dispatchEvent(new PageTransitionEvent('pagehide'));
+
+    await waitFor(() => expect(authoringClient.releaseLease).toHaveBeenCalledWith('pagehide', 'pagehide-token'));
+  });
+
   test('saves a real Basic document, validates that revision, and releases with server-owned inputs', async () => {
     const user = userEvent.setup();
     const onLaunchBot = vi.fn();

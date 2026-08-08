@@ -25,7 +25,7 @@
 */
 import { browserSessionStore } from '../lib/session';
 
-export type BacktestRunStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'UNAVAILABLE';
+export type BacktestRunStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'UNAVAILABLE';
 
 export type BacktestAttemptStatus =
   | 'PENDING'
@@ -61,6 +61,9 @@ export interface BacktestRun {
    */
   failureCode: string | null;
   resultHash: string | null;
+  cancellationRequestedAt: string | null;
+  cancellationReasonCode: string | null;
+  cancelledAt: string | null;
   attemptCount: number;
 }
 
@@ -286,6 +289,7 @@ export interface BacktestClient {
   getInputs(runId: string, signal?: AbortSignal): Promise<BacktestRunInputs>;
   getRequestOptions(signal?: AbortSignal): Promise<BacktestRequestOptions>;
   requestBacktest(botId: string, input: CustomBacktestInput, signal?: AbortSignal): Promise<CustomBacktestReceipt>;
+  cancelBacktest(runId: string, signal?: AbortSignal): Promise<BacktestRun>;
   listMonthlyTrades(
     runId: string,
     etMonth: string,
@@ -363,6 +367,7 @@ const RUN_STATUSES = new Set<BacktestRunStatus>([
   'RUNNING',
   'COMPLETED',
   'FAILED',
+  'CANCELLED',
   'UNAVAILABLE',
 ]);
 
@@ -526,7 +531,7 @@ export function createBacktestClient({
             periodStart: string(dataset.periodStart, 'periodStart'),
             periodEnd: string(dataset.periodEnd, 'periodEnd'),
           };
-        }),
+        }).filter((dataset) => ['30m', '1h', '4h', '1d'].includes(dataset.resolution)),
       };
     },
 
@@ -546,6 +551,16 @@ export function createBacktestClient({
           }),
         },
       ));
+    },
+
+    async cancelBacktest(runId, signal) {
+      const payload = object(await request(
+        `${runPath(runId)}/cancellation`,
+        'Backtest cancellation request',
+        signal,
+        { method: 'POST', body: JSON.stringify({ reasonCode: 'USER_CANCELLED' }) },
+      ), 'backtest cancellation receipt');
+      return readRun(payload.run);
     },
 
     async listMonthlyTrades(runId, etMonth, signal) {
@@ -600,6 +615,9 @@ function readRun(value: unknown): BacktestRun {
     completedAt: nullableString(item.completedAt, 'completedAt'),
     failureCode: nullableString(item.failureCode, 'failureCode'),
     resultHash: nullableString(item.resultHash, 'resultHash'),
+    cancellationRequestedAt: nullableString(item.cancellationRequestedAt, 'cancellationRequestedAt'),
+    cancellationReasonCode: nullableString(item.cancellationReasonCode, 'cancellationReasonCode'),
+    cancelledAt: nullableString(item.cancelledAt, 'cancelledAt'),
     attemptCount: nonNegativeInteger(item.attemptCount, 'attemptCount'),
   };
 }

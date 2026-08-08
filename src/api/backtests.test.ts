@@ -120,7 +120,7 @@ describe('backtest results API client', () => {
       ])),
       http.get(`${BACKTEST_API_BASE}/api/v1/strategy-release-inputs`, () => HttpResponse.json({
         executionPolicies: [{ version: 'policy-v1' }],
-        datasets: [{ id: 'dataset-1', feedCode: 'SIP', resolution: '1m', periodStart: '2026-01-01', periodEnd: '2026-06-30' }],
+        datasets: [{ id: 'dataset-1', feedCode: 'SIP', resolution: '30m', periodStart: '2026-01-01', periodEnd: '2026-06-30' }],
       })),
       http.post(`${BACKTEST_API_BASE}/api/v1/bots/:botId/backtests`, async ({ request }) => {
         receivedKey = request.headers.get('Idempotency-Key') ?? '';
@@ -383,6 +383,16 @@ describe('backtest results API client', () => {
     expect((forbidden as BacktestApiError).unauthorized).toBe(true);
     expect((missing as BacktestApiError).status).toBe(404);
     expect((missing as BacktestApiError).unauthorized).toBe(false);
+  });
+
+  it('requests owner-scoped cooperative cancellation', async () => {
+    server.use(...backtestHandlers({ runs: [QUEUED_RUN] }));
+
+    const run = await client().cancelBacktest(RUN_ID);
+
+    expect(run.status).toBe('CANCELLED');
+    expect(run.cancellationReasonCode).toBe('USER_CANCELLED');
+    expect(run.cancelledAt).toBe('2026-08-08T12:00:00Z');
   });
 
   it('rejects a malformed body instead of rendering a half-parsed run', async () => {

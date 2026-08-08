@@ -37,6 +37,36 @@ import type { BasicCatalogInstrument, BasicStrategyCatalog, StrategyAuthoringCli
 
 type EditorMode = 'basic' | 'pro';
 type EditorLoadFailure = 'sign-in' | 'missing' | 'conflict' | 'transport' | 'unreadable';
+
+const waitForLeaseRelease = (signal: AbortSignal) => new Promise<void>((resolve, reject) => {
+  const onAbort = () => {
+    window.clearTimeout(timer);
+    reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
+  };
+  const timer = window.setTimeout(() => {
+    signal.removeEventListener('abort', onAbort);
+    resolve();
+  }, 150);
+  signal.addEventListener('abort', onAbort, { once: true });
+});
+
+async function acquireLeaseAfterNavigation(
+  client: StrategyAuthoringClient,
+  strategyId: string,
+  signal: AbortSignal,
+) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      return await client.acquireLease(strategyId, signal);
+    } catch (error) {
+      const releaseMayStillBeFinishing = error instanceof StrategyApiError && error.status === 409 && attempt < 3;
+      if (!releaseMayStillBeFinishing) throw error;
+      await waitForLeaseRelease(signal);
+    }
+  }
+  throw new Error('Strategy edit lease retry exhausted');
+}
+
 type Side = 'buy' | 'sell' | 'risk';
 type BlockTone =
   | 'data'
@@ -1890,6 +1920,17 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     let disposed = false;
     let heartbeatTimer: number | undefined;
     let grantedLeaseToken: string | null = null;
+    const releaseGrantedLease = () => {
+      const token = leaseTokenRef.current ?? grantedLeaseToken;
+      leaseTokenRef.current = null;
+      grantedLeaseToken = null;
+      if (token) void authoringClient.releaseLease(strategyId, token).catch(() => undefined);
+    };
+    const reacquireLeaseAfterPageRestore = (event: PageTransitionEvent) => {
+      if (event.persisted) setDocumentRevision((current) => current + 1);
+    };
+    window.addEventListener('pagehide', releaseGrantedLease);
+    window.addEventListener('pageshow', reacquireLeaseAfterPageRestore);
 
     setDocumentPending(true);
     setEditorLoadFailure(null);
@@ -1900,7 +1941,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
        harmless, then the surviving mount takes the lease. */
     void authoringClient.getDocument(strategyId, controller.signal).then(async (document) => {
       if (disposed) return;
-      const lease = await authoringClient.acquireLease(strategyId, controller.signal);
+      const lease = await acquireLeaseAfterNavigation(authoringClient, strategyId, controller.signal);
       grantedLeaseToken = lease.leaseToken;
       if (disposed) {
         await authoringClient.releaseLease(strategyId, lease.leaseToken).catch(() => undefined);
@@ -1963,11 +2004,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       disposed = true;
       controller.abort();
       if (heartbeatTimer !== undefined) window.clearInterval(heartbeatTimer);
-      const token = leaseTokenRef.current;
-      leaseTokenRef.current = null;
-      const tokenToRelease = token ?? grantedLeaseToken;
-      grantedLeaseToken = null;
-      if (tokenToRelease) void authoringClient.releaseLease(strategyId, tokenToRelease).catch(() => undefined);
+      window.removeEventListener('pagehide', releaseGrantedLease);
+      window.removeEventListener('pageshow', reacquireLeaseAfterPageRestore);
+      releaseGrantedLease();
     };
   }, [authoringClient, documentRevision, strategyId]);
 
