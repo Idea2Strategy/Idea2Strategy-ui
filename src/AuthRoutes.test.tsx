@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +8,8 @@ import type { AccountClient } from './api/account';
 import { NotificationApiError } from './api/notifications';
 import type { NotificationClient } from './api/notifications';
 import { setSessionAccessToken } from './api/sessionAccessToken';
+
+const balancedStyles = readFileSync('src/styles/balanced.css', 'utf8');
 
 const accountClient = (overrides: Partial<AccountClient> = {}): AccountClient => ({
   signup: vi.fn().mockResolvedValue({ accountId: 'account-1', verificationExpiresAt: '2026-08-06T00:00:00Z' }),
@@ -151,7 +154,7 @@ describe('customer login screen', () => {
     expect(client.login).not.toHaveBeenCalled();
   });
 
-  it('walks email, verification code and new password as separate recovery steps', async () => {
+  it('requests a password-reset link without asking for an email code', async () => {
     const client = accountClient();
     window.history.replaceState({}, '', '/login');
     render(<App accountClient={client} />);
@@ -170,35 +173,20 @@ describe('customer login screen', () => {
     expect(within(resetHeading.closest('.auth-panel')!).getByRole('img', { name: 'Idea2Strategy' })).toBeInTheDocument();
     expect(screen.getByText('가입한 이메일을 입력하세요.')).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('재설정 이메일'), 'customer@example.com');
-    await userEvent.click(screen.getByRole('button', { name: '인증 코드 받기' }));
+    await userEvent.click(screen.getByRole('button', { name: '재설정 링크 받기' }));
     expect(client.requestPasswordReset).toHaveBeenCalledWith('customer@example.com');
 
-    expect(await screen.findByRole('heading', { name: '인증 코드 입력' })).toBeInTheDocument();
-    expect(screen.getByText('이메일로 받은 인증 코드를 입력하세요.')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('인증 코드를 보냈습니다.');
+    expect(await screen.findByRole('heading', { name: '이메일을 확인해 주세요' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('비밀번호 재설정 링크를 이메일로 보냈습니다.');
     expect(screen.getByText('customer@example.com')).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText('인증 코드'), 'reset-token');
-    await userEvent.click(screen.getByRole('button', { name: '다음' }));
-
-    expect(await screen.findByRole('heading', { name: '새 비밀번호 설정' })).toBeInTheDocument();
-    expect(screen.getByText('15자 이상 128자 이하로 입력하세요.')).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText('새 비밀번호'), 'new password 2026!');
-    await userEvent.type(screen.getByLabelText('새 비밀번호 확인'), 'new password 2026!');
-    await userEvent.click(screen.getByRole('button', { name: '비밀번호 변경' }));
-    expect(client.resetPassword).toHaveBeenCalledWith('reset-token', 'new password 2026!');
-    await waitFor(() => expect(window.location.pathname).toBe('/login'));
-    expect(await screen.findByRole('heading', { name: '로그인' })).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.');
+    expect(screen.queryByLabelText('인증 코드')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '재설정 링크 다시 받기' })).toBeInTheDocument();
   });
 
-  it('reveals each password independently while setting a replacement password', async () => {
-    window.history.replaceState({}, '', '/password-reset');
-    render(<App accountClient={accountClient()} />);
-
-    await userEvent.type(await screen.findByLabelText('재설정 이메일'), 'customer@example.com');
-    await userEvent.click(screen.getByRole('button', { name: '인증 코드 받기' }));
-    await userEvent.type(await screen.findByLabelText('인증 코드'), 'reset-token');
-    await userEvent.click(screen.getByRole('button', { name: '다음' }));
+  it('uses the emailed reset token to set a new password', async () => {
+    const client = accountClient();
+    window.history.replaceState({}, '', '/password-reset?token=reset-token');
+    render(<App accountClient={client} />);
 
     const password = await screen.findByLabelText('새 비밀번호');
     const confirmation = screen.getByLabelText('새 비밀번호 확인');
@@ -212,6 +200,16 @@ describe('customer login screen', () => {
     await userEvent.click(screen.getByRole('button', { name: '새 비밀번호 확인 표시' }));
     expect(password).toHaveAttribute('type', 'text');
     expect(confirmation).toHaveAttribute('type', 'text');
+
+    await userEvent.click(screen.getByRole('button', { name: '비밀번호 변경' }));
+    expect(client.resetPassword).toHaveBeenCalledWith('reset-token', 'replacement password 2026!');
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(await screen.findByRole('heading', { name: '로그인' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.');
+  });
+
+  it('anchors auth cards at the top so validation text cannot recenter the whole form', () => {
+    expect(balancedStyles).toMatch(/\.auth-page\s*\{[^}]*place-items:\s*start center;/s);
   });
 
   it.each(['/login', '/signup'])('redirects an authenticated direct visit away from %s', async (path) => {
@@ -312,11 +310,9 @@ describe('customer signup screen', () => {
     await userEvent.type(screen.getByLabelText('가입 이메일'), 'not-an-email');
     await userEvent.type(password, 'too-short');
     await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'too-short');
-    expect(screen.queryByText('비밀번호는 15자 이상이어야 합니다.')).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: '가입' }));
-    expect(screen.getByText('올바른 이메일 주소를 입력해 주세요.')).toBeInTheDocument();
     expect(screen.getByText('비밀번호는 15자 이상이어야 합니다.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '가입' })).toBeDisabled();
+    expect(screen.getByText('올바른 이메일 주소를 입력해 주세요.')).toBeInTheDocument();
     expect(screen.getByLabelText('가입 이메일')).toHaveAttribute('aria-invalid', 'true');
     expect(password).toHaveAttribute('aria-invalid', 'true');
     expect(client.signup).not.toHaveBeenCalled();
