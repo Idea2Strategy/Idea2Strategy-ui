@@ -20,7 +20,7 @@ interface CardPosition {
 
 const CARD_WIDTH = 320;
 /* 첫 렌더에서 아직 실측할 수 없을 때 쓰는 근사 높이. 이후에는 실제 높이로 잡는다. */
-const CARD_HEIGHT = 264;
+const CARD_HEIGHT = 340;
 
 /* SVG 좌표계. 카드가 늘어나도 선 굵기는 유지하고 도형만 늘어난다. */
 const VIEW_WIDTH = 300;
@@ -101,7 +101,7 @@ export function StrategyPreviewChart({
   }, []);
   useEffect(() => {
     setPosition((current) => clampToViewport(current, cardRef.current?.offsetHeight || CARD_HEIGHT));
-  }, [flows.length, symbols.length]);
+  }, [flows, symbols.length]);
 
   const preview = useMemo(() => evaluateStrategyPreview({ symbol, flows, candles }), [candles, flows, symbol]);
 
@@ -156,6 +156,7 @@ export function StrategyPreviewChart({
 
   const { summary } = preview;
   const focusedFlow = preview.flows.find((flow) => flow.id === focusedFlowId) ?? null;
+  const hasInsufficientData = preview.flows.some((flow) => flow.evaluable && !flow.dataReady);
   /* 완료된 매매가 없으면 수익률은 아직 판단할 수 없으므로 색도 중립으로 둔다. */
   const returnTone = summary.tradeCount === 0
     ? 'neutral'
@@ -258,9 +259,20 @@ export function StrategyPreviewChart({
       >
         <i aria-hidden="true" />
         {flow.label}
-        <b>{flow.rule ? flow.count : '—'}</b>
+        <b>{flow.evaluable ? flow.count : '—'}</b>
       </button>)}
     </div>
+
+    <ul className="strategy-preview-conditions" aria-label={t('매수·매도 조건')}>
+      {preview.flows.map((flow) => <li key={flow.id} className={`is-${flow.side}`}>
+        <span>{t(flow.side === 'buy' ? '매수' : '매도')}</span>
+        <strong>{t(flow.description ?? '계산할 수 있는 지표 블록이 없어요')}</strong>
+      </li>)}
+    </ul>
+
+    {hasInsufficientData && <p className="strategy-preview-data-warning" role="status">
+      {t('신호를 계산하기에 최근 데이터가 부족합니다.')}
+    </p>}
 
     <p className="strategy-preview-note" data-testid="preview-note">
       {/* 숫자는 라벨과 떼어 둔다. 번역이 개수에 걸리지 않고, 곁눈질로도 숫자만
@@ -278,7 +290,7 @@ export function StrategyPreviewChart({
     </p>
 
     {preview.unsupported.length > 0 && <p className="strategy-preview-warning">
-      {t(`${preview.unsupported.join(', ')} 블록은 계산에서 제외했어요`)}
+      {t(`${preview.unsupported.join(', ')} 블록은 계산할 수 없어 해당 플로우의 신호를 표시하지 않아요`)}
     </p>}
   </aside>;
 }

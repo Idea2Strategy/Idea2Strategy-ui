@@ -180,6 +180,33 @@ describe('strategy authoring API client', () => {
     );
   });
 
+  it('loads the current valid revisions so reopening an editor preserves launchability', async () => {
+    const current = {
+      validationRunId: '21000000-0000-4000-8000-000000000001',
+      strategyId: document.strategyId,
+      strategyName: 'Validated strategy',
+      requestedEditSequence: 3,
+      semanticHash: document.semanticHash,
+      elementCatalogVersionId: '0f1a0000-0000-4000-8000-000000000001',
+      languageVersion: 'basic/v1',
+      schemaVersion: 'basic-semantic/v1',
+      catalogVersion: 'basic-elements:2026-08-07',
+      completedAt: '2026-08-07T12:00:00Z',
+    };
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ items: [current] }), { status: 200 }));
+    const client = createStrategyAuthoringClient({ fetchImpl });
+
+    await expect(client.getCurrentValidations!()).resolves.toEqual([expect.objectContaining({
+      validationRunId: current.validationRunId,
+      strategyId: document.strategyId,
+      requestedEditSequence: 3,
+      semanticHash: document.semanticHash,
+    })]);
+    expect(fetchImpl).toHaveBeenCalledWith('/api/v1/strategy-validations/current', expect.objectContaining({
+      credentials: 'include',
+    }));
+  });
+
   it('loads server-owned release inputs and creates an immutable release', async () => {
     const inputs = {
       executionPolicies: [{

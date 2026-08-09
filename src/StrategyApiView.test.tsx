@@ -184,14 +184,11 @@ describe('Strategy API view', () => {
     expect(screen.getByRole('dialog', { name: 'PARTITION 1 종목 관리' })).toHaveTextContent('SPY');
     expect(loadOrder).toEqual(['document', 'lease']);
     await user.click(screen.getByRole('button', { name: '완료' }));
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: 'PARTITION 01 기본 봉 주기' }),
-      '4시간봉',
-    );
+    await user.selectOptions(screen.getByRole('combobox', { name: 'PARTITION 01 기본 봉 주기' }), '1시간봉');
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
     expect(await screen.findByTestId('strategy-preview-canvas')).toBeInTheDocument();
     expect(marketDataClient.getRecentBars).toHaveBeenCalledWith(
-      'spy-id', '4h', 400, expect.any(AbortSignal),
+      'spy-id', '1h', 400, expect.any(AbortSignal),
     );
     const save = screen.getByRole('button', { name: '저장' });
     await waitFor(() => expect(save).toBeEnabled());
@@ -427,15 +424,28 @@ describe('Strategy API view', () => {
       requestedEditSequence: 1, semanticHash: 'new-hash', elementCatalogVersionId: catalogId,
       findings: [], completedAt: '2026-08-07T12:01:00Z',
     };
+    const loadedValidation = {
+      ...validation,
+      validationRunId: '21000000-0000-4000-8000-000000000000',
+      requestedEditSequence: 0,
+      semanticHash: 'old-hash',
+    };
     const releaseInputs = {
       executionPolicies: [{
         version: 'policy-v1', brokerRulesVersion: 'market-v1', accountingRulesVersion: 'accounting-v1',
         precisionRulesVersion: 'precision-v1', feePolicyId: 'fee-id', feeRateBps: 20,
         buyingPowerBufferPolicyId: 'buffer-id', buyingPowerBufferBps: 1,
+      }, {
+        version: 'older-policy', brokerRulesVersion: 'older-market', accountingRulesVersion: 'older-accounting',
+        precisionRulesVersion: 'older-precision', feePolicyId: 'older-fee', feeRateBps: 30,
+        buyingPowerBufferPolicyId: 'older-buffer', buyingPowerBufferBps: 2,
       }],
       datasets: [{
         id: 'dataset-id', feedCode: 'alpaca-sip', dataLayer: 'ADJUSTED', resolution: '1m',
         periodStart: '2025-01-01', periodEnd: '2026-01-01', schemaVersion: 'market-bars-v2',
+      }, {
+        id: 'older-dataset', feedCode: 'alpaca-sip', dataLayer: 'ADJUSTED', resolution: '1m',
+        periodStart: '2024-01-01', periodEnd: '2025-01-01', schemaVersion: 'market-bars-v2',
       }],
       observedAt: '2026-08-07T12:01:00Z',
     };
@@ -453,6 +463,7 @@ describe('Strategy API view', () => {
         requestedEditSequence: input.clientRevision,
         semanticHash: 'preview-hash',
       })),
+      getCurrentValidations: vi.fn().mockResolvedValue([loadedValidation]),
       validateStrategy: vi.fn().mockResolvedValue(validation),
       getReleaseInputs: vi.fn().mockResolvedValue(releaseInputs),
       releaseStrategy: vi.fn().mockResolvedValue({ botId: 'bot-id', backtestLane: 'BASIC' }),
@@ -470,10 +481,12 @@ describe('Strategy API view', () => {
     render(<BasicEditor goBack={() => {}} strategyId={strategyId} authoringClient={authoringClient} catalogClient={{ getBasic: vi.fn().mockResolvedValue(catalog) }} onLaunchBot={onLaunchBot} />);
     const save = await screen.findByRole('button', { name: '저장' });
     await waitFor(() => expect(save).toBeEnabled());
-    expect(screen.getByRole('button', { name: '개인 봇 출시' })).toBeDisabled();
+    await waitFor(() => expect(authoringClient.getCurrentValidations).toHaveBeenCalledWith(expect.any(AbortSignal)));
+    await waitFor(() => expect(screen.getByRole('button', { name: '개인 봇 출시' })).toBeEnabled());
     const rsiValue = screen.getByRole('spinbutton', { name: 'RSI 반등 값' });
     await user.clear(rsiValue);
     await user.type(rsiValue, '31');
+    expect(screen.getByRole('button', { name: '개인 봇 출시' })).toBeDisabled();
     await waitFor(() => expect(authoringClient.previewValidation).toHaveBeenCalled());
     await waitFor(() => expect(vi.mocked(authoringClient.previewValidation!).mock.calls.at(-1)?.[1].semanticDocument).toEqual(expect.objectContaining({
       groups: expect.arrayContaining([expect.objectContaining({
@@ -496,8 +509,12 @@ describe('Strategy API view', () => {
       })],
     });
     await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
-    expect(await screen.findByRole('combobox', { name: '실행 정책' })).toHaveValue('policy-v1');
-    await user.click(screen.getByRole('button', { name: '봇 출시하기' }));
+    const launchDialog = await screen.findByRole('dialog', { name: '개인 운용 봇 출시' });
+    await waitFor(() => expect(authoringClient.getReleaseInputs).toHaveBeenCalledTimes(1));
+    expect(within(launchDialog).queryByText('실행 정책')).not.toBeInTheDocument();
+    expect(within(launchDialog).queryByText('공식 백테스트 데이터')).not.toBeInTheDocument();
+    expect(within(launchDialog).queryByRole('combobox')).not.toBeInTheDocument();
+    await user.click(within(launchDialog).getByRole('button', { name: '봇 출시하기' }));
 
     await waitFor(() => expect(authoringClient.releaseStrategy).toHaveBeenCalledWith(strategyId, expect.objectContaining({
       validationRunId: validation.validationRunId,

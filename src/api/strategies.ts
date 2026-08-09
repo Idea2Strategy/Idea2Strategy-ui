@@ -73,6 +73,15 @@ export interface StrategyValidationResult {
   completedAt: string;
 }
 
+export interface CurrentStrategyValidation {
+  validationRunId: string;
+  strategyId: string;
+  requestedEditSequence: number;
+  semanticHash: string;
+  elementCatalogVersionId: string;
+  completedAt: string;
+}
+
 export interface PreviewStrategyValidationInput {
   catalogId: string;
   clientRevision: number;
@@ -126,6 +135,7 @@ export interface StrategyAuthoringClient {
   releaseLease(strategyId: string, leaseToken: string, signal?: AbortSignal): Promise<void>;
   saveDocument(strategyId: string, input: SaveStrategyDocumentInput, signal?: AbortSignal): Promise<StrategyDocument>;
   previewValidation?(strategyId: string, input: PreviewStrategyValidationInput, signal?: AbortSignal): Promise<StrategyValidationResult>;
+  getCurrentValidations?(signal?: AbortSignal): Promise<CurrentStrategyValidation[]>;
   validateStrategy(strategyId: string, catalogId: string, signal?: AbortSignal): Promise<StrategyValidationResult>;
   getReleaseInputs(signal?: AbortSignal): Promise<StrategyReleaseInputs>;
   releaseStrategy(strategyId: string, input: ReleaseStrategyInput, signal?: AbortSignal): Promise<{ botId: string; backtestLane: string }>;
@@ -306,6 +316,10 @@ export function createStrategyAuthoringClient({
       );
       return readValidation(await response.json());
     },
+    async getCurrentValidations(signal) {
+      const response = await request('/api/v1/strategy-validations/current', 'Current strategy validations', { signal });
+      return readCurrentValidations(await response.json());
+    },
     async validateStrategy(strategyId, catalogId, signal) {
       const response = await request(
         `/api/v1/strategies/${encodeURIComponent(strategyId)}/validations`,
@@ -430,6 +444,22 @@ function readValidation(value: unknown): StrategyValidationResult {
     }),
     completedAt: string(result.completedAt, 'completedAt'),
   };
+}
+
+function readCurrentValidations(value: unknown): CurrentStrategyValidation[] {
+  const page = object(value, 'Invalid current strategy validations');
+  if (!Array.isArray(page.items)) throw new Error('Invalid current strategy validation items');
+  return page.items.map((raw) => {
+    const item = object(raw, 'Invalid current strategy validation');
+    return {
+      validationRunId: string(item.validationRunId, 'validationRunId'),
+      strategyId: string(item.strategyId, 'strategyId'),
+      requestedEditSequence: nonNegativeInteger(item.requestedEditSequence, 'requestedEditSequence'),
+      semanticHash: string(item.semanticHash, 'semanticHash'),
+      elementCatalogVersionId: string(item.elementCatalogVersionId, 'elementCatalogVersionId'),
+      completedAt: string(item.completedAt, 'completedAt'),
+    };
+  });
 }
 
 export function readStrategyReleaseInputs(value: unknown): StrategyReleaseInputs {
