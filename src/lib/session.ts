@@ -35,6 +35,8 @@ export interface Session {
   readonly accessToken: string;
   /** The account the token authenticates. Runs owned by anyone else answer 403. */
   readonly accountId: string;
+  /** Login email remembered in this tab for password step-up actions. */
+  readonly email?: string;
   /** ISO-8601 instant, or `null` when the issuer published no expiry. */
   readonly expiresAt: string | null;
   /** Refresh JWT expiry; access expiry remains `expiresAt` for compatibility. */
@@ -99,9 +101,10 @@ function parse(raw: string, now: number): SessionState {
   }
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return MALFORMED;
 
-  const { accessToken, accountId, expiresAt, refreshExpiresAt } = value as Record<string, unknown>;
+  const { accessToken, accountId, email, expiresAt, refreshExpiresAt } = value as Record<string, unknown>;
   if (typeof accessToken !== 'string' || accessToken.trim().length === 0) return MALFORMED;
   if (typeof accountId !== 'string' || accountId.length === 0) return MALFORMED;
+  if (email !== undefined && (typeof email !== 'string' || email.trim().length === 0)) return MALFORMED;
   if (expiresAt !== undefined && expiresAt !== null && typeof expiresAt !== 'string') {
     return MALFORMED;
   }
@@ -118,6 +121,7 @@ function parse(raw: string, now: number): SessionState {
     session: {
       accessToken: accessToken.trim(),
       accountId,
+      ...(typeof email === 'string' ? { email: email.trim() } : {}),
       expiresAt: typeof expiresAt === 'string' ? expiresAt : null,
       ...(typeof refreshExpiresAt === 'string' ? { refreshExpiresAt } : {}),
     },
@@ -214,6 +218,7 @@ export function createSessionStore(
       write(JSON.stringify({
         accessToken: session.accessToken,
         accountId: session.accountId,
+        email: session.email,
         expiresAt: session.expiresAt,
         refreshExpiresAt: session.refreshExpiresAt,
       }));

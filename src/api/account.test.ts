@@ -4,6 +4,7 @@ import { AccountApiError, createAccountClient } from './account';
 describe('account API client', () => {
   it('stores the one-time login token and sends correlation evidence', async () => {
     const setAccessToken = vi.fn();
+    const signIn = vi.fn();
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       accountId: 'account-1', tokenType: 'Bearer',
       accessToken: 'access-jwt',
@@ -11,12 +12,17 @@ describe('account API client', () => {
     }), { status: 200 }));
     const client = createAccountClient({
       baseUrl: 'https://api.example.com/', fetchImpl, setAccessToken,
+      sessionStore: {
+        read: vi.fn().mockReturnValue({ status: 'anonymous', reason: 'absent' }),
+        accessToken: vi.fn(), canRefresh: vi.fn(), signIn, signOut: vi.fn(), subscribe: vi.fn(),
+      },
       createCorrelationId: () => 'correlation-1',
     });
 
     await client.login('user@example.com', 'password');
 
     expect(setAccessToken).toHaveBeenCalledWith('access-jwt');
+    expect(signIn).toHaveBeenCalledWith(expect.objectContaining({ email: 'user@example.com' }));
     expect(fetchImpl).toHaveBeenCalledWith('https://api.example.com/api/v1/auth/login', expect.objectContaining({
       method: 'POST', credentials: 'include',
       headers: expect.objectContaining({ 'X-Correlation-Id': 'correlation-1' }),
@@ -58,11 +64,19 @@ describe('account API client', () => {
     }), { status: 202 }));
     const client = createAccountClient({
       fetchImpl, getAccessToken: () => 'session-token', createCorrelationId: () => 'correlation-2',
+      sessionStore: {
+        read: vi.fn().mockReturnValue({
+          status: 'authenticated',
+          session: { accessToken: 'session-token', accountId: 'account-1', email: 'user@example.com', expiresAt: null },
+        }),
+        accessToken: vi.fn(), canRefresh: vi.fn(), signIn: vi.fn(), signOut: vi.fn(), subscribe: vi.fn(),
+      },
     });
 
-    await client.requestWithdrawal('user@example.com', 'password', 'withdrawal-1');
+    await client.requestWithdrawal('password', 'withdrawal-1');
 
     expect(fetchImpl).toHaveBeenCalledWith('/api/v1/account/withdrawal-requests', expect.objectContaining({
+      body: JSON.stringify({ email: 'user@example.com', password: 'password', acceptedPolicyDocumentIds: [] }),
       headers: expect.objectContaining({
         Authorization: 'Bearer session-token', 'Idempotency-Key': 'withdrawal-1',
       }),

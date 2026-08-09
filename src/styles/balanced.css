@@ -4320,50 +4320,8 @@
 .account-page { gap: var(--space-6); }
 .account-page .page-heading { align-items: flex-end; padding-bottom: var(--space-5); border-bottom: 1px solid var(--line); }
 .account-page .page-description { max-width: 620px; }
-.account-signout-button { min-width: 92px; color: var(--text-soft); border-color: var(--line-strong); background: var(--surface-1); }
-.account-signout-button:hover { color: var(--negative); border-color: color-mix(in srgb, var(--negative) 42%, var(--line)); background: color-mix(in srgb, var(--negative) 7%, var(--surface-1)); }
-.account-settings-layout { display: grid; grid-template-columns: 236px minmax(0, 1fr); align-items: start; gap: var(--space-5); }
-.account-settings-sidebar {
-  position: sticky;
-  top: var(--space-4);
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface-1) 94%, transparent);
-  box-shadow: var(--shadow);
-}
-.account-sidebar-title { display: flex; align-items: center; gap: 10px; padding: 8px; }
-.account-sidebar-title > span { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 50%; color: var(--accent); background: var(--accent-soft); }
-.account-sidebar-title > div { display: grid; gap: 2px; }
-.account-sidebar-title strong { color: var(--text); font-size: var(--fs-control); }
-.account-sidebar-title small { color: var(--text-faint); font-size: var(--fs-micro); }
-.account-settings-sidebar nav { display: grid; gap: 3px; }
-.account-settings-sidebar nav a,
-.account-settings-sidebar nav button {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) 16px;
-  align-items: center;
-  gap: 9px;
-  min-height: 48px;
-  padding: 7px 9px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--text-soft);
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-  text-decoration: none;
-}
-.account-settings-sidebar nav a:hover,
-.account-settings-sidebar nav button:hover { color: var(--accent); background: var(--accent-soft); }
-.account-settings-sidebar nav span { display: grid; gap: 2px; }
-.account-settings-sidebar nav strong { color: inherit; font-size: var(--fs-caption); }
-.account-settings-sidebar nav small { color: var(--text-faint); font-size: var(--fs-micro); }
-.account-sidebar-note { display: flex; align-items: flex-start; gap: 7px; margin: 0; padding: 10px 8px 4px; border-top: 1px solid var(--line); color: var(--text-faint); font-size: var(--fs-micro); line-height: 1.5; }
-.account-sidebar-note svg { flex: 0 0 auto; margin-top: 1px; }
 .account-settings-content { display: grid; min-width: 0; gap: var(--space-4); }
+.account-settings-content-wide { width: min(100%, 920px); margin-inline: auto; }
 .account-section,
 .account-support-card,
 #account-notifications > .panel {
@@ -4380,6 +4338,39 @@
 .account-section-heading p { margin: 0; color: var(--text-faint); font-size: var(--fs-caption); line-height: 1.5; }
 .account-section-icon { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border-radius: var(--radius-sm); color: var(--accent); background: var(--accent-soft); }
 .account-section-icon.is-danger { color: var(--negative); background: color-mix(in srgb, var(--negative) 10%, transparent); }
+.account-security-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 18px 20px 20px;
+}
+.account-security-actions .button {
+  min-height: 46px;
+  justify-content: center;
+  border-color: var(--line-strong);
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  box-shadow: 0 1px 1px rgb(0 0 0 / .08), 0 8px 20px rgb(0 0 0 / .08);
+}
+.account-logout-button {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-2) 92%, var(--accent) 8%);
+}
+.account-logout-button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--line-strong));
+  background: color-mix(in srgb, var(--surface-2) 84%, var(--accent) 16%);
+  transform: translateY(-1px);
+}
+.account-logout-all-button {
+  color: var(--text-soft);
+  background: transparent;
+}
+.account-logout-all-button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text-soft) 32%, var(--line-strong));
+  background: var(--surface-2);
+  transform: translateY(-1px);
+}
 .account-signout-all { margin-left: auto; white-space: nowrap; }
 .account-session-summary { display: flex; align-items: center; gap: 7px; padding: 12px 20px; color: var(--text-faint); background: color-mix(in srgb, var(--surface-2) 72%, transparent); font-size: var(--fs-caption); }
 .account-session-summary strong { margin-left: 2px; color: var(--text); }
@@ -4414,6 +4405,30 @@
 .account-danger-zone[open] summary { margin-bottom: 4px; border-bottom: 1px solid var(--line); }
 .account-danger-zone .settings-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 16px 0; }
 .account-danger-zone .account-api-actions { padding: 0; }
+.account-danger-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 18px 20px 20px;
+}
+.account-danger-action > div { display: grid; gap: 4px; }
+.account-danger-action strong { color: var(--text); font-size: var(--fs-control); }
+.account-danger-action span { color: var(--text-faint); font-size: var(--fs-caption); line-height: 1.5; }
+.account-withdrawal-trigger,
+.account-withdrawal-confirm {
+  color: #fff;
+  border-color: color-mix(in srgb, var(--negative) 78%, #fff 8%);
+  background: var(--negative);
+  box-shadow: 0 1px 1px rgb(0 0 0 / .12), 0 8px 20px color-mix(in srgb, var(--negative) 22%, transparent);
+}
+.account-withdrawal-trigger:hover:not(:disabled),
+.account-withdrawal-confirm:hover:not(:disabled) {
+  color: #fff;
+  border-color: color-mix(in srgb, var(--negative) 86%, #fff 14%);
+  background: color-mix(in srgb, var(--negative) 88%, #000);
+  transform: translateY(-1px);
+}
 .account-support-card { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: 18px 20px; }
 .account-support-icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 50%; color: var(--accent); background: var(--accent-soft); }
 .account-support-card > div { display: grid; gap: 3px; }
@@ -4443,6 +4458,77 @@
 .account-support-modal-body .case-api-panel > .panel-heading { display: none; }
 .account-support-modal-body .case-api-panel > .settings-fields { grid-template-columns: 1fr 1fr; padding: 0; }
 .account-support-modal-body .case-api-panel .account-api-actions { margin-top: 18px; }
+.account-withdrawal-modal {
+  width: min(500px, 100%);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--negative) 20%, var(--line-strong));
+  border-radius: var(--radius-lg);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-overlay);
+}
+.account-withdrawal-modal > header {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 22px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.account-withdrawal-modal > header > div { display: grid; gap: 4px; }
+.account-withdrawal-modal > header small { color: var(--negative); font: 700 var(--fs-micro)/1 var(--font-mono); letter-spacing: .12em; }
+.account-withdrawal-modal > header h2 { margin: 0; color: var(--text); font-size: 21px; }
+.account-withdrawal-modal-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--negative);
+  background: color-mix(in srgb, var(--negative) 10%, transparent);
+}
+.account-withdrawal-modal-body { display: grid; gap: 18px; padding: 20px 22px 22px; }
+.account-withdrawal-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--negative) 24%, var(--line));
+  border-radius: var(--radius-sm);
+  color: var(--negative);
+  background: color-mix(in srgb, var(--negative) 7%, transparent);
+}
+.account-withdrawal-warning > svg { flex: 0 0 auto; margin-top: 1px; }
+.account-withdrawal-warning > div { display: grid; gap: 4px; }
+.account-withdrawal-warning strong { color: var(--text); font-size: var(--fs-control); }
+.account-withdrawal-warning p { margin: 0; color: var(--text-faint); font-size: var(--fs-caption); line-height: 1.5; }
+.account-withdrawal-password { display: grid; gap: 8px; }
+.account-withdrawal-password > span { color: var(--text-soft); font-size: var(--fs-caption); font-weight: 700; }
+.account-withdrawal-password input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface-2);
+  font: inherit;
+  outline: none;
+}
+.account-withdrawal-password input:focus {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line-strong));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
+}
+.account-withdrawal-password > small { color: var(--text-faint); font-size: var(--fs-micro); line-height: 1.45; }
+.account-withdrawal-error { margin: -6px 0 0; color: var(--negative); font-size: var(--fs-caption); }
+.account-withdrawal-modal form > footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+.account-withdrawal-modal form > footer .button { min-width: 88px; justify-content: center; }
 .settings-rows { display: grid; }
 .settings-row {
   display: flex;
@@ -4747,17 +4833,12 @@
   .help-glossary > div,
   .help-order-states > div { grid-template-columns: 1fr; gap: var(--space-2); }
   .settings-fields { grid-template-columns: 1fr; }
-  .account-settings-layout { grid-template-columns: 1fr; }
-  .account-settings-sidebar { position: static; }
-  .account-settings-sidebar nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .account-environment-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {
   .account-page .page-heading { align-items: flex-start; }
   .account-page .page-actions { width: 100%; }
-  .account-signout-button { width: 100%; }
-  .account-settings-sidebar nav { grid-template-columns: 1fr; }
   .account-section-heading { align-items: flex-start; flex-wrap: wrap; padding: 16px; }
   .account-signout-all { width: 100%; margin-left: 0; }
   .account-session-summary { padding-inline: 16px; }
@@ -4770,6 +4851,13 @@
   .account-support-card > .button { grid-column: 1 / -1; width: 100%; }
   .account-support-modal-body { padding: 16px; }
   .account-support-modal-body .case-api-panel > .settings-fields { grid-template-columns: 1fr; }
+  .account-security-actions { grid-template-columns: 1fr; padding: 16px; }
+  .account-danger-action { align-items: stretch; flex-direction: column; padding: 16px; }
+  .account-withdrawal-trigger { width: 100%; justify-content: center; }
+  .account-withdrawal-modal > header,
+  .account-withdrawal-modal-body { padding-inline: 16px; }
+  .account-withdrawal-modal form > footer { padding-inline: 16px; }
+  .account-withdrawal-modal form > footer .button { flex: 1; }
 }
 
 /* Backtest — the execution log folded into the chart panel */

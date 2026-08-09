@@ -6,13 +6,9 @@ import {
   BookOpen,
   Check,
   CheckCircle2,
-  ChevronRight,
   Info,
   LifeBuoy,
   Search,
-  Settings,
-  ShieldCheck,
-  UserRound,
   X,
 } from 'lucide-react';
 import { Button, EmptyState, PageHeading, Panel, Status } from '../components/common';
@@ -21,12 +17,12 @@ import { notifications as seedNotifications } from '../data/mockData';
 import type { NotificationItem } from '../data/mockData';
 import type { PageId } from '../lib/navigation';
 import { Localized, useLanguage } from '../lib/i18n';
-import type { AccountClient, AccountPreferences, ThemePreference } from '../api/account';
+import type { AccountClient, ThemePreference } from '../api/account';
 import type { AccountOperationsClient } from '../api/accountOperations';
-import { AccountApiPanels, AccountSignOutButton } from '../components/AccountApiPanels';
+import { AccountApiPanels } from '../components/AccountApiPanels';
 import { UserCasePanel } from '../components/CaseApiPanels';
 import type { NotificationClient } from '../api/notifications';
-import { NotificationCenter, NotificationPreferencesPanel } from '../components/NotificationApiViews';
+import { NotificationCenter } from '../components/NotificationApiViews';
 import { SignInRequiredPage } from '../components/StatePages';
 import { useSessionAccessToken } from '../api/sessionAccessToken';
 
@@ -310,22 +306,11 @@ interface AccountViewProps {
   setUpdown?: (updown: Updown) => void;
   accountClient?: AccountClient;
   operationsClient?: AccountOperationsClient;
-  notificationClient?: NotificationClient;
 }
 
-export function AccountView({ setTheme, setThemePreference, accountClient, operationsClient, notificationClient }: AccountViewProps) {
-  const { setLanguage } = useLanguage();
+export function AccountView({ accountClient, operationsClient }: AccountViewProps) {
   const sessionToken = useSessionAccessToken();
   const [supportOpen, setSupportOpen] = useState(false);
-  const applyServerPreferences = useCallback((preferences: AccountPreferences) => {
-    if (preferences.languageCode === 'ko' || preferences.languageCode === 'en') setLanguage(preferences.languageCode);
-    if (setThemePreference) {
-      setThemePreference(preferences.themePreference);
-    } else {
-      if (preferences.themePreference === 'DARK') setTheme('dark');
-      if (preferences.themePreference === 'LIGHT') setTheme('light');
-    }
-  }, [setLanguage, setTheme, setThemePreference]);
 
   /*
     "내 계정" is meaningless with nobody signed in: every real panel on it is
@@ -341,33 +326,17 @@ export function AccountView({ setTheme, setThemePreference, accountClient, opera
     <PageHeading
       eyebrow="MY ACCOUNT"
       title="내 계정"
-      description="로그인 보안, 서비스 환경, 알림과 문의를 관리합니다."
-      actions={accountClient && <AccountSignOutButton client={accountClient} />}
+      description="로그인 보안과 계정 이용에 필요한 작업을 관리합니다."
     />
 
-    <div className="account-settings-layout">
-      <aside className="account-settings-sidebar">
-        <div className="account-sidebar-title"><span><UserRound size={18} aria-hidden="true" /></span><div><strong>계정 설정</strong><small>필요한 항목으로 바로 이동하세요.</small></div></div>
-        <nav aria-label="계정 설정">
-          <a href="#account-security" aria-label="로그인 및 보안"><ShieldCheck size={17} aria-hidden="true" /><span><strong>로그인 및 보안</strong><small>기기와 세션</small></span><ChevronRight size={15} aria-hidden="true" /></a>
-          <a href="#account-environment" aria-label="서비스 환경"><Settings size={17} aria-hidden="true" /><span><strong>서비스 환경</strong><small>언어와 시간대</small></span><ChevronRight size={15} aria-hidden="true" /></a>
-          {notificationClient && <a href="#account-notifications" aria-label="알림"><BellRing size={17} aria-hidden="true" /><span><strong>알림</strong><small>서버 알림 채널</small></span><ChevronRight size={15} aria-hidden="true" /></a>}
-          <a href="#account-management" aria-label="계정 관리"><AlertTriangle size={17} aria-hidden="true" /><span><strong>계정 관리</strong><small>탈퇴 요청과 취소</small></span><ChevronRight size={15} aria-hidden="true" /></a>
-          {operationsClient && <button type="button" aria-label="문의 메뉴 열기" onClick={() => setSupportOpen(true)}><LifeBuoy size={17} aria-hidden="true" /><span><strong>문의하기</strong><small>문의 · 신고 · 이의 제기</small></span><ChevronRight size={15} aria-hidden="true" /></button>}
-        </nav>
-        <p className="account-sidebar-note"><Settings size={15} aria-hidden="true" />테마와 화면 표시는 상단 톱니바퀴에서 변경할 수 있습니다.</p>
-      </aside>
-
-      <main className="account-settings-content">
-        {accountClient && <AccountApiPanels client={accountClient} onPreferences={applyServerPreferences} />}
-        {notificationClient && <div id="account-notifications"><NotificationPreferencesPanel client={notificationClient} /></div>}
-        {operationsClient && <section className="account-support-card" id="account-support" aria-labelledby="account-support-title">
-          <span className="account-support-icon"><LifeBuoy size={21} aria-hidden="true" /></span>
-          <div><h2 id="account-support-title">도움이 필요하신가요?</h2><p>문의, 신고 또는 이의 제기를 접수하고 추적 번호로 상태를 확인할 수 있습니다.</p></div>
-          <Button kind="primary" onClick={() => setSupportOpen(true)}>문의하기</Button>
-        </section>}
-      </main>
-    </div>
+    <main className="account-settings-content account-settings-content-wide">
+      {accountClient && <AccountApiPanels client={accountClient} />}
+      {operationsClient && <section className="account-support-card" id="account-support" aria-labelledby="account-support-title">
+        <span className="account-support-icon"><LifeBuoy size={21} aria-hidden="true" /></span>
+        <div><h2 id="account-support-title">도움이 필요하신가요?</h2><p>문의, 신고 또는 이의 제기를 접수하고 추적 번호로 상태를 확인할 수 있습니다.</p></div>
+        <Button kind="primary" onClick={() => setSupportOpen(true)}>문의하기</Button>
+      </section>}
+    </main>
     {supportOpen && operationsClient && <AccountSupportModal client={operationsClient} onClose={() => setSupportOpen(false)} />}
   </div></Localized>;
 }

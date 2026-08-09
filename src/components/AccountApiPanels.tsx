@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Languages, Loader2, LockKeyhole, LogOut, Settings, ShieldCheck } from 'lucide-react';
-import type { AccountClient, AccountPreferences, LifecycleResult } from '../api/account';
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, Loader2, LockKeyhole, LogOut, ShieldCheck, Trash2, X } from 'lucide-react';
+import type { AccountClient } from '../api/account';
 import { AccountApiError } from '../api/account';
 import { setSessionAccessToken } from '../api/sessionAccessToken';
 import { browserSessionStore } from '../lib/session';
-import { Button, ErrorState, Panel, SignInRequiredState } from './common';
+import { Button } from './common';
 
 function dropTabSession(reason?: 'rejected') {
   setSessionAccessToken(null);
@@ -14,18 +14,11 @@ function dropTabSession(reason?: 'rejected') {
 interface AccountApiPanelsProps {
   client: AccountClient;
   createIdempotencyKey?: () => string;
-  onPreferences?: (preferences: AccountPreferences) => void;
 }
 
-type LoadState =
-  | { kind: 'loading' }
-  | { kind: 'error'; error: AccountApiError }
-  | { kind: 'ready'; preferences: AccountPreferences };
-
-type ActionState =
-  | { kind: 'idle' | 'pending' | 'saved' }
-  | { kind: 'error'; error: AccountApiError; retry: () => void }
-  | { kind: 'lifecycle'; result: LifecycleResult };
+type WithdrawalState =
+  | { kind: 'idle' | 'pending' }
+  | { kind: 'error'; error: AccountApiError };
 
 const fallbackError = (error: unknown) => error instanceof AccountApiError
   ? error
@@ -34,144 +27,209 @@ const fallbackError = (error: unknown) => error instanceof AccountApiError
 export function AccountApiPanels({
   client,
   createIdempotencyKey = () => crypto.randomUUID(),
-  onPreferences,
 }: AccountApiPanelsProps) {
-  const [attempt, setAttempt] = useState(0);
-  const [loadState, setLoadState] = useState<LoadState>({ kind: 'loading' });
-  const [securityState, setSecurityState] = useState<ActionState>({ kind: 'idle' });
-  const [preferenceState, setPreferenceState] = useState<ActionState>({ kind: 'idle' });
-  const [lifecycleState, setLifecycleState] = useState<ActionState>({ kind: 'idle' });
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [securityPending, setSecurityPending] = useState<'current' | 'all' | null>(null);
+  const [withdrawalOpen, setWithdrawalOpen] = useState(false);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let current = true;
-    setLoadState({ kind: 'loading' });
-    client.preferences(controller.signal).then((preferences) => {
-      if (!current) return;
-      setLoadState({ kind: 'ready', preferences });
-      onPreferences?.(preferences);
-    }).catch((cause: unknown) => {
-      if (!current || controller.signal.aborted) return;
-      const error = fallbackError(cause);
-      if (error.status === 401) dropTabSession('rejected');
-      setLoadState({ kind: 'error', error });
-    });
-    return () => { current = false; controller.abort(); };
-  }, [attempt, client, onPreferences]);
-
-  const updateDraft = (patch: Partial<AccountPreferences>) => {
-    setLoadState((current) => current.kind === 'ready'
-      ? { ...current, preferences: { ...current.preferences, ...patch } }
-      : current);
-    setPreferenceState({ kind: 'idle' });
-  };
-
-  const savePreferences = useCallback(async () => {
-    if (loadState.kind !== 'ready') return;
-    setPreferenceState({ kind: 'pending' });
-    try {
-      const { languageCode, timezoneName, themePreference } = loadState.preferences;
-      const preferences = await client.updatePreferences({ languageCode, timezoneName, themePreference });
-      setLoadState({ kind: 'ready', preferences });
-      onPreferences?.(preferences);
-      setPreferenceState({ kind: 'saved' });
-    } catch (cause) {
-      setPreferenceState({ kind: 'error', error: fallbackError(cause), retry: () => void savePreferences() });
-    }
-  }, [client, loadState, onPreferences]);
-
-  const logout = useCallback(async (all: boolean) => {
-    setSecurityState({ kind: 'pending' });
+  const logout = async (all: boolean) => {
+    setSecurityPending(all ? 'all' : 'current');
     try {
       if (all) await client.logoutAll();
       else await client.logoutCurrent();
     } catch {
-      // Local logout must still complete when the server is temporarily unavailable.
+      // A local sign-out still protects the current tab when the server is unavailable.
     } finally {
       dropTabSession();
+      setSecurityPending(null);
     }
-  }, [client]);
-
-  const runLifecycle = useCallback(async (operation: 'withdraw' | 'cancel', retryKey?: string) => {
-    setLifecycleState({ kind: 'pending' });
-    const key = retryKey ?? createIdempotencyKey();
-    try {
-      const result = operation === 'withdraw'
-        ? await client.requestWithdrawal(email, password, key)
-        : await client.cancelWithdrawal(email, password, key);
-      setPassword('');
-      setLifecycleState({ kind: 'lifecycle', result });
-    } catch (cause) {
-      setLifecycleState({
-        kind: 'error', error: fallbackError(cause), retry: () => void runLifecycle(operation, key),
-      });
-    }
-  }, [client, createIdempotencyKey, email, password]);
-
-  if (loadState.kind === 'loading') {
-    return <Panel className="account-api-state" title="계정 정보"><div role="status"><Loader2 size={18} />계정 정보를 불러오는 중입니다.</div></Panel>;
-  }
-  if (loadState.kind === 'error') {
-    return <Panel className="account-api-state" title="계정 정보"><ApiErrorState error={loadState.error} onRetry={() => setAttempt((value) => value + 1)} /></Panel>;
-  }
+  };
 
   return <>
     <section className="account-section account-security-section" id="account-security" aria-labelledby="account-security-title">
       <header className="account-section-heading">
         <span className="account-section-icon"><ShieldCheck size={20} aria-hidden="true" /></span>
-        <div><h2 id="account-security-title">로그인 및 보안</h2><p>JWT 로그인은 기기 수를 제한하지 않습니다.</p></div>
+        <div>
+          <h2 id="account-security-title">로그인 및 보안</h2>
+          <p>현재 기기에서 로그아웃하거나 로그인된 모든 기기의 세션을 종료할 수 있습니다.</p>
+        </div>
       </header>
-      <div className="account-api-actions">
-        <Button onClick={() => void logout(false)} disabled={securityState.kind === 'pending'}>로그아웃</Button>
-        <Button onClick={() => void logout(true)} disabled={securityState.kind === 'pending'}>모든 기기에서 로그아웃</Button>
+      <div className="account-security-actions" role="group" aria-label="로그인 보안 작업">
+        <Button
+          className="account-logout-button"
+          icon={LogOut}
+          onClick={() => void logout(false)}
+          disabled={securityPending !== null}
+        >
+          {securityPending === 'current' ? '로그아웃 중' : '로그아웃'}
+        </Button>
+        <Button
+          className="account-logout-all-button"
+          icon={LockKeyhole}
+          onClick={() => void logout(true)}
+          disabled={securityPending !== null}
+        >
+          {securityPending === 'all' ? '세션 종료 중' : '모든 기기에서 로그아웃'}
+        </Button>
       </div>
-      {securityState.kind === 'pending' && <p role="status">로그아웃 요청을 처리하는 중입니다.</p>}
-    </section>
-
-    <section className="account-section account-environment-section" id="account-environment" aria-labelledby="account-environment-title">
-      <header className="account-section-heading">
-        <span className="account-section-icon"><Settings size={20} aria-hidden="true" /></span>
-        <div><h2 id="account-environment-title">서비스 환경</h2><p>계정에 저장되는 언어를 관리합니다.</p></div>
-      </header>
-      <div className="account-environment-grid">
-        <label><span><Languages size={15} />언어</span><select aria-label="서버 언어 선택" value={loadState.preferences.languageCode} onChange={(event) => updateDraft({ languageCode: event.target.value })}><option value="ko">한국어</option><option value="en">English</option></select></label>
-        <div className="account-readonly-group"><span>시간대</span><div className="account-readonly-field" aria-label="서버 시간대"><strong>{loadState.preferences.timezoneName}</strong><LockKeyhole size={16} /></div></div>
-      </div>
-      <footer className="account-section-footer"><Button onClick={() => void savePreferences()} disabled={preferenceState.kind === 'pending'}>환경 저장</Button></footer>
-      {preferenceState.kind === 'saved' && <p role="status">서버 설정을 저장했습니다.</p>}
-      {preferenceState.kind === 'error' && <ApiErrorState error={preferenceState.error} onRetry={preferenceState.retry} />}
     </section>
 
     <section className="account-section account-danger-section" id="account-management" aria-labelledby="account-management-title">
-      <header className="account-section-heading"><span className="account-section-icon is-danger"><LockKeyhole size={20} /></span><div><h2 id="account-management-title">계정 관리</h2></div></header>
-      <details className="account-danger-zone"><summary>탈퇴 요청 · 취소</summary>
-        <div className="settings-fields account-api-fields">
-          <label><span>이메일</span><input aria-label="계정 확인 이메일" type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-          <label><span>비밀번호</span><input aria-label="계정 확인 비밀번호" type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+      <header className="account-section-heading">
+        <span className="account-section-icon is-danger"><AlertTriangle size={20} aria-hidden="true" /></span>
+        <div>
+          <h2 id="account-management-title">계정 관리</h2>
+          <p>회원 탈퇴는 계정과 연결된 서비스 이용을 종료하는 중요한 작업입니다.</p>
         </div>
-        <div className="account-api-actions"><Button onClick={() => void runLifecycle('withdraw')} disabled={!email || !password || lifecycleState.kind === 'pending'}>탈퇴 요청</Button><Button onClick={() => void runLifecycle('cancel')} disabled={!email || !password || lifecycleState.kind === 'pending'}>탈퇴 취소</Button></div>
-        {lifecycleState.kind === 'lifecycle' && <p role="status">계정 상태: {lifecycleState.result.status} · 버전 {lifecycleState.result.version}</p>}
-        {lifecycleState.kind === 'error' && <ApiErrorState error={lifecycleState.error} onRetry={lifecycleState.retry} />}
-      </details>
+      </header>
+      <div className="account-danger-action">
+        <div>
+          <strong>Idea2Strategy 회원 탈퇴</strong>
+          <span>본인 확인 후 탈퇴 요청을 진행합니다.</span>
+        </div>
+        <Button className="account-withdrawal-trigger" icon={Trash2} onClick={() => setWithdrawalOpen(true)}>
+          회원 탈퇴
+        </Button>
+      </div>
     </section>
+
+    {withdrawalOpen && <WithdrawalDialog
+      client={client}
+      createIdempotencyKey={createIdempotencyKey}
+      onClose={() => setWithdrawalOpen(false)}
+    />}
   </>;
 }
 
-export function AccountSignOutButton({ client }: { client: AccountClient }) {
-  const [pending, setPending] = useState(false);
-  const signOut = async () => {
-    setPending(true);
-    try { await client.logoutCurrent(); } catch { /* local sign-out still wins */ }
-    finally { dropTabSession(); }
-  };
-  return <Button className="account-signout-button" kind="ghost" icon={LogOut} onClick={() => void signOut()} disabled={pending}>{pending ? '로그아웃 중' : '로그아웃'}</Button>;
-}
+function WithdrawalDialog({
+  client,
+  createIdempotencyKey,
+  onClose,
+}: {
+  client: AccountClient;
+  createIdempotencyKey: () => string;
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const [password, setPassword] = useState('');
+  const [state, setState] = useState<WithdrawalState>({ kind: 'idle' });
 
-function ApiErrorState({ error, onRetry }: { error: AccountApiError; onRetry: () => void }) {
-  if (error.status === 401) return <SignInRequiredState detail="로그인이 만료되었습니다. 다시 로그인해 주세요." />;
-  /* A customer screen states the outcome only; the raw code and correlation id
-     stay in the server log where support can already reach them. */
-  return <ErrorState title={error.status === 403 ? '이 작업을 수행할 권한이 없습니다.' : '계정 서버 요청에 실패했습니다.'} onRetry={onRetry} />;
+  useEffect(() => {
+    passwordRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && state.kind !== 'pending') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), input:not(:disabled)',
+      )];
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [onClose, state.kind]);
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!password || state.kind === 'pending') return;
+    setState({ kind: 'pending' });
+    try {
+      await client.requestWithdrawal(password, createIdempotencyKey());
+      setPassword('');
+      onClose();
+      dropTabSession();
+    } catch (cause) {
+      setState({ kind: 'error', error: fallbackError(cause) });
+      passwordRef.current?.focus();
+    }
+  };
+
+  const errorMessage = state.kind === 'error'
+    ? state.error.code === 'PASSWORD_STEP_UP_EMAIL_UNAVAILABLE'
+      ? '보안을 위해 다시 로그인한 뒤 시도해주세요.'
+      : state.error.status === 401
+        ? '비밀번호를 다시 확인해주세요.'
+        : '탈퇴 요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.'
+    : null;
+
+  return <div
+    className="account-modal-backdrop"
+    onMouseDown={(event) => {
+      if (event.currentTarget === event.target && state.kind !== 'pending') onClose();
+    }}
+  >
+    <section
+      className="account-withdrawal-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="account-withdrawal-title"
+      ref={dialogRef}
+    >
+      <header>
+        <span className="account-withdrawal-modal-icon"><Trash2 size={22} aria-hidden="true" /></span>
+        <div>
+          <small>DELETE ACCOUNT</small>
+          <h2 id="account-withdrawal-title">회원 탈퇴</h2>
+        </div>
+        <button
+          className="account-dialog-close"
+          type="button"
+          aria-label="회원 탈퇴 창 닫기"
+          onClick={onClose}
+          disabled={state.kind === 'pending'}
+        ><X size={18} aria-hidden="true" /></button>
+      </header>
+      <form onSubmit={(event) => void submit(event)}>
+        <div className="account-withdrawal-modal-body">
+          <div className="account-withdrawal-warning">
+            <AlertTriangle size={19} aria-hidden="true" />
+            <div>
+              <strong>계정을 삭제하면 복구할 수 없습니다.</strong>
+              <p>탈퇴 요청이 접수되면 현재 계정에서 로그아웃됩니다.</p>
+            </div>
+          </div>
+          <label className="account-withdrawal-password">
+            <span>현재 비밀번호</span>
+            <input
+              ref={passwordRef}
+              aria-label="현재 비밀번호"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                if (state.kind === 'error') setState({ kind: 'idle' });
+              }}
+              placeholder="비밀번호를 입력해주세요"
+            />
+            <small>본인 확인을 위해 현재 비밀번호를 입력해주세요.</small>
+          </label>
+          {errorMessage && <p className="account-withdrawal-error" role="alert">{errorMessage}</p>}
+        </div>
+        <footer>
+          <Button type="button" onClick={onClose} disabled={state.kind === 'pending'}>취소</Button>
+          <Button className="account-withdrawal-confirm" type="submit" disabled={!password || state.kind === 'pending'}>
+            {state.kind === 'pending' ? <><Loader2 size={16} aria-hidden="true" />탈퇴 처리 중</> : '탈퇴'}
+          </Button>
+        </footer>
+      </form>
+    </section>
+  </div>;
 }
