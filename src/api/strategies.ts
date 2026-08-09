@@ -119,6 +119,7 @@ export interface ReleaseStrategyInput {
 export interface StrategyAuthoringClient {
   createBasic(name: string, description?: string, signal?: AbortSignal): Promise<{ id: string; mode: 'BASIC' }>;
   copyStrategy(strategyId: string, signal?: AbortSignal): Promise<{ id: string }>;
+  deleteStrategy?(strategyId: string, signal?: AbortSignal): Promise<void>;
   getDocument(strategyId: string, signal?: AbortSignal): Promise<StrategyDocument>;
   acquireLease(strategyId: string, signal?: AbortSignal): Promise<StrategyEditLease>;
   heartbeatLease(strategyId: string, leaseToken: string, signal?: AbortSignal): Promise<{ expiresAt: string }>;
@@ -264,6 +265,11 @@ export function createStrategyAuthoringClient({
       );
       const result = object(await response.json(), 'Invalid strategy copy response');
       return { id: string(result.id, 'id') };
+    },
+    async deleteStrategy(strategyId, signal) {
+      await request(`/api/v1/strategies/${encodeURIComponent(strategyId)}`, 'Strategy deletion', {
+        method: 'DELETE', signal,
+      });
     },
     async getDocument(strategyId, signal) {
       const response = await request(documentPath(strategyId), 'Strategy document request', { signal });

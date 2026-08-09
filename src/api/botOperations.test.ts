@@ -104,6 +104,18 @@ describe('bot operations API client', () => {
     );
   });
 
+  it('soft-deletes a stopped bot without parsing an empty response', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const client = createBotOperationsClient({ baseUrl: 'https://api.example.com', fetchImpl });
+
+    await client.deleteBot!('30000000-0000-4000-8000-000000000001');
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/bots/30000000-0000-4000-8000-000000000001',
+      expect.objectContaining({ method: 'DELETE', credentials: 'include' }),
+    );
+  });
+
   it('loads preflight and renews the server-owned continuation deadline', async () => {
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({

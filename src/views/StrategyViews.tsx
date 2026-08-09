@@ -358,6 +358,10 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
   const [createError, setCreateError] = useState<string | null>(null);
   const [copyPendingId, setCopyPendingId] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<StrategyListItem | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const canDeleteStrategy = Boolean(authoringClient?.deleteStrategy) || client === null;
   /* The library API pages with an opaque snapshot cursor. Holding the cursor keeps
      every page from the same instant, so appending cannot duplicate or skip a row. */
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -470,6 +474,28 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
     }
   };
 
+  const deleteOwnedStrategy = async () => {
+    if (!deleteTarget || !canDeleteStrategy || deletePending) return;
+    setDeletePending(true);
+    setDeleteError(null);
+    try {
+      if (authoringClient?.deleteStrategy) {
+        await authoringClient.deleteStrategy(deleteTarget.id);
+      }
+      const remaining = (confirmedItemsRef.current ?? items ?? [])
+        .filter((strategy) => strategy.id !== deleteTarget.id);
+      confirmedItemsRef.current = remaining;
+      setItems(remaining);
+      setDeleteTarget(null);
+    } catch (error) {
+      setDeleteError(error instanceof StrategyApiError && error.status === 404
+        ? '이 전략은 이미 삭제되었거나 더 이상 접근할 수 없습니다.'
+        : '전략을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setDeletePending(false);
+    }
+  };
+
   /*
     Nothing to show at all — signed out, or the first load failed. The whole
     route renders the one shared state page; no page scaffold survives around
@@ -536,6 +562,13 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
                 disabled={copyPendingId !== null}
                 onClick={(event) => { event.stopPropagation(); void copyOwnedStrategy(strategy); }}
               >{copyPendingId === strategy.id ? <RefreshCw className="is-spinning" size={15} /> : <Copy size={15} />}</button>}
+              {strategy.kind === 'draft' && strategy.editable && canDeleteStrategy && <button
+                className="is-danger"
+                aria-label={`${strategy.name} 삭제`}
+                title="삭제"
+                disabled={deletePending}
+                onClick={(event) => { event.stopPropagation(); setDeleteError(null); setDeleteTarget(strategy); }}
+              ><Trash2 size={15} /></button>}
               <button
                 aria-label={strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? `${strategy.name} 열기 (Pro 준비 중)` : `${strategy.name} 열기`}
                 title={!strategy.editable ? '출시된 전략은 편집할 수 없습니다' : strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? 'Pro 편집기는 준비 중입니다' : '열기'}
@@ -574,6 +607,22 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
           const copyable = strategy.kind === 'draft' && strategy.editable && !proLocked;
           return <button key={strategy.id} aria-label={proLocked ? `${strategy.name} 가져오기 (Pro 준비 중)` : `${strategy.name} 가져오기`} disabled={!copyable || copyPendingId !== null} onClick={() => { void copyOwnedStrategy(strategy); }}><span className={`strategy-mode-icon mode-${strategy.mode.toLowerCase()}`}>{strategy.mode[0]}</span><span><strong>{strategy.name}</strong><small>{proLocked ? 'Pro · 현재 사용할 수 없습니다' : !copyable ? '이 항목은 복사할 수 없습니다' : `${strategy.mode} · ${strategy.symbols.join(', ')}`}</small></span>{proLocked ? <LockKeyhole size={16} /> : copyPendingId === strategy.id ? <RefreshCw size={16} /> : <Import size={16} />}</button>;
         })}</div>}
+      </section>
+    </div>}
+    {deleteTarget && <div className="resource-delete-backdrop" onMouseDown={() => { if (!deletePending) setDeleteTarget(null); }}>
+      <section role="dialog" aria-modal="true" aria-label="전략 삭제 확인" className="resource-delete-dialog" onMouseDown={(event) => event.stopPropagation()}>
+        <span aria-hidden="true"><Trash2 size={19} /></span>
+        <div>
+          <strong>‘{deleteTarget.name}’ 전략을 삭제할까요?</strong>
+          <p>전략 목록에서 제거되며 되돌릴 수 없습니다. 이 전략에서 이미 출시된 봇과 기록은 유지됩니다.</p>
+          {deleteError && <p className="resource-delete-error" role="alert">{deleteError}</p>}
+        </div>
+        <footer>
+          <Button disabled={deletePending} onClick={() => setDeleteTarget(null)}>취소</Button>
+          <Button className="resource-delete-confirm" disabled={deletePending} icon={Trash2} onClick={() => { void deleteOwnedStrategy(); }}>
+            {deletePending ? '삭제 중…' : '전략 삭제'}
+          </Button>
+        </footer>
       </section>
     </div>}
   </div></Localized>;
