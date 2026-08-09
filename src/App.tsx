@@ -576,6 +576,7 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
       setUpdown={setUpdown}
       accountClient={accountClient}
       operationsClient={operationsClient}
+      notificationClient={notificationClient}
     /></RequireSignIn>} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></Suspense>;

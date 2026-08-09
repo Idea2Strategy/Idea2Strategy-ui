@@ -767,6 +767,7 @@ describe('Account settings', () => {
   const operationsClient: AccountOperationsClient = {
     submitCase: vi.fn(),
     addCaseEvidence: vi.fn(),
+    userCases: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
     userCase: vi.fn(),
     operatorCaseQueue: vi.fn(),
     operatorCase: vi.fn(),
@@ -808,11 +809,11 @@ describe('Account settings', () => {
     const user = userEvent.setup();
     setup(true);
 
-    expect(screen.queryByLabelText('케이스 제목')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '문의하기' }));
+    expect(screen.queryByLabelText('문의 제목')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '내 문의 보기' }));
 
     const dialog = screen.getByRole('dialog', { name: '문의하기' });
-    expect(within(dialog).getByLabelText('케이스 제목')).toHaveFocus();
+    expect(within(dialog).getByLabelText('문의 제목')).toHaveFocus();
     await user.click(within(dialog).getByRole('button', { name: '문의 창 닫기' }));
     expect(screen.queryByRole('dialog', { name: '문의하기' })).not.toBeInTheDocument();
   });

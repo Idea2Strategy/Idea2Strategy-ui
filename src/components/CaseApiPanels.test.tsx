@@ -2,17 +2,26 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { AccountOperationsApiError } from '../api/accountOperations';
-import type { AccountOperationsClient, UserCaseView } from '../api/accountOperations';
+import type { AccountOperationsClient, UserCaseDetail, UserCaseView } from '../api/accountOperations';
 import { OperatorCaseWorkspace, OperatorSanctionPanel, UserCasePanel } from './CaseApiPanels';
 
 const userCase: UserCaseView = {
   id: 'case-1', accountId: 'account-1', type: 'APPEAL', status: 'OPEN', version: 1,
   evidenceObjectIds: [], updatedAt: '2026-08-03T00:00:00Z',
 };
+const userCaseDetail: UserCaseDetail = {
+  id: 'case-1', type: 'APPEAL', status: 'UNDER_REVIEW', subject: '제재 이의', description: '검토를 요청합니다.',
+  createdAt: '2026-08-03T00:00:00Z', updatedAt: '2026-08-03T01:00:00Z', responseDeadlineAt: null,
+  history: [
+    { actor: 'CUSTOMER', status: 'OPEN', message: '문의를 접수했습니다.', createdAt: '2026-08-03T00:00:00Z' },
+    { actor: 'SUPPORT', status: 'UNDER_REVIEW', message: '고객지원팀에서 확인하고 있습니다.', createdAt: '2026-08-03T01:00:00Z' },
+  ],
+};
 
 function client(overrides: Partial<AccountOperationsClient> = {}): AccountOperationsClient {
   return {
-    submitCase: vi.fn().mockResolvedValue(userCase), addCaseEvidence: vi.fn(), userCase: vi.fn().mockResolvedValue(userCase),
+    submitCase: vi.fn().mockResolvedValue(userCase), addCaseEvidence: vi.fn(),
+    userCases: vi.fn().mockResolvedValue({ items: [], nextCursor: null }), userCase: vi.fn().mockResolvedValue(userCaseDetail),
     operatorCaseQueue: vi.fn().mockResolvedValue({ items: [], nextCursor: null }), operatorCase: vi.fn(), commandCase: vi.fn(),
     grantOperator: vi.fn(), revokeOperator: vi.fn(), applySanction: vi.fn(), liftSanction: vi.fn(), ...overrides,
   };
@@ -24,12 +33,13 @@ describe('UserCasePanel', () => {
     render(<UserCasePanel client={client({ submitCase })} createIdempotencyKey={() => 'idem-case'} />);
     const submit = screen.getByRole('button', { name: '접수하기' });
     expect(submit).toBeDisabled();
-    await userEvent.selectOptions(screen.getByLabelText('케이스 유형'), 'APPEAL');
-    await userEvent.type(screen.getByLabelText('케이스 제목'), '제재 이의');
-    await userEvent.type(screen.getByLabelText('케이스 설명'), '검토를 요청합니다.');
+    await userEvent.selectOptions(screen.getByLabelText('문의 유형'), 'APPEAL');
+    await userEvent.type(screen.getByLabelText('문의 제목'), '제재 이의');
+    await userEvent.type(screen.getByLabelText('문의 내용'), '검토를 요청합니다.');
     await userEvent.click(submit);
-    await screen.findByText('추적 번호 case-1 · 버전 1');
+    await screen.findByText('문의가 접수되었습니다.');
     expect(submitCase).toHaveBeenCalledWith(expect.objectContaining({ type: 'APPEAL', evidence: [] }), 'idem-case');
+    expect(screen.queryByText(/case-1|버전/)).not.toBeInTheDocument();
   });
 
   it('offers a retry action for retryable failures without exposing the raw code', async () => {
@@ -38,35 +48,34 @@ describe('UserCasePanel', () => {
       .mockRejectedValueOnce(new AccountOperationsApiError(503, 'CASE_SERVICE_UNAVAILABLE', 'corr-case'))
       .mockResolvedValueOnce(userCase);
     render(<UserCasePanel client={client({ submitCase })} createIdempotencyKey={createIdempotencyKey} />);
-    await userEvent.type(screen.getByLabelText('케이스 제목'), '문의');
-    await userEvent.type(screen.getByLabelText('케이스 설명'), '내용');
+    await userEvent.type(screen.getByLabelText('문의 제목'), '문의');
+    await userEvent.type(screen.getByLabelText('문의 내용'), '내용');
     await userEvent.click(screen.getByRole('button', { name: '접수하기' }));
     expect(await screen.findByText('일시적으로 서버에 연결할 수 없습니다.')).toBeInTheDocument();
     expect(screen.queryByText(/corr-case/)).not.toBeInTheDocument();
     expect(screen.queryByText(/CASE_SERVICE_UNAVAILABLE/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: '다시 시도' }));
-    await screen.findByText('추적 번호 case-1 · 버전 1');
+    await screen.findByText('문의가 접수되었습니다.');
     expect(createIdempotencyKey).toHaveBeenCalledTimes(1);
     expect(submitCase).toHaveBeenNthCalledWith(1, expect.any(Object), 'idem-lost-response');
     expect(submitCase).toHaveBeenNthCalledWith(2, expect.any(Object), 'idem-lost-response');
   });
 
-  it('links follow-up evidence with the exact current case version', async () => {
-    const addCaseEvidence = vi.fn().mockResolvedValue({ ...userCase, version: 2, evidenceObjectIds: ['object-1'] });
-    render(<UserCasePanel client={client({ addCaseEvidence })} createIdempotencyKey={() => 'idem-evidence'} />);
-    await userEvent.type(screen.getByLabelText('케이스 제목'), '문의');
-    await userEvent.type(screen.getByLabelText('케이스 설명'), '내용');
-    await userEvent.click(screen.getByRole('button', { name: '접수하기' }));
-    await screen.findByText('추적 번호 case-1 · 버전 1');
-    await userEvent.type(screen.getByLabelText('Evidence storage object ID'), 'object-1');
-    await userEvent.type(screen.getByLabelText('Evidence source domain'), 'BACKTEST');
-    await userEvent.type(screen.getByLabelText('Evidence source resource ID'), 'run-1');
-    await userEvent.click(screen.getByRole('button', { name: '증거 연결' }));
+  it('shows a Korean inquiry list and opens safe detail without ids or internal status codes', async () => {
+    const userCases = vi.fn().mockResolvedValue({ items: [{
+      id: 'case-1', type: 'APPEAL', status: 'UNDER_REVIEW', subject: '제재 이의',
+      createdAt: '2026-08-03T00:00:00Z', updatedAt: '2026-08-03T01:00:00Z',
+    }], nextCursor: null });
+    render(<UserCasePanel client={client({ userCases })} />);
 
-    await waitFor(() => expect(addCaseEvidence).toHaveBeenCalledWith('case-1', 1, [{
-      storageObjectId: 'object-1', sourceDomain: 'BACKTEST', sourceResourceId: 'run-1',
-    }], 'idem-evidence'));
-    expect(await screen.findByText('증거가 연결되었습니다. 현재 버전 2')).toBeInTheDocument();
+    expect(await screen.findByText('제재 이의')).toBeInTheDocument();
+    expect(screen.getByText('검토 중')).toBeInTheDocument();
+    expect(screen.queryByText('UNDER_REVIEW')).not.toBeInTheDocument();
+    expect(screen.queryByText('case-1')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '제재 이의 상세 보기' }));
+    expect(await screen.findByRole('dialog', { name: '제재 이의' })).toBeInTheDocument();
+    expect(screen.getByText('검토를 요청합니다.')).toBeInTheDocument();
+    expect(screen.getByText('고객지원팀에서 확인하고 있습니다.')).toBeInTheDocument();
   });
 });
 

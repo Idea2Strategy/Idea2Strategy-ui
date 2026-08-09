@@ -57,15 +57,21 @@ describe('NotificationCenter', () => {
 });
 
 describe('NotificationPreferencesPanel', () => {
-  it('keeps mandatory channels immutable and lets an optional current EMAIL channel be disabled', async () => {
+  it('shows friendly Korean labels and toggles an optional email notification', async () => {
     const preferences = [
       { typeCode: 'SECURITY_EVENT', policyVersion: 'policy-v1', mandatory: true, enabledChannels: ['APP'] as const },
       { typeCode: 'CASE_UPDATED', policyVersion: 'policy-v2', mandatory: false, enabledChannels: ['APP', 'EMAIL'] as const },
     ].map((value) => ({ ...value, enabledChannels: [...value.enabledChannels] }));
     const replacePreference = vi.fn().mockResolvedValue({ ...preferences[1], enabledChannels: ['APP'] });
     render(<NotificationPreferencesPanel client={client({ preferences: vi.fn().mockResolvedValue(preferences), replacePreference })} />);
-    expect(await screen.findByText('필수')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: '이메일 끄기' }));
+    expect(await screen.findByText('보안 및 로그인')).toBeInTheDocument();
+    expect(screen.getByText('문의 답변')).toBeInTheDocument();
+    expect(screen.queryByText('SECURITY_EVENT')).not.toBeInTheDocument();
+    expect(screen.queryByText('CASE_UPDATED')).not.toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: '보안 및 로그인 이메일 알림' })).toBeDisabled();
+    const toggle = screen.getByRole('switch', { name: '문의 답변 이메일 알림' });
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(toggle);
     await waitFor(() => expect(replacePreference).toHaveBeenCalledWith('CASE_UPDATED', ['APP']));
     expect(await screen.findByText('저장됨')).toBeInTheDocument();
   });

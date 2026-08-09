@@ -18,6 +18,31 @@ describe('account operations API client', () => {
     }));
   });
 
+  it('loads the signed-in users inquiry list and customer-safe detail', async () => {
+    const responses = [
+      new Response(JSON.stringify({ items: [{
+        id: 'case-1', type: 'INQUIRY', status: 'UNDER_REVIEW', subject: '결제 문의',
+        createdAt: '2026-08-03T00:00:00Z', updatedAt: '2026-08-03T01:00:00Z',
+      }], nextCursor: 'opaque-cursor' }), { status: 200 }),
+      new Response(JSON.stringify({
+        id: 'case-1', type: 'INQUIRY', status: 'UNDER_REVIEW', subject: '결제 문의',
+        description: '결제 내역을 확인해 주세요.', createdAt: '2026-08-03T00:00:00Z',
+        updatedAt: '2026-08-03T01:00:00Z', responseDeadlineAt: null,
+        history: [{ actor: 'SUPPORT', status: 'UNDER_REVIEW', message: '확인하고 있습니다.', createdAt: '2026-08-03T01:00:00Z' }],
+      }), { status: 200 }),
+    ];
+    const fetchImpl = vi.fn().mockImplementation(() => Promise.resolve(responses.shift()));
+    const client = createAccountOperationsClient({ fetchImpl, getAccessToken: () => 'token' });
+
+    await expect(client.userCases(null, 10)).resolves.toEqual(expect.objectContaining({ nextCursor: 'opaque-cursor' }));
+    await expect(client.userCase('case-1')).resolves.toEqual(expect.objectContaining({
+      subject: '결제 문의', description: '결제 내역을 확인해 주세요.',
+      history: [expect.objectContaining({ actor: 'SUPPORT', message: '확인하고 있습니다.' })],
+    }));
+    expect(String(fetchImpl.mock.calls[0][0])).toContain('/api/v1/cases?limit=10');
+    expect(fetchImpl.mock.calls[1][0]).toBe('/api/v1/cases/case-1');
+  });
+
   it('encodes all operator queue filters and validates the response', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       items: [{ caseId: 'case-1', type: 'REPORT', status: 'UNDER_REVIEW', version: 2, assigneeOperatorId: null, updatedAt: '2026-08-03T00:00:00Z' }],
@@ -40,11 +65,11 @@ describe('account operations API client', () => {
   it('sends case commands with server-owned request hashing and surfaces the receipt', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: 'APPLIED', code: 'CASE_REVIEW_STARTED', correlationId: 'corr-3', caseVersion: 3 }), { status: 200 }));
     const client = createAccountOperationsClient({ fetchImpl, createCorrelationId: () => 'corr-3', getOperatorAccessToken: () => 'operator-token' });
-    await expect(client.commandCase('case-1', 'START_REVIEW', { expectedVersion: 2, reasonCode: 'REVIEW_READY' }, 'idem-3'))
+    await expect(client.commandCase('case-1', 'START_REVIEW', { expectedVersion: 2, reasonCode: 'REVIEW_READY', customerMessage: '확인하고 있습니다.' }, 'idem-3'))
       .resolves.toEqual({ status: 'APPLIED', code: 'CASE_REVIEW_STARTED', correlationId: 'corr-3', caseVersion: 3 });
     const init = fetchImpl.mock.calls[0][1] as RequestInit;
     expect(init.headers).toEqual(expect.objectContaining({ 'Idempotency-Key': 'idem-3', 'X-Correlation-Id': 'corr-3' }));
-    expect(JSON.parse(String(init.body))).toEqual(expect.objectContaining({ expectedVersion: 2, reasonCode: 'REVIEW_READY', evidenceIds: [], expectedSanctionVersion: 0 }));
+    expect(JSON.parse(String(init.body))).toEqual(expect.objectContaining({ expectedVersion: 2, reasonCode: 'REVIEW_READY', customerMessage: '확인하고 있습니다.', evidenceIds: [], expectedSanctionVersion: 0 }));
   });
 
   it('binds RBAC idempotency, correlation, and a deterministic SHA-256 request hash into the body', async () => {
