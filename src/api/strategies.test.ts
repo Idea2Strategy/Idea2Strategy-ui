@@ -13,7 +13,7 @@ describe('strategy library API client', () => {
 
     await createStrategyLibraryClient({ fetchImpl }).list();
 
-    expect(fetchImpl).toHaveBeenCalledWith('/api/v1/strategies?limit=50', expect.objectContaining({
+    expect(fetchImpl).toHaveBeenCalledWith('/api/v1/strategies?limit=10', expect.objectContaining({
       headers: expect.objectContaining({ Authorization: 'Bearer browser-session-token' }),
     }));
   });
@@ -42,7 +42,7 @@ describe('strategy library API client', () => {
     const page = await createStrategyLibraryClient({
       baseUrl: 'https://api.example.com/',
       fetchImpl,
-    }).list(50);
+    }).list(10);
 
     expect(page.items[0]).toMatchObject({
       mode: 'BASIC',
@@ -52,7 +52,7 @@ describe('strategy library API client', () => {
       symbols: ['AAPL', 'MSFT'],
     });
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://api.example.com/api/v1/strategies?limit=50',
+      'https://api.example.com/api/v1/strategies?limit=10',
       expect.objectContaining({ credentials: 'include' }),
     );
   });
