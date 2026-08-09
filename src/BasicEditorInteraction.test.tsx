@@ -229,10 +229,15 @@ describe('Basic editor interactions', () => {
     expect(budgetNarrative).toHaveClass('tone-buy');
     expect(budgetNarrative.querySelectorAll('b')).toHaveLength(2);
 
+    const buyRsi = screen.getByTestId('buy-rsi-block');
+    await user.click(within(buyRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
+    await user.click(screen.getByRole('option', { name: '상승' }));
+    expect(blockNarrative).toHaveTextContent('RSI가 기준선에서 위로 반등할 때');
+
     const blocks = await openBlocks(user);
     await user.click(within(blocks).getByRole('button', { name: 'MACD 전환 블록 추가' }));
     const narratives = within(buyCard).getAllByTestId('basic-narrative-block');
-    expect(narratives[0]).toHaveTextContent('방향을 바꾸고');
+    expect(narratives[0]).toHaveTextContent('위로 반등하고');
     expect(narratives[1]).toHaveTextContent('교차할 때');
 
     fireEvent.keyDown(screen.getByRole('group', { name: '매도 전략 카드 이동 영역' }), { key: 'Enter' });

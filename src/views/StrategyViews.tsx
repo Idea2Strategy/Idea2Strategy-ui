@@ -17,10 +17,10 @@ import type { StrategySummary } from '../data/mockData';
 import { Button, EmptyState, ErrorState, LoadingState, PageHeading, Panel, Status } from '../components/common';
 import { ErrorPage, SignInRequiredPage } from '../components/StatePages';
 import { splitPartitionSymbols } from '../lib/strategyPreview';
-import type { PreviewCandle, PreviewFlow } from '../lib/strategyPreview';
+import type { PreviewBlock, PreviewCandle, PreviewFlow } from '../lib/strategyPreview';
 import { StrategyPreviewChart } from '../components/StrategyPreviewChart';
 import { defaultMarketDataClient } from '../api/marketData';
-import type { MarketDataClient } from '../api/marketData';
+import type { MarketDataClient, MarketTimeframe } from '../api/marketData';
 import { Localized } from '../lib/i18n';
 import { browserSessionStore } from '../lib/session';
 import { setSessionAccessToken } from '../api/sessionAccessToken';
@@ -823,9 +823,9 @@ const allNumbers = (value: string | undefined): number[] => (
   [...String(value ?? '').matchAll(/\d+/g)].map((match) => Number(match[0]))
 );
 
-const resolutionCode = (timeframe: string): string => ({
+const resolutionCode = (timeframe: string): MarketTimeframe => ({
   '30분봉': '30m', '1시간봉': '1h', '4시간봉': '4h', '일봉': '1d',
-}[timeframe] ?? '30m');
+}[timeframe] as MarketTimeframe | undefined) ?? '30m';
 
 const priceReferenceCode = (value: string | undefined): string => {
   const exact: Record<string, string> = {
@@ -1205,8 +1205,8 @@ const getBlockNarrative = (block: BasicBlock, isLast: boolean): ReactNode => {
     return <><b>{baseCopy}</b> 대비 <b>{moveCopy}</b>{isLast ? '일 때' : '이고'}</>;
   }
   if (DIRECTION_BLOCKS.has(block.label)) {
-    const dirUp = block.op === '↑';
-    const dirDown = block.op === '↓';
+    const dirUp = block.op === '↑' || block.op === '상승';
+    const dirDown = block.op === '↓' || block.op === '하락';
     // 방향 블록은 종류마다 의미가 달라 '돌파'로 뭉뚱그리지 않는다.
     // 연속 상승·하락 = 연속 봉, 가격 띠 반전 = 평균 회귀, RSI = 반등/꺾임, 교차/전환 = 돌파(크로스).
     if (block.label === '연속 상승·하락') {
@@ -1649,6 +1649,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const [savePending, setSavePending] = useState(false);
   const leaseTokenRef = useRef<string | null>(null);
   const editSequenceRef = useRef(0);
+  const semanticHashRef = useRef('');
   const semanticDocumentRef = useRef<Record<string, unknown>>({ mode: 'BASIC', groups: [] });
   const presentationDocumentRef = useRef<Record<string, unknown>>({});
   const [basicCatalog, setBasicCatalog] = useState<BasicStrategyCatalog | null>(null);
@@ -1678,8 +1679,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const [releaseInputsPending, setReleaseInputsPending] = useState(false);
   const [releasePending, setReleasePending] = useState(false);
   const [releaseError, setReleaseError] = useState<string | null>(null);
-  const [selectedExecutionPolicy, setSelectedExecutionPolicy] = useState('');
-  const [selectedDataset, setSelectedDataset] = useState('');
   const [initialCashAmount, setInitialCashAmount] = useState('100000');
   const [budgetPercent, setBudgetPercent] = useState('100');
   const [templateQuery, setTemplateQuery] = useState('');
@@ -1997,6 +1996,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
 
     setDocumentPending(true);
     setEditorLoadFailure(null);
+    setSavedValidation(null);
+    setSavedReadySignature(null);
     /* Read before taking the exclusive lease. In React StrictMode the first
        development-only mount is immediately discarded; acquiring first let
        that discarded mount race its asynchronous release against the real
@@ -2025,6 +2026,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       }
       leaseTokenRef.current = lease.leaseToken;
       editSequenceRef.current = document.editSequence;
+      semanticHashRef.current = document.semanticHash;
       semanticDocumentRef.current = document.semanticDocument;
       presentationDocumentRef.current = document.presentationDocument;
       if (snapshot) restoreEditorSnapshot(snapshot);
@@ -2034,6 +2036,21 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         setZoom(viewport.zoom);
       }
       setLastSavedAt(document.updatedAt);
+      if (authoringClient.getCurrentValidations) {
+        const validations = await authoringClient.getCurrentValidations(controller.signal).catch(() => []);
+        const current = validations.find((item) => (
+          item.strategyId === strategyId
+          && item.requestedEditSequence === document.editSequence
+          && item.semanticHash === document.semanticHash
+        ));
+        if (current && !disposed) {
+          setSavedValidation({
+            ...current,
+            status: 'VALID',
+            findings: [],
+          });
+        }
+      }
       setDocumentPending(false);
       heartbeatTimer = window.setInterval(() => {
         const token = leaseTokenRef.current;
@@ -2072,6 +2089,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       releaseGrantedLease();
     };
   }, [authoringClient, documentRevision, strategyId]);
+
+  useEffect(() => {
+    if (documentPending || !savedValidation
+      || savedValidation.requestedEditSequence !== editSequenceRef.current
+      || savedValidation.semanticHash !== semanticHashRef.current) return;
+    setSavedReadySignature(editorSignatureRef.current);
+    setServerValidation(savedValidation);
+  }, [documentPending, savedValidation]);
 
   useEffect(() => {
     if (!strategyId || !authoringClient?.previewValidation || !basicCatalog || documentPending) return undefined;
@@ -2272,6 +2297,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       });
       persisted = true;
       editSequenceRef.current = saved.editSequence;
+      semanticHashRef.current = saved.semanticHash;
       semanticDocumentRef.current = saved.semanticDocument;
       presentationDocumentRef.current = saved.presentationDocument;
       /* The document is persisted at this point. Validity is decided below and must
@@ -2353,17 +2379,16 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       return;
     }
     setReleaseInputsPending(true);
+    setReleaseInputs(null);
     try {
       const inputs = await authoringClient.getReleaseInputs();
       setReleaseInputs(inputs);
-      setSelectedExecutionPolicy(inputs.executionPolicies[0]?.version ?? '');
-      setSelectedDataset(inputs.datasets[0]?.id ?? '');
       if (inputs.executionPolicies.length === 0 || inputs.datasets.length === 0) {
-        setReleaseError('현재 사용할 수 있는 실행 정책 또는 공식 백테스트 데이터셋이 없습니다.');
+        setReleaseError('현재 봇을 출시할 수 없습니다. 잠시 후 다시 시도해 주세요.');
       }
-      setAnnouncement('서버에서 확인한 출시 설정을 불러왔습니다.');
+      setAnnouncement('봇 출시 준비를 마쳤습니다.');
     } catch {
-      setReleaseError('출시 설정을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      setReleaseError('봇 출시를 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setReleaseInputsPending(false);
     }
@@ -2372,8 +2397,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const launchPersonalBot = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (strategyId && authoringClient) {
-      const policy = releaseInputs?.executionPolicies.find((item) => item.version === selectedExecutionPolicy);
-      const dataset = releaseInputs?.datasets.find((item) => item.id === selectedDataset);
+      const policy = releaseInputs?.executionPolicies[0];
+      const dataset = releaseInputs?.datasets[0];
       if (!savedValidation || savedValidation.status !== 'VALID' || !policy || !dataset) return;
       const cash = fixedScaleUsdAmount(initialCashAmount);
       const budget = Number(budgetPercent);
@@ -3000,14 +3025,25 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     ? previewSection.cardOrder.flatMap((cardId): PreviewFlow[] => {
       const side = previewSection.cards.buy.includes(cardId) ? 'buy' : previewSection.cards.sell.includes(cardId) ? 'sell' : null;
       if (!side) return [];
+      const buy = side === 'buy' ? buySettings[cardId] : null;
+      const sell = side === 'sell' ? sellSettings[cardId] : null;
+      const schedule: PreviewBlock[] = buy?.entryMode === '주기마다'
+        ? [{ label: '정기 매수', value: buy.cycle, base: String(buy.cycleInterval), tone: 'time' }]
+        : [];
       return [{
         id: cardId,
         label: cardMeta[cardId]?.title ?? (side === 'buy' ? '매수 전략' : '매도 전략'),
         side,
-        blocks: (cardBlocks[cardId] ?? []).map(({ label, op, value, tone }) => ({ label, op, value, tone })),
+        blocks: [
+          ...schedule,
+          ...(cardBlocks[cardId] ?? []).map(({ label, op, value, base, tone }) => ({ label, op, value, base, tone })),
+        ],
+        maxExecutions: side === 'buy'
+          ? (buy?.entryMode === '1회만' ? 1 : buy?.maxEntries)
+          : (sell?.executeMode === '1회만' ? 1 : sell?.maxExecutions),
       }];
     })
-    : [], [cardBlocks, cardMeta, previewSection]);
+    : [], [buySettings, cardBlocks, cardMeta, previewSection, sellSettings]);
 
   useEffect(() => {
     if (!previewSection || !marketDataClient) {
@@ -3026,7 +3062,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     const controller = new AbortController();
     setPreviewPending(true);
     setPreviewError(null);
-    void marketDataClient.getRecentBars(instrumentId, '30m', 300, controller.signal)
+    void marketDataClient.getRecentBars(instrumentId, resolutionCode(previewSection.timeframe), 300, controller.signal)
       .then((snapshot) => {
         setPreviewCandles(snapshot.bars.map((bar) => ({
           time: Math.floor(new Date(bar.occurredAt).getTime() / 1000),
@@ -4091,13 +4127,13 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           <div>
             <small>PERSONAL BOT</small>
             <h2 id="personal-bot-launch-title">개인 운용 봇 출시</h2>
-            <p>{strategyId && authoringClient ? '검증된 전략에 적용할 공식 실행 설정을 확인해 주세요.' : '전략을 실행할 봇의 이름과 설명을 정해 주세요.'}</p>
+            <p>{strategyId && authoringClient ? '초기 자금과 운용 예산을 확인해 주세요.' : '전략을 실행할 봇의 이름과 설명을 정해 주세요.'}</p>
           </div>
           <button type="button" aria-label="출시 창 닫기" onClick={closeLaunchDialog}><X size={17} /></button>
         </header>
         <form onSubmit={(event) => { void launchPersonalBot(event); }}>
           {strategyId && authoringClient ? <>
-            {releaseInputsPending && <LoadingState label="출시 설정을 불러오는 중입니다." />}
+            {releaseInputsPending && <LoadingState label="봇 출시를 준비하는 중입니다." />}
             {releaseError && <ErrorState title={releaseError} />}
             {!releaseInputsPending && releaseInputs && <>
               <label className="personal-bot-launch-field">
@@ -4107,18 +4143,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
               <label className="personal-bot-launch-field">
                 <span><strong>전략 운용 예산</strong><small>%</small></span>
                 <input type="number" min="0.01" max="100" step="0.01" aria-label="전략 운용 예산 비율" value={budgetPercent} onChange={(event) => setBudgetPercent(event.target.value)} />
-              </label>
-              <label className="personal-bot-launch-field">
-                <span><strong>실행 정책</strong><small>서버 고정</small></span>
-                <select aria-label="실행 정책" value={selectedExecutionPolicy} onChange={(event) => setSelectedExecutionPolicy(event.target.value)}>
-                  {releaseInputs.executionPolicies.map((policy) => <option key={policy.version} value={policy.version}>{policy.version} · 수수료 {policy.feeRateBps}bps · 버퍼 {policy.buyingPowerBufferBps}bps</option>)}
-                </select>
-              </label>
-              <label className="personal-bot-launch-field">
-                <span><strong>공식 백테스트 데이터</strong><small>{releaseInputs.datasets.length}개</small></span>
-                <select aria-label="공식 백테스트 데이터" value={selectedDataset} onChange={(event) => setSelectedDataset(event.target.value)}>
-                  {releaseInputs.datasets.map((dataset) => <option key={dataset.id} value={dataset.id}>{dataset.feedCode} · {dataset.resolution} · {dataset.periodStart}~{dataset.periodEnd}</option>)}
-                </select>
               </label>
             </>}
           </> : <>
@@ -4157,7 +4181,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
               kind="primary"
               icon={Rocket}
               disabled={strategyId && authoringClient
-                ? releaseInputsPending || releasePending || !selectedExecutionPolicy || !selectedDataset
+                ? releaseInputsPending || releasePending || !releaseInputs?.executionPolicies[0] || !releaseInputs?.datasets[0]
                 : !botName.trim() || !botDescription.trim()}
             >{releasePending ? '출시 중…' : '봇 출시하기'}</Button>
           </footer>
