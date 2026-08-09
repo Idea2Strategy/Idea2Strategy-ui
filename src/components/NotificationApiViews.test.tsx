@@ -76,7 +76,9 @@ describe('NotificationPreferencesPanel', () => {
       .mockRejectedValueOnce(new NotificationApiError(503, 'UNAVAILABLE', 'corr-load'))
       .mockResolvedValueOnce({ enabled: false });
     render(<NotificationPreferencesPanel client={client({ emailPreference })} />);
-    expect(await screen.findByText('알림 서버에 일시적으로 연결할 수 없습니다.')).toBeInTheDocument();
+    await waitFor(() => expect(emailPreference).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('알림 서버에 일시적으로 연결할 수 없습니다.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     const unavailableToggle = screen.getByRole('switch', { name: '이메일 알림 받기' });
     expect(unavailableToggle).toBeDisabled();
     expect(screen.getByText('확인 필요')).toBeInTheDocument();
