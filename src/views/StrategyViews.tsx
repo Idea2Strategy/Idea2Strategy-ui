@@ -1845,19 +1845,21 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const isLocallyComplete = validationIssues.length === 0 && (!catalogClient || catalogSupportsEditor);
   const requiresServerValidation = Boolean(strategyId && authoringClient);
   const isCurrentlyValid = isLocallyComplete && (!requiresServerValidation || serverValidation?.status === 'VALID');
-  const isLaunchable = isCurrentlyValid
-    && savedReadySignature === editorSignature
+  const isLaunchable = savedReadySignature === editorSignature
     && (!requiresServerValidation || savedValidation?.status === 'VALID');
+  const isValidationDisplayReady = isLaunchable || isCurrentlyValid;
   const serverErrorFindings = serverValidation?.findings.filter((finding) => (
     finding.severity === 'BLOCKING_ERROR' || finding.severity === 'ERROR'
   )) ?? [];
   const serverWarningFindings = serverValidation?.findings.filter((finding) => finding.severity === 'WARNING') ?? [];
   const validationTriggerLabel = validationPending
-    ? '검증 중…'
+    ? isLaunchable ? '출시 가능 · 미리검증 중' : '검증 중…'
+    : isLaunchable
+      ? serverValidation?.status === 'INVALID'
+        ? `출시 가능 · 미리검증 차이 ${serverErrorFindings.length}`
+        : serverWarningFindings.length > 0 ? `출시 가능 · 경고 ${serverWarningFindings.length}` : '출시 가능'
     : isCurrentlyValid
-      ? isLaunchable
-        ? serverWarningFindings.length > 0 ? `출시 가능 · 경고 ${serverWarningFindings.length}` : '출시 가능'
-        : '유효 · 저장 필요'
+      ? '유효 · 저장 필요'
     : validationIssues.length > 0
       ? `미완성 · 오류 ${validationIssues.length}`
       : serverValidation?.status === 'INVALID'
@@ -3726,9 +3728,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
                 : '변경 없음'}
         </span>
         <Button
-          className={`floating-editor-button basic-validation-trigger ${highlightValidation ? 'is-active' : ''} ${isCurrentlyValid ? 'is-launchable' : 'is-incomplete'}`}
-          icon={isCurrentlyValid ? Check : TriangleAlert}
-          aria-label={isCurrentlyValid ? '검증 완료 상태 보기' : '미완성 오류 강조'}
+          className={`floating-editor-button basic-validation-trigger ${highlightValidation ? 'is-active' : ''} ${isValidationDisplayReady ? 'is-launchable' : 'is-incomplete'}`}
+          icon={isValidationDisplayReady ? Check : TriangleAlert}
+          aria-label={isValidationDisplayReady ? '검증 완료 상태 보기' : '미완성 오류 강조'}
           aria-pressed={highlightValidation}
           onClick={() => setHighlightValidation((current) => !current)}
         >
@@ -3915,21 +3917,23 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           </div>
         </div>
       </section>
-      {highlightValidation && <aside className={`basic-validation-drawer panel floating-editor-panel ${isCurrentlyValid ? 'is-launchable' : 'is-incomplete'}`} role="complementary" aria-label="전략 오류 안내" aria-live="polite">
+      {highlightValidation && <aside className={`basic-validation-drawer panel floating-editor-panel ${isValidationDisplayReady ? 'is-launchable' : 'is-incomplete'}`} role="complementary" aria-label="전략 오류 안내" aria-live="polite">
         <header className="basic-validation-drawer-title">
-          <span>{isCurrentlyValid ? <Check size={16} /> : <TriangleAlert size={16} />}</span>
-          <div><small>VALIDATION</small><strong>{isCurrentlyValid ? isLaunchable ? '출시 가능한 전략' : '유효한 전략 · 저장 필요' : '수정할 항목'}</strong></div>
+          <span>{isValidationDisplayReady ? <Check size={16} /> : <TriangleAlert size={16} />}</span>
+          <div><small>VALIDATION</small><strong>{isLaunchable ? '출시 가능한 전략' : isCurrentlyValid ? '유효한 전략 · 저장 필요' : '수정할 항목'}</strong></div>
           <button type="button" aria-label="전략 오류 안내 닫기" onClick={() => setHighlightValidation(false)}><X size={14} /></button>
         </header>
         <div className="basic-validation-drawer-summary">
-          <strong>{isCurrentlyValid
-            ? serverWarningFindings.length > 0 ? `출시 가능 · 경고 ${serverWarningFindings.length}개` : '모든 필수 설정을 완료했어요'
+          <strong>{isLaunchable
+            ? serverValidation?.status === 'INVALID' ? '저장된 검증 기준으로 출시 가능' : serverWarningFindings.length > 0 ? `출시 가능 · 경고 ${serverWarningFindings.length}개` : '모든 필수 설정을 완료했어요'
+            : isCurrentlyValid
+              ? '현재 구성은 유효하지만 저장이 필요합니다'
             : validationIssues.length > 0
               ? `${validationIssues.length}개 항목을 확인해 주세요`
               : serverValidation?.status === 'INVALID'
                 ? `서버 검증 오류 ${serverErrorFindings.length}개`
                 : '저장 후 서버 검증이 필요합니다'}</strong>
-          <small>{isCurrentlyValid ? isLaunchable ? '현재 저장된 구성으로 개인 봇을 출시할 수 있습니다.' : '현재 구성은 유효합니다. 저장해야 개인 봇 출시가 활성화됩니다.' : validationIssues.length > 0 ? '항목을 선택하면 수정할 전략 카드로 이동합니다.' : '현재 구성을 서버 기준으로 검증하고 있습니다.'}</small>
+          <small>{isLaunchable ? serverValidation?.status === 'INVALID' ? '현재 저장된 구성은 출시 가능하며, 아래 미리검증 결과는 새 편집을 위한 참고 정보입니다.' : '현재 저장된 구성으로 개인 봇을 출시할 수 있습니다.' : isCurrentlyValid ? '현재 구성은 유효합니다. 저장해야 개인 봇 출시가 활성화됩니다.' : validationIssues.length > 0 ? '항목을 선택하면 수정할 전략 카드로 이동합니다.' : '현재 구성을 서버 기준으로 검증하고 있습니다.'}</small>
         </div>
         {!isCurrentlyValid && <div className="basic-validation-groups">
           {groupedValidationIssues.map((group) => <section key={group.key} className="basic-validation-group" role="region" aria-label={`${group.label} 오류`}>

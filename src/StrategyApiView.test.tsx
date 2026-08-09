@@ -389,7 +389,7 @@ describe('Strategy API view', () => {
     await waitFor(() => expect(authoringClient.releaseLease).toHaveBeenCalledWith('pagehide', 'pagehide-token'));
   });
 
-  test('saves a real Basic document, validates that revision, and releases with server-owned inputs', async () => {
+  test('keeps a saved READY revision launchable through preview differences, then saves and releases it', async () => {
     const user = userEvent.setup();
     const onLaunchBot = vi.fn();
     const strategyId = '20000000-0000-4000-8000-000000000001';
@@ -439,9 +439,15 @@ describe('Strategy API view', () => {
       })),
       previewValidation: vi.fn().mockImplementation(async (_id, input) => ({
         ...validation,
+        status: 'INVALID',
         validationRunId: `preview-${input.clientRevision}`,
         requestedEditSequence: input.clientRevision,
         semanticHash: 'preview-hash',
+        findings: [{
+          severity: 'BLOCKING_ERROR',
+          code: 'CURRENT_CATALOG_MISMATCH',
+          message: '현재 카탈로그 미리검증과 저장된 검증 결과가 다릅니다.',
+        }],
       })),
       getCurrentValidations: vi.fn().mockResolvedValue([loadedValidation]),
       validateStrategy: vi.fn().mockResolvedValue(validation),
@@ -462,6 +468,8 @@ describe('Strategy API view', () => {
     await waitFor(() => expect(save).toBeEnabled());
     await waitFor(() => expect(authoringClient.getCurrentValidations).toHaveBeenCalledWith(expect.any(AbortSignal)));
     await waitFor(() => expect(screen.getByRole('button', { name: '개인 봇 출시' })).toBeEnabled());
+    await screen.findByText('출시 가능 · 미리검증 차이 1');
+    expect(screen.getByRole('button', { name: '개인 봇 출시' })).toBeEnabled();
     const rsiValue = screen.getByRole('spinbutton', { name: 'RSI 반등 값' });
     await user.clear(rsiValue);
     await user.type(rsiValue, '31');
