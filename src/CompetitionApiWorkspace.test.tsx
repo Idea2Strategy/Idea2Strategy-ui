@@ -56,6 +56,21 @@ function client(overrides: Partial<CompetitionRoomsClient> = {}): CompetitionRoo
 }
 
 describe('real competition room workspace', () => {
+  test('uses a product-styled search control without a manual refresh action', async () => {
+    const user = userEvent.setup();
+    render(<CompetitionApiWorkspace client={client()} />);
+    await screen.findByRole('listitem', { name: '실전 API 대회 열기' });
+
+    const search = screen.getByRole('searchbox', { name: '대회 검색' });
+    expect(search.closest('label')).toHaveClass('competition-api-search');
+    expect(screen.queryByRole('button', { name: '새로고침' })).not.toBeInTheDocument();
+
+    await user.type(search, '실전');
+    const clear = screen.getByRole('button', { name: '대회 검색어 지우기' });
+    await user.click(clear);
+    expect(search).toHaveValue('');
+  });
+
   test('shows loading, schedule, anonymous ranking, owned comparison and post-end choice', async () => {
     const api = client();
     render(<CompetitionApiWorkspace client={api} />);
@@ -92,9 +107,15 @@ describe('real competition room workspace', () => {
     await screen.findByRole('listitem', { name: '실전 API 대회 열기' });
     await userEvent.click(screen.getByRole('button', { name: '대회 만들기' }));
     const create = screen.getByRole('dialog', { name: '대회 만들기' });
+    const createForm = create.querySelector('form');
+    const createScrollArea = create.querySelector('.competition-create-form-scroll');
+    expect(createForm).toHaveClass('competition-create-form');
+    expect(createScrollArea).toBeInTheDocument();
     expect(within(create).getByRole('group', { name: '기본 설정' })).toBeInTheDocument();
     expect(within(create).getByRole('group', { name: '대회 일정' })).toBeInTheDocument();
     expect(within(create).getByRole('group', { name: '운영 정책' })).toBeInTheDocument();
+    expect(createScrollArea).toContainElement(within(create).getByRole('group', { name: '기본 설정' }));
+    expect(createScrollArea).not.toContainElement(within(create).getByRole('button', { name: '대회 생성' }));
     await userEvent.type(within(create).getByLabelText('대회 이름'), '새 대회');
     expect(await within(create).findByRole('option', { name: /TOTAL_RETURN · 1.0.0/ })).toBeInTheDocument();
     expect(within(create).queryByLabelText('채점 템플릿 버전 ID')).not.toBeInTheDocument();
