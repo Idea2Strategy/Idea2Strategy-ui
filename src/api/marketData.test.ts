@@ -23,11 +23,11 @@ describe('market data client', () => {
       baseUrl: 'https://api.example.com/', fetchImpl, getAccessToken: () => 'session-token',
     });
 
-    const result = await client.getRecentBars('instrument-1', '4h', 300);
+    const result = await client.getRecentBars('instrument-1', '4h');
 
     expect(result.bars[0].close).toBe(210.5);
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://api.example.com/api/v1/market-data/instruments/instrument-1/bars?timeframe=4h&limit=300',
+      'https://api.example.com/api/v1/market-data/instruments/instrument-1/bars?timeframe=4h&limit=400',
       expect.objectContaining({
         credentials: 'include',
         headers: expect.objectContaining({ Authorization: 'Bearer session-token' }),

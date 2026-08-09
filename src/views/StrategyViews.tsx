@@ -20,7 +20,7 @@ import { splitPartitionSymbols } from '../lib/strategyPreview';
 import type { PreviewCandle, PreviewFlow } from '../lib/strategyPreview';
 import { StrategyPreviewChart } from '../components/StrategyPreviewChart';
 import { defaultMarketDataClient } from '../api/marketData';
-import type { MarketDataClient } from '../api/marketData';
+import type { ChartTimeframe, MarketDataClient } from '../api/marketData';
 import { Localized } from '../lib/i18n';
 import { browserSessionStore } from '../lib/session';
 import { setSessionAccessToken } from '../api/sessionAccessToken';
@@ -823,9 +823,9 @@ const allNumbers = (value: string | undefined): number[] => (
   [...String(value ?? '').matchAll(/\d+/g)].map((match) => Number(match[0]))
 );
 
-const resolutionCode = (timeframe: string): string => ({
+const resolutionCode = (timeframe: string): ChartTimeframe => ({
   '30분봉': '30m', '1시간봉': '1h', '4시간봉': '4h', '일봉': '1d',
-}[timeframe] ?? '30m');
+} satisfies Record<string, ChartTimeframe>)[timeframe] ?? '30m';
 
 const priceReferenceCode = (value: string | undefined): string => {
   const exact: Record<string, string> = {
@@ -3026,7 +3026,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     const controller = new AbortController();
     setPreviewPending(true);
     setPreviewError(null);
-    void marketDataClient.getRecentBars(instrumentId, '30m', 300, controller.signal)
+    void marketDataClient.getRecentBars(
+      instrumentId,
+      resolutionCode(previewSection.timeframe),
+      400,
+      controller.signal,
+    )
       .then((snapshot) => {
         setPreviewCandles(snapshot.bars.map((bar) => ({
           time: Math.floor(new Date(bar.occurredAt).getTime() / 1000),

@@ -296,6 +296,10 @@ describe('production runtime honesty', () => {
     />);
 
     expect(await screen.findByText('시장 데이터')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '4시간' }));
+    await waitFor(() => expect(marketDataClient.getRecentBars).toHaveBeenCalledWith(
+      'instrument-aapl', '4h', 400, expect.any(AbortSignal),
+    ));
     fireEvent.click(screen.getByRole('button', { name: 'MSFT 차트 보기' }));
     expect(await screen.findByText('시세 데이터 대기')).toBeInTheDocument();
     expect(screen.queryByText('시장 데이터')).not.toBeInTheDocument();

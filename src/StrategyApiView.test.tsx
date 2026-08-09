@@ -184,10 +184,14 @@ describe('Strategy API view', () => {
     expect(screen.getByRole('dialog', { name: 'PARTITION 1 종목 관리' })).toHaveTextContent('SPY');
     expect(loadOrder).toEqual(['document', 'lease']);
     await user.click(screen.getByRole('button', { name: '완료' }));
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'PARTITION 01 기본 봉 주기' }),
+      '4시간봉',
+    );
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
     expect(await screen.findByTestId('strategy-preview-canvas')).toBeInTheDocument();
     expect(marketDataClient.getRecentBars).toHaveBeenCalledWith(
-      'spy-id', '30m', 300, expect.any(AbortSignal),
+      'spy-id', '4h', 400, expect.any(AbortSignal),
     );
     const save = screen.getByRole('button', { name: '저장' });
     await waitFor(() => expect(save).toBeEnabled());
