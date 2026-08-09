@@ -188,7 +188,7 @@ describe('Strategy API view', () => {
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
     expect(await screen.findByTestId('strategy-preview-canvas')).toBeInTheDocument();
     expect(marketDataClient.getRecentBars).toHaveBeenCalledWith(
-      'spy-id', '1h', 300, expect.any(AbortSignal),
+      'spy-id', '1h', 400, expect.any(AbortSignal),
     );
     const save = screen.getByRole('button', { name: '저장' });
     await waitFor(() => expect(save).toBeEnabled());

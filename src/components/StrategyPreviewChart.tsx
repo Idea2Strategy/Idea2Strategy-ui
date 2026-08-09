@@ -292,5 +292,8 @@ export function StrategyPreviewChart({
     {preview.unsupported.length > 0 && <p className="strategy-preview-warning">
       {t(`${preview.unsupported.join(', ')} 블록은 계산할 수 없어 해당 플로우의 신호를 표시하지 않아요`)}
     </p>}
+    <small className="strategy-preview-disclaimer">
+      {t('빠르게 계산할 수 있는 조건만 반영한 예상 결과이며 실제 실행 결과와 다를 수 있습니다.')}
+    </small>
   </aside>;
 }

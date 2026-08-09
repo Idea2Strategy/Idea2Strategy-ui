@@ -77,7 +77,7 @@ export function createMarketDataClient({
     `/api/v1/market-data/instruments/${encodeURIComponent(instrumentId)}/bars`;
 
   return {
-    async getRecentBars(instrumentId, timeframe = '30m', limit = 300, signal) {
+    async getRecentBars(instrumentId, timeframe = '30m', limit = 400, signal) {
       const response = await fetchImpl(
         `${root}${path(instrumentId)}?timeframe=${encodeURIComponent(timeframe)}&limit=${encodeURIComponent(String(limit))}`,
         { credentials: 'include', headers: headers('application/json'), signal },

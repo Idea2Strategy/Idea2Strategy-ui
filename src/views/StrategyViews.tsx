@@ -3062,7 +3062,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     const controller = new AbortController();
     setPreviewPending(true);
     setPreviewError(null);
-    void marketDataClient.getRecentBars(instrumentId, resolutionCode(previewSection.timeframe), 300, controller.signal)
+    void marketDataClient.getRecentBars(instrumentId, resolutionCode(previewSection.timeframe), 400, controller.signal)
       .then((snapshot) => {
         setPreviewCandles(snapshot.bars.map((bar) => ({
           time: Math.floor(new Date(bar.occurredAt).getTime() / 1000),

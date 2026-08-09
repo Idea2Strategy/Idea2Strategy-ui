@@ -1631,7 +1631,7 @@ export function BotsView({
     const refreshSnapshot = async () => {
       try {
         const snapshot = await marketDataClient.getRecentBars(
-          selectedMarketInstrument.instrumentId, chartTimeframe, 300, controller.signal,
+          selectedMarketInstrument.instrumentId, chartTimeframe, 400, controller.signal,
         );
         publish(snapshot.bars);
         setMarketDataError(null);

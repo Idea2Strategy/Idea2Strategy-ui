@@ -231,6 +231,9 @@ export const PREVIEW_WINDOW = {
   count: 150,
 } as const;
 
+/* 브라우저에서 즉시 다시 계산할 수 있도록 실제 시세 입력도 최근 400봉으로 제한한다. */
+export const PREVIEW_MAX_CANDLES = 400;
+
 /* ---------- 지표 계산 ---------------------------------------------------- */
 
 type Series = Array<number | null>;
@@ -1036,7 +1039,10 @@ export const evaluateStrategyPreview = ({
   timeframeSeconds = PREVIEW_WINDOW.seconds,
   candleCount = PREVIEW_WINDOW.count,
 }: PreviewInput): StrategyPreview => {
-  const candles = suppliedCandles ?? generatePreviewCandles(symbol, timeframeSeconds, candleCount);
+  const sourceCandles = suppliedCandles ?? generatePreviewCandles(symbol, timeframeSeconds, candleCount);
+  const candles = sourceCandles.length > PREVIEW_MAX_CANDLES
+    ? sourceCandles.slice(-PREVIEW_MAX_CANDLES)
+    : sourceCandles;
   const unsupported = new Set<string>();
   /* 한 컨테이너 안의 조건은 런타임과 똑같이 AND다. 하나라도 해석할 수 없는
      블록이 있으면 그 플로우는 fail-closed로 신호를 만들지 않는다. */
