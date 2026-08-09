@@ -5483,7 +5483,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  color: var(--gain);
+  color: var(--text-faint);
   font: 750 var(--fs-micro) var(--font-mono);
   letter-spacing: .06em;
   text-transform: uppercase;
@@ -5492,6 +5492,10 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
+  background: var(--text-faint);
+}
+.bots-live-kicker.is-live { color: var(--gain); }
+.bots-live-kicker.is-live i {
   background: var(--gain);
   box-shadow: 0 0 0 0 color-mix(in srgb, var(--gain) 48%, transparent);
   animation: bots-live-pulse 1.8s ease-out infinite;
@@ -5504,6 +5508,7 @@
 .bots-live-quote span { font: 700 var(--fs-caption) var(--font-mono); }
 .bots-live-quote .positive { color: var(--buy-block-color); }
 .bots-live-quote .negative { color: var(--sell-block-color); }
+.bots-live-quote .is-muted { color: var(--text-faint); }
 .bots-live-toolbar {
   min-height: 44px;
   display: flex;
@@ -5555,6 +5560,29 @@
   position: relative;
   background: var(--surface);
 }
+.bots-live-chart-stage { position: relative; }
+.bots-live-empty {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 7px;
+  padding: var(--space-4);
+  color: var(--text-faint);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  text-align: center;
+}
+.bots-live-empty::before {
+  width: 32px;
+  height: 1px;
+  margin-bottom: 5px;
+  background: var(--line-strong);
+  content: '';
+}
+.bots-live-empty strong { color: var(--text-soft); font-size: var(--fs-body); }
+.bots-live-empty span { font-size: var(--fs-caption); }
 .bots-live-chart-foot {
   min-height: 40px;
   display: flex;

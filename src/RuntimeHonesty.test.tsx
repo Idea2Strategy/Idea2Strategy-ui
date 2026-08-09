@@ -1,4 +1,4 @@
-import { fireEvent, render as renderBare, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render as renderBare, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactElement } from 'react';
 
@@ -295,10 +295,58 @@ describe('production runtime honesty', () => {
       marketDataClient={marketDataClient}
     />);
 
-    expect(await screen.findByText('실시간 API')).toBeInTheDocument();
+    expect(await screen.findByText('시장 데이터')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'MSFT 차트 보기' }));
     expect(await screen.findByText('시세 데이터 대기')).toBeInTheDocument();
-    expect(screen.queryByText('실시간 API')).not.toBeInTheDocument();
+    expect(screen.queryByText('시장 데이터')).not.toBeInTheDocument();
+  });
+
+  test('calls the chart realtime only after a websocket price arrives', async () => {
+    let emitPrice!: Parameters<MarketDataClient['streamPrices']>[1];
+    const marketDataClient: MarketDataClient = {
+      getRecentBars: vi.fn((instrumentId) => Promise.resolve({
+        instrumentId, symbol: 'AAPL', timeframe: '30m' as const, bars: [],
+      })),
+      streamPrices: vi.fn((_instrumentId, onPrice, signal) => {
+        emitPrice = onPrice;
+        return new Promise<void>((resolve) => {
+          signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+      }),
+    };
+    const runtime = { ...operation('Socket Bot'), instruments: [
+      { instrumentId: 'instrument-aapl', symbol: 'AAPL' },
+    ] };
+
+    render(<BotsView
+      operationsClient={botClient(() => Promise.resolve([runtime]))}
+      tradingClient={null}
+      marketDataClient={marketDataClient}
+    />);
+
+    expect(await screen.findByRole('tab', { name: '차트' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('tab', { name: '실시간' })).not.toBeInTheDocument();
+    await waitFor(() => expect(marketDataClient.streamPrices).toHaveBeenCalled());
+
+    act(() => emitPrice({
+      schemaVersion: 1,
+      instrumentId: 'instrument-aapl',
+      symbol: 'AAPL',
+      price: 101.25,
+      lastTradeSize: 2,
+      intervalOpen: 101,
+      intervalHigh: 101.5,
+      intervalLow: 100.75,
+      intervalClose: 101.25,
+      intervalVolume: 2,
+      intervalTradeCount: 1,
+      providerTradeId: 7,
+      occurredAt: '2026-08-07T12:02:00Z',
+      publishedAt: '2026-08-07T12:02:00Z',
+    }));
+
+    expect(await screen.findByRole('tab', { name: '실시간' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: '실시간으로 이동' })).toBeInTheDocument();
   });
 
   /* Home reads the server once per visit. A manual refresh button invited the

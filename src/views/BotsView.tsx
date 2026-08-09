@@ -1942,7 +1942,7 @@ export function BotsView({
             value={tab}
             onChange={(next: TabId) => setTab(next)}
             items={[
-              { id: 'live', label: '실시간' },
+              { id: 'live', label: liveDisplayPrice?.symbol === decisionSymbol ? '실시간' : '차트' },
               { id: 'overview', label: '개요' },
               { id: 'positions', label: '포지션', count: livePositions?.length ?? (prototypeMode ? detail.positions.length : undefined) },
               { id: 'orders', label: '주문 기록', count: liveOrders?.length },
@@ -1954,9 +1954,8 @@ export function BotsView({
           </button>}
         </div>
 
-        {/* The opening tab is the fills the bot is making right now, drawn on a
-            price axis. Reaching it used to mean a trip into the decision log,
-            which is two steps from opening the page. */}
+        {/* The opening tab keeps fills and market prices within one click. It
+            only calls itself live after an actual websocket price arrives. */}
         {tab === 'live' && <TabPanel id="live">
           {marketDataError && <p className="bots-decision-note" role="status">{marketDataError}</p>}
           {decisionSymbol && <LiveExecutionChart
@@ -2148,7 +2147,7 @@ export function BotsView({
           {/* One timeline, one row grammar: kind chip · what happened · where
               and when. Fills show by default; engine records (unmet
               conditions, deferrals, passed checks) join when the person opts
-              into the full record. The chart of these same fills is the 실시간
+              into the full record. The chart of these same fills is the 차트
               tab, so it is not drawn above the list a second time. */}
           <div className="bots-log-tools">
             <label className="bots-log-search">

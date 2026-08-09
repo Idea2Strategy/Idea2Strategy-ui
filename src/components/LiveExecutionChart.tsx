@@ -413,21 +413,31 @@ export function LiveExecutionChart({
     setLiveChange(((priceUpdate.intervalClose / changeReference) - 1) * 100);
   }, [market.candles, marketBars, priceUpdate, referencePrice, selectedTimeframe.seconds, symbol, timeframe, usesApiMarket]);
 
-  const hasConnectedData = market.candles.length > 0 || (usesApiMarket && livePrice > 0);
+  const hasLiveStream = usesApiMarket && priceUpdate?.symbol === symbol;
+  const hasMarketData = market.candles.length > 0 || hasLiveStream;
+  const showRegularSessionNotice = usesApiMarket && isDisplayTimeframe(timeframe) && !hasMarketData;
+  const sourceLabel = hasLiveStream
+    ? '실시간 API'
+    : usesApiMarket
+      ? market.candles.length > 0 ? '시장 데이터' : '시세 데이터 대기'
+      : '데모 차트';
+  const quoteLabel = hasLiveStream
+    ? `${liveChange >= 0 ? '+' : ''}${liveChange.toFixed(2)}%`
+    : usesApiMarket
+      ? market.candles.length > 0 ? '최근 종가' : '데이터 없음'
+      : '샘플 시세';
 
-  return <section className="bots-live-chart" role="region" aria-label={`${botName} 실시간 체결 차트`}>
+  return <section className="bots-live-chart" role="region" aria-label={`${botName} 체결 차트`}>
     <header className="bots-live-chart-head">
       <div>
-        <span className="bots-live-kicker"><i aria-hidden="true" />{
-          usesApiMarket ? hasConnectedData ? '실시간 API' : '시세 데이터 대기' : '실시간 데모'
-        }</span>
-        <h3>{symbol} 실시간 차트</h3>
+        <span className={`bots-live-kicker${hasLiveStream ? ' is-live' : ''}`}><i aria-hidden="true" />{sourceLabel}</span>
+        <h3>{symbol} 차트</h3>
         <small>체결 판단과 시세 흐름을 한 화면에서 확인합니다.</small>
       </div>
       <div className="bots-live-quote" aria-live="polite">
         <strong>{livePrice > 0 ? `$${livePrice.toFixed(2)}` : symbolExecutions[0]?.price}</strong>
-        <span className={liveChange >= 0 ? 'positive' : 'negative'}>
-          {livePrice > 0 ? `${liveChange >= 0 ? '+' : ''}${liveChange.toFixed(2)}%` : '연결 중'}
+        <span className={hasLiveStream ? liveChange >= 0 ? 'positive' : 'negative' : 'is-muted'}>
+          {quoteLabel}
         </span>
       </div>
     </header>
@@ -454,18 +464,24 @@ export function LiveExecutionChart({
             onTimeframeChange?.(item.id);
           }}
         >{item.label}</button>)}
-        <button type="button" className="bots-live-realtime" onClick={() => chartRef.current?.timeScale().scrollToRealTime()}>
+        {hasLiveStream && <button type="button" className="bots-live-realtime" onClick={() => chartRef.current?.timeScale().scrollToRealTime()}>
           실시간으로 이동
-        </button>
+        </button>}
       </div>
     </div>
 
-    <div
-      ref={frameRef}
-      className="bots-live-chart-frame"
-      data-testid="live-candlestick-canvas"
-      data-market-source={usesApiMarket ? hasConnectedData ? 'api' : 'api-pending' : 'demo'}
-    />
+    <div className="bots-live-chart-stage">
+      <div
+        ref={frameRef}
+        className="bots-live-chart-frame"
+        data-testid="live-candlestick-canvas"
+        data-market-source={usesApiMarket ? hasMarketData ? 'api' : 'api-pending' : 'demo'}
+      />
+      {showRegularSessionNotice && <div className="bots-live-empty" role="status">
+        <strong>정규장에만 제공되는 데이터입니다</strong>
+        <span>1분·5분·15분 차트는 정규장 시세가 수신되면 표시됩니다.</span>
+      </div>}
+    </div>
 
     <footer className="bots-live-chart-foot">
       <div className="bots-live-markers" aria-label={`${symbol} 차트 체결 표시`}>

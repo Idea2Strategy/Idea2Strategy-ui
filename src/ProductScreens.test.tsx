@@ -12,7 +12,7 @@ import { AccountView, HelpView, NotificationsView } from './views/SupportViews';
 import type { BotOperationsClient } from './api/botOperations';
 import type { AccountOperationsClient } from './api/accountOperations';
 
-/* The page opens on 실시간 so the live chart costs no clicks; the standing
+/* The page opens on 차트 so the market view costs no clicks; the standing
    figures moved to their own 개요 tab, which these tests have to open. */
 const openOverview = (user: ReturnType<typeof userEvent.setup>) =>
   user.click(screen.getByRole('tab', { name: /개요/ }));
@@ -330,23 +330,24 @@ describe('Bot operations', () => {
     const user = userEvent.setup();
     render(<BotsView />);
 
-    // The point of the 실시간 tab: reaching the chart costs no clicks. It used
+    // The point of the 차트 tab: reaching the chart costs no clicks. It used
     // to live inside the decision log, two steps into the page.
-    expect(screen.getByRole('tab', { name: /실시간/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: '차트' })).toHaveAttribute('aria-selected', 'true');
 
-    const chart = screen.getByRole('region', { name: 'Atlas 07 실시간 체결 차트' });
+    const chart = screen.getByRole('region', { name: 'Atlas 07 체결 차트' });
     expect(within(chart).getByText('SPY')).toBeInTheDocument();
-    expect(within(chart).getByText('실시간 데모')).toBeInTheDocument();
+    expect(within(chart).getByText('데모 차트')).toBeInTheDocument();
+    expect(within(chart).queryByRole('button', { name: '실시간으로 이동' })).not.toBeInTheDocument();
     expect(within(chart).getByTestId('live-trade-marker')).toHaveAttribute('data-side', '매수');
 
     await user.click(within(chart).getByRole('button', { name: 'AAPL 차트 보기' }));
-    expect(within(chart).getByRole('heading', { name: 'AAPL 실시간 차트' })).toBeInTheDocument();
+    expect(within(chart).getByRole('heading', { name: 'AAPL 차트' })).toBeInTheDocument();
     expect(within(chart).getByTestId('live-trade-marker')).toHaveAttribute('data-side', '매도');
 
     // The log keeps the written record of the same fills; it must not draw the
     // chart a second time.
     await user.click(screen.getByRole('tab', { name: /판단 기록/ }));
-    expect(screen.queryByRole('region', { name: 'Atlas 07 실시간 체결 차트' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Atlas 07 체결 차트' })).not.toBeInTheDocument();
   });
 
   test('the decision log filters by search text and period', async () => {
