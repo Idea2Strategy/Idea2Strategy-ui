@@ -69,6 +69,7 @@ export interface BotOperationsClient {
   ): Promise<BotJudgmentLogPage>;
   runBot(botId: string, signal?: AbortSignal): Promise<void>;
   stopBot(botId: string, reasonCode: string, signal?: AbortSignal): Promise<void>;
+  deleteBot?(botId: string, signal?: AbortSignal): Promise<void>;
   getPreflight?(botId: string, signal?: AbortSignal): Promise<BotExecutionPreflight>;
   getContinuation?(botId: string, signal?: AbortSignal): Promise<BotContinuation>;
   renewContinuation?(botId: string, signal?: AbortSignal): Promise<BotContinuation>;
@@ -97,11 +98,11 @@ export function createBotOperationsClient({
 }: ClientOptions = {}): BotOperationsClient {
   const root = baseUrl.replace(/\/$/, '');
 
-  const request = async (
+  const requestResponse = async (
     path: string,
     signal?: AbortSignal,
     init: RequestInit = {},
-  ): Promise<unknown> => {
+  ): Promise<Response> => {
     const token = getAccessToken?.();
     const response = await fetchImpl(`${root}${path}`, {
       ...init,
@@ -117,8 +118,11 @@ export function createBotOperationsClient({
     if (!response.ok) {
       throw new BotOperationsApiError(response.status);
     }
-    return response.json();
+    return response;
   };
+  const request = async (path: string, signal?: AbortSignal, init: RequestInit = {}): Promise<unknown> => (
+    (await requestResponse(path, signal, init)).json()
+  );
 
   return {
     async listOperations(signal) {
@@ -151,6 +155,12 @@ export function createBotOperationsClient({
       await request(`/api/v1/bots/${encodeURIComponent(botId)}/stop`, signal, {
         method: 'POST',
         body: JSON.stringify({ reasonCode }),
+      });
+    },
+
+    async deleteBot(botId, signal) {
+      await requestResponse(`/api/v1/bots/${encodeURIComponent(botId)}`, signal, {
+        method: 'DELETE',
       });
     },
 

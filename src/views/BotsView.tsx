@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Save, Search, ShieldCheck, Timer, X } from 'lucide-react';
+import { Bot, Boxes, CircleDollarSign, Coins, GitBranch, GripVertical, LockKeyhole, Play, Save, Search, ShieldCheck, Timer, Trash2, X } from 'lucide-react';
 import { Button, DataTable, EmptyState, ErrorState, LoadingState, PageHeading, Status, TabPanel, Tabs } from '../components/common';
 import { ErrorPage, SignInRequiredPage } from '../components/StatePages';
 import type { DataTableColumn } from '../components/common';
@@ -1270,6 +1270,9 @@ export function BotsView({
   const [preflight, setPreflight] = useState<BotExecutionPreflight | null | undefined>(undefined);
   const [continuation, setContinuation] = useState<BotContinuation | null | undefined>(undefined);
   const [botControlError, setBotControlError] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const cursorByBot = useRef<Record<string, number>>({});
   const activeBots = useMemo(
     () => prototypeMode ? staticBotList : operations === null ? [] : mergeBotOperations(operations),
@@ -1452,6 +1455,30 @@ export function BotsView({
       setCommandMessage('운용 지속 기한을 갱신하지 못했습니다. 갱신 가능 시각과 봇 상태를 확인해 주세요.');
     } finally {
       setCommandPending(false);
+    }
+  };
+
+  const deleteStoppedBot = async () => {
+    if (!operationsClient?.deleteBot || !selected?.id || selectedOperations?.state !== 'stopped' || deletePending) return;
+    const deletedId = selected.id;
+    setDeletePending(true);
+    setDeleteError(null);
+    try {
+      await operationsClient.deleteBot(deletedId);
+      const remaining = (confirmedOperationsRef.current ?? operations ?? [])
+        .filter((bot) => bot.botId !== deletedId);
+      confirmedOperationsRef.current = remaining;
+      setOperations(remaining);
+      setDeleteDialogOpen(false);
+      setCommandMessage('봇을 목록에서 삭제했습니다.');
+    } catch (error) {
+      setDeleteError(error instanceof BotOperationsApiError && error.status === 409
+        ? '정산이 끝나고 봇이 중지됨 상태가 된 뒤 삭제할 수 있습니다.'
+        : error instanceof BotOperationsApiError && error.status === 404
+        ? '이 봇은 이미 삭제되었거나 더 이상 접근할 수 없습니다.'
+        : '봇을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setDeletePending(false);
     }
   };
 
@@ -1918,6 +1945,13 @@ export function BotsView({
               aria-label={`${selected.name} 영구 중단`}
               onClick={() => void issueBotCommand('stop')}
             >영구 중단</Button>}
+            {selectedOperations?.state === 'stopped' && operationsClient?.deleteBot && <Button
+              className="resource-delete-trigger"
+              icon={Trash2}
+              disabled={deletePending}
+              aria-label={`${selected.name} 삭제`}
+              onClick={() => { setDeleteError(null); setDeleteDialogOpen(true); }}
+            >삭제</Button>}
           </div>
         </header>
         {commandMessage && <p className="bots-decision-note" role="status">{commandMessage}</p>}
@@ -2220,5 +2254,21 @@ export function BotsView({
         setLayoutOpen(false);
       }}
     />}
+    {deleteDialogOpen && selected && <div className="resource-delete-backdrop" onMouseDown={() => { if (!deletePending) setDeleteDialogOpen(false); }}>
+      <section role="dialog" aria-modal="true" aria-label="봇 삭제 확인" className="resource-delete-dialog" onMouseDown={(event) => event.stopPropagation()}>
+        <span aria-hidden="true"><Trash2 size={19} /></span>
+        <div>
+          <strong>‘{selected.name}’ 봇을 삭제할까요?</strong>
+          <p>봇 목록에서 제거되며 되돌릴 수 없습니다. 감사에 필요한 운용 및 거래 기록은 유지됩니다.</p>
+          {deleteError && <p className="resource-delete-error" role="alert">{deleteError}</p>}
+        </div>
+        <footer>
+          <Button disabled={deletePending} onClick={() => setDeleteDialogOpen(false)}>취소</Button>
+          <Button className="resource-delete-confirm" disabled={deletePending} icon={Trash2} onClick={() => { void deleteStoppedBot(); }}>
+            {deletePending ? '삭제 중…' : '봇 삭제'}
+          </Button>
+        </footer>
+      </section>
+    </div>}
   </div></Localized>;
 }

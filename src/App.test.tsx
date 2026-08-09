@@ -780,12 +780,12 @@ describe('Signal product UI', () => {
   });
 
   test('gives strategy names and dates the flexible column instead of a removed drag-handle track', () => {
-    expect(balancedStyles).toMatch(/\.strategy-row\s*\{[^}]*grid-template-columns:\s*38px minmax\(180px,\s*1fr\) 64px 90px 68px;/s);
-    expect(balancedStyles).toMatch(/\.variant-balanced\[data-design="signal-studio"\] \.strategy-row\s*\{[^}]*grid-template-columns:\s*30px minmax\(180px,\s*1fr\) 72px 96px 68px;/s);
+    expect(balancedStyles).toMatch(/\.strategy-row\s*\{[^}]*grid-template-columns:\s*38px minmax\(180px,\s*1fr\) 64px 90px 104px;/s);
+    expect(balancedStyles).toMatch(/\.variant-balanced\[data-design="signal-studio"\] \.strategy-row\s*\{[^}]*grid-template-columns:\s*30px minmax\(180px,\s*1fr\) 72px 96px 104px;/s);
     expect(balancedStyles).not.toMatch(/grid-template-columns:\s*(?:16px 38px|13px 30px)/);
   });
 
-  /* The track above is a fixed two-button width. A row that renders only one
+  /* The track above is a fixed three-button width. A row that renders only one
      button must push it to the right edge, or the fixed track would leave the
      button floating in the middle of its own column. */
   test('right-aligns row actions inside the fixed action track', () => {

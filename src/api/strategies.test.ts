@@ -108,6 +108,18 @@ describe('strategy authoring API client', () => {
     );
   });
 
+  it('soft-deletes an owned strategy through the versioned command', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const client = createStrategyAuthoringClient({ baseUrl: 'https://api.example.com/', fetchImpl });
+
+    await client.deleteStrategy!(document.strategyId);
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `https://api.example.com/api/v1/strategies/${document.strategyId}`,
+      expect.objectContaining({ method: 'DELETE', credentials: 'include' }),
+    );
+  });
+
   it('loads, leases, heartbeats, saves, and releases an owned document', async () => {
     const fetchImpl = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify(document), { status: 200 }))
