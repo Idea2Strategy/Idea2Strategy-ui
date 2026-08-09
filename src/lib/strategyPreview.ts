@@ -27,6 +27,7 @@ export interface PreviewBlock {
   label: string;
   op?: string;
   value?: string;
+  base?: string;
   tone: string;
 }
 
@@ -39,7 +40,15 @@ export type IndicatorKind =
   | 'MACD'
   | 'DONCHIAN'
   | 'VOLUME_SMA'
-  | 'PRICE';
+  | 'PRICE'
+  | 'PRICE_CHANGE'
+  | 'VOLUME_COMPARE'
+  | 'STREAK'
+  | 'POSITION_RETURN'
+  | 'HOLDING_PERIOD'
+  | 'PEAK_RETURN'
+  | 'DRAWDOWN_FROM_PEAK'
+  | 'SCHEDULE';
 
 export type SignalSide = 'buy' | 'sell';
 
@@ -54,8 +63,15 @@ export interface SignalRule {
   fastPeriod?: number;
   slowPeriod?: number;
   period?: number;
+  signalPeriod?: number;
+  deviations?: number;
+  multiplier?: number;
+  amount?: number;
   /* LOWER·UPPER·SIGNAL 같은 문자 기준값. */
   target?: string;
+  base?: string;
+  unit?: string;
+  cycle?: string;
 }
 
 /*
@@ -68,6 +84,7 @@ export interface PreviewFlow {
   label: string;
   side: SignalSide;
   blocks: PreviewBlock[];
+  maxExecutions?: number;
 }
 
 export interface PreviewMarker {
@@ -87,6 +104,8 @@ export interface FlowSummary {
   count: number;
   rule: SignalRule | null;
   description: string | null;
+  dataReady: boolean;
+  evaluable: boolean;
 }
 
 export interface PreviewTrade {
@@ -239,25 +258,23 @@ export const ema = (values: number[], period: number): Series => {
   });
 };
 
-/* Wilder 방식 RSI. 표준 구현이라 사용자가 아는 값과 어긋나지 않는다. */
+/*
+  공식 런타임의 RSI_14(rsi:1.0.0)와 같은 Cutler bounded-window 방식.
+  최근 period개의 변화만 매 봉 다시 합산한다. 미리보기에서 흔한 Wilder RSI를
+  쓰면 백테스트와 교차 시점이 달라지므로 여기서는 제품 정의를 그대로 따른다.
+*/
 export const rsi = (values: number[], period = 14): Series => {
   const result: Series = values.map(() => null);
   if (values.length <= period) return result;
-  let gain = 0;
-  let loss = 0;
-  for (let index = 1; index <= period; index += 1) {
-    const change = values[index] - values[index - 1];
-    gain += Math.max(0, change);
-    loss += Math.max(0, -change);
-  }
-  gain /= period;
-  loss /= period;
-  result[period] = loss === 0 ? 100 : 100 - 100 / (1 + gain / loss);
-  for (let index = period + 1; index < values.length; index += 1) {
-    const change = values[index] - values[index - 1];
-    gain = (gain * (period - 1) + Math.max(0, change)) / period;
-    loss = (loss * (period - 1) + Math.max(0, -change)) / period;
-    result[index] = loss === 0 ? 100 : 100 - 100 / (1 + gain / loss);
+  for (let index = period; index < values.length; index += 1) {
+    let gain = 0;
+    let loss = 0;
+    for (let step = index - period + 1; step <= index; step += 1) {
+      const change = values[step] - values[step - 1];
+      gain += Math.max(0, change);
+      loss += Math.max(0, -change);
+    }
+    result[index] = loss === 0 ? (gain === 0 ? 50 : 100) : 100 - 100 / (1 + gain / loss);
   }
   return result;
 };
@@ -354,13 +371,22 @@ export const donchian = (candles: PreviewCandle[], period = 20): DonchianChannel
 
 const INDICATOR_ALIASES: Array<{ match: RegExp; kind: IndicatorKind; defaultPeriod?: number }> = [
   { match: /^RSI/i, kind: 'RSI', defaultPeriod: 14 },
-  { match: /^BOLL/i, kind: 'BOLLINGER', defaultPeriod: 20 },
+  { match: /^(BOLL|가격 띠 반전)/i, kind: 'BOLLINGER', defaultPeriod: 20 },
   { match: /^VOLUME\s*SMA/i, kind: 'VOLUME_SMA', defaultPeriod: 20 },
-  { match: /^SMA/i, kind: 'SMA', defaultPeriod: 20 },
+  { match: /^(SMA|평균선 교차)/i, kind: 'SMA', defaultPeriod: 20 },
   { match: /^EMA/i, kind: 'EMA', defaultPeriod: 20 },
   { match: /^STOCH/i, kind: 'STOCHASTIC', defaultPeriod: 14 },
   { match: /^MACD/i, kind: 'MACD' },
   { match: /^DONCHIAN/i, kind: 'DONCHIAN', defaultPeriod: 20 },
+  { match: /^가격 비교$/i, kind: 'PRICE' },
+  { match: /^가격 변화율$/i, kind: 'PRICE_CHANGE' },
+  { match: /^거래량$/i, kind: 'VOLUME_COMPARE' },
+  { match: /^연속 상승·하락$/i, kind: 'STREAK' },
+  { match: /^현재 수익률$/i, kind: 'POSITION_RETURN' },
+  { match: /^보유 기간$/i, kind: 'HOLDING_PERIOD' },
+  { match: /^최고 수익률$/i, kind: 'PEAK_RETURN' },
+  { match: /^고점 대비 하락$/i, kind: 'DRAWDOWN_FROM_PEAK' },
+  { match: /^정기 매수$/i, kind: 'SCHEDULE' },
 ];
 
 const parsePeriods = (value: string | undefined): { fast?: number; slow?: number; single?: number } => {
@@ -373,6 +399,69 @@ const parsePeriods = (value: string | undefined): { fast?: number; slow?: number
 
 export const identifyIndicator = (label: string): IndicatorKind | null =>
   INDICATOR_ALIASES.find((alias) => alias.match.test(label.trim()))?.kind ?? null;
+
+const numbersIn = (value: string | undefined): number[] => (
+  [...String(value ?? '').matchAll(/\d+(?:\.\d+)?/g)].map((match) => Number(match[0]))
+);
+
+const metaBlock = (block: PreviewBlock): boolean => (
+  /\bBAR$/i.test(block.label)
+  || ['BUDGET', 'POSITION'].includes(block.label.toUpperCase())
+  || block.tone === 'order'
+);
+
+const signalRuleFrom = (block: PreviewBlock): SignalRule | null => {
+  const kind = identifyIndicator(block.label);
+  if (!kind) return null;
+  const numbers = numbersIn(block.value);
+  const threshold = numbers[0];
+  const common = { kind, label: block.label, op: block.op ?? '' };
+
+  if (kind === 'RSI' || kind === 'STOCHASTIC') {
+    return { ...common, period: 14, threshold };
+  }
+  if (kind === 'SMA') {
+    return {
+      ...common,
+      fastPeriod: numbers[0],
+      slowPeriod: numbers[1],
+      period: numbers[1] ? undefined : numbers[0] ?? 20,
+    };
+  }
+  if (kind === 'EMA' || kind === 'DONCHIAN' || kind === 'VOLUME_SMA') {
+    return { ...common, period: numbers[0] ?? 20, threshold: kind === 'VOLUME_SMA' ? threshold : undefined };
+  }
+  if (kind === 'MACD') {
+    return { ...common, fastPeriod: numbers[0] ?? 12, slowPeriod: numbers[1] ?? 26, signalPeriod: numbers[2] ?? 9 };
+  }
+  if (kind === 'BOLLINGER') {
+    return { ...common, period: numbers[0] ?? 20, deviations: numbers[1] ?? 2 };
+  }
+  if (kind === 'PRICE') return { ...common, target: block.value };
+  if (kind === 'PRICE_CHANGE') return { ...common, base: block.base, threshold };
+  if (kind === 'VOLUME_COMPARE') {
+    return {
+      ...common,
+      target: block.value,
+      period: block.value === '이전 봉 거래량' ? 1 : numbers[0] ?? 20,
+      multiplier: block.value === '이전 봉 거래량' ? 1 : numbers[1] ?? 1,
+    };
+  }
+  if (kind === 'STREAK') return { ...common, period: numbers[0] ?? 2 };
+  if (kind === 'POSITION_RETURN' || kind === 'PEAK_RETURN' || kind === 'DRAWDOWN_FROM_PEAK') {
+    return { ...common, threshold };
+  }
+  if (kind === 'HOLDING_PERIOD') {
+    const value = block.value ?? '';
+    return {
+      ...common,
+      amount: value === '당일 장 마감' ? 0 : numbers[0] ?? 1,
+      unit: value === '당일 장 마감' ? 'SESSION_CLOSE' : value.includes('거래일') ? 'TRADING_DAY' : 'BAR',
+    };
+  }
+  if (kind === 'SCHEDULE') return { ...common, cycle: block.value, amount: numbersIn(block.base)[0] ?? 1 };
+  return common;
+};
 
 /*
   같은 숫자가 지표에 따라 다른 뜻을 가진다. RSI 30은 기준값이고 SMA 20은
@@ -403,34 +492,25 @@ export const indicatorPeriodFor = (kind: IndicatorKind, value: string | undefine
   };
 };
 
-/*
-  컨테이너의 블록 목록에서 신호 규칙 하나를 뽑는다. Basic 전략의 한 컨테이너는
-  하나의 판단으로 귀결되므로, 미리보기는 첫 번째 계산 가능한 지표 블록을
-  기준으로 삼고 나머지는 규칙 문구에만 반영한다.
-*/
-export const parseSignalRule = (blocks: PreviewBlock[]): { rule: SignalRule | null; unsupported: string[] } => {
+/* 컨테이너의 모든 실행 조건을 읽는다. Basic 런타임은 이 목록을 AND로 평가한다. */
+export const parseSignalRules = (blocks: PreviewBlock[]): { rules: SignalRule[]; unsupported: string[] } => {
+  const rules: SignalRule[] = [];
   const unsupported: string[] = [];
   for (const block of blocks) {
-    if (block.tone !== 'indicator' && block.tone !== 'condition') continue;
-    const kind = identifyIndicator(block.label);
-    if (!kind) {
+    if (metaBlock(block)) continue;
+    const rule = signalRuleFrom(block);
+    if (!rule) {
       unsupported.push(block.label);
       continue;
     }
-    const numeric = block.value?.match(/^(\d+(?:\.\d+)?)\s*%?$/);
-    const target = block.value?.match(/^[A-Za-z]+/)?.[0]?.toUpperCase();
-    return {
-      rule: {
-        kind,
-        label: block.label,
-        op: block.op ?? (kind === 'BOLLINGER' ? '<' : '>'),
-        ...indicatorPeriodFor(kind, block.value),
-        target: target && !numeric ? target : undefined,
-      },
-      unsupported,
-    };
+    rules.push(rule);
   }
-  return { rule: null, unsupported };
+  return { rules, unsupported };
+};
+
+export const parseSignalRule = (blocks: PreviewBlock[]): { rule: SignalRule | null; unsupported: string[] } => {
+  const parsed = parseSignalRules(blocks);
+  return { rule: parsed.rules[0] ?? null, unsupported: parsed.unsupported };
 };
 
 /* ---------- 규칙 평가 ---------------------------------------------------- */
@@ -445,8 +525,9 @@ interface RuleSeries {
 }
 
 const crossDirection = (op: string, target?: string): 'above' | 'below' => {
-  if (op === '>' || op === '↑') return 'above';
-  if (op === '<' || op === '↓') return 'below';
+  const normalized = op.trim().toUpperCase();
+  if (['>', '≥', '↑', '상승', '수익', 'UP', 'PROFIT'].includes(normalized)) return 'above';
+  if (['<', '≤', '↓', '하락', '손실', 'DOWN', 'LOSS'].includes(normalized)) return 'below';
   return target === 'UPPER' || target === 'UP' ? 'above' : 'below';
 };
 
@@ -541,6 +622,269 @@ const buildRuleSeries = (rule: SignalRule, candles: PreviewCandle[]): RuleSeries
   return null;
 };
 
+const minimumCandlesForRule = (rule: SignalRule): number => {
+  if (rule.kind === 'MACD') return (rule.slowPeriod ?? 26) + (rule.signalPeriod ?? 9) + 2;
+  if (rule.kind === 'SMA' && rule.slowPeriod) return rule.slowPeriod + 1;
+  if (rule.kind === 'RSI') return (rule.period ?? 14) + 2;
+  if (rule.kind === 'BOLLINGER') return (rule.period ?? 20) + 1;
+  if (rule.kind === 'VOLUME_COMPARE') return rule.target === '이전 봉 거래량' ? 2 : (rule.period ?? 20) + 1;
+  if (rule.kind === 'STREAK') return (rule.period ?? 2) + 1;
+  if (rule.kind === 'PRICE' || rule.kind === 'PRICE_CHANGE') {
+    const periods = numbersIn(rule.target ?? rule.base);
+    return Math.max(1, (periods[0] ?? 1) + ((rule.target ?? rule.base)?.includes('최') ? 1 : 0));
+  }
+  return 1;
+};
+
+interface PreviewPositionState {
+  holding: boolean;
+  entryIndex: number;
+  entryPrice: number;
+  peakReturnPct: number;
+}
+
+interface RuleEvaluator {
+  rule: SignalRule;
+  description: string;
+  dataReady: boolean;
+  matches: (index: number, position: PreviewPositionState) => boolean;
+}
+
+const compared = (left: number, right: number, op: string): boolean => {
+  if (op === '>' || op === '↑') return left > right;
+  if (op === '≥') return left >= right;
+  if (op === '=') return left === right;
+  if (op === '≤') return left <= right;
+  return left < right;
+};
+
+const average = (values: number[]): number => values.reduce((sum, value) => sum + value, 0) / values.length;
+
+const easternDate = (time: number): string => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date(time * 1000));
+
+const priceReferenceAt = (
+  reference: string | undefined,
+  index: number,
+  candles: PreviewCandle[],
+  position: PreviewPositionState,
+): number | null => {
+  const target = reference ?? '';
+  if (target === '전일 종가' || target === 'PREVIOUS_CLOSE') return index > 0 ? candles[index - 1].close : null;
+  if (target === '평균 진입가' || target === 'AVERAGE_ENTRY_PRICE') return position.holding ? position.entryPrice : null;
+  if (target === '당일 장 시작가' || target === 'SESSION_OPEN') {
+    const date = easternDate(candles[index].time);
+    const first = candles.find((candle) => easternDate(candle.time) === date);
+    return first?.open ?? null;
+  }
+  const period = numbersIn(target)[0];
+  if (!period) return null;
+  if (target.includes('평균') || target.startsWith('SMA_')) {
+    return index + 1 < period ? null : average(candles.slice(index + 1 - period, index + 1).map((candle) => candle.close));
+  }
+  if (target.includes('최고') || target.startsWith('HIGH_')) {
+    return index < period ? null : Math.max(...candles.slice(index - period, index).map((candle) => candle.close));
+  }
+  if (target.includes('최저') || target.startsWith('LOW_')) {
+    return index < period ? null : Math.min(...candles.slice(index - period, index).map((candle) => candle.close));
+  }
+  return null;
+};
+
+const runtimeMacdHistogram = (values: number[], fast: number, slow: number, signal: number): number[] => {
+  const fromFirst = (period: number): number[] => {
+    const alpha = 2 / (period + 1);
+    let current = values[0];
+    return values.map((value, index) => {
+      if (index === 0) return current;
+      current = value * alpha + current * (1 - alpha);
+      return current;
+    });
+  };
+  const fastLine = fromFirst(fast);
+  const slowLine = fromFirst(slow);
+  const macdLine = fastLine.map((value, index) => value - slowLine[index]);
+  const alpha = 2 / (signal + 1);
+  let signalValue = macdLine[0];
+  return macdLine.map((value, index) => {
+    if (index > 0) signalValue = value * alpha + signalValue * (1 - alpha);
+    return value - signalValue;
+  });
+};
+
+const buildRuleEvaluator = (rule: SignalRule, candles: PreviewCandle[]): RuleEvaluator | null => {
+  const closes = candles.map((candle) => candle.close);
+  const direction = crossDirection(rule.op, rule.target);
+  const arrow = direction === 'above' ? '상향 돌파' : '하향 돌파';
+  const enough = candles.length >= minimumCandlesForRule(rule);
+
+  if (['RSI', 'SMA', 'EMA', 'STOCHASTIC', 'DONCHIAN', 'VOLUME_SMA'].includes(rule.kind)) {
+    const series = buildRuleSeries(rule, candles);
+    return series ? { rule, description: series.description, dataReady: enough, matches: (index) => crossedAt(series, index) } : null;
+  }
+  if (rule.kind === 'MACD') {
+    const fast = rule.fastPeriod ?? 12;
+    const slow = rule.slowPeriod ?? 26;
+    const signal = rule.signalPeriod ?? 9;
+    const required = slow + signal + 2;
+    return {
+      rule,
+      description: `MACD(${fast}·${slow}·${signal})가 0선을 ${arrow}`,
+      dataReady: enough,
+      matches: (index) => {
+        if (index + 1 < required) return false;
+        const histogram = runtimeMacdHistogram(closes.slice(index + 1 - required, index + 1), fast, slow, signal);
+        const previous = histogram.at(-2)!;
+        const current = histogram.at(-1)!;
+        return direction === 'above' ? previous <= 0 && current > 0 : previous >= 0 && current < 0;
+      },
+    };
+  }
+  if (rule.kind === 'BOLLINGER') {
+    const period = rule.period ?? 20;
+    const deviations = rule.deviations ?? 2;
+    const bandAt = (index: number): { lower: number; upper: number } | null => {
+      if (index + 1 < period) return null;
+      const window = closes.slice(index + 1 - period, index + 1);
+      const mean = average(window);
+      const deviation = Math.sqrt(average(window.map((value) => (value - mean) ** 2)));
+      return { lower: mean - deviations * deviation, upper: mean + deviations * deviation };
+    };
+    return {
+      rule,
+      description: direction === 'above'
+        ? `가격이 Bollinger(${period}, ${deviations}σ) 하단 띠에서 반등`
+        : `가격이 Bollinger(${period}, ${deviations}σ) 상단 띠에서 하락`,
+      dataReady: enough,
+      matches: (index) => {
+        if (index === 0) return false;
+        const previous = bandAt(index - 1);
+        const current = bandAt(index);
+        if (!previous || !current) return false;
+        return direction === 'above'
+          ? closes[index - 1] <= previous.lower && closes[index] > current.lower
+          : closes[index - 1] >= previous.upper && closes[index] < current.upper;
+      },
+    };
+  }
+  if (rule.kind === 'PRICE' || rule.kind === 'PRICE_CHANGE') {
+    const reference = rule.kind === 'PRICE' ? rule.target : rule.base;
+    const threshold = rule.threshold ?? 0;
+    return {
+      rule,
+      description: rule.kind === 'PRICE'
+        ? `가격이 ${reference ?? '기준 가격'} ${rule.op || '비교'}`
+        : `${reference ?? '기준 가격'} 대비 ${threshold}% ${direction === 'above' ? '상승' : '하락'}`,
+      dataReady: enough,
+      matches: (index, position) => {
+        const base = priceReferenceAt(reference, index, candles, position);
+        if (base === null || base === 0) return false;
+        if (rule.kind === 'PRICE') return compared(closes[index], base, rule.op);
+        const change = ((closes[index] - base) / base) * 100;
+        return direction === 'above' ? change >= threshold : change <= -threshold;
+      },
+    };
+  }
+  if (rule.kind === 'VOLUME_COMPARE') {
+    const period = rule.period ?? 20;
+    const multiplier = rule.multiplier ?? 1;
+    return {
+      rule,
+      description: `거래량이 ${rule.target ?? `최근 ${period}봉 평균`} ${rule.op || '비교'}`,
+      dataReady: enough,
+      matches: (index) => {
+        if (index === 0) return false;
+        const reference = rule.target === '이전 봉 거래량'
+          ? candles[index - 1].volume
+          : index < period ? null : average(candles.slice(index - period, index).map((candle) => candle.volume)) * multiplier;
+        return reference !== null && compared(candles[index].volume, reference, rule.op);
+      },
+    };
+  }
+  if (rule.kind === 'STREAK') {
+    const bars = rule.period ?? 2;
+    return {
+      rule,
+      description: `${bars}봉 연속 ${direction === 'above' ? '상승' : '하락'}`,
+      dataReady: enough,
+      matches: (index) => {
+        if (index < bars) return false;
+        for (let step = index - bars + 1; step <= index; step += 1) {
+          if (direction === 'above' ? closes[step] <= closes[step - 1] : closes[step] >= closes[step - 1]) return false;
+        }
+        return true;
+      },
+    };
+  }
+  if (rule.kind === 'POSITION_RETURN' || rule.kind === 'PEAK_RETURN' || rule.kind === 'DRAWDOWN_FROM_PEAK') {
+    const threshold = rule.threshold ?? 0;
+    return {
+      rule,
+      description: rule.kind === 'POSITION_RETURN'
+        ? `현재 수익률이 ${threshold}% ${direction === 'above' ? '이상 수익' : '이상 손실'}`
+        : rule.kind === 'PEAK_RETURN'
+          ? `최고 수익률이 ${threshold}% ${rule.op || '비교'}`
+          : `고점 대비 하락이 ${threshold}% ${rule.op || '비교'}`,
+      dataReady: true,
+      matches: (index, position) => {
+        if (!position.holding || position.entryPrice === 0) return false;
+        const currentReturn = ((closes[index] / position.entryPrice) - 1) * 100;
+        if (rule.kind === 'POSITION_RETURN') return direction === 'above' ? currentReturn >= threshold : currentReturn <= -threshold;
+        if (rule.kind === 'PEAK_RETURN') return compared(position.peakReturnPct, threshold, rule.op);
+        return compared(position.peakReturnPct - currentReturn, threshold, rule.op);
+      },
+    };
+  }
+  if (rule.kind === 'HOLDING_PERIOD') {
+    const amount = rule.amount ?? 1;
+    return {
+      rule,
+      description: rule.unit === 'SESSION_CLOSE' ? '당일 장 마감까지 보유' : `보유 기간 ${amount}${rule.unit === 'TRADING_DAY' ? '거래일' : '봉'} 이상`,
+      dataReady: true,
+      matches: (index, position) => {
+        if (!position.holding) return false;
+        if (rule.unit === 'SESSION_CLOSE') {
+          return index + 1 < candles.length && easternDate(candles[index + 1].time) !== easternDate(candles[index].time);
+        }
+        if (rule.unit === 'TRADING_DAY') {
+          const dates = new Set(candles.slice(position.entryIndex, index + 1).map((candle) => easternDate(candle.time)));
+          return dates.size >= amount;
+        }
+        return index - position.entryIndex + 1 >= amount;
+      },
+    };
+  }
+  if (rule.kind === 'SCHEDULE') {
+    return {
+      rule,
+      description: `${rule.cycle ?? '선택한 주기'}에 진입`,
+      dataReady: true,
+      matches: (index) => {
+        const date = easternDate(candles[index].time);
+        if (index > 0 && easternDate(candles[index - 1].time) === date) return false;
+        if (rule.cycle === '매 거래일') return true;
+        const [year, month] = date.split('-');
+        const earlierDates = [...new Set(candles.slice(0, index).map((candle) => easternDate(candle.time)))];
+        if (rule.cycle === '매월 첫 거래일') return !earlierDates.some((candidate) => candidate.startsWith(`${year}-${month}`));
+        if (rule.cycle === '매월 마지막 거래일') {
+          const nextDate = candles.slice(index + 1).map((candle) => easternDate(candle.time)).find((candidate) => candidate !== date);
+          return !nextDate || !nextDate.startsWith(`${year}-${month}`);
+        }
+        if (rule.cycle === 'N거래일마다') return earlierDates.length % Math.max(1, rule.amount ?? 1) === 0;
+        const current = new Date(`${date}T12:00:00-04:00`);
+        const weekStart = new Date(current);
+        weekStart.setDate(current.getDate() - ((current.getDay() + 6) % 7));
+        return !earlierDates.some((candidate) => {
+          const day = new Date(`${candidate}T12:00:00-04:00`);
+          return day >= weekStart && day <= current;
+        });
+      },
+    };
+  }
+  return null;
+};
+
 /* 두 계열의 교차가 일어난 봉만 신호로 본다. 조건을 만족하는 모든 봉을
    신호로 삼으면 한 구간에서 수십 개가 찍혀 판단이 불가능해진다. */
 const crossedAt = (series: RuleSeries, index: number): boolean => {
@@ -567,18 +911,17 @@ export const buildOverlays = (blocks: PreviewBlock[], candles: PreviewCandle[]):
   const seen = new Set<string>();
 
   for (const block of blocks) {
-    if (block.tone !== 'indicator') continue;
-    const kind = identifyIndicator(block.label);
-    if (!kind) continue;
-    const resolved = indicatorPeriodFor(kind, block.value);
-    const periods = { fast: resolved.fastPeriod, slow: resolved.slowPeriod };
-    const period = resolved.period ?? 20;
+    const rule = signalRuleFrom(block);
+    if (!rule) continue;
+    const kind = rule.kind;
+    const periods = { fast: rule.fastPeriod, slow: rule.slowPeriod };
+    const period = rule.period ?? 20;
     const id = `${kind}-${periods.fast ?? period}-${periods.slow ?? ''}`;
     if (seen.has(id)) continue;
     seen.add(id);
 
     if (kind === 'BOLLINGER') {
-      const bands = bollinger(closes, period);
+      const bands = bollinger(closes, period, rule.deviations ?? 2);
       overlays.push({
         id,
         name: `Bollinger(${period})`,
@@ -695,13 +1038,18 @@ export const evaluateStrategyPreview = ({
 }: PreviewInput): StrategyPreview => {
   const candles = suppliedCandles ?? generatePreviewCandles(symbol, timeframeSeconds, candleCount);
   const unsupported = new Set<string>();
-  /* 플로우별로 규칙을 따로 만든다. 여러 매수 플로우의 블록을 한 벌로 합치면
-     첫 지표만 남아 나머지 플로우의 판단이 사라진다. */
+  /* 한 컨테이너 안의 조건은 런타임과 똑같이 AND다. 하나라도 해석할 수 없는
+     블록이 있으면 그 플로우는 fail-closed로 신호를 만들지 않는다. */
   const evaluated = flows.map((flow) => {
-    const parsed = parseSignalRule(flow.blocks);
+    const parsed = parseSignalRules(flow.blocks);
     parsed.unsupported.forEach((label) => unsupported.add(label));
-    const series = parsed.rule ? buildRuleSeries(parsed.rule, candles) : null;
-    return { flow, rule: parsed.rule, series };
+    const evaluators = parsed.rules
+      .map((rule) => buildRuleEvaluator(rule, candles))
+      .filter((item): item is RuleEvaluator => item !== null);
+    const evaluable = parsed.unsupported.length === 0
+      && evaluators.length === parsed.rules.length
+      && evaluators.length > 0;
+    return { flow, rules: parsed.rules, evaluators, evaluable };
   });
   const buyFlows = evaluated.filter((item) => item.flow.side === 'buy');
   const sellFlows = evaluated.filter((item) => item.flow.side === 'sell');
@@ -709,50 +1057,61 @@ export const evaluateStrategyPreview = ({
 
   const markers: PreviewMarker[] = [];
   const trades: PreviewTrade[] = [];
+  const executionCounts = new Map<string, number>();
   let holding = false;
   let entryIndex = 0;
   let entryPrice = 0;
+  let peakReturnPct = 0;
 
   /*
      체결 가격은 신호 다음 봉의 시가를 쓴다. Basic 전략의 주문 블록이
      "다음 봉 체결"을 기본으로 하므로, 신호가 난 봉의 종가로 사는 것처럼
      보여주면 실제보다 유리한 결과가 된다.
   */
-  const fillPriceAt = (index: number): number => candles[index + 1]?.open ?? candles[index].close;
+  const fillPriceAt = (index: number): number => candles[index + 1].open;
   /* 같은 봉에서 여러 플로우가 동시에 조건을 만족하면 파티션 안의 순서가 앞선
      플로우가 주문을 만든다. 실제 실행에서도 하나의 포지션만 열리므로 미리보기도
      같은 규칙을 따른다. */
+  const position = (): PreviewPositionState => ({ holding, entryIndex, entryPrice, peakReturnPct });
   const firstTriggered = (candidates: typeof evaluated, index: number) =>
-    candidates.find((item) => item.series !== null && crossedAt(item.series, index));
+    candidates.find((item) => {
+      const used = executionCounts.get(item.flow.id) ?? 0;
+      if (item.flow.maxExecutions !== undefined && used >= item.flow.maxExecutions) return false;
+      return item.evaluable && item.evaluators.every((rule) => rule.matches(index, position()));
+    });
 
   candles.forEach((candle, index) => {
     if (!holding) {
       const triggered = firstTriggered(buyFlows, index);
-      if (!triggered) return;
+      if (!triggered || index + 1 >= candles.length) return;
       holding = true;
-      entryIndex = index;
+      entryIndex = Math.min(index + 1, candles.length - 1);
       entryPrice = fillPriceAt(index);
+      peakReturnPct = 0;
+      executionCounts.set(triggered.flow.id, (executionCounts.get(triggered.flow.id) ?? 0) + 1);
       markers.push({
         index,
         time: candle.time,
         side: 'buy',
         price: entryPrice,
-        reason: triggered.series!.description,
+        reason: triggered.evaluators.map((rule) => rule.description).join(' · '),
         flowId: triggered.flow.id,
         flowLabel: triggered.flow.label,
       });
       return;
     }
+    peakReturnPct = Math.max(peakReturnPct, ((candle.close / entryPrice) - 1) * 100);
     const triggered = firstTriggered(sellFlows, index);
-    if (!triggered) return;
+    if (!triggered || index + 1 >= candles.length) return;
     holding = false;
+    executionCounts.set(triggered.flow.id, (executionCounts.get(triggered.flow.id) ?? 0) + 1);
     const exitPrice = fillPriceAt(index);
     markers.push({
       index,
       time: candle.time,
       side: 'sell',
       price: exitPrice,
-      reason: triggered.series!.description,
+      reason: triggered.evaluators.map((rule) => rule.description).join(' · '),
       flowId: triggered.flow.id,
       flowLabel: triggered.flow.label,
     });
@@ -782,13 +1141,15 @@ export const evaluateStrategyPreview = ({
 
   return {
     candles,
-    flows: evaluated.map(({ flow, rule, series }) => ({
+    flows: evaluated.map(({ flow, rules, evaluators, evaluable }) => ({
       id: flow.id,
       label: flow.label,
       side: flow.side,
       count: markers.filter((marker) => marker.flowId === flow.id).length,
-      rule,
-      description: series?.description ?? null,
+      rule: rules[0] ?? null,
+      description: evaluators.length > 0 ? evaluators.map((item) => item.description).join(' · ') : null,
+      dataReady: evaluators.every((item) => item.dataReady),
+      evaluable,
     })),
     unsupported: [...unsupported],
     markers,

@@ -1288,6 +1288,8 @@ const english: Record<string, string> = {
   '미리보기 종목 선택': 'Select the preview symbol',
   '미리보기': 'preview',
   '신호를 만든 플로우': 'Flows behind the signals',
+  '매수·매도 조건': 'Buy and sell conditions',
+  '신호를 계산하기에 최근 데이터가 부족합니다.': 'There is not enough recent data to calculate signals.',
   '신호만 강조': 'signals only',
   '최근 1개월 종가와 신호': 'closing prices and signals over the past month',
   /* '최근 1개월'은 백테스트 기간 칩에 이미 있다. */

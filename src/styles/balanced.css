@@ -8954,6 +8954,42 @@ small.dashboard-bot-scope {
   background: var(--surface-3);
 }
 .strategy-preview-flows button.active b { color: var(--text); }
+.strategy-preview-conditions {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.strategy-preview-conditions li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+}
+.strategy-preview-conditions li span { font-weight: 750; }
+.strategy-preview-conditions li.is-buy span { color: var(--buy-block-color); }
+.strategy-preview-conditions li.is-sell span { color: var(--sell-block-color); }
+.strategy-preview-conditions li strong {
+  color: var(--text-soft);
+  font-weight: 600;
+  line-height: 1.45;
+  white-space: normal;
+  word-break: keep-all;
+}
+.strategy-preview-data-warning {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: var(--radius-xs);
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+}
 /* 한 줄 요약. 플로우를 강조하면 그 플로우의 조건 문장으로 바뀐다. */
 .strategy-preview-note {
   display: flex;
