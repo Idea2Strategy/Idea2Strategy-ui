@@ -54,6 +54,9 @@ test('browser completes the production account principal and user-case journey',
   await page.getByLabel('로그인 비밀번호', { exact: true }).fill(password);
   const preferencesLoaded = page.waitForResponse((response) =>
     response.url().endsWith('/api/v1/account/preferences') && response.request().method() === 'GET');
+  const notificationPreferencesLoaded = page.waitForResponse((response) =>
+    response.url().endsWith('/api/v1/account/notifications/preferences')
+      && response.request().method() === 'GET');
   const [login] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/login') && response.status() === 200),
     page.getByRole('button', { name: '로그인', exact: true }).click(),
@@ -63,34 +66,30 @@ test('browser completes the production account principal and user-case journey',
   await expect(page).toHaveURL(/\/account$/);
   const loadedPreferences = await preferencesLoaded;
   expect(loadedPreferences.status()).toBe(200);
+  const loadedNotificationPreferences = await notificationPreferencesLoaded;
+  expect(loadedNotificationPreferences.status()).toBe(200);
   await expect(page.getByRole('heading', { name: '로그인 및 보안' })).toBeVisible();
 
-  await expect(page.getByLabel('서버 시간대')).toBeVisible();
-  await expect(page.getByRole('textbox', { name: '서버 시간대' })).toHaveCount(0);
-  const [preferences] = await Promise.all([
-    page.waitForResponse((response) => response.url().endsWith('/api/v1/account/preferences') && response.request().method() === 'PATCH'),
-    page.getByRole('button', { name: '환경 저장' }).click(),
-  ]);
-  expect(preferences.status()).toBe(200);
-  await expect(page.getByText('서버 설정을 저장했습니다.')).toBeVisible();
+  // Display preferences intentionally live outside the account screen. The
+  // account route exposes only customer-facing security and notification
+  // controls, and handles a server with no configurable policies gracefully.
+  await expect(page.getByLabel('서버 시간대')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '알림 설정' })).toBeVisible();
+  await expect(page.getByText('지금 설정할 수 있는 알림이 없습니다.')).toBeVisible();
 
-  await page.getByRole('button', { name: '문의하기', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: '문의하기' })).toBeVisible();
-  await page.getByLabel('케이스 제목').fill('Actual browser API incident');
-  await page.getByLabel('케이스 설명').fill('Production bearer principal reaches the PostgreSQL user-case store.');
+  await page.getByRole('button', { name: '내 문의 보기', exact: true }).click();
+  const supportDialog = page.getByRole('dialog', { name: '문의하기' });
+  await expect(supportDialog).toBeVisible();
+  await supportDialog.getByLabel('문의 제목').fill('실제 브라우저 API 문의');
+  await supportDialog.getByLabel('문의 내용').fill('로그인한 사용자의 문의가 안전하게 접수되는지 확인합니다.');
   const [submittedCase] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/cases') && response.request().method() === 'POST'),
-    page.getByRole('button', { name: '접수하기' }).click(),
+    supportDialog.getByRole('button', { name: '접수하기' }).click(),
   ]);
   expect(submittedCase.status()).toBe(201);
   const created = await submittedCase.json() as { id: string };
-  await expect(page.getByText(new RegExp(`추적 번호 ${created.id}`))).toBeVisible();
-
-  const [loadedCase] = await Promise.all([
-    page.waitForResponse((response) => response.url().endsWith(`/api/v1/cases/${created.id}`)),
-    page.getByRole('button', { name: '상태 확인' }).click(),
-  ]);
-  expect(loadedCase.status()).toBe(200);
+  await expect(supportDialog.getByText('문의가 접수되었습니다.')).toBeVisible();
+  await expect(supportDialog.getByText(created.id, { exact: true })).toHaveCount(0);
 
   // Exercise the signed-in product shell against the same real backend. These
   // reads catch missing controllers, stale root pointers, auth propagation,
