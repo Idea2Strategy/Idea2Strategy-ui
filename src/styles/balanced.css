@@ -13249,64 +13249,183 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .backtest-live-month-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
+  gap: 6px;
+  margin: 0;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-live-month-tabs button {
-  padding: var(--space-2) var(--space-3);
+  min-height: 36px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   background: transparent;
-  color: var(--text-soft);
+  color: var(--text-faint);
   cursor: pointer;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 650;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-live-month-tabs button.active {
   border-color: var(--accent);
-  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
   color: var(--accent);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-live-judgments {
   display: grid;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-  padding: var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  gap: var(--space-5);
+  margin: 0;
+  padding: var(--space-5);
 }
-.variant-balanced[data-design="signal-studio"] .backtest-live-judgments header,
-.variant-balanced[data-design="signal-studio"] .backtest-live-judgments li {
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-summary-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
 }
-.variant-balanced[data-design="signal-studio"] .backtest-live-judgments header span,
-.variant-balanced[data-design="signal-studio"] .backtest-live-judgments small {
-  color: var(--text-faint);
-}
-.variant-balanced[data-design="signal-studio"] .backtest-live-judgments ul {
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-summary-head > div:first-child {
   display: grid;
-  gap: var(--space-2);
+  gap: 3px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-summary-head small {
+  color: var(--accent);
+  font: 700 10px var(--font-mono);
+  letter-spacing: .12em;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-summary-head strong {
+  font-size: 18px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-context {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-context span {
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  font-size: 11px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  min-height: 88px;
+  align-content: center;
+  padding: 16px;
+  overflow: visible;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: var(--line-strong);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article.trigger::before,
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article.trade::before {
+  background: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article.gap::before,
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article.rejected::before {
+  background: var(--warning);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpi-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpi-label > span {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 650;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article:nth-child(3n + 1) .backtest-live-metric-tooltip {
+  right: auto;
+  left: 0;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis strong {
+  font: 700 20px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure-summary {
+  overflow: visible;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure-summary > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  border-radius: inherit inherit 0 0;
+  background: color-mix(in srgb, var(--surface-2) 76%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure-summary > header div {
+  display: grid;
+  gap: 2px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure-summary > header small,
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure-summary > header span {
+  color: var(--text-faint);
+  font-size: 10px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure-summary > header strong {
+  font-size: 13px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure-title .backtest-live-metric-tooltip {
+  right: auto;
+  left: 0;
+  width: min(260px, calc(100vw - 64px));
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure-summary ul {
+  display: grid;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.variant-balanced[data-design="signal-studio"] .backtest-live-judgments li > span {
-  display: grid;
-  gap: 2px;
-}
-.variant-balanced[data-design="signal-studio"] .backtest-live-counters {
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure-summary li {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 48px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
 }
-.variant-balanced[data-design="signal-studio"] .backtest-live-counters li {
-  display: inline-flex;
-  padding: 2px var(--space-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure-summary li:first-child {
+  border-top: 0;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure-summary li > span {
   color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure-summary li > strong {
+  color: var(--warning);
+  font: 700 12px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-failure-summary > p {
+  margin: 0;
+  padding: 18px 16px;
+  color: var(--text-faint);
   font-size: 12px;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-live-trades,
@@ -13354,10 +13473,340 @@ small.dashboard-bot-scope {
   font-size: 12px;
 }
 
+/* Keep the live API screen in the same visual hierarchy as the original
+   backtest workspace: selector + overview, then compact metrics and detail. */
+.variant-balanced[data-design="signal-studio"] .backtest-live-workspace.backtest-comparison-workspace {
+  grid-template-columns: minmax(280px, .85fr) minmax(0, 2.15fr);
+  align-items: start;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-detail {
+  display: contents;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list.backtest-bot-selector,
+.variant-balanced[data-design="signal-studio"] .backtest-live-overview-panel {
+  height: 400px;
+  min-height: 400px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list .backtest-bot-options {
+  min-height: 0;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list .backtest-bot-options > div > button {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  justify-content: initial;
+  padding: 12px 15px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list .backtest-bot-options > div > button.active {
+  box-shadow: inset 0 -2px var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-list .status {
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-pagination {
+  min-height: 42px;
+  padding: 0 10px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-pagination .button {
+  min-height: 26px;
+  padding: 0 9px;
+  font-size: 9px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-overview-panel {
+  overflow: hidden;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-overview-chart {
+  height: 330px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-overview-summary {
+  min-height: 82px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 74%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-overview-summary > div:not(.backtest-live-activity-legend) {
+  min-width: 112px;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  gap: 3px 10px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-overview-summary span,
+.variant-balanced[data-design="signal-studio"] .backtest-live-overview-summary small {
+  color: var(--text-faint);
+  font-size: 10px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-overview-summary strong {
+  font: 800 20px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-overview-summary .is-primary strong {
+  color: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-overview-summary small {
+  grid-column: 1 / -1;
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-activity-legend {
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 3px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+  scrollbar-width: none;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-activity-legend > strong,
+.variant-balanced[data-design="signal-studio"] .backtest-live-activity-legend > span {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 7px;
+  border-radius: 3px;
+  font: 650 10px/1 var(--font-sans);
+  white-space: nowrap;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-activity-legend > strong {
+  color: var(--text-soft);
+  font-size: 10px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-activity-legend i {
+  width: 7px;
+  height: 7px;
+  display: block;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-activity-legend .trigger i { background: var(--info); }
+.variant-balanced[data-design="signal-studio"] .backtest-live-activity-legend .trade i { background: var(--tone-indicator); }
+.variant-balanced[data-design="signal-studio"] .backtest-live-activity-chart {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 10px 16px 6px;
+  overflow: visible;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-chart-gridline {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-chart-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-chart-line.evaluation {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-chart-line.trigger {
+  stroke: var(--info);
+  stroke-width: 2;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-chart-bar {
+  fill: var(--tone-indicator);
+  opacity: .26;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-chart-point {
+  fill: var(--surface);
+  stroke-width: 2.5;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-chart-point.evaluation { stroke: var(--accent); }
+.variant-balanced[data-design="signal-studio"] .backtest-live-chart-point.trigger { stroke: var(--info); }
+.variant-balanced[data-design="signal-studio"] .backtest-live-chart-label {
+  fill: var(--text-faint);
+  font: 10px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-overview-state {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-result-browser {
+  grid-column: 1 / -1;
+  min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-result-tabs {
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  scrollbar-width: none;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-result-tabs::-webkit-scrollbar {
+  display: none;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-result-tabs button {
+  min-width: max-content;
+  min-height: 40px;
+  flex: 1 0 auto;
+  padding: 0 var(--space-4);
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-md) - 3px);
+  color: var(--text-faint);
+  background: transparent;
+  font: 650 12px var(--font-sans);
+  cursor: pointer;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-result-tabs button:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-3) 72%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-result-tabs button.active {
+  border-color: var(--line-strong);
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 10%);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-result-tabs button.active::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  display: inline-block;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: 1px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-result-content {
+  min-width: 0;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-metrics,
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly,
+.variant-balanced[data-design="signal-studio"] .backtest-live-attempt-panel {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-metrics {
+  margin-bottom: 0;
+  overflow: visible;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-metrics .metric-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  border-block: 0;
+  background: var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-metrics .metric-row > div {
+  position: relative;
+  min-height: 112px;
+  align-content: center;
+  padding: var(--space-5);
+  border-left: 0;
+  background: var(--surface);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-metric-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-metric-help {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  flex: 0 0 18px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--text-faint);
+  background: transparent;
+  cursor: help;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-metric-help:hover,
+.variant-balanced[data-design="signal-studio"] .backtest-live-metric-help:focus-visible {
+  color: var(--accent);
+  outline: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-metric-tooltip {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 9px);
+  right: 0;
+  width: 220px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface-3);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 22%);
+  font: 500 11px/1.55 var(--font-sans);
+  text-align: left;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+  pointer-events: none;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-metrics .metric-row > div:nth-child(4n + 1) .backtest-live-metric-tooltip {
+  right: auto;
+  left: 0;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-metric-help:hover .backtest-live-metric-tooltip,
+.variant-balanced[data-design="signal-studio"] .backtest-live-metric-help:focus-visible .backtest-live-metric-tooltip {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-attempt-panel {
+  overflow: hidden;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-attempt-panel .backtest-live-attempts {
+  margin-top: 0;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-evidence-disclosure {
+  border-top: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-evidence-disclosure > summary {
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  user-select: none;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-evidence-disclosure[open] > summary {
+  color: var(--text-soft);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-evidence-disclosure {
+  margin-top: var(--space-4);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-evidence-disclosure .backtest-live-trades {
+  margin: 0 var(--space-4) var(--space-4);
+}
+
 @media (max-width: 860px) {
-  .variant-balanced[data-design="signal-studio"] .backtest-live-workspace {
+  .variant-balanced[data-design="signal-studio"] .backtest-live-workspace,
+  .variant-balanced[data-design="signal-studio"] .backtest-live-workspace.backtest-comparison-workspace {
     grid-template-columns: 1fr;
   }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-list.backtest-bot-selector {
+    height: auto;
+    min-height: 0;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-overview-panel {
+    height: auto;
+    min-height: 400px;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-detail { display: contents; }
   .variant-balanced[data-design="signal-studio"] .backtest-request-form {
     grid-template-columns: 1fr;
   }
@@ -13367,6 +13816,59 @@ small.dashboard-bot-scope {
   }
 }
 @media (max-width: 620px) {
+  .variant-balanced[data-design="signal-studio"] .backtest-live-result-tabs button {
+    min-height: 38px;
+    padding-inline: var(--space-3);
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-metrics .metric-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-metrics .metric-row > div {
+    min-height: 102px;
+    padding: var(--space-4);
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-metrics .metric-row > div:nth-child(odd) .backtest-live-metric-tooltip {
+    right: auto;
+    left: 0;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-metrics .metric-row > div:nth-child(even) .backtest-live-metric-tooltip {
+    right: 0;
+    left: auto;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-judgments {
+    gap: var(--space-4);
+    padding: var(--space-4);
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-summary-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-context {
+    justify-content: flex-start;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article:nth-child(odd) .backtest-live-metric-tooltip {
+    right: auto;
+    left: 0;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article:nth-child(even) .backtest-live-metric-tooltip {
+    right: 0;
+    left: auto;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-overview-summary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-activity-legend {
+    width: 100%;
+    margin-left: 0;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-live-overview-chart {
+    height: 380px;
+  }
   .variant-balanced[data-design="signal-studio"] .backtest-request-backdrop { padding: 12px; }
   .variant-balanced[data-design="signal-studio"] .backtest-request-dialog { max-height: calc(100dvh - 24px); border-radius: 15px; }
   .variant-balanced[data-design="signal-studio"] .backtest-request-dialog > header { grid-template-columns: 38px minmax(0, 1fr) 32px; padding: 16px; }

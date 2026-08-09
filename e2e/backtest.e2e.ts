@@ -115,7 +115,7 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     await expect(botOptions.getByRole('option').first()).toHaveAttribute('aria-selected', 'true');
   });
 
-  test('loads the selected run detail: status, attempts and published performance', async ({ page }) => {
+  test('loads the selected run detail and separates performance from execution information', async ({ page }) => {
     await signIn(page);
 
     await page.goto(BACKTESTS);
@@ -124,17 +124,54 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     await expect(detail).toBeVisible();
     await expect(detail).toContainText('검증된 공식 결과가 발행되었습니다.');
 
+    // The metrics document, rendered from `metricsDocument` rather than from zeroes.
+    await expect(detail).toContainText('$10,299.96');
+    await expect(detail).toContainText('2.9996%');
+    await expect(detail.getByText('계산 기준 보기')).toHaveCount(0);
+    const totalReturnHelp = detail.getByRole('button', { name: '총 수익률 설명' });
+    const totalReturnTooltip = detail.getByRole('tooltip', {
+      name: '시작 자산과 비교해 종료 자산이 얼마나 늘거나 줄었는지 보여줍니다.',
+    });
+    await expect(totalReturnTooltip).toBeHidden();
+    await totalReturnHelp.hover();
+    await expect(totalReturnTooltip).toBeVisible();
+
+    await detail.getByRole('tab', { name: '월별 분석' }).click();
+    await detail.getByRole('tab', { name: '2026년 7월 ET 결과 보기' }).click();
+    await expect(detail.getByText('America/New_York')).toHaveCount(0);
+    await expect(detail.getByRole('article', { name: '평가 21회' })).toBeVisible();
+    const counterHelp = [
+      ['평가', '해당 월에 전략 조건을 확인한 총 평가 횟수입니다.'],
+      ['활성 분기', '해당 월의 평가에 실제로 참여한 서로 다른 전략 흐름의 수입니다.'],
+      ['트리거', '전략 조건이 충족되어 거래 판단이 시작된 횟수입니다.'],
+      ['거래 이벤트', '전략 실행 과정에서 생성된 거래 관련 이벤트의 수입니다.'],
+      ['데이터 공백', '평가에 필요한 시장 데이터가 없거나 충분하지 않았던 횟수입니다.'],
+      ['거부', '거래 판단이나 주문이 검증 또는 실행 단계에서 거부로 집계된 건수입니다.'],
+    ] as const;
+    for (const [label, description] of counterHelp) {
+      const help = detail.getByRole('button', { name: `${label} 설명` });
+      const tooltip = detail.getByRole('tooltip', { name: description });
+      await expect(tooltip).toBeHidden();
+      await help.hover();
+      await expect(tooltip).toBeVisible();
+    }
+    await expect(detail.getByText('RSI BELOW 30')).toBeVisible();
+    const firstFailureHelp = detail.getByRole('button', { name: '첫 실패 조건 설명' });
+    const firstFailureTooltip = detail.getByRole('tooltip', {
+      name: '월별 전략 평가가 다음 단계로 진행되지 못했을 때, 가장 먼저 충족되지 않은 조건과 그 횟수를 보여줍니다. 시스템 오류를 뜻하지 않습니다.',
+    });
+    await expect(firstFailureTooltip).toBeHidden();
+    await firstFailureHelp.hover();
+    await expect(firstFailureTooltip).toBeVisible();
+    await expect(detail.getByText('BASIC · BASIC')).toHaveCount(0);
+
+    await detail.getByRole('tab', { name: '실행 정보' }).click();
     const attempts = detail.getByRole('table', { name: '자동 실행 시도 기록' });
     await expect(attempts.getByRole('row')).toHaveCount(2);
     await expect(attempts).toContainText('SUCCEEDED');
     await expect(attempts).not.toContainText('실행 키');
     await expect(attempts).not.toContainText('실패 코드');
     await expect(attempts).not.toContainText('worker-execution-1');
-
-    // The metrics document, rendered from `metricsDocument` rather than from zeroes.
-    await expect(detail).toContainText('$10,299.96');
-    await expect(detail).toContainText('2.9996%');
-    await expect(detail).toContainText('metrics:1.0.0');
   });
 
   test('renders an ET month as individual trades, not as evidence manifests', async ({ page }) => {
@@ -142,6 +179,7 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     await signIn(page);
 
     await page.goto(BACKTESTS);
+    await page.getByRole('tab', { name: '거래 내역' }).click();
     await page.getByRole('tab', { name: '2026년 7월 ET 결과 보기' }).click();
 
     const trades = page.getByRole('table', { name: '2026년 7월 개별 거래' });
@@ -176,10 +214,31 @@ test.describe('backtest screens against the /api/v1 contract', () => {
       .endsWith(`/api/v1/backtests/${RUN_ID}/monthly-trades?et_month=2026-07`))).toBe(true);
   });
 
+  test('keeps selected backtest controls readable in dark and light themes', async ({ page }) => {
+    await signIn(page);
+    await page.goto(BACKTESTS);
+
+    const resultTab = page.getByRole('tab', { name: '월별 분석' });
+    await resultTab.click();
+    const monthTab = page.getByRole('tab', { name: '2026년 8월 ET 결과 보기' });
+
+    await page.getByRole('button', { name: '화면 설정 열기' }).click();
+    await page.getByRole('button', { name: '다크 모드' }).click();
+    await expect(page.getByTestId('app-shell')).toHaveAttribute('data-theme', 'dark');
+    await expect(resultTab).toHaveCSS('color', 'rgb(220, 227, 228)');
+    await expect(monthTab).toHaveCSS('color', 'rgb(94, 207, 202)');
+
+    await page.getByRole('button', { name: '라이트 모드' }).click();
+    await expect(page.getByTestId('app-shell')).toHaveAttribute('data-theme', 'light');
+    await expect(resultTab).toHaveCSS('color', 'rgb(26, 34, 36)');
+    await expect(monthTab).toHaveCSS('color', 'rgb(14, 116, 118)');
+  });
+
   test('says an ET month traded nothing instead of showing an empty table', async ({ page }) => {
     await signIn(page);
 
     await page.goto(BACKTESTS);
+    await page.getByRole('tab', { name: '거래 내역' }).click();
 
     // August is COMPLETED with no trade records: `200 {"items": []}` is the answer,
     // and it opens first because the screen selects the most recent month.

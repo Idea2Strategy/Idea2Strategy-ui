@@ -89,6 +89,13 @@ function recordRequests(): string[] {
   return paths;
 }
 
+async function openResultTab(
+  user: ReturnType<typeof userEvent.setup>,
+  name: '성과 요약' | '월별 분석' | '거래 내역' | '실행 정보',
+) {
+  await user.click(await screen.findByRole('tab', { name }));
+}
+
 describe('BacktestLiveView against the /api/v1 backtest surface', () => {
   it('requests a custom backtest from server-confirmed bots and immutable inputs', async () => {
     let received: Record<string, unknown> | null = null;
@@ -158,7 +165,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(screen.getAllByText('취소됨').length).toBeGreaterThan(0);
   });
 
-  it('renders the completed run overview, performance and provenance', async () => {
+  it('renders the completed run overview with concise metric help', async () => {
     view();
 
     expect(screen.getByRole('status')).toHaveTextContent('백테스트 결과를 불러오는 중');
@@ -169,12 +176,64 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(screen.getByText('-1.00%')).toBeInTheDocument();
     expect(screen.getByText('9.16515139')).toBeInTheDocument();
     expect(screen.getByText('37.50%')).toBeInTheDocument();
-    expect(screen.getByText('metrics:1.0.0')).toBeInTheDocument();
-    expect(screen.getByText('metric-rules:1.0.0')).toBeInTheDocument();
+    expect(screen.queryByText('계산 기준 보기')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('총 수익률 설명')).toBeInTheDocument();
+    expect(screen.getByRole('tooltip', { name: '시작 자산과 비교해 종료 자산이 얼마나 늘거나 줄었는지 보여줍니다.' }))
+      .toBeInTheDocument();
+  });
+
+  it('keeps real results inside the original selector, overview chart and compact metric layout', async () => {
+    view();
+
+    const workspace = await screen.findByTestId('backtest-live-workspace');
+    expect(workspace).toHaveClass('backtest-comparison-workspace');
+
+    const overview = await screen.findByRole('region', { name: '선택한 백테스트 성과 개요' });
+    expect(within(overview).getByText('월별 활동')).toBeInTheDocument();
+    expect(within(overview).getByRole('img', { name: '월별 백테스트 활동' })).toBeInTheDocument();
+    expect(within(overview).getByText('2026.07')).toBeInTheDocument();
+    expect(within(overview).getByText('2026.08')).toBeInTheDocument();
+
+    expect(screen.getByTestId('backtest-live-metrics')).toHaveClass('backtest-metric-panel');
+    expect(balancedStyles).toMatch(/\.backtest-live-overview-chart\s*\{[^}]*height:\s*330px/s);
+  });
+
+  it('separates dense result categories into one-at-a-time tabs', async () => {
+    const user = userEvent.setup();
+    view();
+
+    const tabs = await screen.findByRole('tablist', { name: '백테스트 결과 분류' });
+    expect(within(tabs).getByRole('tab', { name: '성과 요약' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(tabs).getByRole('tab', { name: '월별 분석' })).toBeInTheDocument();
+    expect(within(tabs).getByRole('tab', { name: '거래 내역' })).toBeInTheDocument();
+    expect(within(tabs).getByRole('tab', { name: '실행 정보' })).toBeInTheDocument();
+    expect(screen.getByTestId('backtest-live-metrics')).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'ET 월별 판단' })).not.toBeInTheDocument();
+
+    await user.click(within(tabs).getByRole('tab', { name: '월별 분석' }));
+    expect(await screen.findByRole('heading', { name: 'ET 월별 판단' })).toBeVisible();
+    expect(screen.queryByTestId('backtest-live-metrics')).not.toBeInTheDocument();
+
+    await user.click(within(tabs).getByRole('tab', { name: '거래 내역' }));
+    expect(await screen.findByRole('heading', { name: 'ET 월별 거래' })).toBeVisible();
+
+    await user.click(within(tabs).getByRole('tab', { name: '실행 정보' }));
+    expect(await screen.findByRole('table', { name: '자동 실행 시도 기록' })).toBeVisible();
+  });
+
+  it('keeps active result controls readable in both light and dark themes', () => {
+    const monthActiveRule = balancedStyles.match(/\.backtest-live-month-tabs button\.active\s*\{[^}]*\}/s)?.[0] ?? '';
+    const resultActiveRule = balancedStyles.match(/\.backtest-live-result-tabs button\.active\s*\{[^}]*\}/s)?.[0] ?? '';
+
+    expect(monthActiveRule).toMatch(/color:\s*var\(--accent\)/);
+    expect(monthActiveRule).not.toMatch(/color:\s*var\(--accent-ink\)/);
+    expect(resultActiveRule).toMatch(/color:\s*var\(--text\)/);
   });
 
   it('shows the automatic execution attempt history', async () => {
+    const user = userEvent.setup();
     view();
+    await openResultTab(user, '실행 정보');
 
     const attempts = await screen.findByRole('table', { name: '자동 실행 시도 기록' });
     const row = within(attempts).getAllByRole('row')[1];
@@ -189,18 +248,37 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     const user = userEvent.setup();
     view();
 
+    await openResultTab(user, '월별 분석');
     // The most recent ET month is selected first; July is the month with activity.
     await user.click(await screen.findByRole('tab', { name: '2026년 7월 ET 결과 보기' }));
 
     const judgment = await screen.findByRole('region', { name: '2026년 7월 ET 월별 판단' });
-    expect(within(judgment).getByText('평가 21회')).toBeInTheDocument();
-    expect(within(judgment).getByText('활성 분기 2개')).toBeInTheDocument();
-    expect(within(judgment).getByText('거래 이벤트 2건')).toBeInTheDocument();
-    expect(within(judgment).getByText('데이터 공백 1회')).toBeInTheDocument();
-    expect(within(judgment).getByText('트리거 2회')).toBeInTheDocument();
-    expect(within(judgment).getByText('거부 1건')).toBeInTheDocument();
-    expect(within(judgment).getByText('rsi-below-30')).toBeInTheDocument();
-    expect(within(judgment).getByText('BASIC · BASIC')).toBeInTheDocument();
+    expect(within(judgment).queryByText('America/New_York')).not.toBeInTheDocument();
+    expect(within(judgment).getByRole('article', { name: '평가 21회' })).toBeInTheDocument();
+    expect(within(judgment).getByRole('article', { name: '활성 분기 2개' })).toBeInTheDocument();
+    expect(within(judgment).getByRole('article', { name: '거래 이벤트 2건' })).toBeInTheDocument();
+    expect(within(judgment).getByRole('article', { name: '데이터 공백 1회' })).toBeInTheDocument();
+    expect(within(judgment).getByRole('article', { name: '트리거 2회' })).toBeInTheDocument();
+    expect(within(judgment).getByRole('article', { name: '거부 1건' })).toBeInTheDocument();
+    const counterHelp = [
+      ['평가', '해당 월에 전략 조건을 확인한 총 평가 횟수입니다.'],
+      ['활성 분기', '해당 월의 평가에 실제로 참여한 서로 다른 전략 흐름의 수입니다.'],
+      ['트리거', '전략 조건이 충족되어 거래 판단이 시작된 횟수입니다.'],
+      ['거래 이벤트', '전략 실행 과정에서 생성된 거래 관련 이벤트의 수입니다.'],
+      ['데이터 공백', '평가에 필요한 시장 데이터가 없거나 충분하지 않았던 횟수입니다.'],
+      ['거부', '거래 판단이나 주문이 검증 또는 실행 단계에서 거부로 집계된 건수입니다.'],
+    ] as const;
+    counterHelp.forEach(([label, description]) => {
+      expect(within(judgment).getByLabelText(`${label} 설명`)).toBeInTheDocument();
+      expect(within(judgment).getByRole('tooltip', { name: description })).toBeInTheDocument();
+    });
+    expect(within(judgment).getByText('RSI BELOW 30')).toBeInTheDocument();
+    expect(within(judgment).getByLabelText('첫 실패 조건 설명')).toBeInTheDocument();
+    expect(within(judgment).getByRole('tooltip', {
+      name: '월별 전략 평가가 다음 단계로 진행되지 못했을 때, 가장 먼저 충족되지 않은 조건과 그 횟수를 보여줍니다. 시스템 오류를 뜻하지 않습니다.',
+    })).toBeInTheDocument();
+    expect(within(judgment).queryByText('BASIC · BASIC')).not.toBeInTheDocument();
+    expect(within(judgment).queryByText(/\|step-/)).not.toBeInTheDocument();
     expect(within(judgment).getByText('3회')).toBeInTheDocument();
   });
 
@@ -208,7 +286,9 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     const user = userEvent.setup();
     view();
 
+    await openResultTab(user, '거래 내역');
     await user.click(await screen.findByRole('tab', { name: '2026년 7월 ET 결과 보기' }));
+    await user.click(screen.getByText('데이터 증거 보기'));
     const july = await screen.findByRole('table', { name: '2026년 7월 거래 상세 증거' });
     // 07-20 sits inside July; 07-27 runs into August and still covers July.
     expect(within(july).getAllByRole('row')).toHaveLength(3);
@@ -227,6 +307,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     const user = userEvent.setup();
     view();
 
+    await openResultTab(user, '거래 내역');
     await user.click(await screen.findByRole('tab', { name: '2026년 7월 ET 결과 보기' }));
 
     const trades = await screen.findByRole('table', { name: '2026년 7월 개별 거래' });
@@ -249,6 +330,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     const user = userEvent.setup();
     view();
 
+    await openResultTab(user, '거래 내역');
     await user.click(await screen.findByRole('tab', { name: '2026년 7월 ET 결과 보기' }));
 
     // The fill's `occurredAt` is 2026-08-01T03:30:00Z — 23:30 on 31 July in New York.
@@ -262,6 +344,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     const user = userEvent.setup();
     view();
 
+    await openResultTab(user, '거래 내역');
     await user.click(await screen.findByRole('tab', { name: '2026년 7월 ET 결과 보기' }));
 
     const trades = await screen.findByRole('table', { name: '2026년 7월 개별 거래' });
@@ -284,15 +367,20 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
 
     view();
 
-    // The most recent month is opened first, so August is asked for before anything
-    // is pressed. `et_month` is a required parameter the server never defaults.
+    // Dense trade detail stays lazy until its result category is actually opened.
+    await screen.findByRole('tablist', { name: '백테스트 결과 분류' });
+    expect(urls).toEqual([]);
+    await openResultTab(user, '거래 내역');
+    // The most recent month is opened first. `et_month` is required by the server.
     await waitFor(() => expect(urls).toEqual(['?et_month=2026-08']));
     await user.click(screen.getByRole('tab', { name: '2026년 7월 ET 결과 보기' }));
     await waitFor(() => expect(urls).toEqual(['?et_month=2026-08', '?et_month=2026-07']));
   });
 
   it('says a month traded nothing rather than showing an empty table', async () => {
+    const user = userEvent.setup();
     view();
+    await openResultTab(user, '거래 내역');
 
     // August is COMPLETED with no trade records: `200 {"items": []}` is the true
     // answer, and it must not read as a loading or a broken month.
@@ -313,6 +401,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     ));
 
     view();
+    await openResultTab(user, '거래 내역');
     await user.click(await screen.findByRole('tab', { name: '2026년 7월 ET 결과 보기' }));
 
     expect(await screen.findByText('2026년 7월 거래 기록이 월별 집계와 일치하지 않습니다.'))
@@ -335,6 +424,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     ));
 
     view();
+    await openResultTab(user, '거래 내역');
     await user.click(await screen.findByRole('tab', { name: '2026년 7월 ET 결과 보기' }));
 
     const alert = await screen.findByText('2026년 7월 개별 거래를 불러오지 못했습니다.');
@@ -424,12 +514,14 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
   });
 
   it('says the performance summary is not published yet instead of showing zeroes', async () => {
+    const user = userEvent.setup();
     server.use(...backtestHandlers({ performance: null }));
 
     view();
 
     expect(await screen.findByText('성과 요약이 아직 발행되지 않았습니다.')).toBeInTheDocument();
     // The monthly judgment the server does publish is still shown.
+    await openResultTab(user, '월별 분석');
     expect(screen.getByRole('tab', { name: '2026년 8월 ET 결과 보기' })).toBeInTheDocument();
   });
 

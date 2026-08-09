@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { AlertTriangle, BarChart3, Check, ChevronDown, Clock3, Plus, X } from 'lucide-react';
+import { AlertTriangle, BarChart3, Bot, Check, ChevronDown, CircleHelp, Clock3, Plus, X } from 'lucide-react';
 import { BacktestApiError } from '../api/backtests';
 import type {
   BacktestAttempt,
@@ -18,7 +18,6 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
-  MetricRow,
   PageHeading,
   Panel,
   Status,
@@ -63,6 +62,7 @@ const newIdempotencyKey = () => globalThis.crypto?.randomUUID?.()
  * * `transport` — everything else, and the only one worth retrying blind.
  */
 type FailureKind = 'unauthenticated' | 'forbidden' | 'missing' | 'notReady' | 'transport';
+type BacktestResultTab = 'performance' | 'monthly' | 'trades' | 'execution';
 
 const STATUS_LABELS: Record<BacktestRunStatus, string> = {
   QUEUED: '대기 중',
@@ -244,9 +244,9 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
 
   return <Localized><div className="page backtest-page backtest-live-page">
     <PageHeading
-      eyebrow="OFFICIAL BACKTEST"
+      eyebrow="BOT PERFORMANCE"
       title="봇 백테스트"
-      description="출시된 봇의 자동 백테스트 상태와 검증된 결과를 확인합니다."
+      description="출시된 봇의 검증된 성과와 월별 실행 결과를 한 화면에서 비교합니다."
       actions={<div className="backtest-live-heading-actions">
         <Button icon={Plus} kind="primary" onClick={() => setRequestOpen(true)}>새 백테스트</Button>
       </div>}
@@ -306,7 +306,10 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
         title="백테스트할 봇이 없습니다."
         detail="출시된 봇이 생기면 공식 백테스트가 자동으로 시작되고 이곳에 결과가 표시됩니다."
       />}
-      {listFailure === null && runs && runs.length > 0 && <div className="backtest-live-workspace">
+      {listFailure === null && runs && runs.length > 0 && <div
+        className="backtest-live-workspace backtest-comparison-workspace"
+        data-testid="backtest-live-workspace"
+      >
         <RunList
           runs={runs}
           selectedRunId={selectedRunId}
@@ -569,23 +572,24 @@ function RunList({
   onPrevious: () => void;
   onNext: () => void;
 }) {
-  return <aside className="panel backtest-live-list" aria-labelledby="backtest-live-list-title">
+  return <aside className="panel backtest-bot-selector backtest-live-list" aria-labelledby="backtest-live-list-title">
     <header className="backtest-live-list-head">
-      <div><span>OFFICIAL RUNS</span><h2 id="backtest-live-list-title">실행 기록</h2></div>
+      <div><span>BACKTEST RUNS</span><h2 id="backtest-live-list-title">백테스트 선택</h2></div>
       <small>{runs.length}건</small>
     </header>
-    <div role="list" aria-label="공식 백테스트 실행 목록">
+    <div className="backtest-bot-options" role="list" aria-label="공식 백테스트 실행 목록">
       {runs.map((run) => <div role="listitem" key={run.backtestRunId}><button
         type="button"
         className={run.backtestRunId === selectedRunId ? 'active' : ''}
         aria-label={`${shortId(run.botId)} ${STATUS_LABELS[run.status]} 백테스트 보기`}
         onClick={() => onSelect(run.backtestRunId)}
       >
+        <span className="backtest-bot-icon"><Bot size={17} aria-hidden="true" /></span>
         <span><strong>{shortId(run.botId)}</strong><small>{formatTime(run.queuedAt)}</small></span>
         <Status tone={STATUS_TONES[run.status]}>{STATUS_LABELS[run.status]}</Status>
       </button></div>)}
     </div>
-    <footer className="backtest-live-pagination" aria-label="백테스트 실행 목록 페이지 이동">
+    <footer className="backtest-bot-selector-footer backtest-live-pagination" aria-label="백테스트 실행 목록 페이지 이동">
       <Button disabled={offset === 0} onClick={onPrevious}>이전</Button>
       <span>{Math.floor(offset / RUN_PAGE_SIZE) + 1}페이지</span>
       <Button disabled={!hasNext} onClick={onNext}>다음</Button>
@@ -626,8 +630,8 @@ function RunDetailPanels({
   };
   return <>
     <Panel
-      className="backtest-live-status-panel"
-      title={`봇 ${shortId(run.botId)}`}
+      className="backtest-performance-panel backtest-live-status-panel backtest-live-overview-panel"
+      title={`${shortId(run.botId)} 성과 개요`}
       subtitle={`요청 ${formatTime(run.queuedAt)} · 평가 ${run.evaluationStart} ~ ${run.evaluationEnd}`}
       action={<div className="backtest-live-heading-actions">
         <Status tone={STATUS_TONES[run.status]}>{STATUS_LABELS[run.status]}</Status>
@@ -637,23 +641,106 @@ function RunDetailPanels({
         >{run.cancellationRequestedAt !== null ? '취소 요청됨' : cancelPending ? '취소 요청 중…' : '실행 취소'}</Button>}
       </div>}
     >
-      <RunState run={run} />
-      {cancelError && <FailureNotice title={cancelError} code={null} />}
-      <AttemptTable attempts={detail.attempts} />
+      <section className="backtest-live-overview-chart" aria-label="선택한 백테스트 성과 개요">
+        {run.status === 'COMPLETED'
+          ? <BacktestActivityOverview
+            run={run}
+            summaries={detail.monthlySummaries}
+          />
+          : <div className="backtest-live-overview-state"><RunState run={run} /></div>}
+        {cancelError && <FailureNotice title={cancelError} code={null} />}
+      </section>
     </Panel>
-    {run.status === 'COMPLETED' && <>
-      <PerformancePanel performance={detail.performance} />
-      <MonthlyPanel
+    {run.status === 'COMPLETED'
+      ? <BacktestResultTabs
         client={client}
-        runId={run.backtestRunId}
+        detail={detail}
+        selectedMonth={selectedMonth}
+        onSelectMonth={onSelectMonth}
+        onUnauthenticated={onUnauthenticated}
+      />
+      : <ExecutionPanel attempts={detail.attempts} />}
+  </>;
+}
+
+const RESULT_TABS: ReadonlyArray<{ id: BacktestResultTab; label: string }> = [
+  { id: 'performance', label: '성과 요약' },
+  { id: 'monthly', label: '월별 분석' },
+  { id: 'trades', label: '거래 내역' },
+  { id: 'execution', label: '실행 정보' },
+];
+
+function BacktestResultTabs({
+  client,
+  detail,
+  selectedMonth,
+  onSelectMonth,
+  onUnauthenticated,
+}: {
+  client: BacktestClient;
+  detail: RunDetail;
+  selectedMonth: string | null;
+  onSelectMonth: (month: string) => void;
+  onUnauthenticated: () => void;
+}) {
+  const [activeTab, setActiveTab] = useState<BacktestResultTab>('performance');
+  const tabPrefix = useId();
+
+  useEffect(() => setActiveTab('performance'), [detail.run.backtestRunId]);
+
+  return <section className="backtest-live-result-browser" aria-label="백테스트 상세 결과">
+    <div className="backtest-live-result-tabs" role="tablist" aria-label="백테스트 결과 분류">
+      {RESULT_TABS.map((tab) => <button
+        type="button"
+        role="tab"
+        id={`${tabPrefix}-${tab.id}-tab`}
+        aria-controls={`${tabPrefix}-${tab.id}-panel`}
+        aria-selected={activeTab === tab.id}
+        className={activeTab === tab.id ? 'active' : ''}
+        key={tab.id}
+        onClick={() => setActiveTab(tab.id)}
+      >{tab.label}</button>)}
+    </div>
+    <div
+      className="backtest-live-result-content"
+      role="tabpanel"
+      id={`${tabPrefix}-${activeTab}-panel`}
+      aria-labelledby={`${tabPrefix}-${activeTab}-tab`}
+    >
+      {activeTab === 'performance' && <PerformancePanel performance={detail.performance} />}
+      {activeTab === 'monthly' && <MonthlyPanel
+        mode="judgment"
+        client={client}
+        runId={detail.run.backtestRunId}
         summaries={detail.monthlySummaries}
         manifests={detail.detailManifests}
         selectedMonth={selectedMonth}
         onSelectMonth={onSelectMonth}
         onUnauthenticated={onUnauthenticated}
-      />
-    </>}
-  </>;
+      />}
+      {activeTab === 'trades' && <MonthlyPanel
+        mode="trades"
+        client={client}
+        runId={detail.run.backtestRunId}
+        summaries={detail.monthlySummaries}
+        manifests={detail.detailManifests}
+        selectedMonth={selectedMonth}
+        onSelectMonth={onSelectMonth}
+        onUnauthenticated={onUnauthenticated}
+      />}
+      {activeTab === 'execution' && <ExecutionPanel attempts={detail.attempts} />}
+    </div>
+  </section>;
+}
+
+function ExecutionPanel({ attempts }: { attempts: BacktestAttempt[] }) {
+  return <Panel
+    className="backtest-live-attempt-panel"
+    title="자동 실행 기록"
+    subtitle="공식 백테스트 워커가 처리한 실행 시도"
+  >
+    <AttemptTable attempts={attempts} />
+  </Panel>;
 }
 
 function RunState({ run }: { run: BacktestRun }) {
@@ -707,37 +794,181 @@ function AttemptTable({ attempts }: { attempts: BacktestAttempt[] }) {
 
 function PerformancePanel({ performance }: { performance: BacktestPerformanceSummary | null }) {
   if (performance === null) {
-    return <section className="panel backtest-live-metrics"><EmptyState
+    return <section className="panel backtest-live-metrics backtest-metric-panel" data-testid="backtest-live-metrics"><EmptyState
       icon={BarChart3}
       title="성과 요약이 아직 발행되지 않았습니다."
       detail="엔진이 이 실행의 성과 요약을 발행하면 여기에 표시됩니다. 임시 값은 표시하지 않습니다."
     /></section>;
   }
   const { metrics } = performance;
-  return <section className="panel backtest-live-metrics">
-    <MetricRow label="공식 백테스트 성과" items={[
-      { label: '총 수익률', figure: percent(metrics.totalReturnPct) },
-      { label: '최대 낙폭', figure: percent(metrics.maxDrawdownPct) },
-      { label: '샤프 지수', figure: ratio(metrics.sharpe), detail: `연환산 변동성 ${percent(metrics.annualizedVolatilityPct)}` },
-      { label: '승률', figure: percent(metrics.winRatePct), detail: `청산 ${count(metrics.closingTradeCount)}건 · 체결 ${count(metrics.fillCount)}건` },
-      { label: '종료 자산', figure: money(metrics.endingEquity), detail: `현금 ${money(metrics.endingCash)}` },
+  return <section className="panel backtest-live-metrics backtest-metric-panel" data-testid="backtest-live-metrics">
+    <PerformanceMetricGrid items={[
+      {
+        label: '총 수익률',
+        figure: percent(metrics.totalReturnPct),
+        help: '시작 자산과 비교해 종료 자산이 얼마나 늘거나 줄었는지 보여줍니다.',
+      },
+      {
+        label: '최대 낙폭',
+        figure: percent(metrics.maxDrawdownPct),
+        help: '평가 기간 중 자산이 고점에서 저점까지 가장 크게 하락한 비율입니다.',
+      },
+      {
+        label: '샤프 지수',
+        figure: ratio(metrics.sharpe),
+        detail: `연환산 변동성 ${percent(metrics.annualizedVolatilityPct)}`,
+        help: '감수한 변동성에 비해 수익을 얼마나 효율적으로 냈는지 나타냅니다.',
+      },
+      {
+        label: '승률',
+        figure: percent(metrics.winRatePct),
+        detail: `청산 ${count(metrics.closingTradeCount)}건 · 체결 ${count(metrics.fillCount)}건`,
+        help: '청산까지 끝난 거래 중 수익으로 마감한 거래의 비율입니다.',
+      },
+      {
+        label: '종료 자산',
+        figure: money(metrics.endingEquity),
+        detail: `현금 ${money(metrics.endingCash)}`,
+        help: '평가 종료 시점의 현금과 보유 자산 평가액을 합한 금액입니다.',
+      },
       {
         label: '실현 손익',
         figure: money(metrics.realizedPnl),
         tone: signTone(metrics.realizedPnl),
+        help: '매도나 청산이 끝나 실제로 확정된 이익과 손실의 합계입니다.',
       },
-      { label: '수수료', figure: money(metrics.totalFees), detail: `슬리피지 ${money(metrics.totalSlippage)}` },
+      {
+        label: '수수료',
+        figure: money(metrics.totalFees),
+        detail: `슬리피지 ${money(metrics.totalSlippage)}`,
+        help: '백테스트 거래에 적용된 수수료의 합계이며, 예상 체결가 차이는 슬리피지로 구분합니다.',
+      },
     ]} />
-    <p className="backtest-live-provenance">
-      지표 카탈로그 <code>{performance.metricCatalogVersion}</code>
-      {' · '}계산 규칙 <code>{performance.calculationRulesVersion}</code>
-      {' · '}평가 기준 <code>{metrics.valuationBasis}</code>
-      {' · '}결과 해시 <code>{hashLabel(performance.resultHash)}</code>
-    </p>
   </section>;
 }
 
+interface PerformanceMetricItem {
+  label: string;
+  figure: ReactNode;
+  detail?: ReactNode;
+  tone?: string;
+  help: string;
+}
+
+function PerformanceMetricGrid({ items }: { items: PerformanceMetricItem[] }) {
+  return <div className="metric-row" aria-label="공식 백테스트 성과">
+    {items.map((item) => <div key={item.label}>
+      <span className="backtest-live-metric-label">
+        {item.label}
+        <MetricHelp label={item.label} description={item.help} />
+      </span>
+      <strong className={item.tone ? item.tone : ''}>{item.figure}</strong>
+      {item.detail && <small>{item.detail}</small>}
+    </div>)}
+  </div>;
+}
+
+function MetricHelp({ label, description }: { label: string; description: string }) {
+  const tooltipId = useId();
+  return <button
+    type="button"
+    className="backtest-live-metric-help"
+    aria-label={`${label} 설명`}
+    aria-describedby={tooltipId}
+  >
+    <CircleHelp size={14} aria-hidden="true" />
+    <span id={tooltipId} className="backtest-live-metric-tooltip" role="tooltip">{description}</span>
+  </button>;
+}
+
+function BacktestActivityOverview({
+  run,
+  summaries,
+}: {
+  run: BacktestRun;
+  summaries: BacktestMonthlySummary[];
+}) {
+  const evaluationCount = summaries.reduce((total, summary) => total + summary.evaluationCount, 0);
+  return <>
+    <div className="backtest-live-overview-summary">
+      <div className="is-primary">
+        <span>평가 결과</span>
+        <strong>공식 완료</strong>
+        <small>검증된 공식 결과가 발행되었습니다.</small>
+      </div>
+      <div>
+        <span>월별 집계</span>
+        <strong>{summaries.length}개월</strong>
+        <small>{`평가 ${evaluationCount.toLocaleString('ko-KR')}회`}</small>
+      </div>
+      <div className="backtest-live-activity-legend" aria-label="월별 활동 범례">
+        <strong>월별 활동</strong>
+        <span className="evaluation"><i />평가</span>
+        <span className="trigger"><i />트리거</span>
+        <span className="trade"><i />거래</span>
+      </div>
+    </div>
+    {summaries.length > 0
+      ? <BacktestActivityChart summaries={summaries} />
+      : <EmptyState title="월별 활동 집계가 아직 발행되지 않았습니다." />}
+  </>;
+}
+
+function BacktestActivityChart({ summaries }: { summaries: BacktestMonthlySummary[] }) {
+  const width = 720;
+  const height = 210;
+  const left = 38;
+  const right = 18;
+  const top = 18;
+  const bottom = 34;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  const maxValue = Math.max(1, ...summaries.flatMap((summary) => [
+    summary.evaluationCount,
+    summary.triggeredCount,
+    summary.tradeEventCount,
+  ]));
+  const x = (index: number) => summaries.length === 1
+    ? left + plotWidth / 2
+    : left + (plotWidth * index) / (summaries.length - 1);
+  const y = (value: number) => top + plotHeight - (value / maxValue) * plotHeight;
+  const points = (read: (summary: BacktestMonthlySummary) => number) => summaries
+    .map((summary, index) => `${x(index)},${y(read(summary))}`)
+    .join(' ');
+
+  return <svg
+    className="backtest-live-activity-chart"
+    role="img"
+    aria-label="월별 백테스트 활동"
+    viewBox={`0 0 ${width} ${height}`}
+    preserveAspectRatio="none"
+  >
+    {[0, .25, .5, .75, 1].map((step) => {
+      const lineY = top + plotHeight * step;
+      return <line key={step} className="backtest-live-chart-gridline" x1={left} x2={width - right} y1={lineY} y2={lineY} />;
+    })}
+    <polyline className="backtest-live-chart-line evaluation" points={points((summary) => summary.evaluationCount)} />
+    <polyline className="backtest-live-chart-line trigger" points={points((summary) => summary.triggeredCount)} />
+    {summaries.map((summary, index) => <g key={summary.etYearMonth}>
+      <rect
+        className="backtest-live-chart-bar"
+        x={x(index) - 7}
+        y={y(summary.tradeEventCount)}
+        width="14"
+        height={Math.max(2, top + plotHeight - y(summary.tradeEventCount))}
+        rx="2"
+      />
+      <circle className="backtest-live-chart-point evaluation" cx={x(index)} cy={y(summary.evaluationCount)} r="3.5" />
+      <circle className="backtest-live-chart-point trigger" cx={x(index)} cy={y(summary.triggeredCount)} r="3" />
+      <text className="backtest-live-chart-label" x={x(index)} y={height - 8} textAnchor="middle">
+        {summary.etYearMonth.replace('-', '.')}
+      </text>
+    </g>)}
+  </svg>;
+}
+
 function MonthlyPanel({
+  mode,
   client,
   runId,
   summaries,
@@ -746,6 +977,7 @@ function MonthlyPanel({
   onSelectMonth,
   onUnauthenticated,
 }: {
+  mode: 'judgment' | 'trades';
   client: BacktestClient;
   runId: string;
   summaries: BacktestMonthlySummary[];
@@ -757,8 +989,10 @@ function MonthlyPanel({
   const active = summaries.find((item) => item.etYearMonth === selectedMonth);
   return <Panel
     className="backtest-live-monthly"
-    title="ET 월별 판단"
-    subtitle="미국 동부 시각 기준 월별 판단 집계와, 그 달에 기록된 개별 거래"
+    title={mode === 'judgment' ? 'ET 월별 판단' : 'ET 월별 거래'}
+    subtitle={mode === 'judgment'
+      ? '미국 동부 시각 기준으로 월별 판단 흐름을 살펴봅니다.'
+      : '선택한 달에 기록된 개별 주문과 체결을 확인합니다.'}
   >
     {summaries.length === 0
       ? <EmptyState
@@ -777,8 +1011,8 @@ function MonthlyPanel({
             onClick={() => onSelectMonth(summary.etYearMonth)}
           >{monthLabel(summary.etYearMonth)}</button>)}
         </div>
-        {active && <>
-          <MonthlyJudgment summary={active} />
+        {active && mode === 'judgment' && <MonthlyJudgment summary={active} />}
+        {active && mode === 'trades' && <>
           <MonthlyTrades
             key={active.etYearMonth}
             client={client}
@@ -786,10 +1020,13 @@ function MonthlyPanel({
             summary={active}
             onUnauthenticated={onUnauthenticated}
           />
-          <DetailManifestTable
-            etYearMonth={active.etYearMonth}
-            manifests={manifests.filter((item) => weekCoversMonth(item.weekStartDate, active.etYearMonth))}
-          />
+          <details className="backtest-live-evidence-disclosure">
+            <summary>데이터 증거 보기</summary>
+            <DetailManifestTable
+              etYearMonth={active.etYearMonth}
+              manifests={manifests.filter((item) => weekCoversMonth(item.weekStartDate, active.etYearMonth))}
+            />
+          </details>
         </>}
       </>}
   </Panel>;
@@ -967,34 +1204,99 @@ function sameRecords(trades: BacktestTrade[], expected: string[]): boolean {
 }
 
 function MonthlyJudgment({ summary }: { summary: BacktestMonthlySummary }) {
+  const counters = [
+    {
+      label: '평가',
+      value: `${summary.evaluationCount}회`,
+      tone: 'evaluation',
+      description: '해당 월에 전략 조건을 확인한 총 평가 횟수입니다.',
+    },
+    {
+      label: '활성 분기',
+      value: `${summary.activeBranchCount}개`,
+      tone: 'branch',
+      description: '해당 월의 평가에 실제로 참여한 서로 다른 전략 흐름의 수입니다.',
+    },
+    {
+      label: '트리거',
+      value: `${summary.triggeredCount}회`,
+      tone: 'trigger',
+      description: '전략 조건이 충족되어 거래 판단이 시작된 횟수입니다.',
+    },
+    {
+      label: '거래 이벤트',
+      value: `${summary.tradeEventCount}건`,
+      tone: 'trade',
+      description: '전략 실행 과정에서 생성된 거래 관련 이벤트의 수입니다.',
+    },
+    {
+      label: '데이터 공백',
+      value: `${summary.dataGapCount}회`,
+      tone: 'gap',
+      description: '평가에 필요한 시장 데이터가 없거나 충분하지 않았던 횟수입니다.',
+    },
+    {
+      label: '거부',
+      value: `${summary.rejectedCount}건`,
+      tone: 'rejected',
+      description: '거래 판단이나 주문이 검증 또는 실행 단계에서 거부로 집계된 건수입니다.',
+    },
+  ];
   return <section
     className="backtest-live-judgments"
     aria-label={`${monthLabel(summary.etYearMonth)} ET 월별 판단`}
   >
-    <header>
-      <strong>{`${monthLabel(summary.etYearMonth)} (${summary.timezoneId})`}</strong>
-      <span>{`거래 기록 ${summary.tradeRecordIds.length}건`}</span>
+    <header className="backtest-live-monthly-summary-head">
+      <div>
+        <small>MONTHLY DECISION</small>
+        <strong>{monthLabel(summary.etYearMonth)}</strong>
+      </div>
+      <div className="backtest-live-monthly-context">
+        <span>{`거래 기록 ${summary.tradeRecordIds.length}건`}</span>
+      </div>
     </header>
-    <ul className="backtest-live-counters">
-      <li>{`평가 ${summary.evaluationCount}회`}</li>
-      <li>{`활성 분기 ${summary.activeBranchCount}개`}</li>
-      <li>{`거래 이벤트 ${summary.tradeEventCount}건`}</li>
-      <li>{`데이터 공백 ${summary.dataGapCount}회`}</li>
-      <li>{`트리거 ${summary.triggeredCount}회`}</li>
-      <li>{`거부 ${summary.rejectedCount}건`}</li>
-    </ul>
-    {summary.firstFailureCounts.length === 0
-      ? <p>집계된 첫 실패 조건이 없습니다.</p>
-      : <ul>{summary.firstFailureCounts.map((failure) => <li
-        key={`${failure.mode}:${failure.flowOrBranchKey}:${failure.firstFailureConditionKey}`}
-      >
-        <span>
-          <b>{failure.firstFailureConditionKey}</b>
-          <small>{`${failure.mode} · ${failure.flowOrBranchKey}`}</small>
-        </span>
-        <strong>{`${failure.occurrenceCount}회`}</strong>
-      </li>)}</ul>}
+    <div className="backtest-live-monthly-kpis">
+      {counters.map((counter) => <article
+        className={counter.tone}
+      key={counter.label}
+      aria-label={`${counter.label} ${counter.value}`}
+    >
+      <div className="backtest-live-monthly-kpi-label">
+        <span>{counter.label}</span>
+        <MetricHelp label={counter.label} description={counter.description} />
+      </div>
+      <strong>{counter.value}</strong>
+    </article>)}
+    </div>
+    <section className="backtest-live-failure-summary" aria-label="첫 실패 조건">
+      <header>
+        <div>
+          <small>판단 흐름</small>
+          <span className="backtest-live-failure-title">
+            <strong>첫 실패 조건</strong>
+            <MetricHelp
+              label="첫 실패 조건"
+              description="월별 전략 평가가 다음 단계로 진행되지 못했을 때, 가장 먼저 충족되지 않은 조건과 그 횟수를 보여줍니다. 시스템 오류를 뜻하지 않습니다."
+            />
+          </span>
+        </div>
+        <span>{`${summary.firstFailureCounts.length}개 조건`}</span>
+      </header>
+      {summary.firstFailureCounts.length === 0
+        ? <p>집계된 첫 실패 조건이 없습니다.</p>
+        : <ul>{summary.firstFailureCounts.map((failure) => <li
+          key={`${failure.mode}:${failure.flowOrBranchKey}:${failure.firstFailureConditionKey}`}
+        >
+          <span>{conditionLabel(failure.firstFailureConditionKey)}</span>
+          <strong>{`${failure.occurrenceCount}회`}</strong>
+        </li>)}</ul>}
+    </section>
   </section>;
+}
+
+function conditionLabel(value: string): string {
+  const publicPart = value.replace(/^.*\|step-\d+:/i, '');
+  return publicPart.replace(/[_-]+/g, ' ').trim().toUpperCase();
 }
 
 /*
