@@ -115,13 +115,6 @@ export interface ReleaseStrategyInput {
   validationRunId: string;
   initialCashAmount: string;
   budgetCapBps: number;
-  brokerRulesVersion: string;
-  accountingRulesVersion: string;
-  precisionRulesVersion: string;
-  feePolicyId: string;
-  buyingPowerBufferPolicyId: string;
-  datasetManifestId: string;
-  executionPolicyVersion: string;
   candidateConflictPolicy: Record<string, unknown>;
 }
 
@@ -137,7 +130,6 @@ export interface StrategyAuthoringClient {
   previewValidation?(strategyId: string, input: PreviewStrategyValidationInput, signal?: AbortSignal): Promise<StrategyValidationResult>;
   getCurrentValidations?(signal?: AbortSignal): Promise<CurrentStrategyValidation[]>;
   validateStrategy(strategyId: string, catalogId: string, signal?: AbortSignal): Promise<StrategyValidationResult>;
-  getReleaseInputs(signal?: AbortSignal): Promise<StrategyReleaseInputs>;
   releaseStrategy(strategyId: string, input: ReleaseStrategyInput, signal?: AbortSignal): Promise<{ botId: string; backtestLane: string }>;
 }
 
@@ -327,10 +319,6 @@ export function createStrategyAuthoringClient({
         { method: 'POST', signal, body: JSON.stringify({ catalogId }) },
       );
       return readValidation(await response.json());
-    },
-    async getReleaseInputs(signal) {
-      const response = await request('/api/v1/strategy-release-inputs', 'Strategy release inputs', { signal });
-      return readStrategyReleaseInputs(await response.json());
     },
     async releaseStrategy(strategyId, input, signal) {
       const response = await request(

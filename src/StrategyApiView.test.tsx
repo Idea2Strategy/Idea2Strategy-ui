@@ -149,7 +149,6 @@ describe('Strategy API view', () => {
         findings: [{ severity: 'BLOCKING_ERROR', code: 'CONDITION_REQUIRED', message: '조건이 필요합니다.' }],
         completedAt: '2026-08-01T12:01:00Z',
       }),
-      getReleaseInputs: vi.fn(),
       releaseStrategy: vi.fn(),
     };
     const catalog: BasicStrategyCatalog = {
@@ -235,7 +234,7 @@ describe('Strategy API view', () => {
       heartbeatLease: vi.fn(), releaseLease: vi.fn().mockResolvedValue(undefined),
       saveDocument: vi.fn().mockResolvedValue({ ...document, editSequence: 1 }),
       validateStrategy: vi.fn().mockRejectedValue(new (await import('./api/strategies')).StrategyApiError(503, 'validation')),
-      getReleaseInputs: vi.fn(), releaseStrategy: vi.fn(),
+      releaseStrategy: vi.fn(),
     };
     const catalogClient: StrategyCatalogClient = {
       getBasic: vi.fn().mockResolvedValue({
@@ -353,7 +352,7 @@ describe('Strategy API view', () => {
         .mockRejectedValueOnce(new (await import('./api/strategies')).StrategyApiError(409, 'lease'))
         .mockResolvedValue({ leaseToken: 'lease-token', expiresAt: '2026-08-08T00:02:00Z' }),
       heartbeatLease: vi.fn(), releaseLease: vi.fn().mockResolvedValue(undefined), saveDocument: vi.fn(),
-      validateStrategy: vi.fn(), getReleaseInputs: vi.fn(), releaseStrategy: vi.fn(),
+      validateStrategy: vi.fn(), releaseStrategy: vi.fn(),
     } as StrategyAuthoringClient;
 
     render(<BasicEditor goBack={() => {}} strategyId="reloaded" authoringClient={authoringClient} catalogClient={null} />);
@@ -379,7 +378,7 @@ describe('Strategy API view', () => {
       createBasic: vi.fn(), copyStrategy: vi.fn(), getDocument: vi.fn().mockResolvedValue(document),
       acquireLease: vi.fn().mockResolvedValue({ leaseToken: 'pagehide-token', expiresAt: '2026-08-08T00:02:00Z' }),
       heartbeatLease: vi.fn(), releaseLease: vi.fn().mockResolvedValue(undefined), saveDocument: vi.fn(),
-      validateStrategy: vi.fn(), getReleaseInputs: vi.fn(), releaseStrategy: vi.fn(),
+      validateStrategy: vi.fn(), releaseStrategy: vi.fn(),
     } as StrategyAuthoringClient;
 
     render(<BasicEditor goBack={() => {}} strategyId="pagehide" authoringClient={authoringClient} catalogClient={null} />);
@@ -430,25 +429,6 @@ describe('Strategy API view', () => {
       requestedEditSequence: 0,
       semanticHash: 'old-hash',
     };
-    const releaseInputs = {
-      executionPolicies: [{
-        version: 'policy-v1', brokerRulesVersion: 'market-v1', accountingRulesVersion: 'accounting-v1',
-        precisionRulesVersion: 'precision-v1', feePolicyId: 'fee-id', feeRateBps: 20,
-        buyingPowerBufferPolicyId: 'buffer-id', buyingPowerBufferBps: 1,
-      }, {
-        version: 'older-policy', brokerRulesVersion: 'older-market', accountingRulesVersion: 'older-accounting',
-        precisionRulesVersion: 'older-precision', feePolicyId: 'older-fee', feeRateBps: 30,
-        buyingPowerBufferPolicyId: 'older-buffer', buyingPowerBufferBps: 2,
-      }],
-      datasets: [{
-        id: 'dataset-id', feedCode: 'alpaca-sip', dataLayer: 'ADJUSTED', resolution: '1m',
-        periodStart: '2025-01-01', periodEnd: '2026-01-01', schemaVersion: 'market-bars-v2',
-      }, {
-        id: 'older-dataset', feedCode: 'alpaca-sip', dataLayer: 'ADJUSTED', resolution: '1m',
-        periodStart: '2024-01-01', periodEnd: '2025-01-01', schemaVersion: 'market-bars-v2',
-      }],
-      observedAt: '2026-08-07T12:01:00Z',
-    };
     const authoringClient: StrategyAuthoringClient = {
       createBasic: vi.fn(), copyStrategy: vi.fn(), getDocument: vi.fn().mockResolvedValue(document),
       acquireLease: vi.fn().mockResolvedValue({ leaseToken: 'lease-token', expiresAt: '2026-08-07T12:02:00Z' }),
@@ -465,7 +445,6 @@ describe('Strategy API view', () => {
       })),
       getCurrentValidations: vi.fn().mockResolvedValue([loadedValidation]),
       validateStrategy: vi.fn().mockResolvedValue(validation),
-      getReleaseInputs: vi.fn().mockResolvedValue(releaseInputs),
       releaseStrategy: vi.fn().mockResolvedValue({ botId: 'bot-id', backtestLane: 'BASIC' }),
     };
     const element = (elementCode: string) => ({
@@ -510,18 +489,17 @@ describe('Strategy API view', () => {
     });
     await user.click(screen.getByRole('button', { name: '개인 봇 출시' }));
     const launchDialog = await screen.findByRole('dialog', { name: '개인 운용 봇 출시' });
-    await waitFor(() => expect(authoringClient.getReleaseInputs).toHaveBeenCalledTimes(1));
     expect(within(launchDialog).queryByText('실행 정책')).not.toBeInTheDocument();
     expect(within(launchDialog).queryByText('공식 백테스트 데이터')).not.toBeInTheDocument();
     expect(within(launchDialog).queryByRole('combobox')).not.toBeInTheDocument();
     await user.click(within(launchDialog).getByRole('button', { name: '봇 출시하기' }));
 
-    await waitFor(() => expect(authoringClient.releaseStrategy).toHaveBeenCalledWith(strategyId, expect.objectContaining({
+    await waitFor(() => expect(authoringClient.releaseStrategy).toHaveBeenCalledWith(strategyId, {
       validationRunId: validation.validationRunId,
       initialCashAmount: '100000.00000000',
-      datasetManifestId: 'dataset-id', executionPolicyVersion: 'policy-v1',
-      feePolicyId: 'fee-id', buyingPowerBufferPolicyId: 'buffer-id',
-    })));
+      budgetCapBps: 10000,
+      candidateConflictPolicy: { policy: 'FIRST_WINS' },
+    }));
     expect(onLaunchBot).toHaveBeenCalledWith({ name: '', description: '', botId: 'bot-id' });
   });
 
@@ -530,7 +508,7 @@ describe('Strategy API view', () => {
       createBasic: vi.fn(),
       copyStrategy: vi.fn(),
       getDocument: vi.fn().mockRejectedValue(new (await import('./api/strategies')).StrategyApiError(404, 'document')),
-      acquireLease: vi.fn(), heartbeatLease: vi.fn(), releaseLease: vi.fn(), saveDocument: vi.fn(), validateStrategy: vi.fn(), getReleaseInputs: vi.fn(), releaseStrategy: vi.fn(),
+      acquireLease: vi.fn(), heartbeatLease: vi.fn(), releaseLease: vi.fn(), saveDocument: vi.fn(), validateStrategy: vi.fn(), releaseStrategy: vi.fn(),
     } as StrategyAuthoringClient;
 
     render(<BasicEditor blank goBack={() => {}} strategyId="missing" authoringClient={authoringClient} catalogClient={null} />);
@@ -562,7 +540,6 @@ describe('Strategy API view', () => {
       releaseLease: vi.fn().mockResolvedValue(undefined),
       saveDocument: vi.fn(),
       validateStrategy: vi.fn(),
-      getReleaseInputs: vi.fn(),
       releaseStrategy: vi.fn(),
     } as StrategyAuthoringClient;
 
@@ -595,7 +572,6 @@ describe('Strategy API view', () => {
       releaseLease: vi.fn().mockResolvedValue(undefined),
       saveDocument: vi.fn(),
       validateStrategy: vi.fn(),
-      getReleaseInputs: vi.fn(),
       releaseStrategy: vi.fn(),
     } as StrategyAuthoringClient;
 
@@ -626,7 +602,6 @@ describe('Strategy API view', () => {
       releaseLease: vi.fn().mockResolvedValue(undefined),
       saveDocument: vi.fn(),
       validateStrategy: vi.fn(),
-      getReleaseInputs: vi.fn(),
       releaseStrategy: vi.fn(),
     } as StrategyAuthoringClient;
 

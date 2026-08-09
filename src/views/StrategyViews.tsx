@@ -33,7 +33,7 @@ import {
 } from '../lib/strategyCanvasLayout';
 import type { CanvasPoint, CanvasSize, CardMoveGesture } from '../lib/strategyCanvasLayout';
 import { defaultStrategyAuthoringClient, defaultStrategyCatalogClient, defaultStrategyLibraryClient, STRATEGY_LIBRARY_PAGE_SIZE, StrategyApiError } from '../api/strategies';
-import type { BasicCatalogInstrument, BasicStrategyCatalog, StrategyAuthoringClient, StrategyCatalogClient, StrategyLibraryClient, StrategyLibraryItem, StrategyReleaseInputs, StrategyValidationResult } from '../api/strategies';
+import type { BasicCatalogInstrument, BasicStrategyCatalog, StrategyAuthoringClient, StrategyCatalogClient, StrategyLibraryClient, StrategyLibraryItem, StrategyValidationResult } from '../api/strategies';
 
 type EditorMode = 'basic' | 'pro';
 type EditorLoadFailure = 'sign-in' | 'missing' | 'conflict' | 'transport' | 'unreadable';
@@ -1675,8 +1675,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const [launchDialogOpen, setLaunchDialogOpen] = useState(false);
   const [botName, setBotName] = useState('');
   const [botDescription, setBotDescription] = useState('');
-  const [releaseInputs, setReleaseInputs] = useState<StrategyReleaseInputs | null>(null);
-  const [releaseInputsPending, setReleaseInputsPending] = useState(false);
   const [releasePending, setReleasePending] = useState(false);
   const [releaseError, setReleaseError] = useState<string | null>(null);
   const [initialCashAmount, setInitialCashAmount] = useState('100000');
@@ -2352,7 +2350,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     setReleaseError(null);
   };
 
-  const preparePersonalBotLaunch = async () => {
+  const preparePersonalBotLaunch = () => {
     if (!isLaunchable) {
       const firstIssue = validationIssues[0]?.message
         ?? (serverValidation?.status === 'INVALID'
@@ -2374,32 +2372,15 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     setSaveFeedback(null);
     setLaunchDialogOpen(true);
     setReleaseError(null);
-    if (!strategyId || !authoringClient) {
-      setAnnouncement('개인 운용 봇 정보를 입력해 주세요.');
-      return;
-    }
-    setReleaseInputsPending(true);
-    setReleaseInputs(null);
-    try {
-      const inputs = await authoringClient.getReleaseInputs();
-      setReleaseInputs(inputs);
-      if (inputs.executionPolicies.length === 0 || inputs.datasets.length === 0) {
-        setReleaseError('현재 봇을 출시할 수 없습니다. 잠시 후 다시 시도해 주세요.');
-      }
-      setAnnouncement('봇 출시 준비를 마쳤습니다.');
-    } catch {
-      setReleaseError('봇 출시를 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.');
-    } finally {
-      setReleaseInputsPending(false);
-    }
+    setAnnouncement(strategyId && authoringClient
+      ? '봇 출시 준비를 마쳤습니다.'
+      : '개인 운용 봇 정보를 입력해 주세요.');
   };
 
   const launchPersonalBot = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (strategyId && authoringClient) {
-      const policy = releaseInputs?.executionPolicies[0];
-      const dataset = releaseInputs?.datasets[0];
-      if (!savedValidation || savedValidation.status !== 'VALID' || !policy || !dataset) return;
+      if (!savedValidation || savedValidation.status !== 'VALID') return;
       const cash = fixedScaleUsdAmount(initialCashAmount);
       const budget = Number(budgetPercent);
       if (!cash || !Number.isFinite(budget) || budget <= 0 || budget > 100) {
@@ -2413,13 +2394,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           validationRunId: savedValidation.validationRunId,
           initialCashAmount: cash,
           budgetCapBps: Math.round(budget * 100),
-          brokerRulesVersion: policy.brokerRulesVersion,
-          accountingRulesVersion: policy.accountingRulesVersion,
-          precisionRulesVersion: policy.precisionRulesVersion,
-          feePolicyId: policy.feePolicyId,
-          buyingPowerBufferPolicyId: policy.buyingPowerBufferPolicyId,
-          datasetManifestId: dataset.id,
-          executionPolicyVersion: policy.version,
           candidateConflictPolicy: { policy: 'FIRST_WINS' },
         });
         setLaunchDialogOpen(false);
@@ -4133,9 +4107,8 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         </header>
         <form onSubmit={(event) => { void launchPersonalBot(event); }}>
           {strategyId && authoringClient ? <>
-            {releaseInputsPending && <LoadingState label="봇 출시를 준비하는 중입니다." />}
             {releaseError && <ErrorState title={releaseError} />}
-            {!releaseInputsPending && releaseInputs && <>
+            <>
               <label className="personal-bot-launch-field">
                 <span><strong>초기 운용 자금</strong><small>USD</small></span>
                 <input autoFocus type="number" min="1" step="0.01" aria-label="초기 운용 자금" value={initialCashAmount} onChange={(event) => setInitialCashAmount(event.target.value)} />
@@ -4144,7 +4117,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
                 <span><strong>전략 운용 예산</strong><small>%</small></span>
                 <input type="number" min="0.01" max="100" step="0.01" aria-label="전략 운용 예산 비율" value={budgetPercent} onChange={(event) => setBudgetPercent(event.target.value)} />
               </label>
-            </>}
+            </>
           </> : <>
           <label className="personal-bot-launch-field">
             <span><strong>봇 이름</strong><small>{botName.length}/40</small></span>
@@ -4181,7 +4154,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
               kind="primary"
               icon={Rocket}
               disabled={strategyId && authoringClient
-                ? releaseInputsPending || releasePending || !releaseInputs?.executionPolicies[0] || !releaseInputs?.datasets[0]
+                ? releasePending
                 : !botName.trim() || !botDescription.trim()}
             >{releasePending ? '출시 중…' : '봇 출시하기'}</Button>
           </footer>
