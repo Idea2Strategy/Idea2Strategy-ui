@@ -9012,6 +9012,14 @@ small.dashboard-bot-scope {
   font-size: var(--fs-micro);
   line-height: 1.4;
 }
+.strategy-preview-disclaimer {
+  display: block;
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+  word-break: keep-all;
+}
 @media (max-width: 800px) {
   .variant-balanced[data-design="signal-studio"] .strategy-preview-card { display: none; }
 }

@@ -1292,6 +1292,7 @@ const english: Record<string, string> = {
   '신호를 계산하기에 최근 데이터가 부족합니다.': 'There is not enough recent data to calculate signals.',
   '신호만 강조': 'signals only',
   '최근 1개월 종가와 신호': 'closing prices and signals over the past month',
+  '빠르게 계산할 수 있는 조건만 반영한 예상 결과이며 실제 실행 결과와 다를 수 있습니다.': 'This estimate uses only conditions that can be calculated quickly and may differ from actual execution results.',
   /* '최근 1개월'은 백테스트 기간 칩에 이미 있다. */
   '계산할 수 있는 지표 블록이 없어요': 'No indicator block here can be evaluated',
   '블록은 계산에서 제외했어요': 'blocks are excluded from the calculation',

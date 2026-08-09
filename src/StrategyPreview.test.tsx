@@ -5,6 +5,7 @@ import { BasicEditor } from './views/StrategyViews';
 import { StrategyPreviewChart } from './components/StrategyPreviewChart';
 import { LanguageProvider } from './lib/i18n';
 import {
+  PREVIEW_MAX_CANDLES,
   PREVIEW_WINDOW,
   bollinger,
   evaluateStrategyPreview,
@@ -117,6 +118,20 @@ describe('strategy preview engine', () => {
     expect(preview.summary.winRate).not.toBeNull();
   });
 
+  test('bounds the fast local preview to the latest 400 server bars', () => {
+    const supplied = candlesFrom(Array.from({ length: 450 }, (_, index) => 100 + index));
+
+    const preview = evaluateStrategyPreview({
+      symbol: 'AAPL',
+      candles: supplied,
+      flows: flowsOf(BUY_BLOCKS, SELL_BLOCKS),
+    });
+
+    expect(PREVIEW_MAX_CANDLES).toBe(400);
+    expect(preview.candles).toHaveLength(400);
+    expect(preview.candles[0]).toBe(supplied[50]);
+  });
+
   test('is deterministic for the same symbol and timeframe', () => {
     const first = evaluateStrategyPreview({ symbol: 'MSFT', timeframeSeconds: 3600, flows: flowsOf(BUY_BLOCKS, SELL_BLOCKS) });
     const second = evaluateStrategyPreview({ symbol: 'MSFT', timeframeSeconds: 3600, flows: flowsOf(BUY_BLOCKS, SELL_BLOCKS) });
@@ -213,6 +228,21 @@ describe('strategy preview engine', () => {
 });
 
 describe('Basic editor partition preview state', () => {
+  test('renders fast supported buy and sell markers with an estimate disclaimer', () => {
+    render(<StrategyPreviewChart
+      partitionLabel="PARTITION 01"
+      symbols={['AAPL']}
+      flows={flowsOf(BUY_BLOCKS, SELL_BLOCKS)}
+      candles={generatePreviewCandles('AAPL', 1800, 400)}
+      onClose={() => {}}
+    />);
+
+    expect(screen.getAllByTestId('preview-marker-buy').length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId('preview-marker-sell').length).toBeGreaterThan(0);
+    expect(screen.getByText('빠르게 계산할 수 있는 조건만 반영한 예상 결과이며 실제 실행 결과와 다를 수 있습니다.'))
+      .toBeInTheDocument();
+  });
+
   test('always explains the buy and sell conditions and warns when bars are insufficient', () => {
     render(<StrategyPreviewChart
       partitionLabel="PARTITION 01"
