@@ -98,26 +98,44 @@ export function NotificationPreferencesPanel({ client }: { client: NotificationC
     } catch { setSaveError(true); }
     finally { setSaving(false); }
   };
+  const enabled = state.kind === 'ready' ? state.value.enabled : false;
+  const unavailable = state.kind !== 'ready';
+  const description = state.kind === 'loading'
+    ? '현재 이메일 알림 설정을 확인하고 있습니다.'
+    : state.kind === 'error'
+      ? '설정을 확인한 뒤 이메일 알림을 변경할 수 있습니다.'
+      : enabled
+        ? '선택한 소식을 이메일로 받고 있습니다.'
+        : '선택형 이메일 알림을 받지 않습니다.';
+  const status = saving
+    ? '저장 중'
+    : state.kind === 'loading'
+      ? '확인 중'
+      : state.kind === 'error'
+        ? '확인 필요'
+        : enabled
+          ? '수신 중'
+          : '수신 안 함';
   return <Localized><Panel className="span-2 notification-preferences-api" title="이메일 알림" subtitle="문의 답변과 서비스 이용에 필요한 소식을 이메일로 받아보세요.">
-    {state.kind === 'loading' && <div className="notification-preferences-state" role="status"><LoaderCircle size={16} /> 알림 설정을 불러오고 있습니다.</div>}
-    {state.kind === 'error' && <NotificationError error={state.error} retry={load} />}
     {saveError && <p className="notification-preferences-save-error" role="alert">변경 내용을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.</p>}
-    {state.kind === 'ready' && <div className="notification-preference-list"><div className="notification-preference-row">
+    <div className="notification-preference-list"><div className="notification-preference-row">
         <span className="notification-preference-icon"><Mail size={17} /></span>
-        <span className="notification-preference-copy"><strong>이메일 알림 받기</strong><small>{state.value.enabled ? '선택한 소식을 이메일로 받고 있습니다.' : '선택형 이메일 알림을 받지 않습니다.'}</small></span>
+        <span className="notification-preference-copy"><strong>이메일 알림 받기</strong><small>{description}</small></span>
         <span className="notification-preference-control">
           <button
             type="button"
             role="switch"
-            aria-checked={state.value.enabled}
+            aria-checked={enabled}
             aria-label="이메일 알림 받기"
-            disabled={saving}
+            aria-busy={state.kind === 'loading' || saving}
+            disabled={saving || unavailable}
             onClick={() => void toggleEmail()}
           ><i /></button>
-          <small>{saving ? '저장 중' : state.value.enabled ? '수신 중' : '수신 안 함'}</small>
+          <small>{status}</small>
         </span>
         {saved && <span className="notification-preference-saved" role="status"><Check size={13} />저장 완료</span>}
-      </div><p className="notification-preference-help"><Info size={15} aria-hidden="true" />중요한 보안 안내는 이 설정과 관계없이 발송될 수 있습니다.</p></div>}
+      </div><p className="notification-preference-help"><Info size={15} aria-hidden="true" />중요한 보안 안내는 이 설정과 관계없이 발송될 수 있습니다.</p></div>
+    {state.kind === 'error' && <NotificationError error={state.error} retry={load} />}
   </Panel></Localized>;
 }
 

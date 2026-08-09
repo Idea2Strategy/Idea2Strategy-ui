@@ -77,8 +77,13 @@ describe('NotificationPreferencesPanel', () => {
       .mockResolvedValueOnce({ enabled: false });
     render(<NotificationPreferencesPanel client={client({ emailPreference })} />);
     expect(await screen.findByText('알림 서버에 일시적으로 연결할 수 없습니다.')).toBeInTheDocument();
+    const unavailableToggle = screen.getByRole('switch', { name: '이메일 알림 받기' });
+    expect(unavailableToggle).toBeDisabled();
+    expect(screen.getByText('확인 필요')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: '다시 시도' }));
-    expect(await screen.findByRole('switch', { name: '이메일 알림 받기' })).toHaveAttribute('aria-checked', 'false');
+    const availableToggle = await screen.findByRole('switch', { name: '이메일 알림 받기' });
+    expect(availableToggle).toBeEnabled();
+    expect(availableToggle).toHaveAttribute('aria-checked', 'false');
   });
 
   it('keeps the previous value when saving fails', async () => {
