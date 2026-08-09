@@ -4420,7 +4420,7 @@
   color: #fff;
   border-color: color-mix(in srgb, var(--negative) 78%, #fff 8%);
   background: var(--negative);
-  box-shadow: 0 1px 1px rgb(0 0 0 / .12), 0 8px 20px color-mix(in srgb, var(--negative) 22%, transparent);
+  box-shadow: none;
 }
 .account-withdrawal-trigger:hover:not(:disabled),
 .account-withdrawal-confirm:hover:not(:disabled) {
@@ -4454,6 +4454,25 @@
 .account-support-modal > header button { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; padding: 0; border: 0; border-radius: var(--radius-sm); color: var(--text-faint); background: transparent; cursor: pointer; }
 .account-support-modal > header button:hover { color: var(--text); background: var(--surface-2); }
 .account-support-modal-body { max-height: calc(100vh - 190px); overflow-y: auto; padding: 20px 22px 22px; }
+.account-support-modal-body .case-api-form input {
+  width: 100%;
+  min-width: 0;
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  outline: none;
+  color: var(--text);
+  background: var(--surface-2);
+  font: inherit;
+  transition: border-color var(--motion-fast), box-shadow var(--motion-fast), background-color var(--motion-fast);
+}
+.account-support-modal-body .case-api-form input:hover { border-color: var(--line-strong); }
+.account-support-modal-body .case-api-form input:focus-visible {
+  border-color: var(--accent);
+  background: var(--surface-1);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 .account-support-modal-body .case-api-panel { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .account-support-modal-body .case-api-panel > .panel-heading { display: none; }
 .account-support-modal-body .case-api-panel > .settings-fields { grid-template-columns: 1fr 1fr; padding: 0; }

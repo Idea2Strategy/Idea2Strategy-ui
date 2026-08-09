@@ -314,6 +314,15 @@ describe('Signal product UI', () => {
     expect(screen.queryByRole('heading', { name: '화면 설정' })).not.toBeInTheDocument();
   });
 
+  test('keeps the inquiry title field styled and the withdrawal action free of a glow', () => {
+    expect(balancedStyles).toMatch(
+      /\.account-support-modal-body \.case-api-form input\s*\{[^}]*border:\s*1px solid var\(--line\)[^}]*background:\s*var\(--surface-2\)/s,
+    );
+    expect(balancedStyles).toMatch(
+      /\.account-withdrawal-trigger[\s\S]*?\{[^}]*box-shadow:\s*none;/,
+    );
+  });
+
   test('switches the product between Korean and English and remembers the choice', async () => {
     const user = userEvent.setup();
     const { unmount } = render(<App />);
