@@ -23,6 +23,39 @@ export interface UserCaseView {
   updatedAt: string;
 }
 
+export interface UserCaseSummary {
+  id: string;
+  type: UserCaseType;
+  status: UserCaseStatus;
+  subject: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserCasePage {
+  items: UserCaseSummary[];
+  nextCursor: string | null;
+}
+
+export interface UserCaseHistoryItem {
+  actor: 'CUSTOMER' | 'SUPPORT' | 'SYSTEM';
+  status: UserCaseStatus;
+  message: string;
+  createdAt: string;
+}
+
+export interface UserCaseDetail {
+  id: string;
+  type: UserCaseType;
+  status: UserCaseStatus;
+  subject: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  responseDeadlineAt: string | null;
+  history: UserCaseHistoryItem[];
+}
+
 export interface OperatorEvidenceView {
   evidenceId: string;
   kind: string;
@@ -87,13 +120,15 @@ interface ClientOptions {
 export interface AccountOperationsClient {
   submitCase(input: { type: UserCaseType; subject: string; description: string; evidence: EvidenceReference[] }, idempotencyKey: string, signal?: AbortSignal): Promise<UserCaseView>;
   addCaseEvidence(caseId: string, expectedVersion: number, evidence: EvidenceReference[], idempotencyKey: string, signal?: AbortSignal): Promise<UserCaseView>;
-  userCase(caseId: string, signal?: AbortSignal): Promise<UserCaseView>;
+  userCases(cursor?: string | null, limit?: number, signal?: AbortSignal): Promise<UserCasePage>;
+  userCase(caseId: string, signal?: AbortSignal): Promise<UserCaseDetail>;
   operatorCaseQueue(query: { types: UserCaseType[]; statuses?: UserCaseStatus[]; assigneeOperatorId?: string; cursor?: string; limit?: number }, signal?: AbortSignal): Promise<OperatorCasePage>;
   operatorCase(caseId: string, signal?: AbortSignal): Promise<OperatorCaseDetail>;
   commandCase(caseId: string, action: OperatorCaseAction, input: {
     expectedVersion: number;
     assigneeOperatorId?: string | null;
     reasonCode: string;
+    customerMessage?: string | null;
     evidenceIds?: string[];
     sanctionId?: string | null;
     sanctionType?: SanctionType | null;
@@ -155,8 +190,13 @@ export function createAccountOperationsClient({
         method: 'POST', signal, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify({ expectedVersion, evidence }),
       })));
     },
+    async userCases(cursor = null, limit = 10, signal) {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (cursor) params.set('cursor', cursor);
+      return readUserCasePage(await json(await request(`/api/v1/cases?${params}`, { signal })));
+    },
     async userCase(caseId, signal) {
-      return readUserCase(await json(await request(`/api/v1/cases/${encodeURIComponent(caseId)}`, { signal })));
+      return readUserCaseDetail(await json(await request(`/api/v1/cases/${encodeURIComponent(caseId)}`, { signal })));
     },
     async operatorCaseQueue(query, signal) {
       const params = new URLSearchParams();
@@ -175,7 +215,8 @@ export function createAccountOperationsClient({
         method: 'POST', signal, headers: { 'Idempotency-Key': idempotencyKey },
         body: JSON.stringify({
           expectedVersion: input.expectedVersion, assigneeOperatorId: input.assigneeOperatorId ?? null,
-          reasonCode: input.reasonCode, evidenceIds: input.evidenceIds ?? [], sanctionId: input.sanctionId ?? null,
+          reasonCode: input.reasonCode, customerMessage: input.customerMessage ?? null,
+          evidenceIds: input.evidenceIds ?? [], sanctionId: input.sanctionId ?? null,
           sanctionType: input.sanctionType ?? null, sanctionExpiresAt: input.sanctionExpiresAt ?? null,
           expectedSanctionVersion: input.expectedSanctionVersion ?? 0,
         }),
@@ -264,6 +305,40 @@ function readUserCase(value: unknown): UserCaseView {
     type: enumeration(v.type, ['INQUIRY', 'REPORT', 'APPEAL'], 'case type'),
     status: enumeration(v.status, ['OPEN', 'NEEDS_INFORMATION', 'UNDER_REVIEW', 'RESOLVED', 'REJECTED'], 'case status'),
     version: positive(v.version, 'case version'), evidenceObjectIds: strings(v.evidenceObjectIds), updatedAt: text(v.updatedAt, 'updatedAt'),
+  };
+}
+
+function readUserCaseSummary(value: unknown): UserCaseSummary {
+  const v = object(value);
+  return {
+    id: text(v.id, 'case id'),
+    type: enumeration(v.type, ['INQUIRY', 'REPORT', 'APPEAL'], 'case type'),
+    status: enumeration(v.status, ['OPEN', 'NEEDS_INFORMATION', 'UNDER_REVIEW', 'RESOLVED', 'REJECTED'], 'case status'),
+    subject: text(v.subject, 'case subject'), createdAt: text(v.createdAt, 'createdAt'), updatedAt: text(v.updatedAt, 'updatedAt'),
+  };
+}
+
+function readUserCasePage(value: unknown): UserCasePage {
+  const v = object(value);
+  if (!Array.isArray(v.items)) throw new Error('Invalid case items');
+  return { items: v.items.map(readUserCaseSummary), nextCursor: nullableText(v.nextCursor) };
+}
+
+function readUserCaseDetail(value: unknown): UserCaseDetail {
+  const v = object(value);
+  if (!Array.isArray(v.history)) throw new Error('Invalid case history');
+  return {
+    ...readUserCaseSummary(v),
+    description: text(v.description, 'case description'),
+    responseDeadlineAt: nullableText(v.responseDeadlineAt),
+    history: v.history.map((entry) => {
+      const item = object(entry);
+      return {
+        actor: enumeration(item.actor, ['CUSTOMER', 'SUPPORT', 'SYSTEM'], 'case actor'),
+        status: enumeration(item.status, ['OPEN', 'NEEDS_INFORMATION', 'UNDER_REVIEW', 'RESOLVED', 'REJECTED'], 'case status'),
+        message: text(item.message, 'case message'), createdAt: text(item.createdAt, 'createdAt'),
+      };
+    }),
   };
 }
 

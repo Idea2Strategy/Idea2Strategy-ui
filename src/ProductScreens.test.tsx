@@ -767,6 +767,7 @@ describe('Account settings', () => {
   const operationsClient: AccountOperationsClient = {
     submitCase: vi.fn(),
     addCaseEvidence: vi.fn(),
+    userCases: vi.fn().mockResolvedValue({ items: [], nextCursor: null }),
     userCase: vi.fn(),
     operatorCaseQueue: vi.fn(),
     operatorCase: vi.fn(),
@@ -793,26 +794,28 @@ describe('Account settings', () => {
     return { setTheme, setTimezone, setReduceMotion };
   };
 
-  test('keeps display settings in the topbar and presents account sections with clear navigation', () => {
+  test('removes the account sidebar and display settings from the account page', () => {
     setup();
 
-    expect(screen.getByRole('navigation', { name: '계정 설정' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '로그인 및 보안' })).toHaveAttribute('href', '#account-security');
-    expect(screen.getByRole('link', { name: '서비스 환경' })).toHaveAttribute('href', '#account-environment');
+    expect(screen.queryByRole('navigation', { name: '계정 설정' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '서비스 환경' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '서버 알림 채널' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '화면 설정' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: '테마 선택' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: '시간대 표기 선택' })).not.toBeInTheDocument();
   });
 
-  test('opens support as a focused modal instead of an always-visible form', async () => {
+  test('shows inquiry history on the page and opens only the composer in a modal', async () => {
     const user = userEvent.setup();
     setup(true);
 
-    expect(screen.queryByLabelText('케이스 제목')).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '문의 내역' })).toBeInTheDocument();
+    expect(screen.getByText('아직 작성한 문의가 없습니다.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('문의 제목')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '문의하기' }));
 
     const dialog = screen.getByRole('dialog', { name: '문의하기' });
-    expect(within(dialog).getByLabelText('케이스 제목')).toHaveFocus();
+    expect(within(dialog).getByLabelText('문의 제목')).toHaveFocus();
     await user.click(within(dialog).getByRole('button', { name: '문의 창 닫기' }));
     expect(screen.queryByRole('dialog', { name: '문의하기' })).not.toBeInTheDocument();
   });

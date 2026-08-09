@@ -4,7 +4,7 @@ import { BellRing, Check, Info, LoaderCircle, Mail } from 'lucide-react';
 import { Button, EmptyState, ErrorState, PageHeading, Panel, SignInRequiredState, Status } from './common';
 import { ErrorPage, SignInRequiredPage } from './StatePages';
 import { NotificationApiError } from '../api/notifications';
-import type { NotificationClient, NotificationPage, NotificationPreference, NotificationRecord } from '../api/notifications';
+import type { EmailNotificationPreference, NotificationClient, NotificationPage, NotificationRecord } from '../api/notifications';
 import { Localized } from '../lib/i18n';
 
 type LoadState<T> = { kind: 'loading' } | { kind: 'ready'; value: T } | { kind: 'error'; error: NotificationApiError };
@@ -77,37 +77,64 @@ export function NotificationCenter({ client }: { client: NotificationClient }) {
 }
 
 export function NotificationPreferencesPanel({ client }: { client: NotificationClient }) {
-  const [state, setState] = useState<LoadState<NotificationPreference[]>>({ kind: 'loading' });
-  const [saving, setSaving] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
+  const [state, setState] = useState<LoadState<EmailNotificationPreference>>({ kind: 'loading' });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const load = async () => {
     setState({ kind: 'loading' });
-    try { setState({ kind: 'ready', value: await client.preferences() }); }
+    try { setState({ kind: 'ready', value: await client.emailPreference() }); }
     catch (cause) { setState({ kind: 'error', error: apiError(cause) }); }
   };
   useEffect(() => { void load(); }, [client]);
-  const disableEmail = async (preference: NotificationPreference) => {
-    setSaving(preference.typeCode); setSaved(null);
+  const toggleEmail = async () => {
+    if (state.kind !== 'ready') return;
+    const requested = !state.value.enabled;
+    setSaving(true); setSaved(false); setSaveError(false);
     try {
-      const updated = await client.replacePreference(preference.typeCode, ['APP']);
-      setState((current) => current.kind === 'ready' ? { kind: 'ready', value: current.value.map((item) => item.typeCode === updated.typeCode ? updated : item) } : current);
-      setSaved(updated.typeCode);
-    } catch (cause) { setState({ kind: 'error', error: apiError(cause) }); }
-    finally { setSaving(null); }
+      const updated = await client.replaceEmailPreference(requested);
+      setState({ kind: 'ready', value: updated });
+      setSaved(true);
+    } catch { setSaveError(true); }
+    finally { setSaving(false); }
   };
-  return <Localized><Panel className="span-2 notification-preferences-api" title="서버 알림 채널" subtitle="앱 알림은 항상 유지되며, 서버가 허용한 현재 채널만 변경합니다.">
-    {state.kind === 'loading' && <div role="status"><LoaderCircle size={16} /> 설정을 불러오는 중</div>}
-    {state.kind === 'error' && <NotificationError error={state.error} retry={load} />}
-    {state.kind === 'ready' && state.value.length === 0 && <EmptyState icon={BellRing} title="알림 정책이 없습니다." detail="활성화된 알림 유형이 없습니다." />}
-    {state.kind === 'ready' && <div className="settings-rows">{state.value.map((preference) => {
-      const email = preference.enabledChannels.includes('EMAIL');
-      return <div className="settings-row" key={preference.typeCode}>
-        <span className="settings-row-icon"><Mail size={17} /></span>
-        <span className="settings-row-copy"><strong>{preference.typeCode}</strong><small>정책 {preference.policyVersion} · APP{email ? ' + EMAIL' : ''}</small></span>
-        {preference.mandatory ? <Status tone="neutral">필수</Status> : email ? <Button disabled={saving === preference.typeCode} onClick={() => void disableEmail(preference)}>이메일 끄기</Button> : <Status tone="positive">앱 알림</Status>}
-        {saved === preference.typeCode && <small role="status">저장됨</small>}
-      </div>;
-    })}</div>}
+  const enabled = state.kind === 'ready' ? state.value.enabled : false;
+  const unavailable = state.kind !== 'ready';
+  const description = state.kind === 'loading'
+    ? '현재 이메일 알림 설정을 확인하고 있습니다.'
+    : state.kind === 'error'
+      ? '설정을 확인한 뒤 이메일 알림을 변경할 수 있습니다.'
+      : enabled
+        ? '선택한 소식을 이메일로 받고 있습니다.'
+        : '선택형 이메일 알림을 받지 않습니다.';
+  const status = saving
+    ? '저장 중'
+    : state.kind === 'loading'
+      ? '확인 중'
+      : state.kind === 'error'
+        ? '확인 필요'
+        : enabled
+          ? '수신 중'
+          : '수신 안 함';
+  return <Localized><Panel className="span-2 notification-preferences-api" title="이메일 알림" subtitle="문의 답변과 서비스 이용에 필요한 소식을 이메일로 받아보세요.">
+    {saveError && <p className="notification-preferences-save-error" role="alert">변경 내용을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.</p>}
+    <div className="notification-preference-list"><div className="notification-preference-row">
+        <span className="notification-preference-icon"><Mail size={17} /></span>
+        <span className="notification-preference-copy"><strong>이메일 알림 받기</strong><small>{description}</small></span>
+        <span className="notification-preference-control">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            aria-label="이메일 알림 받기"
+            aria-busy={state.kind === 'loading' || saving}
+            disabled={saving || unavailable}
+            onClick={() => void toggleEmail()}
+          ><i /></button>
+          <small>{status}</small>
+        </span>
+        {saved && <span className="notification-preference-saved" role="status"><Check size={13} />저장 완료</span>}
+      </div><p className="notification-preference-help"><Info size={15} aria-hidden="true" />중요한 보안 안내는 이 설정과 관계없이 발송될 수 있습니다.</p></div>
   </Panel></Localized>;
 }
 

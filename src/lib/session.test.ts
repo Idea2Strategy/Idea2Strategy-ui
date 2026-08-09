@@ -50,6 +50,24 @@ describe('session store', () => {
     expect(store.accessToken()).toBe('owner-token');
   });
 
+  it('keeps the signed-in email in tab storage for password step-up actions', () => {
+    const storage = memoryStorage();
+    const store = createSessionStore(storage);
+
+    store.signIn({
+      accessToken: 'owner-token',
+      accountId: 'account-1',
+      email: 'user@example.com',
+      expiresAt: null,
+    });
+
+    expect(store.read()).toEqual({
+      status: 'authenticated',
+      session: expect.objectContaining({ email: 'user@example.com' }),
+    });
+    expect(storage.map.get(SESSION_STORAGE_KEY)).toContain('user@example.com');
+  });
+
   it('never persists a refresh credential in browser storage', () => {
     const storage = memoryStorage();
     const store = createSessionStore(storage);

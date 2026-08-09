@@ -78,8 +78,8 @@ export interface AccountClient {
   logoutAll(signal?: AbortSignal): Promise<void>;
   preferences(signal?: AbortSignal): Promise<AccountPreferences>;
   updatePreferences(input: Pick<AccountPreferences, 'languageCode' | 'timezoneName' | 'themePreference'>, signal?: AbortSignal): Promise<AccountPreferences>;
-  requestWithdrawal(email: string, password: string, idempotencyKey: string, signal?: AbortSignal): Promise<LifecycleResult>;
-  cancelWithdrawal(email: string, password: string, idempotencyKey: string, signal?: AbortSignal): Promise<LifecycleResult>;
+  requestWithdrawal(password: string, idempotencyKey: string, signal?: AbortSignal): Promise<LifecycleResult>;
+  cancelWithdrawal(password: string, idempotencyKey: string, signal?: AbortSignal): Promise<LifecycleResult>;
 }
 
 export function createAccountClient({
@@ -95,11 +95,21 @@ export function createAccountClient({
   const requireSession = () => {
     if (!getAccessToken?.()) throw new AccountApiError(401, 'AUTHENTICATION_REQUIRED', createCorrelationId());
   };
-  const publishTokens = (result: LoginResult) => {
+  const rememberedEmail = () => {
+    const state = sessionStore?.read();
+    return state?.status === 'authenticated' ? state.session.email : undefined;
+  };
+  const requireRememberedEmail = () => {
+    const email = rememberedEmail();
+    if (!email) throw new AccountApiError(401, 'PASSWORD_STEP_UP_EMAIL_UNAVAILABLE', createCorrelationId());
+    return email;
+  };
+  const publishTokens = (result: LoginResult, email = rememberedEmail()) => {
     setAccessToken?.(result.accessToken);
     sessionStore?.signIn({
       accessToken: result.accessToken,
       accountId: result.accountId,
+      ...(email ? { email: email.trim() } : {}),
       expiresAt: result.accessExpiresAt,
       refreshExpiresAt: result.refreshExpiresAt,
     });
@@ -193,7 +203,7 @@ export function createAccountClient({
         method: 'POST', signal, body: JSON.stringify({ email, password }),
       })).json());
       const result = readLoginResult(value);
-      publishTokens(result);
+      publishTokens(result, email);
       return result;
     },
     async loginWithGoogle(idToken, expectedNonce, signal) {
@@ -243,11 +253,13 @@ export function createAccountClient({
         method: 'PATCH', signal, body: JSON.stringify(input),
       })).json());
     },
-    requestWithdrawal(email, password, idempotencyKey, signal) {
-      return lifecycle('/api/v1/account/withdrawal-requests', email, password, [], idempotencyKey, signal);
+    requestWithdrawal(password, idempotencyKey, signal) {
+      requireSession();
+      return lifecycle('/api/v1/account/withdrawal-requests', requireRememberedEmail(), password, [], idempotencyKey, signal);
     },
-    cancelWithdrawal(email, password, idempotencyKey, signal) {
-      return lifecycle('/api/v1/account/withdrawal-cancellations', email, password, [], idempotencyKey, signal);
+    cancelWithdrawal(password, idempotencyKey, signal) {
+      requireSession();
+      return lifecycle('/api/v1/account/withdrawal-cancellations', requireRememberedEmail(), password, [], idempotencyKey, signal);
     },
   };
 }

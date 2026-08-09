@@ -1,5 +1,7 @@
 import { getSessionAccessToken } from './sessionAccessToken';
 
+export const STRATEGY_LIBRARY_PAGE_SIZE = 10;
+
 export type StrategyMode = 'BASIC' | 'PRO';
 
 export interface StrategyLibraryItem {
@@ -199,7 +201,7 @@ export function createStrategyLibraryClient({
 }: ClientOptions = {}): StrategyLibraryClient {
   const root = baseUrl.replace(/\/$/, '');
   return {
-    async list(limit = 50, cursor, signal) {
+    async list(limit = STRATEGY_LIBRARY_PAGE_SIZE, cursor, signal) {
       const query = new URLSearchParams({ limit: String(limit) });
       if (cursor) query.set('cursor', cursor);
       const token = getAccessToken?.();

@@ -388,8 +388,8 @@ describe('login entry points', () => {
     const notificationClient: NotificationClient = {
       list: vi.fn().mockRejectedValue(new NotificationApiError(401, 'UNAUTHENTICATED', 'corr-notif-1')),
       markRead: vi.fn(),
-      preferences: vi.fn().mockResolvedValue([]),
-      replacePreference: vi.fn(),
+      emailPreference: vi.fn().mockResolvedValue({ enabled: false }),
+      replaceEmailPreference: vi.fn(),
     };
     window.history.replaceState({}, '', '/help');
     render(<App accountClient={accountClient()} notificationClient={notificationClient} />);

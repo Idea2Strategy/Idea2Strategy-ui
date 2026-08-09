@@ -29,7 +29,7 @@ const client = (overrides: Partial<OperatorRbacClient> = {}): OperatorRbacClient
 });
 
 const mutationsClient = (overrides: Partial<AccountOperationsClient> = {}): AccountOperationsClient => ({
-  submitCase: vi.fn(), addCaseEvidence: vi.fn(), userCase: vi.fn(), operatorCaseQueue: vi.fn(), operatorCase: vi.fn(), commandCase: vi.fn(),
+  submitCase: vi.fn(), addCaseEvidence: vi.fn(), userCases: vi.fn(), userCase: vi.fn(), operatorCaseQueue: vi.fn(), operatorCase: vi.fn(), commandCase: vi.fn(),
   grantOperator: vi.fn(), revokeOperator: vi.fn(), applySanction: vi.fn(), liftSanction: vi.fn(), ...overrides,
 });
 

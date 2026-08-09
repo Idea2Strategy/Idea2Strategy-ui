@@ -1,103 +1,138 @@
-import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CheckCircle2, ChevronRight, Clock3, Inbox, LoaderCircle, RefreshCw, Send, ShieldCheck, X } from 'lucide-react';
 import { Button, EmptyState, ErrorState, PageHeading, Panel, SignInRequiredState, Status } from './common';
 import { AccountOperationsApiError } from '../api/accountOperations';
 import type {
-  AccountOperationsClient, OperatorCaseAction, OperatorCaseDetail, OperatorCaseSummary, SanctionType, UserCaseType, UserCaseView,
+  AccountOperationsClient, OperatorCaseAction, OperatorCaseDetail, OperatorCaseSummary, SanctionType,
+  UserCaseDetail, UserCasePage, UserCaseStatus, UserCaseType, UserCaseView,
 } from '../api/accountOperations';
 
 type AsyncState<T> = { kind: 'idle' } | { kind: 'loading' } | { kind: 'ready'; value: T } | { kind: 'error'; error: AccountOperationsApiError };
 const error = (value: unknown) => value instanceof AccountOperationsApiError
   ? value : new AccountOperationsApiError(0, 'NETWORK_ERROR', null);
 
-export function UserCasePanel({ client, createIdempotencyKey = () => crypto.randomUUID() }: {
+export function UserCaseForm({ client, createIdempotencyKey = () => crypto.randomUUID(), onSubmitted }: {
   client: AccountOperationsClient;
   createIdempotencyKey?: () => string;
+  onSubmitted?: (value: UserCaseView) => void;
 }) {
   const [type, setType] = useState<UserCaseType>('INQUIRY');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
-  const [caseId, setCaseId] = useState('');
   const [state, setState] = useState<AsyncState<UserCaseView>>({ kind: 'idle' });
-  const [storageObjectId, setStorageObjectId] = useState('');
-  const [sourceDomain, setSourceDomain] = useState('');
-  const [sourceResourceId, setSourceResourceId] = useState('');
-  const [evidenceState, setEvidenceState] = useState<AsyncState<UserCaseView>>({ kind: 'idle' });
-  const retrySubmit = useRef<(() => void) | null>(null);
-  const retryEvidence = useRef<(() => void) | null>(null);
-
-  const submit = async (retryKey?: string) => {
+  const submit = async () => {
     setState({ kind: 'loading' });
-    const idempotencyKey = retryKey ?? createIdempotencyKey();
+    const idempotencyKey = createIdempotencyKey();
     try {
       const value = await client.submitCase({ type, subject: subject.trim(), description: description.trim(), evidence: [] }, idempotencyKey);
-      retrySubmit.current = null;
-      setCaseId(value.id);
       setState({ kind: 'ready', value });
+      setSubject('');
+      setDescription('');
+      onSubmitted?.(value);
     } catch (cause) {
       const failure = error(cause);
       setState({ kind: 'error', error: failure });
-      retrySubmit.current = failure.retryable ? () => void submit(idempotencyKey) : null;
     }
   };
-  const reload = async () => {
-    if (!caseId.trim()) return;
-    setState({ kind: 'loading' });
-    try { setState({ kind: 'ready', value: await client.userCase(caseId.trim()) }); }
-    catch (cause) { setState({ kind: 'error', error: error(cause) }); }
-  };
-  const addEvidence = async (retryKey?: string) => {
-    if (state.kind !== 'ready') return;
-    setEvidenceState({ kind: 'loading' });
-    const idempotencyKey = retryKey ?? createIdempotencyKey();
-    try {
-      const value = await client.addCaseEvidence(state.value.id, state.value.version, [{
-        storageObjectId: storageObjectId.trim(), sourceDomain: sourceDomain.trim(), sourceResourceId: sourceResourceId.trim(),
-      }], idempotencyKey);
-      retryEvidence.current = null;
-      setState({ kind: 'ready', value });
-      setEvidenceState({ kind: 'ready', value });
-      setStorageObjectId(''); setSourceDomain(''); setSourceResourceId('');
-    } catch (cause) {
-      const failure = error(cause);
-      setEvidenceState({ kind: 'error', error: failure });
-      retryEvidence.current = failure.retryable ? () => void addEvidence(idempotencyKey) : null;
-    }
-  };
-
-  return <Panel className="span-2 case-api-panel" title="문의 · 신고 · 이의 제기" subtitle="접수 결과와 추적 번호는 서버 응답으로만 확정됩니다.">
-    <div className="settings-fields case-api-form">
-      <label><span>유형</span><select aria-label="케이스 유형" value={type} onChange={(event) => setType(event.target.value as UserCaseType)}>
+  return <section className="customer-case-compose" aria-labelledby="customer-case-compose-title">
+      <div className="customer-case-section-heading"><div><span>새 문의</span><h3 id="customer-case-compose-title">무엇을 도와드릴까요?</h3></div><Send size={18} aria-hidden="true" /></div>
+      <div className="settings-fields case-api-form">
+      <label><span>유형</span><select aria-label="문의 유형" value={type} onChange={(event) => setType(event.target.value as UserCaseType)}>
         <option value="INQUIRY">문의</option><option value="REPORT">신고</option><option value="APPEAL">이의 제기</option>
       </select></label>
-      <label><span>제목</span><input aria-label="케이스 제목" value={subject} onChange={(event) => setSubject(event.target.value)} /></label>
-      <label className="span-2"><span>설명</span><textarea aria-label="케이스 설명" value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+      <label><span>제목</span><input aria-label="문의 제목" placeholder="문의 내용을 한 줄로 알려주세요" value={subject} onChange={(event) => setSubject(event.target.value)} /></label>
+      <label className="span-2"><span>상세 내용</span><textarea aria-label="문의 내용" placeholder="확인이 필요한 내용을 자세히 적어주세요" value={description} onChange={(event) => setDescription(event.target.value)} /></label>
     </div>
     <div className="account-api-actions">
-      <Button kind="primary" disabled={!subject.trim() || !description.trim() || state.kind === 'loading'} onClick={() => { retrySubmit.current = null; void submit(); }}>접수하기</Button>
-      <input aria-label="케이스 추적 번호" placeholder="case id" value={caseId} onChange={(event) => setCaseId(event.target.value)} />
-      <Button disabled={!caseId.trim() || state.kind === 'loading'} onClick={reload}><RefreshCw size={14} />상태 확인</Button>
+      <Button kind="primary" disabled={!subject.trim() || !description.trim() || state.kind === 'loading'} onClick={() => void submit()}>접수하기</Button>
     </div>
-    {state.kind === 'loading' && <div role="status" className="case-api-feedback"><LoaderCircle size={16} />서버 응답을 기다리는 중입니다.</div>}
-    {state.kind === 'error' && <CaseError error={state.error} retry={caseId.trim() ? reload : retrySubmit.current ?? undefined} />}
+    {state.kind === 'loading' && <div role="status" className="case-api-feedback"><LoaderCircle size={16} />문의를 접수하고 있습니다.</div>}
+    {state.kind === 'error' && <CaseError error={state.error} />}
     {state.kind === 'ready' && <div className="case-api-receipt" role="status">
-      <CheckCircle2 size={17} /><div><strong>{state.value.status}</strong><span>추적 번호 {state.value.id} · 버전 {state.value.version}</span></div>
+      <CheckCircle2 size={17} /><div><strong>문의가 접수되었습니다.</strong><span>답변과 처리 상태는 마이페이지의 문의 내역에서 확인할 수 있습니다.</span></div>
     </div>}
-    {state.kind === 'ready' && <fieldset className="case-evidence-form">
-      <legend>후속 증거 추가</legend>
-      <p>이미 업로드된 저장 객체의 식별자와 출처를 현재 케이스 버전에 연결합니다.</p>
-      <div className="settings-fields case-api-form">
-        <label><span>저장 객체 ID</span><input aria-label="Evidence storage object ID" value={storageObjectId} onChange={(event) => setStorageObjectId(event.target.value)} /></label>
-        <label><span>출처 도메인</span><input aria-label="Evidence source domain" value={sourceDomain} onChange={(event) => setSourceDomain(event.target.value)} /></label>
-        <label><span>출처 리소스 ID</span><input aria-label="Evidence source resource ID" value={sourceResourceId} onChange={(event) => setSourceResourceId(event.target.value)} /></label>
-      </div>
-      <Button disabled={!storageObjectId.trim() || !sourceDomain.trim() || !sourceResourceId.trim() || evidenceState.kind === 'loading'} onClick={() => { retryEvidence.current = null; void addEvidence(); }}>증거 연결</Button>
-      {evidenceState.kind === 'loading' && <p role="status">증거를 연결하는 중입니다.</p>}
-      {evidenceState.kind === 'ready' && <p role="status">증거가 연결되었습니다. 현재 버전 {evidenceState.value.version}</p>}
-      {evidenceState.kind === 'error' && <CaseError error={evidenceState.error} retry={retryEvidence.current ?? undefined} />}
-    </fieldset>}
+    </section>;
+}
+
+export function UserCasePanel({ client, refreshKey = 0, onCreate }: {
+  client: AccountOperationsClient;
+  refreshKey?: number;
+  onCreate?: () => void;
+}) {
+  const [list, setList] = useState<AsyncState<UserCasePage>>({ kind: 'loading' });
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [detail, setDetail] = useState<AsyncState<UserCaseDetail>>({ kind: 'idle' });
+
+  const loadCases = async (cursor?: string, append = false) => {
+    if (append) setLoadingMore(true); else setList({ kind: 'loading' });
+    try {
+      const page = await client.userCases(cursor ?? null, 10);
+      setList((current) => ({
+        kind: 'ready',
+        value: {
+          items: append && current.kind === 'ready' ? [...current.value.items, ...page.items] : page.items,
+          nextCursor: page.nextCursor,
+        },
+      }));
+    } catch (cause) {
+      if (!append) setList({ kind: 'error', error: error(cause) });
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+  useEffect(() => { void loadCases(); }, [client, refreshKey]);
+
+  const openDetail = async (id: string) => {
+    setDetail({ kind: 'loading' });
+    try { setDetail({ kind: 'ready', value: await client.userCase(id) }); }
+    catch (cause) { setDetail({ kind: 'error', error: error(cause) }); }
+  };
+
+  return <Panel
+    className="span-2 case-api-panel customer-case-panel"
+    title="문의 내역"
+    subtitle="작성한 문의와 고객지원팀의 답변을 확인하세요."
+    action={onCreate ? <Button kind="primary" onClick={onCreate}>문의하기</Button> : undefined}
+  >
+    <section className="customer-case-list-section" aria-label="내가 작성한 문의">
+      {list.kind === 'loading' && <div className="customer-case-list-state" role="status"><LoaderCircle size={17} />문의 내역을 불러오고 있습니다.</div>}
+      {list.kind === 'error' && <CaseError error={list.error} />}
+      {list.kind === 'ready' && list.value.items.length === 0 && <EmptyState icon={Inbox} title="아직 작성한 문의가 없습니다." detail="궁금한 점이 생기면 문의하기 버튼으로 내용을 남겨주세요." />}
+      {list.kind === 'ready' && list.value.items.length > 0 && <div className="customer-case-list">{list.value.items.map((item) => <button
+        type="button"
+        key={item.id}
+        aria-label={`${item.subject} 상세 보기`}
+        onClick={() => void openDetail(item.id)}
+      ><span className="customer-case-list-copy"><span><strong>{item.subject}</strong><Status tone={caseStatusTone(item.status)}>{caseStatusLabel(item.status)}</Status></span><small>{caseTypeLabel(item.type)} · {formatCaseDate(item.updatedAt)}</small></span><ChevronRight size={17} aria-hidden="true" /></button>)}</div>}
+      {list.kind === 'ready' && list.value.nextCursor && <div className="customer-case-more"><Button disabled={loadingMore} onClick={() => void loadCases(list.value.nextCursor ?? undefined, true)}>{loadingMore ? '불러오는 중' : '이전 문의 더 보기'}</Button></div>}
+    </section>
+    {detail.kind !== 'idle' && <div className="customer-case-detail-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setDetail({ kind: 'idle' }); }}>
+      <section className="customer-case-detail-modal" role="dialog" aria-modal="true" aria-labelledby="customer-case-detail-title">
+        <header><div><span>문의 상세</span><h3 id="customer-case-detail-title">{detail.kind === 'ready' ? detail.value.subject : '문의 내용을 불러오는 중'}</h3></div><button type="button" aria-label="문의 상세 닫기" onClick={() => setDetail({ kind: 'idle' })}><X size={18} /></button></header>
+        {detail.kind === 'loading' && <div className="customer-case-detail-state" role="status"><LoaderCircle size={18} />문의 내용을 불러오고 있습니다.</div>}
+        {detail.kind === 'error' && <div className="customer-case-detail-state"><CaseError error={detail.error} /></div>}
+        {detail.kind === 'ready' && <div className="customer-case-detail-body">
+          <div className="customer-case-detail-meta"><Status tone={caseStatusTone(detail.value.status)}>{caseStatusLabel(detail.value.status)}</Status><span>{caseTypeLabel(detail.value.type)}</span><time>{formatCaseDate(detail.value.createdAt)}</time></div>
+          <section><h4>문의 내용</h4><p>{detail.value.description}</p></section>
+          {detail.value.responseDeadlineAt && <div className="customer-case-deadline"><Clock3 size={16} /><span>추가 정보는 {formatCaseDate(detail.value.responseDeadlineAt)}까지 보내주세요.</span></div>}
+          <section><h4>처리 내역</h4><ol className="customer-case-timeline">{detail.value.history.map((entry, index) => <li key={`${entry.createdAt}-${index}`}><i /><div><span><strong>{entry.actor === 'CUSTOMER' ? '나' : entry.actor === 'SUPPORT' ? '고객지원팀' : '서비스 안내'}</strong><time>{formatCaseDate(entry.createdAt)}</time></span><p>{entry.message}</p></div></li>)}</ol></section>
+        </div>}
+      </section>
+    </div>}
   </Panel>;
 }
+
+const caseStatusLabels: Record<UserCaseStatus, string> = {
+  OPEN: '접수됨', NEEDS_INFORMATION: '추가 정보 필요', UNDER_REVIEW: '검토 중', RESOLVED: '처리 완료', REJECTED: '처리 종료',
+};
+function caseStatusLabel(status: UserCaseStatus) { return caseStatusLabels[status]; }
+function caseStatusTone(status: UserCaseStatus): 'neutral' | 'warning' | 'positive' {
+  if (status === 'RESOLVED') return 'positive';
+  if (status === 'NEEDS_INFORMATION' || status === 'REJECTED') return 'warning';
+  return 'neutral';
+}
+function caseTypeLabel(type: UserCaseType) { return ({ INQUIRY: '일반 문의', REPORT: '신고', APPEAL: '이의 제기' } as const)[type]; }
+function formatCaseDate(value: string) { return new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)); }
 
 const HIGH_RISK_ACTIONS = new Set<OperatorCaseAction>(['RESOLVE', 'REJECT', 'APPLY_SANCTION', 'RELEASE_SANCTION']);
 
@@ -110,6 +145,7 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
   const [queueMoreLoading, setQueueMoreLoading] = useState(false);
   const [detail, setDetail] = useState<AsyncState<OperatorCaseDetail>>({ kind: 'idle' });
   const [reasonCode, setReasonCode] = useState('REVIEW_COMPLETED');
+  const [customerMessage, setCustomerMessage] = useState('');
   const [assigneeOperatorId, setAssigneeOperatorId] = useState('');
   const [sanctionId, setSanctionId] = useState('');
   const [sanctionType, setSanctionType] = useState<SanctionType>('SUSPENSION');
@@ -139,7 +175,13 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
     if (detail.kind !== 'ready' || pendingAction === null) return;
     const current = detail.value;
     const action = pendingAction;
-    const common = { expectedVersion: current.version, reasonCode: reasonCode.trim() };
+    const common = {
+      expectedVersion: current.version,
+      reasonCode: reasonCode.trim(),
+      ...(action === 'REQUEST_INFORMATION' || action === 'RESOLVE' || action === 'REJECT'
+        ? { customerMessage: customerMessage.trim() }
+        : {}),
+    };
     const input = action === 'ASSIGN' || action === 'REASSIGN'
       ? { ...common, assigneeOperatorId: assigneeOperatorId.trim() }
       : action === 'APPLY_SANCTION'
@@ -177,6 +219,7 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
         {detail.kind === 'ready' && <div className="operator-case-detail">
           <div><strong>{detail.value.type} · {detail.value.status}</strong><span>버전 {detail.value.version}</span></div>
           <label><span>사유 코드</span><input aria-label="Operation reason code" value={reasonCode} onChange={(event) => setReasonCode(event.target.value)} /></label>
+          <label><span>사용자에게 보일 안내</span><textarea aria-label="Customer-facing case response" placeholder="문의 상세 화면에 표시할 답변을 입력하세요" value={customerMessage} onChange={(event) => setCustomerMessage(event.target.value)} /></label>
           <label><span>담당 운영자 ID</span><input aria-label="Assignee operator ID" placeholder="operator UUID" value={assigneeOperatorId} onChange={(event) => setAssigneeOperatorId(event.target.value)} /></label>
           <div className="settings-fields case-api-form operator-command-fields">
             <label><span>제재 ID</span><input aria-label="Sanction ID" placeholder="적용 시 비워두면 새 UUID 생성" value={sanctionId} onChange={(event) => setSanctionId(event.target.value)} /></label>
@@ -188,9 +231,9 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
             <Button disabled={!reasonCode.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('START_REVIEW')}>검토 시작</Button>
             <Button aria-label="Assign case" disabled={!reasonCode.trim() || !assigneeOperatorId.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction(detail.value.assigneeOperatorId ? 'REASSIGN' : 'ASSIGN')}>케이스 배정</Button>
             <Button aria-label="Unassign case" disabled={!reasonCode.trim() || !detail.value.assigneeOperatorId || commandState.kind === 'processing'} onClick={() => setPendingAction('UNASSIGN')}>배정 해제</Button>
-            <Button aria-label="Request information" disabled={!reasonCode.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('REQUEST_INFORMATION')}>정보 요청</Button>
-            <Button disabled={!reasonCode.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('RESOLVE')}>해결</Button>
-            <Button disabled={!reasonCode.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('REJECT')}>기각</Button>
+            <Button aria-label="Request information" disabled={!reasonCode.trim() || !customerMessage.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('REQUEST_INFORMATION')}>정보 요청</Button>
+            <Button disabled={!reasonCode.trim() || !customerMessage.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('RESOLVE')}>해결</Button>
+            <Button disabled={!reasonCode.trim() || !customerMessage.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('REJECT')}>기각</Button>
             <Button aria-label="Apply sanction" disabled={!reasonCode.trim() || !validSanctionVersion(expectedSanctionVersion) || commandState.kind === 'processing'} onClick={() => { if (!sanctionId) setSanctionId(createSanctionId()); setPendingAction('APPLY_SANCTION'); }}>제재 적용</Button>
             <Button aria-label="Release sanction" disabled={!reasonCode.trim() || !sanctionId.trim() || !validSanctionVersion(expectedSanctionVersion) || commandState.kind === 'processing'} onClick={() => setPendingAction('RELEASE_SANCTION')}>제재 해제</Button>
           </div>

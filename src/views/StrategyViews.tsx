@@ -32,7 +32,7 @@ import {
   getStrategyCanvasWheelZoom,
 } from '../lib/strategyCanvasLayout';
 import type { CanvasPoint, CanvasSize, CardMoveGesture } from '../lib/strategyCanvasLayout';
-import { defaultStrategyAuthoringClient, defaultStrategyCatalogClient, defaultStrategyLibraryClient, StrategyApiError } from '../api/strategies';
+import { defaultStrategyAuthoringClient, defaultStrategyCatalogClient, defaultStrategyLibraryClient, STRATEGY_LIBRARY_PAGE_SIZE, StrategyApiError } from '../api/strategies';
 import type { BasicCatalogInstrument, BasicStrategyCatalog, StrategyAuthoringClient, StrategyCatalogClient, StrategyLibraryClient, StrategyLibraryItem, StrategyReleaseInputs, StrategyValidationResult } from '../api/strategies';
 
 type EditorMode = 'basic' | 'pro';
@@ -374,7 +374,7 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
     setSignInRequired(false);
     setNextCursor(null);
     const controller = new AbortController();
-    void client.list(50, undefined, controller.signal)
+    void client.list(STRATEGY_LIBRARY_PAGE_SIZE, undefined, controller.signal)
       .then((page) => {
         const confirmedItems = page.items.map(strategyListItem);
         confirmedItemsRef.current = confirmedItems;
@@ -399,7 +399,7 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
     if (!client || !nextCursor || morePending) return;
     setMorePending(true);
     try {
-      const page = await client.list(50, nextCursor);
+      const page = await client.list(STRATEGY_LIBRARY_PAGE_SIZE, nextCursor);
       const appended = [...(confirmedItemsRef.current ?? []), ...page.items.map(strategyListItem)];
       confirmedItemsRef.current = appended;
       setItems(appended);

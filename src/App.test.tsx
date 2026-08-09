@@ -294,7 +294,7 @@ describe('Signal product UI', () => {
     expect(performance).toHaveTextContent('개인 운용과 대회 성과는 합산하지 않습니다.');
   });
 
-  test('removes admin and watchlist entry points and centralizes account settings in My account', async () => {
+  test('removes admin, watchlist and account-sidebar entry points from My account', async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -306,11 +306,21 @@ describe('Signal product UI', () => {
     // login that never existed, only what the real API panels can prove.
     expect(screen.queryByText('김전략')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '접근 보안' })).not.toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: '계정 설정' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '로그인 및 보안' })).toHaveAttribute('href', '#account-security');
-    expect(screen.getByRole('link', { name: '서비스 환경' })).toHaveAttribute('href', '#account-environment');
+    expect(screen.queryByRole('navigation', { name: '계정 설정' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '로그인 및 보안' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '계정 관리' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '서비스 환경' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '서버 알림 채널' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '화면 설정' })).not.toBeInTheDocument();
-    expect(screen.getByText('테마와 화면 표시는 상단 톱니바퀴에서 변경할 수 있습니다.')).toBeInTheDocument();
+  });
+
+  test('keeps the inquiry title field styled and the withdrawal action free of a glow', () => {
+    expect(balancedStyles).toMatch(
+      /\.account-support-modal-body \.case-api-form input\s*\{[^}]*border:\s*1px solid var\(--line\)[^}]*background:\s*var\(--surface-2\)/s,
+    );
+    expect(balancedStyles).toMatch(
+      /\.account-withdrawal-trigger[\s\S]*?\{[^}]*box-shadow:\s*none;/,
+    );
   });
 
   test('switches the product between Korean and English and remembers the choice', async () => {
@@ -450,8 +460,8 @@ describe('Signal product UI', () => {
     const notificationClient: NotificationClient = {
       list,
       markRead: vi.fn(),
-      preferences: vi.fn(),
-      replacePreference: vi.fn(),
+      emailPreference: vi.fn().mockResolvedValue({ enabled: false }),
+      replaceEmailPreference: vi.fn(),
     };
     render(<App notificationClient={notificationClient} />);
 
@@ -467,8 +477,8 @@ describe('Signal product UI', () => {
     const notificationClient: NotificationClient = {
       list: vi.fn().mockRejectedValue(new NotificationApiError(401, 'AUTHENTICATION_REQUIRED', 'corr-topbar')),
       markRead: vi.fn(),
-      preferences: vi.fn(),
-      replacePreference: vi.fn(),
+      emailPreference: vi.fn().mockResolvedValue({ enabled: false }),
+      replaceEmailPreference: vi.fn(),
     };
     render(<App notificationClient={notificationClient} />);
 

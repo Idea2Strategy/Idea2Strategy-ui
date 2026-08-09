@@ -45,7 +45,7 @@ describe('Strategy API view', () => {
 
     expect(await screen.findByTestId('strategy-row-Live Momentum')).toBeInTheDocument();
     expect(screen.getByTestId('strategy-counts')).toHaveTextContent('출시 가능 1');
-    expect(client.list).toHaveBeenCalledWith(50, undefined, expect.any(AbortSignal));
+    expect(client.list).toHaveBeenCalledWith(10, undefined, expect.any(AbortSignal));
     // A single complete page must not offer to load more.
     expect(screen.queryByTestId('strategy-load-more')).not.toBeInTheDocument();
   });
@@ -75,7 +75,7 @@ describe('Strategy API view', () => {
     expect(await screen.findByTestId('strategy-row-Second Page')).toBeInTheDocument();
     // The first page is appended to, never replaced.
     expect(screen.getByTestId('strategy-row-First Page')).toBeInTheDocument();
-    expect(client.list).toHaveBeenLastCalledWith(50, 'cursor-2');
+    expect(client.list).toHaveBeenLastCalledWith(10, 'cursor-2');
     // Exhausted pages retire the control and the partial marker.
     expect(screen.queryByTestId('strategy-load-more')).not.toBeInTheDocument();
     expect(screen.getByTestId('strategy-counts')).toHaveTextContent('전체 2');

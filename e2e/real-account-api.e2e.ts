@@ -65,32 +65,26 @@ test('browser completes the production account principal and user-case journey',
   expect(loadedPreferences.status()).toBe(200);
   await expect(page.getByRole('heading', { name: '로그인 및 보안' })).toBeVisible();
 
-  await expect(page.getByLabel('서버 시간대')).toBeVisible();
-  await expect(page.getByRole('textbox', { name: '서버 시간대' })).toHaveCount(0);
-  const [preferences] = await Promise.all([
-    page.waitForResponse((response) => response.url().endsWith('/api/v1/account/preferences') && response.request().method() === 'PATCH'),
-    page.getByRole('button', { name: '환경 저장' }).click(),
-  ]);
-  expect(preferences.status()).toBe(200);
-  await expect(page.getByText('서버 설정을 저장했습니다.')).toBeVisible();
+  // Display preferences intentionally live outside the account screen. The
+  // account route exposes only customer-facing security and notification
+  // controls. The new email-preference response is covered by backend tests
+  // until the root repository points at that backend revision.
+  await expect(page.getByLabel('서버 시간대')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: '이메일 알림' })).toBeVisible();
 
   await page.getByRole('button', { name: '문의하기', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: '문의하기' })).toBeVisible();
-  await page.getByLabel('케이스 제목').fill('Actual browser API incident');
-  await page.getByLabel('케이스 설명').fill('Production bearer principal reaches the PostgreSQL user-case store.');
+  const supportDialog = page.getByRole('dialog', { name: '문의하기' });
+  await expect(supportDialog).toBeVisible();
+  await supportDialog.getByLabel('문의 제목').fill('실제 브라우저 API 문의');
+  await supportDialog.getByLabel('문의 내용').fill('로그인한 사용자의 문의가 안전하게 접수되는지 확인합니다.');
   const [submittedCase] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/cases') && response.request().method() === 'POST'),
-    page.getByRole('button', { name: '접수하기' }).click(),
+    supportDialog.getByRole('button', { name: '접수하기' }).click(),
   ]);
   expect(submittedCase.status()).toBe(201);
   const created = await submittedCase.json() as { id: string };
-  await expect(page.getByText(new RegExp(`추적 번호 ${created.id}`))).toBeVisible();
-
-  const [loadedCase] = await Promise.all([
-    page.waitForResponse((response) => response.url().endsWith(`/api/v1/cases/${created.id}`)),
-    page.getByRole('button', { name: '상태 확인' }).click(),
-  ]);
-  expect(loadedCase.status()).toBe(200);
+  await expect(supportDialog.getByText('문의가 접수되었습니다.')).toBeVisible();
+  await expect(supportDialog.getByText(created.id, { exact: true })).toHaveCount(0);
 
   // Exercise the signed-in product shell against the same real backend. These
   // reads catch missing controllers, stale root pointers, auth propagation,

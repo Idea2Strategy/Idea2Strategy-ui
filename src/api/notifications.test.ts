@@ -26,16 +26,17 @@ describe('notification API client', () => {
     expect(fetchImpl).toHaveBeenCalledWith('/api/v1/account/notifications/notification%2Funsafe/read', expect.objectContaining({ method: 'PUT' }));
   });
 
-  it('loads and replaces versioned channel preferences without allowing unknown channels', async () => {
-    const preference = { typeCode: 'CASE_UPDATED', policyVersion: 'policy-v1', mandatory: false, enabledChannels: ['APP', 'EMAIL'] };
+  it('loads and replaces the account email preference without internal policy fields', async () => {
+    const preference = { enabled: false };
     const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify([preference]), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(preference), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify(preference), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ enabled: true }), { status: 200 }));
     const client = createNotificationClient({ fetchImpl, getAccessToken: () => 'token', createCorrelationId: () => 'corr-preference' });
-    await expect(client.preferences()).resolves.toEqual([preference]);
-    await expect(client.replacePreference('CASE/UPDATED', ['APP', 'EMAIL'])).resolves.toEqual(preference);
-    expect(fetchImpl.mock.calls[1][0]).toBe('/api/v1/account/notifications/preferences/CASE%2FUPDATED');
-    expect(JSON.parse(String((fetchImpl.mock.calls[1][1] as RequestInit).body))).toEqual({ enabledChannels: ['APP', 'EMAIL'] });
+    await expect(client.emailPreference()).resolves.toEqual(preference);
+    await expect(client.replaceEmailPreference(true)).resolves.toEqual({ enabled: true });
+    expect(fetchImpl.mock.calls[0][0]).toBe('/api/v1/account/notifications/email-preference');
+    expect(fetchImpl.mock.calls[1][0]).toBe('/api/v1/account/notifications/email-preference');
+    expect(JSON.parse(String((fetchImpl.mock.calls[1][1] as RequestInit).body))).toEqual({ enabled: true });
   });
 
   it('rejects an incomplete server cursor instead of guessing pagination semantics', async () => {
