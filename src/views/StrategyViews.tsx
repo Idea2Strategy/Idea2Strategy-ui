@@ -718,11 +718,11 @@ const BLOCK_LIBRARY: BlockLibraryCategory[] = [
 
 const BASIC_FAVORITE_BLOCKS_STORAGE_KEY = 'i2s-basic-editor-favorite-blocks-v1';
 const LOCAL_PREVIEW_SYMBOLS = ['AAPL', 'MSFT', 'SPY', 'NVDA', 'QQQ'];
+const INSTRUMENT_INITIALS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 /* The local preview list carries no exchange or asset type, so those stay optional
    and the picker simply omits the second line when the catalog is absent. */
 type SelectableInstrument = Pick<BasicCatalogInstrument, 'id' | 'symbol'>
   & Partial<Pick<BasicCatalogInstrument, 'assetType' | 'primaryExchangeMic'>>;
-const INSTRUMENT_RESULT_LIMIT = 50;
 const getLibraryBlockTone = (label: string): BlockTone => (
   BLOCK_LIBRARY.find((category) => category.items.includes(label))?.tone ?? 'neutral'
 );
@@ -1666,6 +1666,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const validationPreviewRevisionRef = useRef(0);
   const [pendingInstrumentKey, setPendingInstrumentKey] = useState('');
   const [instrumentQuery, setInstrumentQuery] = useState('');
+  const [instrumentInitial, setInstrumentInitial] = useState<string | null>(null);
   // Two-phase dismissal so the toast can slide back down (mirroring its entry)
   // instead of vanishing instantly.
   const [saveFeedbackClosing, setSaveFeedbackClosing] = useState(false);
@@ -3609,17 +3610,27 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       ? []
       : LOCAL_PREVIEW_SYMBOLS.map((symbol) => ({ id: '', symbol }));
   const normalizedInstrumentQuery = instrumentQuery.trim().toLocaleUpperCase('en-US');
-  const availableInstruments = selectableInstruments.filter((instrument) => !managedSymbols.includes(instrument.symbol)
-    && (!normalizedInstrumentQuery || instrument.symbol.toLocaleUpperCase('en-US').includes(normalizedInstrumentQuery)));
-  /* The published catalog runs to several hundred instruments. Rendering them all
-     turns the picker into an unreadable wall, so the list stays short and the
-     search box is the way through it. */
-  const visibleInstruments = availableInstruments.slice(0, INSTRUMENT_RESULT_LIMIT);
-  const hiddenInstrumentCount = availableInstruments.length - visibleInstruments.length;
+  const unselectedInstruments = selectableInstruments.filter((instrument) => !managedSymbols.includes(instrument.symbol));
+  const availableInstrumentInitials = new Set(unselectedInstruments.map((instrument) => (
+    instrument.symbol.toLocaleUpperCase('en-US').charAt(0)
+  )));
+  const availableInstruments = unselectedInstruments.filter((instrument) => {
+    const normalizedSymbol = instrument.symbol.toLocaleUpperCase('en-US');
+    return (!instrumentInitial || normalizedSymbol.startsWith(instrumentInitial))
+      && (!normalizedInstrumentQuery || normalizedSymbol.includes(normalizedInstrumentQuery));
+  });
+  /* The viewport stays compact and scrollable, while every match remains available
+     within the selected alphabet group or search result. */
+  const visibleInstruments = availableInstruments;
   const selectedInstrument = availableInstruments.find((instrument) => (instrument.id || instrument.symbol) === pendingInstrumentKey)
     ?? visibleInstruments[0];
   const instrumentKey = (instrument: SelectableInstrument) => instrument.id || instrument.symbol;
   const selectedInstrumentKey = selectedInstrument ? instrumentKey(selectedInstrument) : '';
+  const selectInstrumentInitial = (initial: string | null) => {
+    setInstrumentInitial(initial);
+    setInstrumentQuery('');
+    setPendingInstrumentKey('');
+  };
   const moveInstrumentSelection = (delta: number) => {
     if (visibleInstruments.length === 0) return;
     const current = visibleInstruments.findIndex((instrument) => instrumentKey(instrument) === selectedInstrumentKey);
@@ -3849,7 +3860,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
                 <button className="section-move-handle" data-testid={`${section.id}-move-handle`} aria-label={`PARTITION ${sectionNumber} 이동`} onPointerDown={(event) => beginSectionMove(event, section)}><GripVertical size={16} /></button>
                 <div className="section-identity"><span>PARTITION {sectionNumber}</span><strong>{section.symbol}</strong><small>매수 {section.cards.buy.length} · 매도 {section.cards.sell.length}</small></div>
                 <div className="section-settings">
-                  <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="거래 종목">종목</span><button type="button" className="section-symbol-manager" aria-label={`PARTITION ${sectionNumber} 종목 관리`} onClick={() => { setPendingInstrumentKey(''); setInstrumentQuery(''); setSymbolManagerSectionId(section.id); }}><strong>{splitPartitionSymbols(section.symbol).length || 0}개 종목</strong><small>한도 설정</small></button></label>
+                  <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="거래 종목">종목</span><button type="button" className="section-symbol-manager" aria-label={`PARTITION ${sectionNumber} 종목 관리`} onClick={() => { setPendingInstrumentKey(''); setInstrumentQuery(''); setInstrumentInitial(null); setSymbolManagerSectionId(section.id); }}><strong>{splitPartitionSymbols(section.symbol).length || 0}개 종목</strong><small>한도 설정</small></button></label>
                   <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="전체 전략 대비 예산">예산</span><span className="section-allocation"><input type="number" min=".1" max="100" step=".1" aria-label={`PARTITION ${sectionNumber} 전체 전략 대비 예산`} value={section.allocation} onWheel={(event) => event.stopPropagation()} onChange={(event) => updateSection(section.id, { allocation: Number(event.target.value) })} /><b>%</b></span></label>
                   <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="기본 봉 주기">봉 주기</span><select aria-label={`PARTITION ${sectionNumber} 기본 봉 주기`} value={section.timeframe} onChange={(event) => updateSection(section.id, { timeframe: event.target.value })}>{BASIC_TIMEFRAMES.map((timeframe) => <option key={timeframe}>{timeframe}</option>)}</select></label>
                 </div>
@@ -4003,7 +4014,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
                 aria-controls="symbol-manager-results"
                 aria-activedescendant={selectedInstrument ? `symbol-option-${selectedInstrumentKey}` : undefined}
                 value={instrumentQuery}
-                onChange={(event) => { setInstrumentQuery(event.target.value); setPendingInstrumentKey(''); }}
+                onChange={(event) => { setInstrumentQuery(event.target.value); setInstrumentInitial(null); setPendingInstrumentKey(''); }}
                 onKeyDown={(event) => {
                   if (event.key === 'ArrowDown') { event.preventDefault(); moveInstrumentSelection(1); }
                   else if (event.key === 'ArrowUp') { event.preventDefault(); moveInstrumentSelection(-1); }
@@ -4011,6 +4022,22 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
                 }}
               />
             </label>
+            <div className="symbol-manager-alphabet" role="group" aria-label="종목 알파벳 필터">
+              <button
+                type="button"
+                className={!instrumentInitial ? 'is-active' : ''}
+                aria-pressed={!instrumentInitial}
+                onClick={() => selectInstrumentInitial(null)}
+              >ALL</button>
+              {INSTRUMENT_INITIALS.map((initial) => <button
+                key={initial}
+                type="button"
+                className={instrumentInitial === initial ? 'is-active' : ''}
+                aria-pressed={instrumentInitial === initial}
+                disabled={!availableInstrumentInitials.has(initial)}
+                onClick={() => selectInstrumentInitial(initial)}
+              >{initial}</button>)}
+            </div>
             <div className="symbol-manager-results-head">
               <span>추가할 종목</span>
               <small>{availableInstruments.length}개 선택 가능</small>
@@ -4038,9 +4065,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
                 </li>;
               })}
             </ul>}
-            {hiddenInstrumentCount > 0 && <small className="symbol-manager-results-more" role="status">
-              {hiddenInstrumentCount}개는 표시하지 않았습니다. 티커를 입력해 좁혀 주세요.
-            </small>}
             {!catalogError && basicCatalog && normalizedInstrumentQuery && availableInstruments.length === 0 && <small className="symbol-manager-results-empty" role="status">일치하는 공식 지원 종목이 없습니다.</small>}
             {!catalogError && basicCatalog && !normalizedInstrumentQuery && availableInstruments.length === 0 && <small className="symbol-manager-results-empty" role="status">추가할 수 있는 종목을 모두 담았습니다.</small>}
           </div>
