@@ -26,6 +26,7 @@ import './styles/balanced.css';
 
 const DashboardView = lazy(() => import('./views/DashboardView').then((module) => ({ default: module.DashboardView })));
 const LandingView = lazy(() => import('./views/LandingView').then((module) => ({ default: module.LandingView })));
+const CliAuthView = lazy(() => import("./views/CliAuthView").then((module) => ({ default: module.CliAuthView })));
 const StrategyHome = lazy(() => import('./views/StrategyViews').then((module) => ({ default: module.StrategyHome })));
 const BasicEditor = lazy(() => import('./views/StrategyViews').then((module) => ({ default: module.BasicEditor })));
 const ProEditorUnavailableView = lazy(() => import('./views/ProEditorUnavailableView').then((module) => ({ default: module.ProEditorUnavailableView })));
@@ -523,6 +524,7 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
   const content = <Suspense fallback={<RouteLoadingState />}><Routes>
     <Route path="/" element={<RequireSignIn><DashboardView setPage={setPage} botIcons={botIcons} /></RequireSignIn>} />
     <Route path="/landing" element={<LandingView setPage={setPage} />} />
+    <Route path="/cli-auth" element={<RequireSignIn><CliAuthView /></RequireSignIn>} />
     <Route path="/strategies" element={<RequireSignIn><StrategyHome openEditor={openEditor} /></RequireSignIn>} />
     <Route path="/strategies/new/basic" element={<RequireSignIn><BasicEditor blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} /></RequireSignIn>} />
     <Route path="/strategies/new/pro" element={<RequireSignIn><ProEditorUnavailableView goBack={() => navigate(pagePaths.strategy)} /></RequireSignIn>} />
