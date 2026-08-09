@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { render as renderBare, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactElement } from 'react';
@@ -37,6 +38,7 @@ import { BacktestLiveView } from './views/BacktestLiveView';
   sent, and what the store is left holding after the server refuses one.
 */
 const server = setupServer(...backtestHandlers());
+const balancedStyles = readFileSync('src/styles/balanced.css', 'utf8');
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => {
@@ -107,15 +109,42 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     view();
 
     await user.click(screen.getByRole('button', { name: '새 백테스트' }));
-    expect(await screen.findByRole('combobox', { name: '백테스트 봇' })).toHaveValue('bot-1');
-    await user.clear(screen.getByLabelText('백테스트 시작일'));
-    await user.type(screen.getByLabelText('백테스트 시작일'), '2026-02-01');
-    await user.click(screen.getByRole('button', { name: '백테스트 요청' }));
+    const dialog = await screen.findByRole('dialog', { name: '새 백테스트' });
+    expect(document.querySelector('.backtest-request-panel')).not.toBeInTheDocument();
+
+    const botSelect = within(dialog).getByRole('combobox', { name: '백테스트 봇' });
+    expect(botSelect).toHaveAttribute('data-value', 'bot-1');
+    await user.click(botSelect);
+    const botOptions = within(dialog).getByRole('listbox', { name: '백테스트 봇 옵션' });
+    expect(within(botOptions).getByRole('option', { name: 'RSI bot' })).toHaveAttribute('aria-selected', 'true');
+    await user.click(within(botOptions).getByRole('option', { name: 'RSI bot' }));
+
+    await user.clear(within(dialog).getByLabelText('백테스트 시작일'));
+    await user.type(within(dialog).getByLabelText('백테스트 시작일'), '2026-02-01');
+    await user.click(within(dialog).getByRole('button', { name: '백테스트 요청' }));
 
     await waitFor(() => expect(received).toMatchObject({
       datasetManifestId: 'dataset-1', periodStart: '2026-02-01', executionPolicyVersion: 'policy-v1',
     }));
     expect(await screen.findByText(/백테스트 요청을 접수했습니다/)).toBeInTheDocument();
+  });
+
+  it('closes the new backtest modal with Escape without resizing the page workspace', async () => {
+    server.use(
+      http.get(`${BACKTEST_API_BASE}/api/v1/bots/operations`, () => HttpResponse.json([])),
+      http.get(`${BACKTEST_API_BASE}/api/v1/strategy-release-inputs`, () => HttpResponse.json({
+        executionPolicies: [], datasets: [],
+      })),
+    );
+    const user = userEvent.setup();
+    view();
+
+    await user.click(screen.getByRole('button', { name: '새 백테스트' }));
+    expect(await screen.findByRole('dialog', { name: '새 백테스트' })).toBeInTheDocument();
+    expect(document.querySelector('.backtest-request-backdrop')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: '새 백테스트' })).not.toBeInTheDocument();
   });
 
   it('lets the owner cancel a queued backtest and renders the terminal state', async () => {
@@ -151,7 +180,9 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     const row = within(attempts).getAllByRole('row')[1];
     expect(within(row).getByText('1')).toBeInTheDocument();
     expect(within(row).getByText('SUCCEEDED')).toBeInTheDocument();
-    expect(within(row).getByText('worker-execution-1')).toBeInTheDocument();
+    expect(within(attempts).queryByText('실행 키')).not.toBeInTheDocument();
+    expect(within(attempts).queryByText('실패 코드')).not.toBeInTheDocument();
+    expect(within(attempts).queryByText('worker-execution-1')).not.toBeInTheDocument();
   });
 
   it('renders the six ET monthly counters and the first failure condition', async () => {
@@ -331,7 +362,14 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
 
     const waiting = await screen.findByText('공식 백테스트 실행을 기다리고 있습니다.');
     expect(waiting.closest('[role="status"]')).not.toBeNull();
-    expect(waiting.closest('p')!.querySelector('.is-spinning')).not.toBeNull();
+    expect(waiting.closest('[role="status"]')).toHaveClass('backtest-live-wait');
+    expect(waiting.closest('[role="status"]')!.querySelector('.backtest-live-wait-signal')).not.toBeNull();
+    expect(waiting.closest('[role="status"]')!.querySelector('.is-spinning')).toBeNull();
+  });
+
+  it('centers the queued signal and disables its motion when reduced motion is requested', () => {
+    expect(balancedStyles).toMatch(/\.backtest-live-wait\s*\{[^}]*display:\s*grid[^}]*place-items:\s*center/s);
+    expect(balancedStyles).toMatch(/prefers-reduced-motion:\s*reduce[\s\S]*?\.backtest-live-wait-signal i\s*\{[^}]*animation:\s*none/s);
   });
 
   /* Reproducibility fingerprints, plan checksums and dataset hashes are audit

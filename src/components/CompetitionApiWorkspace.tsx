@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Bot, CalendarDays, Check, Copy, KeyRound, LoaderCircle, Plus, RotateCcw, Search, Settings2, Trash2, Trophy, UserMinus, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ArrowRight, Bot, CalendarDays, Check, Copy, KeyRound, LoaderCircle, Plus, Search, Settings2, Trash2, Trophy, UserMinus, X } from 'lucide-react';
 import type {
   CompetitionRoomsClient, CreateRoomInput, JoinRoomInput, LeaderboardItem,
   LeaderboardPage, PostEvaluationAction, PostEvaluationChoice, PublicRoom, RoomInputCatalog,
@@ -82,8 +82,11 @@ export function CompetitionApiWorkspace({ client }: { client: CompetitionRoomsCl
     {createOpen && <CreateRoomDialog client={client} onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); setReloadKey((key) => key + 1); setOwnedReloadKey((key) => key + 1); }} />}
     {invitationOpen && <InvitationConsumeDialog client={client} onClose={() => setInvitationOpen(false)} onConsumed={(roomId) => { setInvitationOpen(false); setQuery(''); setReloadKey((key) => key + 1); setNotice(`초대를 확인했습니다. 대회 ID: ${roomId}`); }} />}
     <div className="competition-api-toolbar">
-      <label><Search size={15} aria-hidden="true" /><input type="search" aria-label="대회 검색" value={query} placeholder="대회명 검색" onChange={(event) => setQuery(event.target.value)} /></label>
-      <button type="button" onClick={() => setReloadKey((key) => key + 1)}><RotateCcw size={14} aria-hidden="true" />새로고침</button>
+      <label className="competition-api-search">
+        <Search size={16} aria-hidden="true" />
+        <input type="search" aria-label="대회 검색" autoComplete="off" value={query} placeholder="대회명 검색" onChange={(event) => setQuery(event.target.value)} />
+        {query && <button type="button" aria-label="대회 검색어 지우기" onClick={() => setQuery('')}><X size={14} aria-hidden="true" /></button>}
+      </label>
     </div>
     <section className="competition-bulletin competition-owned-rooms" aria-label="내가 만든 대회">
       <header className="competition-bulletin-head"><h2><Settings2 size={14} />내가 만든 대회</h2><span>{ownedRooms.state === 'ready' ? <CountLabel value={ownedRooms.value.length} /> : '계정 조회'}</span></header>
@@ -265,7 +268,35 @@ function PostChoice({ client, roomId, item, initial }: { client: CompetitionRoom
   return <Localized><fieldset disabled={locked || saving}><legend>{item.anonymousAlias}</legend><label><input type="radio" name={`choice-${participationId}`} checked={action === 'CONTINUE_PRIVATE'} onChange={() => setAction('CONTINUE_PRIVATE')} />비공개 봇으로 계속 운용</label><label><input type="radio" name={`choice-${participationId}`} checked={action === 'STOP_AFTER_EVALUATION'} onChange={() => setAction('STOP_AFTER_EVALUATION')} />대회 종료와 함께 안전하게 중지</label><button type="button" className="button button-primary" onClick={save}>{saving ? '저장 중…' : '종료 후 선택 저장'}</button>{message && <span role="status">{message}</span>}{locked && <span>선택이 잠겨 변경할 수 없습니다.</span>}</fieldset></Localized>;
 }
 
-function DialogShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) { return <Localized><div className="competition-create-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="competition-create-dialog competition-api-dialog" role="dialog" aria-modal="true" aria-label={title}><header><div><small>COMPETITION</small><h2>{title}</h2></div><button type="button" aria-label={`${title} 닫기`} onClick={onClose}><X size={20} /></button></header>{children}</section></div></Localized>; }
+function DialogShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', closeOnEscape);
+    closeButtonRef.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [onClose]);
+
+  return <Localized>
+    <div className="competition-create-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="competition-create-dialog competition-api-dialog" role="dialog" aria-modal="true" aria-label={title}>
+        <header>
+          <div><small>COMPETITION</small><h2>{title}</h2></div>
+          <button ref={closeButtonRef} type="button" aria-label={`${title} 닫기`} onClick={onClose}><X size={20} /></button>
+        </header>
+        {children}
+      </section>
+    </div>
+  </Localized>;
+}
 
 function InvitationConsumeDialog({ client, onClose, onConsumed }: { client: CompetitionRoomsClient; onClose: () => void; onConsumed: (roomId: string) => void }) {
   const [secret, setSecret] = useState('');
@@ -325,7 +356,8 @@ function CreateRoomDialog({ client, onClose, onCreated }: { client: CompetitionR
   };
   const catalogError = catalog.error instanceof CompetitionApiError && catalog.error.unauthenticated ? '로그인 후 대회 생성 정책을 확인할 수 있습니다.'
     : catalog.error instanceof CompetitionApiError && catalog.error.forbidden ? '대회 생성 정책을 조회할 권한이 없습니다.' : '대회 생성 정책을 불러오지 못했습니다.';
-  return <DialogShell title="대회 만들기" onClose={onClose}><form className="competition-api-form" onSubmit={submit}>
+  return <DialogShell title="대회 만들기" onClose={onClose}><form className="competition-api-form competition-create-form" onSubmit={submit}>
+    <div className="competition-create-form-scroll">
     <fieldset className="competition-api-form-section"><legend>기본 설정</legend><div className="competition-api-form-grid"><label>대회 이름<input name="name" aria-label="대회 이름" placeholder="참가자가 알아보기 쉬운 이름" required /></label><label>접근 방식<select name="accessType" aria-label="접근 방식"><option value="PUBLIC">공개 대회</option><option value="SECRET">초대 전용</option></select></label><label>초기 가상자금<input name="initialCashAmount" aria-label="초기 가상자금" type="number" min="1" step="0.01" defaultValue="10000" required /></label><label>전체 봇 한도<input name="botParticipationLimit" aria-label="전체 봇 한도" type="number" min="1" step="1" defaultValue="25" required /></label><label>계정당 봇 한도<input name="perAccountBotLimit" aria-label="계정당 봇 한도" type="number" min="1" step="1" defaultValue="2" required /></label><label>중지 봇 슬롯<select name="stoppedBotSlotPolicy" aria-label="중지 봇 슬롯 정책"><option value="RELEASE_SLOT">슬롯 반환</option><option value="KEEP_SLOT">슬롯 유지</option></select></label><label>최소 운용시간(초)<input name="minimumOperationSeconds" aria-label="최소 운용시간" type="number" min="0" step="1" defaultValue="0" required /></label><label>최소 체결 수<input name="minimumFillCount" aria-label="최소 체결 수" type="number" min="0" step="1" defaultValue="0" required /></label></div></fieldset>
     <fieldset className="competition-api-form-section"><legend>대회 일정</legend><label>표시 시간대<select aria-label="대회 시간대" value={timezone} onChange={(event) => setTimezone(event.target.value)}><option value="Asia/Seoul">Asia/Seoul (KST)</option><option value="UTC">UTC</option><option value="America/New_York">America/New_York (ET)</option></select></label><p>입력한 현지 시각은 선택한 시간대를 기준으로 서버 UTC 시각으로 변환됩니다.</p><div className="competition-api-form-grid"><label>모집 시작<input aria-label="모집 시작" name="recruitmentOpensAt" type="datetime-local" defaultValue={dateTime(0, timezone)} required /></label><label>참가 시작<input aria-label="참가 시작" name="participationOpensAt" type="datetime-local" defaultValue={dateTime(1, timezone)} required /></label><label>참가 마감<input aria-label="참가 마감" name="participationClosesAt" type="datetime-local" defaultValue={dateTime(3, timezone)} required /></label><label>평가 시작<input aria-label="평가 시작" name="evaluationStartsAt" type="datetime-local" defaultValue={dateTime(4, timezone)} required /></label><label>평가 종료<input aria-label="평가 종료" name="evaluationEndsAt" type="datetime-local" defaultValue={dateTime(10, timezone)} required /></label><label>최종 확정 시한<input aria-label="최종 확정 시한" name="finalizationDeadlineAt" type="datetime-local" defaultValue={dateTime(11, timezone)} required /></label></div></fieldset>
     <fieldset className="competition-api-form-section"><legend>운영 정책</legend>
@@ -339,7 +371,9 @@ function CreateRoomDialog({ client, onClose, onCreated }: { client: CompetitionR
       </div>}
       {complete && catalog.value!.scoringTemplates.find((item) => item.id === scoringTemplateId)?.adjustments.map((adjustment) => <label key={adjustment.code}>{adjustment.code}<input name={`adjustment:${adjustment.code}`} aria-label={`채점 조정 ${adjustment.code}`} type="number" min={adjustment.minimum} max={adjustment.maximum} step={10 ** -adjustment.scale} defaultValue={adjustment.minimum} required /></label>)}
     </fieldset>
-    {error && <p role="alert">{error}</p>}<footer><button type="button" className="button button-secondary" onClick={onClose}>취소</button><button type="submit" className="button button-primary" disabled={saving || !complete}>{saving ? '생성 중…' : '대회 생성'}</button></footer>
+    {error && <p role="alert">{error}</p>}
+    </div>
+    <footer><button type="button" className="button button-secondary" onClick={onClose}>취소</button><button type="submit" className="button button-primary" disabled={saving || !complete}>{saving ? '생성 중…' : '대회 생성'}</button></footer>
   </form></DialogShell>;
 }
 

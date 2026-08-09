@@ -84,6 +84,37 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     expect(await listRequest!.headerValue('authorization')).toBe(`Bearer ${OWNER_TOKEN}`);
   });
 
+  test('opens the new backtest form as a modal with product-styled dropdowns', async ({ page }) => {
+    await page.route('**/api/v1/bots/operations', (route) => route.fulfill({
+      json: [
+        { botId: 'bot-1', name: 'RSI Momentum' },
+        { botId: 'bot-2', name: 'Moving Average Cross' },
+      ],
+    }));
+    await page.route('**/api/v1/strategy-release-inputs', (route) => route.fulfill({
+      json: {
+        executionPolicies: [{ version: 'policy-v1' }, { version: 'policy-v2' }],
+        datasets: [
+          { id: 'dataset-1', feedCode: 'SIP', resolution: '1m', periodStart: '2025-01-01', periodEnd: '2026-06-30' },
+          { id: 'dataset-2', feedCode: 'IEX', resolution: '5m', periodStart: '2025-07-01', periodEnd: '2026-06-30' },
+        ],
+      },
+    }));
+    await signIn(page);
+    await page.goto(BACKTESTS);
+
+    await page.getByRole('button', { name: '새 백테스트' }).click();
+    const dialog = page.getByRole('dialog', { name: '새 백테스트' });
+    await expect(dialog).toBeVisible();
+    await expect(page.locator('.backtest-request-panel')).toHaveCount(0);
+
+    const botSelect = dialog.getByRole('combobox', { name: '백테스트 봇' });
+    await botSelect.click();
+    const botOptions = dialog.getByRole('listbox', { name: '백테스트 봇 옵션' });
+    await expect(botOptions).toBeVisible();
+    await expect(botOptions.getByRole('option').first()).toHaveAttribute('aria-selected', 'true');
+  });
+
   test('loads the selected run detail: status, attempts and published performance', async ({ page }) => {
     await signIn(page);
 
@@ -96,7 +127,9 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     const attempts = detail.getByRole('table', { name: '자동 실행 시도 기록' });
     await expect(attempts.getByRole('row')).toHaveCount(2);
     await expect(attempts).toContainText('SUCCEEDED');
-    await expect(attempts).toContainText('worker-execution-1');
+    await expect(attempts).not.toContainText('실행 키');
+    await expect(attempts).not.toContainText('실패 코드');
+    await expect(attempts).not.toContainText('worker-execution-1');
 
     // The metrics document, rendered from `metricsDocument` rather than from zeroes.
     await expect(detail).toContainText('$10,299.96');

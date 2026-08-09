@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
-import { AlertTriangle, BarChart3, Clock3, LoaderCircle, Plus } from 'lucide-react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import type { FormEvent, ReactNode } from 'react';
+import { AlertTriangle, BarChart3, Check, ChevronDown, Clock3, Plus, X } from 'lucide-react';
 import { BacktestApiError } from '../api/backtests';
 import type {
   BacktestAttempt,
@@ -228,6 +228,7 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
     }
   };
   const selectedRequestDataset = requestOptions?.datasets.find((dataset) => dataset.id === requestDatasetId) ?? null;
+  const closeRequest = useCallback(() => setRequestOpen(false), []);
 
   /*
     Nothing to show at all — signed out, or the list itself failed. The whole
@@ -247,11 +248,11 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
       title="봇 백테스트"
       description="출시된 봇의 자동 백테스트 상태와 검증된 결과를 확인합니다."
       actions={<div className="backtest-live-heading-actions">
-        <Button icon={Plus} kind="primary" onClick={() => setRequestOpen((open) => !open)}>새 백테스트</Button>
+        <Button icon={Plus} kind="primary" onClick={() => setRequestOpen(true)}>새 백테스트</Button>
       </div>}
     />
     {requestMessage && <p className="bots-decision-note" role="status">{requestMessage}</p>}
-    {requestOpen && <Panel className="backtest-request-panel" title="사용자 지정 백테스트" subtitle="서버가 확인한 봇, 공식 데이터셋과 잠긴 실행 정책만 사용합니다.">
+    {requestOpen && <BacktestRequestModal onClose={closeRequest}>
       {requestOptions === null && !requestError && <LoadingState label="백테스트 입력을 불러오는 중입니다." />}
       {requestError && <ErrorState title={requestError} />}
       {requestOptions && requestOptions.bots.length === 0 && <EmptyState
@@ -260,24 +261,44 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
         detail="전략을 검증하고 봇을 출시한 뒤 사용자 지정 백테스트를 요청할 수 있습니다."
       />}
       {requestOptions && requestOptions.bots.length > 0 && <form className="backtest-request-form" onSubmit={(event) => { void requestCustomBacktest(event); }}>
-        <label><span>봇</span><select aria-label="백테스트 봇" value={requestBotId} onChange={(event) => setRequestBotId(event.target.value)}>
-          {requestOptions.bots.map((bot) => <option key={bot.botId} value={bot.botId}>{bot.name}</option>)}
-        </select></label>
-        <label><span>공식 데이터</span><select aria-label="백테스트 데이터" value={requestDatasetId} onChange={(event) => {
-          const dataset = requestOptions.datasets.find((item) => item.id === event.target.value);
-          setRequestDatasetId(event.target.value);
+        <BacktestRequestField label="봇" hint="출시가 완료된 봇만 선택할 수 있습니다." className="is-wide">
+          <BacktestRequestSelect
+            label="백테스트 봇"
+            value={requestBotId}
+            options={requestOptions.bots.map((bot) => ({ value: bot.botId, label: bot.name, detail: bot.botId.slice(0, 8) }))}
+            onChange={setRequestBotId}
+          />
+        </BacktestRequestField>
+        <BacktestRequestField label="공식 데이터" hint="검증된 데이터 범위 안에서 실행됩니다." className="is-wide">
+          <BacktestRequestSelect
+            label="백테스트 데이터"
+            value={requestDatasetId}
+            options={requestOptions.datasets.map((dataset) => ({
+              value: dataset.id,
+              label: `${dataset.feedCode} · ${dataset.resolution}`,
+              detail: `${dataset.periodStart} — ${dataset.periodEnd}`,
+            }))}
+            onChange={(value) => {
+          const dataset = requestOptions.datasets.find((item) => item.id === value);
+          setRequestDatasetId(value);
           if (dataset) { setRequestPeriodStart(dataset.periodStart); setRequestPeriodEnd(dataset.periodEnd); }
-        }}>
-          {requestOptions.datasets.map((dataset) => <option key={dataset.id} value={dataset.id}>{dataset.feedCode} · {dataset.resolution} · {dataset.periodStart}~{dataset.periodEnd}</option>)}
-        </select></label>
-        <label><span>시작일</span><input aria-label="백테스트 시작일" type="date" min={selectedRequestDataset?.periodStart} max={selectedRequestDataset?.periodEnd} value={requestPeriodStart} onChange={(event) => setRequestPeriodStart(event.target.value)} /></label>
-        <label><span>종료일</span><input aria-label="백테스트 종료일" type="date" min={selectedRequestDataset?.periodStart} max={selectedRequestDataset?.periodEnd} value={requestPeriodEnd} onChange={(event) => setRequestPeriodEnd(event.target.value)} /></label>
-        <label><span>실행 정책</span><select aria-label="백테스트 실행 정책" value={requestPolicyVersion} onChange={(event) => setRequestPolicyVersion(event.target.value)}>
-          {requestOptions.executionPolicies.map((policy) => <option key={policy.version} value={policy.version}>{policy.version}</option>)}
-        </select></label>
-        <div className="backtest-request-actions"><Button type="button" onClick={() => setRequestOpen(false)}>취소</Button><Button type="submit" kind="primary" disabled={requestPending || !requestDatasetId || !requestPolicyVersion}>{requestPending ? '요청 중…' : '백테스트 요청'}</Button></div>
+            }}
+          />
+        </BacktestRequestField>
+        <label className="backtest-request-field"><span><strong>시작일</strong><small>ET 기준</small></span><input aria-label="백테스트 시작일" type="date" min={selectedRequestDataset?.periodStart} max={selectedRequestDataset?.periodEnd} value={requestPeriodStart} onChange={(event) => setRequestPeriodStart(event.target.value)} /></label>
+        <label className="backtest-request-field"><span><strong>종료일</strong><small>ET 기준</small></span><input aria-label="백테스트 종료일" type="date" min={selectedRequestDataset?.periodStart} max={selectedRequestDataset?.periodEnd} value={requestPeriodEnd} onChange={(event) => setRequestPeriodEnd(event.target.value)} /></label>
+        <BacktestRequestField label="실행 정책" hint="공식 계산 규칙이 잠긴 버전입니다." className="is-wide">
+          <BacktestRequestSelect
+            label="백테스트 실행 정책"
+            value={requestPolicyVersion}
+            options={requestOptions.executionPolicies.map((policy) => ({ value: policy.version, label: policy.version }))}
+            onChange={setRequestPolicyVersion}
+            placement="up"
+          />
+        </BacktestRequestField>
+        <footer className="backtest-request-actions"><Button type="button" onClick={closeRequest}>취소</Button><Button type="submit" kind="primary" disabled={requestPending || !requestDatasetId || !requestPolicyVersion}>{requestPending ? '요청 중…' : '백테스트 요청'}</Button></footer>
       </form>}
-    </Panel>}
+    </BacktestRequestModal>}
     {signedIn && <>
       {listFailure === null && runs === null && <LoadingState label="백테스트 결과를 불러오는 중입니다." />}
       {listFailure === null && runs?.length === 0 && <EmptyState
@@ -316,6 +337,157 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
       </div>}
     </>}
   </div></Localized>;
+}
+
+function BacktestRequestModal({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeButtonRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      )];
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [onClose]);
+
+  return <div
+    className="backtest-request-backdrop"
+    onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+  >
+    <section
+      ref={dialogRef}
+      className="backtest-request-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="backtest-request-dialog-title"
+    >
+      <header>
+        <span className="backtest-request-dialog-icon"><BarChart3 size={18} aria-hidden="true" /></span>
+        <div><small>OFFICIAL BACKTEST</small><h2 id="backtest-request-dialog-title">새 백테스트</h2><p>검증된 봇과 공식 입력을 선택해 새로운 실행을 요청합니다.</p></div>
+        <button ref={closeButtonRef} type="button" aria-label="새 백테스트 창 닫기" onClick={onClose}><X size={18} aria-hidden="true" /></button>
+      </header>
+      <div className="backtest-request-dialog-body">{children}</div>
+    </section>
+  </div>;
+}
+
+function BacktestRequestField({
+  label,
+  hint,
+  className = '',
+  children,
+}: {
+  label: string;
+  hint: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return <div className={`backtest-request-field ${className}`}>
+    <span><strong>{label}</strong><small>{hint}</small></span>
+    {children}
+  </div>;
+}
+
+interface BacktestRequestSelectOption {
+  value: string;
+  label: string;
+  detail?: string;
+}
+
+function BacktestRequestSelect({
+  label,
+  value,
+  options,
+  onChange,
+  placement = 'down',
+}: {
+  label: string;
+  value: string;
+  options: BacktestRequestSelectOption[];
+  onChange: (value: string) => void;
+  placement?: 'up' | 'down';
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
+  const selected = options.find((option) => option.value === value) ?? options[0];
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const closeFromOutside = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', closeFromOutside);
+    return () => document.removeEventListener('pointerdown', closeFromOutside);
+  }, [open]);
+
+  return <div className={`backtest-request-select opens-${placement} ${open ? 'is-open' : ''}`} ref={rootRef}>
+    <button
+      type="button"
+      role="combobox"
+      aria-label={label}
+      aria-haspopup="listbox"
+      aria-controls={listboxId}
+      aria-expanded={open}
+      data-value={value}
+      onClick={() => setOpen((current) => !current)}
+      onKeyDown={(event) => {
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          setOpen(true);
+        }
+        if (event.key === 'Escape' && open) {
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen(false);
+        }
+      }}
+    >
+      <span><strong>{selected?.label ?? '선택해 주세요'}</strong>{selected?.detail && <small>{selected.detail}</small>}</span>
+      <ChevronDown size={16} aria-hidden="true" />
+    </button>
+    {open && <div id={listboxId} className="backtest-request-select-menu" role="listbox" aria-label={`${label} 옵션`}>
+      {options.map((option) => <button
+        key={option.value}
+        type="button"
+        role="option"
+        aria-label={option.label}
+        aria-selected={option.value === value}
+        onClick={() => { onChange(option.value); setOpen(false); }}
+      >
+        <span><strong>{option.label}</strong>{option.detail && <small>{option.detail}</small>}</span>
+        <span className="backtest-request-select-check">{option.value === value && <Check size={14} aria-hidden="true" />}</span>
+      </button>)}
+    </div>}
+  </div>;
 }
 
 /**
@@ -486,11 +658,10 @@ function RunDetailPanels({
 
 function RunState({ run }: { run: BacktestRun }) {
   if (run.status === 'QUEUED') {
-    /* Queued is a live wait, not a resting state: the spinner says the screen is
-       still watching rather than showing a stalled result. */
-    return <p className="backtest-live-state-copy" role="status">
-      <LoaderCircle className="is-spinning" size={16} aria-hidden="true" />공식 백테스트 실행을 기다리고 있습니다.
-    </p>;
+    return <div className="backtest-live-wait" role="status" aria-live="polite">
+      <span className="backtest-live-wait-signal" aria-hidden="true"><i /><i /><i /></span>
+      <span>공식 백테스트 실행을 기다리고 있습니다.</span>
+    </div>;
   }
   if (run.status === 'RUNNING') {
     return <p className="backtest-live-state-copy"><Clock3 size={16} />{run.cancellationRequestedAt
@@ -523,15 +694,13 @@ function AttemptTable({ attempts }: { attempts: BacktestAttempt[] }) {
   }
   return <div className="table-wrap backtest-live-attempts"><table aria-label="자동 실행 시도 기록">
     <thead><tr>
-      <th>시도</th><th>상태</th><th>시작 (ET)</th><th>종료 (ET)</th><th>실행 키</th><th>실패 코드</th>
+      <th>시도</th><th>상태</th><th>시작 (ET)</th><th>종료 (ET)</th>
     </tr></thead>
     <tbody>{attempts.map((attempt) => <tr key={attempt.attemptId}>
       <td>{attempt.attemptNumber}</td>
       <td>{attempt.status}</td>
       <td>{formatTime(attempt.startedAt)}</td>
       <td>{attempt.completedAt ? formatTime(attempt.completedAt) : '—'}</td>
-      <td><code>{attempt.workerExecutionKey}</code></td>
-      <td>{attempt.failureCode ?? '—'}</td>
     </tr>)}</tbody>
   </table></div>;
 }
