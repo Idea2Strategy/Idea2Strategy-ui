@@ -19,8 +19,8 @@ function client(overrides: Partial<NotificationClient> = {}): NotificationClient
   return {
     list: vi.fn().mockResolvedValue({ items: [unread], nextCreatedAt: null, nextId: null }),
     markRead: vi.fn().mockResolvedValue(undefined),
-    preferences: vi.fn().mockResolvedValue([]),
-    replacePreference: vi.fn(),
+    emailPreference: vi.fn().mockResolvedValue({ enabled: false }),
+    replaceEmailPreference: vi.fn().mockResolvedValue({ enabled: true }),
     ...overrides,
   };
 }
@@ -57,22 +57,36 @@ describe('NotificationCenter', () => {
 });
 
 describe('NotificationPreferencesPanel', () => {
-  it('shows friendly Korean labels and toggles an optional email notification', async () => {
-    const preferences = [
-      { typeCode: 'SECURITY_EVENT', policyVersion: 'policy-v1', mandatory: true, enabledChannels: ['APP'] as const },
-      { typeCode: 'CASE_UPDATED', policyVersion: 'policy-v2', mandatory: false, enabledChannels: ['APP', 'EMAIL'] as const },
-    ].map((value) => ({ ...value, enabledChannels: [...value.enabledChannels] }));
-    const replacePreference = vi.fn().mockResolvedValue({ ...preferences[1], enabledChannels: ['APP'] });
-    render(<NotificationPreferencesPanel client={client({ preferences: vi.fn().mockResolvedValue(preferences), replacePreference })} />);
-    expect(await screen.findByText('보안 및 로그인')).toBeInTheDocument();
-    expect(screen.getByText('문의 답변')).toBeInTheDocument();
-    expect(screen.queryByText('SECURITY_EVENT')).not.toBeInTheDocument();
-    expect(screen.queryByText('CASE_UPDATED')).not.toBeInTheDocument();
-    expect(screen.getByRole('switch', { name: '보안 및 로그인 이메일 알림' })).toBeDisabled();
-    const toggle = screen.getByRole('switch', { name: '문의 답변 이메일 알림' });
-    expect(toggle).toHaveAttribute('aria-checked', 'true');
+  it('shows one friendly account-wide toggle and trusts the saved server response', async () => {
+    const replaceEmailPreference = vi.fn().mockResolvedValue({ enabled: true });
+    render(<NotificationPreferencesPanel client={client({ replaceEmailPreference })} />);
+    expect(await screen.findByRole('heading', { name: '이메일 알림' })).toBeInTheDocument();
+    expect(screen.queryByText(/SECURITY_EVENT|CASE_UPDATED|policy-v/)).not.toBeInTheDocument();
+    const toggle = screen.getByRole('switch', { name: '이메일 알림 받기' });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
     await userEvent.click(toggle);
-    await waitFor(() => expect(replacePreference).toHaveBeenCalledWith('CASE_UPDATED', ['APP']));
-    expect(await screen.findByText('저장됨')).toBeInTheDocument();
+    await waitFor(() => expect(replaceEmailPreference).toHaveBeenCalledWith(true));
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(await screen.findByText('저장 완료')).toBeInTheDocument();
+    expect(screen.getByText('중요한 보안 안내는 이 설정과 관계없이 발송될 수 있습니다.')).toBeInTheDocument();
+  });
+
+  it('retries a failed load and never renders an empty settings card', async () => {
+    const emailPreference = vi.fn()
+      .mockRejectedValueOnce(new NotificationApiError(503, 'UNAVAILABLE', 'corr-load'))
+      .mockResolvedValueOnce({ enabled: false });
+    render(<NotificationPreferencesPanel client={client({ emailPreference })} />);
+    expect(await screen.findByText('알림 서버에 일시적으로 연결할 수 없습니다.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+    expect(await screen.findByRole('switch', { name: '이메일 알림 받기' })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('keeps the previous value when saving fails', async () => {
+    const replaceEmailPreference = vi.fn().mockRejectedValue(new NotificationApiError(503, 'UNAVAILABLE', 'corr-save'));
+    render(<NotificationPreferencesPanel client={client({ replaceEmailPreference })} />);
+    const toggle = await screen.findByRole('switch', { name: '이메일 알림 받기' });
+    await userEvent.click(toggle);
+    expect(await screen.findByText('변경 내용을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')).toBeInTheDocument();
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
   });
 });

@@ -22,13 +22,8 @@ const englishPreferencesClient = {
 const emptyNotificationClient = {
   list: async () => ({ items: [], nextCreatedAt: null, nextId: null }),
   markRead: async () => undefined,
-  preferences: async () => [],
-  replacePreference: async () => ({
-    notificationTypeCode: 'TEST',
-    inAppEnabled: true,
-    emailEnabled: false,
-    updatedAt: '2026-08-07T00:00:00Z',
-  }),
+  emailPreference: async () => ({ enabled: false }),
+  replaceEmailPreference: async (enabled: boolean) => ({ enabled }),
 } as unknown as NotificationClient;
 
 const renderEnglishApp = () => render(

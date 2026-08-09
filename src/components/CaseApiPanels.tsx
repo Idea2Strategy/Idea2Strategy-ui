@@ -11,18 +11,61 @@ type AsyncState<T> = { kind: 'idle' } | { kind: 'loading' } | { kind: 'ready'; v
 const error = (value: unknown) => value instanceof AccountOperationsApiError
   ? value : new AccountOperationsApiError(0, 'NETWORK_ERROR', null);
 
-export function UserCasePanel({ client, createIdempotencyKey = () => crypto.randomUUID() }: {
+export function UserCaseForm({ client, createIdempotencyKey = () => crypto.randomUUID(), onSubmitted }: {
   client: AccountOperationsClient;
   createIdempotencyKey?: () => string;
+  onSubmitted?: (value: UserCaseView) => void;
 }) {
   const [type, setType] = useState<UserCaseType>('INQUIRY');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [state, setState] = useState<AsyncState<UserCaseView>>({ kind: 'idle' });
+  const retrySubmit = useRef<(() => void) | null>(null);
+
+  const submit = async (retryKey?: string) => {
+    setState({ kind: 'loading' });
+    const idempotencyKey = retryKey ?? createIdempotencyKey();
+    try {
+      const value = await client.submitCase({ type, subject: subject.trim(), description: description.trim(), evidence: [] }, idempotencyKey);
+      retrySubmit.current = null;
+      setState({ kind: 'ready', value });
+      setSubject('');
+      setDescription('');
+      onSubmitted?.(value);
+    } catch (cause) {
+      const failure = error(cause);
+      setState({ kind: 'error', error: failure });
+      retrySubmit.current = failure.retryable ? () => void submit(idempotencyKey) : null;
+    }
+  };
+  return <section className="customer-case-compose" aria-labelledby="customer-case-compose-title">
+      <div className="customer-case-section-heading"><div><span>새 문의</span><h3 id="customer-case-compose-title">무엇을 도와드릴까요?</h3></div><Send size={18} aria-hidden="true" /></div>
+      <div className="settings-fields case-api-form">
+      <label><span>유형</span><select aria-label="문의 유형" value={type} onChange={(event) => setType(event.target.value as UserCaseType)}>
+        <option value="INQUIRY">문의</option><option value="REPORT">신고</option><option value="APPEAL">이의 제기</option>
+      </select></label>
+      <label><span>제목</span><input aria-label="문의 제목" placeholder="문의 내용을 한 줄로 알려주세요" value={subject} onChange={(event) => setSubject(event.target.value)} /></label>
+      <label className="span-2"><span>상세 내용</span><textarea aria-label="문의 내용" placeholder="확인이 필요한 내용을 자세히 적어주세요" value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+    </div>
+    <div className="account-api-actions">
+      <Button kind="primary" disabled={!subject.trim() || !description.trim() || state.kind === 'loading'} onClick={() => { retrySubmit.current = null; void submit(); }}>접수하기</Button>
+    </div>
+    {state.kind === 'loading' && <div role="status" className="case-api-feedback"><LoaderCircle size={16} />문의를 접수하고 있습니다.</div>}
+    {state.kind === 'error' && <CaseError error={state.error} retry={retrySubmit.current ?? undefined} />}
+    {state.kind === 'ready' && <div className="case-api-receipt" role="status">
+      <CheckCircle2 size={17} /><div><strong>문의가 접수되었습니다.</strong><span>답변과 처리 상태는 마이페이지의 문의 내역에서 확인할 수 있습니다.</span></div>
+    </div>}
+    </section>;
+}
+
+export function UserCasePanel({ client, refreshKey = 0, onCreate }: {
+  client: AccountOperationsClient;
+  refreshKey?: number;
+  onCreate?: () => void;
+}) {
   const [list, setList] = useState<AsyncState<UserCasePage>>({ kind: 'loading' });
   const [loadingMore, setLoadingMore] = useState(false);
   const [detail, setDetail] = useState<AsyncState<UserCaseDetail>>({ kind: 'idle' });
-  const retrySubmit = useRef<(() => void) | null>(null);
 
   const loadCases = async (cursor?: string, append = false) => {
     if (append) setLoadingMore(true); else setList({ kind: 'loading' });
@@ -41,7 +84,7 @@ export function UserCasePanel({ client, createIdempotencyKey = () => crypto.rand
       setLoadingMore(false);
     }
   };
-  useEffect(() => { void loadCases(); }, [client]);
+  useEffect(() => { void loadCases(); }, [client, refreshKey]);
 
   const openDetail = async (id: string) => {
     setDetail({ kind: 'loading' });
@@ -49,47 +92,16 @@ export function UserCasePanel({ client, createIdempotencyKey = () => crypto.rand
     catch (cause) { setDetail({ kind: 'error', error: error(cause) }); }
   };
 
-  const submit = async (retryKey?: string) => {
-    setState({ kind: 'loading' });
-    const idempotencyKey = retryKey ?? createIdempotencyKey();
-    try {
-      const value = await client.submitCase({ type, subject: subject.trim(), description: description.trim(), evidence: [] }, idempotencyKey);
-      retrySubmit.current = null;
-      setState({ kind: 'ready', value });
-      setSubject('');
-      setDescription('');
-      await loadCases();
-      await openDetail(value.id);
-    } catch (cause) {
-      const failure = error(cause);
-      setState({ kind: 'error', error: failure });
-      retrySubmit.current = failure.retryable ? () => void submit(idempotencyKey) : null;
-    }
-  };
-  return <Panel className="span-2 case-api-panel customer-case-panel" title="내 문의" subtitle="작성한 문의와 고객지원팀의 답변을 한곳에서 확인하세요.">
-    <section className="customer-case-compose" aria-labelledby="customer-case-compose-title">
-      <div className="customer-case-section-heading"><div><span>새 문의</span><h3 id="customer-case-compose-title">무엇을 도와드릴까요?</h3></div><Send size={18} aria-hidden="true" /></div>
-      <div className="settings-fields case-api-form">
-      <label><span>유형</span><select aria-label="문의 유형" value={type} onChange={(event) => setType(event.target.value as UserCaseType)}>
-        <option value="INQUIRY">문의</option><option value="REPORT">신고</option><option value="APPEAL">이의 제기</option>
-      </select></label>
-      <label><span>제목</span><input aria-label="문의 제목" placeholder="문의 내용을 한 줄로 알려주세요" value={subject} onChange={(event) => setSubject(event.target.value)} /></label>
-      <label className="span-2"><span>상세 내용</span><textarea aria-label="문의 내용" placeholder="확인이 필요한 내용을 자세히 적어주세요" value={description} onChange={(event) => setDescription(event.target.value)} /></label>
-    </div>
-    <div className="account-api-actions">
-      <Button kind="primary" disabled={!subject.trim() || !description.trim() || state.kind === 'loading'} onClick={() => { retrySubmit.current = null; void submit(); }}>접수하기</Button>
-    </div>
-    {state.kind === 'loading' && <div role="status" className="case-api-feedback"><LoaderCircle size={16} />문의를 접수하고 있습니다.</div>}
-    {state.kind === 'error' && <CaseError error={state.error} retry={retrySubmit.current ?? undefined} />}
-    {state.kind === 'ready' && <div className="case-api-receipt" role="status">
-      <CheckCircle2 size={17} /><div><strong>문의가 접수되었습니다.</strong><span>고객지원팀의 답변은 아래 목록에서 확인할 수 있습니다.</span></div>
-    </div>}
-    </section>
-    <section className="customer-case-list-section" aria-labelledby="customer-case-list-title">
-      <div className="customer-case-section-heading"><div><span>문의 내역</span><h3 id="customer-case-list-title">내가 작성한 문의</h3></div></div>
+  return <Panel
+    className="span-2 case-api-panel customer-case-panel"
+    title="문의 내역"
+    subtitle="작성한 문의와 고객지원팀의 답변을 확인하세요."
+    action={onCreate ? <Button kind="primary" onClick={onCreate}>문의하기</Button> : undefined}
+  >
+    <section className="customer-case-list-section" aria-label="내가 작성한 문의">
       {list.kind === 'loading' && <div className="customer-case-list-state" role="status"><LoaderCircle size={17} />문의 내역을 불러오고 있습니다.</div>}
       {list.kind === 'error' && <CaseError error={list.error} retry={loadCases} />}
-      {list.kind === 'ready' && list.value.items.length === 0 && <EmptyState icon={Inbox} title="아직 작성한 문의가 없습니다." detail="궁금한 점이 생기면 위 입력란에서 문의를 남겨주세요." />}
+      {list.kind === 'ready' && list.value.items.length === 0 && <EmptyState icon={Inbox} title="아직 작성한 문의가 없습니다." detail="궁금한 점이 생기면 문의하기 버튼으로 내용을 남겨주세요." />}
       {list.kind === 'ready' && list.value.items.length > 0 && <div className="customer-case-list">{list.value.items.map((item) => <button
         type="button"
         key={item.id}

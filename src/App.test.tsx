@@ -451,8 +451,8 @@ describe('Signal product UI', () => {
     const notificationClient: NotificationClient = {
       list,
       markRead: vi.fn(),
-      preferences: vi.fn(),
-      replacePreference: vi.fn(),
+      emailPreference: vi.fn().mockResolvedValue({ enabled: false }),
+      replaceEmailPreference: vi.fn(),
     };
     render(<App notificationClient={notificationClient} />);
 
@@ -468,8 +468,8 @@ describe('Signal product UI', () => {
     const notificationClient: NotificationClient = {
       list: vi.fn().mockRejectedValue(new NotificationApiError(401, 'AUTHENTICATION_REQUIRED', 'corr-topbar')),
       markRead: vi.fn(),
-      preferences: vi.fn(),
-      replacePreference: vi.fn(),
+      emailPreference: vi.fn().mockResolvedValue({ enabled: false }),
+      replaceEmailPreference: vi.fn(),
     };
     render(<App notificationClient={notificationClient} />);
 

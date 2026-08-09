@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { AccountOperationsApiError } from '../api/accountOperations';
 import type { AccountOperationsClient, UserCaseDetail, UserCaseView } from '../api/accountOperations';
-import { OperatorCaseWorkspace, OperatorSanctionPanel, UserCasePanel } from './CaseApiPanels';
+import { OperatorCaseWorkspace, OperatorSanctionPanel, UserCaseForm, UserCasePanel } from './CaseApiPanels';
 
 const userCase: UserCaseView = {
   id: 'case-1', accountId: 'account-1', type: 'APPEAL', status: 'OPEN', version: 1,
@@ -27,10 +27,10 @@ function client(overrides: Partial<AccountOperationsClient> = {}): AccountOperat
   };
 }
 
-describe('UserCasePanel', () => {
+describe('customer inquiry UI', () => {
   it('requires meaningful fields, submits once with a fresh key, and shows the server receipt', async () => {
     const submitCase = vi.fn().mockResolvedValue(userCase);
-    render(<UserCasePanel client={client({ submitCase })} createIdempotencyKey={() => 'idem-case'} />);
+    render(<UserCaseForm client={client({ submitCase })} createIdempotencyKey={() => 'idem-case'} />);
     const submit = screen.getByRole('button', { name: '접수하기' });
     expect(submit).toBeDisabled();
     await userEvent.selectOptions(screen.getByLabelText('문의 유형'), 'APPEAL');
@@ -47,7 +47,7 @@ describe('UserCasePanel', () => {
     const submitCase = vi.fn()
       .mockRejectedValueOnce(new AccountOperationsApiError(503, 'CASE_SERVICE_UNAVAILABLE', 'corr-case'))
       .mockResolvedValueOnce(userCase);
-    render(<UserCasePanel client={client({ submitCase })} createIdempotencyKey={createIdempotencyKey} />);
+    render(<UserCaseForm client={client({ submitCase })} createIdempotencyKey={createIdempotencyKey} />);
     await userEvent.type(screen.getByLabelText('문의 제목'), '문의');
     await userEvent.type(screen.getByLabelText('문의 내용'), '내용');
     await userEvent.click(screen.getByRole('button', { name: '접수하기' }));
@@ -69,6 +69,7 @@ describe('UserCasePanel', () => {
     render(<UserCasePanel client={client({ userCases })} />);
 
     expect(await screen.findByText('제재 이의')).toBeInTheDocument();
+    expect(screen.queryByLabelText('문의 제목')).not.toBeInTheDocument();
     expect(screen.getByText('검토 중')).toBeInTheDocument();
     expect(screen.queryByText('UNDER_REVIEW')).not.toBeInTheDocument();
     expect(screen.queryByText('case-1')).not.toBeInTheDocument();

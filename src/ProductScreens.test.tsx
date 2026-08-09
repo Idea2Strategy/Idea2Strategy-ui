@@ -805,12 +805,14 @@ describe('Account settings', () => {
     expect(screen.queryByRole('combobox', { name: '시간대 표기 선택' })).not.toBeInTheDocument();
   });
 
-  test('opens support as a focused modal instead of an always-visible form', async () => {
+  test('shows inquiry history on the page and opens only the composer in a modal', async () => {
     const user = userEvent.setup();
     setup(true);
 
+    expect(await screen.findByRole('heading', { name: '문의 내역' })).toBeInTheDocument();
+    expect(screen.getByText('아직 작성한 문의가 없습니다.')).toBeInTheDocument();
     expect(screen.queryByLabelText('문의 제목')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '내 문의 보기' }));
+    await user.click(screen.getByRole('button', { name: '문의하기' }));
 
     const dialog = screen.getByRole('dialog', { name: '문의하기' });
     expect(within(dialog).getByLabelText('문의 제목')).toHaveFocus();

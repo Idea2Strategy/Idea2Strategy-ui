@@ -7,7 +7,6 @@ import {
   Check,
   CheckCircle2,
   Info,
-  LifeBuoy,
   Search,
   X,
 } from 'lucide-react';
@@ -20,7 +19,7 @@ import { Localized, useLanguage } from '../lib/i18n';
 import type { AccountClient, ThemePreference } from '../api/account';
 import type { AccountOperationsClient } from '../api/accountOperations';
 import { AccountApiPanels } from '../components/AccountApiPanels';
-import { UserCasePanel } from '../components/CaseApiPanels';
+import { UserCaseForm, UserCasePanel } from '../components/CaseApiPanels';
 import type { NotificationClient } from '../api/notifications';
 import { NotificationCenter, NotificationPreferencesPanel } from '../components/NotificationApiViews';
 import { SignInRequiredPage } from '../components/StatePages';
@@ -312,6 +311,7 @@ interface AccountViewProps {
 export function AccountView({ accountClient, operationsClient, notificationClient }: AccountViewProps) {
   const sessionToken = useSessionAccessToken();
   const [supportOpen, setSupportOpen] = useState(false);
+  const [caseRefreshKey, setCaseRefreshKey] = useState(0);
 
   /*
     "내 계정" is meaningless with nobody signed in: every real panel on it is
@@ -333,17 +333,25 @@ export function AccountView({ accountClient, operationsClient, notificationClien
     <main className="account-settings-content account-settings-content-wide">
       {accountClient && <AccountApiPanels client={accountClient} />}
       {notificationClient && <NotificationPreferencesPanel client={notificationClient} />}
-      {operationsClient && <section className="account-support-card" id="account-support" aria-labelledby="account-support-title">
-        <span className="account-support-icon"><LifeBuoy size={21} aria-hidden="true" /></span>
-        <div><h2 id="account-support-title">고객지원</h2><p>문의 내용을 남기고 답변과 처리 상태를 한곳에서 확인하세요.</p></div>
-        <Button kind="primary" onClick={() => setSupportOpen(true)}>내 문의 보기</Button>
-      </section>}
+      {operationsClient && <UserCasePanel
+        client={operationsClient}
+        refreshKey={caseRefreshKey}
+        onCreate={() => setSupportOpen(true)}
+      />}
     </main>
-    {supportOpen && operationsClient && <AccountSupportModal client={operationsClient} onClose={() => setSupportOpen(false)} />}
+    {supportOpen && operationsClient && <AccountSupportModal
+      client={operationsClient}
+      onClose={() => setSupportOpen(false)}
+      onSubmitted={() => setCaseRefreshKey((current) => current + 1)}
+    />}
   </div></Localized>;
 }
 
-function AccountSupportModal({ client, onClose }: { client: AccountOperationsClient; onClose: () => void }) {
+function AccountSupportModal({ client, onClose, onSubmitted }: {
+  client: AccountOperationsClient;
+  onClose: () => void;
+  onSubmitted: () => void;
+}) {
   const dialogRef = useRef<HTMLElement>(null);
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -368,8 +376,8 @@ function AccountSupportModal({ client, onClose }: { client: AccountOperationsCli
 
   return <div className="account-modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
     <section className="account-support-modal" role="dialog" aria-modal="true" aria-labelledby="account-support-dialog-title" ref={dialogRef}>
-      <header><div><span>고객지원</span><h2 id="account-support-dialog-title">문의하기</h2><p>새 문의를 남기거나 이전 문의의 답변을 확인할 수 있습니다.</p></div><button type="button" aria-label="문의 창 닫기" onClick={onClose}><X size={18} aria-hidden="true" /></button></header>
-      <div className="account-support-modal-body"><UserCasePanel client={client} /></div>
+      <header><div><span>고객지원</span><h2 id="account-support-dialog-title">문의하기</h2><p>도움이 필요한 내용을 자세히 남겨주세요.</p></div><button type="button" aria-label="문의 창 닫기" onClick={onClose}><X size={18} aria-hidden="true" /></button></header>
+      <div className="account-support-modal-body"><UserCaseForm client={client} onSubmitted={onSubmitted} /></div>
     </section>
   </div>;
 }

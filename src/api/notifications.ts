@@ -1,7 +1,5 @@
 import { getSessionAccessToken } from './sessionAccessToken';
 
-export type NotificationChannel = 'APP' | 'EMAIL';
-
 export interface NotificationRecord {
   id: string;
   typeCode: string;
@@ -19,12 +17,7 @@ export interface NotificationPage {
   nextId: string | null;
 }
 
-export interface NotificationPreference {
-  typeCode: string;
-  policyVersion: string;
-  mandatory: boolean;
-  enabledChannels: NotificationChannel[];
-}
+export interface EmailNotificationPreference { enabled: boolean; }
 
 export class NotificationApiError extends Error {
   constructor(public readonly status: number, public readonly code: string, public readonly correlationId: string | null) {
@@ -45,8 +38,8 @@ interface NotificationClientOptions {
 export interface NotificationClient {
   list(cursor?: { beforeCreatedAt: string; beforeId: string } | null, limit?: number, signal?: AbortSignal): Promise<NotificationPage>;
   markRead(notificationId: string, signal?: AbortSignal): Promise<void>;
-  preferences(signal?: AbortSignal): Promise<NotificationPreference[]>;
-  replacePreference(typeCode: string, enabledChannels: NotificationChannel[], signal?: AbortSignal): Promise<NotificationPreference>;
+  emailPreference(signal?: AbortSignal): Promise<EmailNotificationPreference>;
+  replaceEmailPreference(enabled: boolean, signal?: AbortSignal): Promise<EmailNotificationPreference>;
 }
 
 export function createNotificationClient({
@@ -85,14 +78,12 @@ export function createNotificationClient({
     async markRead(notificationId, signal) {
       await request(`/api/v1/account/notifications/${encodeURIComponent(notificationId)}/read`, { method: 'PUT', signal });
     },
-    async preferences(signal) {
-      const value = await json(await request('/api/v1/account/notifications/preferences', { signal }));
-      if (!Array.isArray(value)) throw new Error('Invalid notification preferences');
-      return value.map(readPreference);
+    async emailPreference(signal) {
+      return readEmailPreference(await json(await request('/api/v1/account/notifications/email-preference', { signal })));
     },
-    async replacePreference(typeCode, enabledChannels, signal) {
-      return readPreference(await json(await request(`/api/v1/account/notifications/preferences/${encodeURIComponent(typeCode)}`, {
-        method: 'PUT', signal, body: JSON.stringify({ enabledChannels }),
+    async replaceEmailPreference(enabled, signal) {
+      return readEmailPreference(await json(await request('/api/v1/account/notifications/email-preference', {
+        method: 'PUT', signal, body: JSON.stringify({ enabled }),
       })));
     },
   };
@@ -129,15 +120,9 @@ function readRecord(value: unknown): NotificationRecord {
   };
 }
 
-function readPreference(value: unknown): NotificationPreference {
+function readEmailPreference(value: unknown): EmailNotificationPreference {
   const preference = object(value);
-  if (!Array.isArray(preference.enabledChannels)) throw new Error('Invalid enabledChannels');
-  const channels: NotificationChannel[] = preference.enabledChannels.map((channel) => enumeration<NotificationChannel>(channel, ['APP', 'EMAIL'], 'notification channel'));
-  if (!channels.includes('APP')) throw new Error('APP notification channel is required');
-  return {
-    typeCode: text(preference.typeCode, 'typeCode'), policyVersion: text(preference.policyVersion, 'policyVersion'),
-    mandatory: bool(preference.mandatory, 'mandatory'), enabledChannels: channels,
-  };
+  return { enabled: bool(preference.enabled, 'enabled') };
 }
 
 function object(value: unknown): Record<string, unknown> { if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('Invalid API response'); return value as Record<string, unknown>; }
