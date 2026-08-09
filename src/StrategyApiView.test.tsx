@@ -451,6 +451,7 @@ describe('Strategy API view', () => {
 
     await waitFor(() => expect(authoringClient.releaseStrategy).toHaveBeenCalledWith(strategyId, expect.objectContaining({
       validationRunId: validation.validationRunId,
+      initialCashAmount: '100000.00000000',
       datasetManifestId: 'dataset-id', executionPolicyVersion: 'policy-v1',
       feePolicyId: 'fee-id', buyingPowerBufferPolicyId: 'buffer-id',
     })));

@@ -810,6 +810,14 @@ const scheduleCycleCode = (cycle: BuyCycle): string => ({
   'N거래일마다': 'EVERY_N_TRADING_DAYS',
 }[cycle]);
 
+const fixedScaleUsdAmount = (value: string): string | null => {
+  const match = /^(0|[1-9][0-9]{0,15})(?:\.([0-9]{1,8}))?$/.exec(value.trim());
+  if (!match) return null;
+  const fraction = (match[2] ?? '').padEnd(8, '0');
+  if (match[1] === '0' && /^0{8}$/.test(fraction)) return null;
+  return `${match[1]}.${fraction}`;
+};
+
 const blockElement = (block: BasicBlock, resolution: string): { elementCode: string; parameters: Record<string, unknown> } => {
   const common = { resolution };
   switch (block.label) {
@@ -2317,9 +2325,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       const policy = releaseInputs?.executionPolicies.find((item) => item.version === selectedExecutionPolicy);
       const dataset = releaseInputs?.datasets.find((item) => item.id === selectedDataset);
       if (!savedValidation || savedValidation.status !== 'VALID' || !policy || !dataset) return;
-      const cash = Number(initialCashAmount);
+      const cash = fixedScaleUsdAmount(initialCashAmount);
       const budget = Number(budgetPercent);
-      if (!Number.isFinite(cash) || cash <= 0 || !Number.isFinite(budget) || budget <= 0 || budget > 100) {
+      if (!cash || !Number.isFinite(budget) || budget <= 0 || budget > 100) {
         setReleaseError('초기 자금과 운용 예산 비율을 올바르게 입력해 주세요.');
         return;
       }
@@ -2328,7 +2336,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       try {
         const released = await authoringClient.releaseStrategy(strategyId, {
           validationRunId: savedValidation.validationRunId,
-          initialCashAmount: String(cash),
+          initialCashAmount: cash,
           budgetCapBps: Math.round(budget * 100),
           brokerRulesVersion: policy.brokerRulesVersion,
           accountingRulesVersion: policy.accountingRulesVersion,
