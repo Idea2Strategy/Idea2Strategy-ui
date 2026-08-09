@@ -71,10 +71,8 @@ describe('NotificationPreferencesPanel', () => {
     expect(screen.getByText('중요한 보안 안내는 이 설정과 관계없이 발송될 수 있습니다.')).toBeInTheDocument();
   });
 
-  it('retries a failed load and never renders an empty settings card', async () => {
-    const emailPreference = vi.fn()
-      .mockRejectedValueOnce(new NotificationApiError(503, 'UNAVAILABLE', 'corr-load'))
-      .mockResolvedValueOnce({ enabled: false });
+  it('keeps the toggle visible without offering a retry button when loading fails', async () => {
+    const emailPreference = vi.fn().mockRejectedValue(new NotificationApiError(503, 'UNAVAILABLE', 'corr-load'));
     render(<NotificationPreferencesPanel client={client({ emailPreference })} />);
     await waitFor(() => expect(emailPreference).toHaveBeenCalledTimes(1));
     expect(screen.queryByText('알림 서버에 일시적으로 연결할 수 없습니다.')).not.toBeInTheDocument();
@@ -82,10 +80,7 @@ describe('NotificationPreferencesPanel', () => {
     const unavailableToggle = screen.getByRole('switch', { name: '이메일 알림 받기' });
     expect(unavailableToggle).toBeDisabled();
     expect(screen.getByText('확인 필요')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: '다시 시도' }));
-    const availableToggle = await screen.findByRole('switch', { name: '이메일 알림 받기' });
-    expect(availableToggle).toBeEnabled();
-    expect(availableToggle).toHaveAttribute('aria-checked', 'false');
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument();
   });
 
   it('keeps the previous value when saving fails', async () => {

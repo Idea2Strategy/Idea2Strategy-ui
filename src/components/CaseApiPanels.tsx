@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle2, ChevronRight, Clock3, Inbox, LoaderCircle, RefreshCw, Send, ShieldCheck, X } from 'lucide-react';
 import { Button, EmptyState, ErrorState, PageHeading, Panel, SignInRequiredState, Status } from './common';
 import { AccountOperationsApiError } from '../api/accountOperations';
@@ -20,14 +20,11 @@ export function UserCaseForm({ client, createIdempotencyKey = () => crypto.rando
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [state, setState] = useState<AsyncState<UserCaseView>>({ kind: 'idle' });
-  const retrySubmit = useRef<(() => void) | null>(null);
-
-  const submit = async (retryKey?: string) => {
+  const submit = async () => {
     setState({ kind: 'loading' });
-    const idempotencyKey = retryKey ?? createIdempotencyKey();
+    const idempotencyKey = createIdempotencyKey();
     try {
       const value = await client.submitCase({ type, subject: subject.trim(), description: description.trim(), evidence: [] }, idempotencyKey);
-      retrySubmit.current = null;
       setState({ kind: 'ready', value });
       setSubject('');
       setDescription('');
@@ -35,7 +32,6 @@ export function UserCaseForm({ client, createIdempotencyKey = () => crypto.rando
     } catch (cause) {
       const failure = error(cause);
       setState({ kind: 'error', error: failure });
-      retrySubmit.current = failure.retryable ? () => void submit(idempotencyKey) : null;
     }
   };
   return <section className="customer-case-compose" aria-labelledby="customer-case-compose-title">
@@ -48,10 +44,10 @@ export function UserCaseForm({ client, createIdempotencyKey = () => crypto.rando
       <label className="span-2"><span>상세 내용</span><textarea aria-label="문의 내용" placeholder="확인이 필요한 내용을 자세히 적어주세요" value={description} onChange={(event) => setDescription(event.target.value)} /></label>
     </div>
     <div className="account-api-actions">
-      <Button kind="primary" disabled={!subject.trim() || !description.trim() || state.kind === 'loading'} onClick={() => { retrySubmit.current = null; void submit(); }}>접수하기</Button>
+      <Button kind="primary" disabled={!subject.trim() || !description.trim() || state.kind === 'loading'} onClick={() => void submit()}>접수하기</Button>
     </div>
     {state.kind === 'loading' && <div role="status" className="case-api-feedback"><LoaderCircle size={16} />문의를 접수하고 있습니다.</div>}
-    {state.kind === 'error' && <CaseError error={state.error} retry={retrySubmit.current ?? undefined} />}
+    {state.kind === 'error' && <CaseError error={state.error} />}
     {state.kind === 'ready' && <div className="case-api-receipt" role="status">
       <CheckCircle2 size={17} /><div><strong>문의가 접수되었습니다.</strong><span>답변과 처리 상태는 마이페이지의 문의 내역에서 확인할 수 있습니다.</span></div>
     </div>}
@@ -100,7 +96,7 @@ export function UserCasePanel({ client, refreshKey = 0, onCreate }: {
   >
     <section className="customer-case-list-section" aria-label="내가 작성한 문의">
       {list.kind === 'loading' && <div className="customer-case-list-state" role="status"><LoaderCircle size={17} />문의 내역을 불러오고 있습니다.</div>}
-      {list.kind === 'error' && <CaseError error={list.error} retry={loadCases} />}
+      {list.kind === 'error' && <CaseError error={list.error} />}
       {list.kind === 'ready' && list.value.items.length === 0 && <EmptyState icon={Inbox} title="아직 작성한 문의가 없습니다." detail="궁금한 점이 생기면 문의하기 버튼으로 내용을 남겨주세요." />}
       {list.kind === 'ready' && list.value.items.length > 0 && <div className="customer-case-list">{list.value.items.map((item) => <button
         type="button"

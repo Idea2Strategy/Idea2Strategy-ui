@@ -132,7 +132,6 @@ export function NotificationPreferencesPanel({ client }: { client: NotificationC
             onClick={() => void toggleEmail()}
           ><i /></button>
           <small>{status}</small>
-          {state.kind === 'error' && <button type="button" className="notification-preference-retry" onClick={() => void load()}>다시 시도</button>}
         </span>
         {saved && <span className="notification-preference-saved" role="status"><Check size={13} />저장 완료</span>}
       </div><p className="notification-preference-help"><Info size={15} aria-hidden="true" />중요한 보안 안내는 이 설정과 관계없이 발송될 수 있습니다.</p></div>

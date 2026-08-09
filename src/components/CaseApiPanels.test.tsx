@@ -42,8 +42,10 @@ describe('customer inquiry UI', () => {
     expect(screen.queryByText(/case-1|버전/)).not.toBeInTheDocument();
   });
 
-  it('offers a retry action for retryable failures without exposing the raw code', async () => {
-    const createIdempotencyKey = vi.fn(() => 'idem-lost-response');
+  it('keeps the inquiry form usable after failure without showing a retry button', async () => {
+    const createIdempotencyKey = vi.fn()
+      .mockReturnValueOnce('idem-first-attempt')
+      .mockReturnValueOnce('idem-second-attempt');
     const submitCase = vi.fn()
       .mockRejectedValueOnce(new AccountOperationsApiError(503, 'CASE_SERVICE_UNAVAILABLE', 'corr-case'))
       .mockResolvedValueOnce(userCase);
@@ -54,11 +56,21 @@ describe('customer inquiry UI', () => {
     expect(await screen.findByText('일시적으로 서버에 연결할 수 없습니다.')).toBeInTheDocument();
     expect(screen.queryByText(/corr-case/)).not.toBeInTheDocument();
     expect(screen.queryByText(/CASE_SERVICE_UNAVAILABLE/)).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '접수하기' }));
     await screen.findByText('문의가 접수되었습니다.');
-    expect(createIdempotencyKey).toHaveBeenCalledTimes(1);
-    expect(submitCase).toHaveBeenNthCalledWith(1, expect.any(Object), 'idem-lost-response');
-    expect(submitCase).toHaveBeenNthCalledWith(2, expect.any(Object), 'idem-lost-response');
+    expect(createIdempotencyKey).toHaveBeenCalledTimes(2);
+    expect(submitCase).toHaveBeenNthCalledWith(1, expect.any(Object), 'idem-first-attempt');
+    expect(submitCase).toHaveBeenNthCalledWith(2, expect.any(Object), 'idem-second-attempt');
+  });
+
+  it('does not show a retry button when the inquiry list fails to load', async () => {
+    render(<UserCasePanel client={client({
+      userCases: vi.fn().mockRejectedValue(new AccountOperationsApiError(503, 'CASE_SERVICE_UNAVAILABLE', 'corr-list')),
+    })} />);
+
+    expect(await screen.findByText('일시적으로 서버에 연결할 수 없습니다.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument();
   });
 
   it('shows a Korean inquiry list and opens safe detail without ids or internal status codes', async () => {
