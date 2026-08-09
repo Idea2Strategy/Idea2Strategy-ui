@@ -255,9 +255,9 @@ describe('Strategy API view', () => {
     expect(screen.queryByText('전략을 저장하지 못했습니다.')).not.toBeInTheDocument();
   });
 
-  /* The published catalog is several hundred instruments. A plain dropdown listed
-     every one of them at once, which is unreadable and unscannable. */
-  test('keeps the instrument picker short and searchable for a large catalog', async () => {
+  /* The published catalog is several hundred instruments. Keep the picker viewport
+     compact and scrollable without truncating the selected alphabet group. */
+  test('shows every matching instrument in a large catalog', async () => {
     const user = userEvent.setup();
     const catalog: BasicStrategyCatalog = {
       version: {
@@ -276,16 +276,62 @@ describe('Strategy API view', () => {
     await waitFor(() => expect(catalogClient.getBasic).toHaveBeenCalledWith(expect.any(AbortSignal)));
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 종목 관리' }));
 
-    expect(within(screen.getByRole('listbox', { name: '추가할 종목' })).getAllByRole('option')).toHaveLength(50);
-    expect(screen.getByText(/270개는 표시하지 않았습니다/)).toBeInTheDocument();
+    const listbox = screen.getByRole('listbox', { name: '추가할 종목' });
+    expect(within(listbox).getAllByRole('option')).toHaveLength(320);
+    expect(screen.queryByText(/표시하지 않았습니다/)).not.toBeInTheDocument();
 
-    // Searching is the way to the other 270, and Enter takes the top match.
+    await user.click(screen.getByRole('button', { name: 'S' }));
+    expect(within(listbox).getAllByRole('option')).toHaveLength(320);
+
+    await user.click(screen.getByRole('button', { name: 'ALL' }));
+    expect(within(listbox).getAllByRole('option')).toHaveLength(320);
+
+    // Searching still narrows the complete set, and Enter takes the top match.
     await user.type(screen.getByLabelText('종목 검색'), 'SYM31');
     await waitFor(() => expect(
       within(screen.getByRole('listbox', { name: '추가할 종목' })).getAllByRole('option'),
     ).toHaveLength(10));
     await user.keyboard('{Enter}');
     expect(screen.getByRole('dialog')).toHaveTextContent('SYM310');
+  });
+
+  test('filters the instrument picker by ticker initial before scrolling', async () => {
+    const user = userEvent.setup();
+    const catalog: BasicStrategyCatalog = {
+      version: {
+        id: 'catalog-id', languageVersion: 'basic/v1', schemaVersion: 'schema/v1', catalogVersion: 'catalog/v1',
+        dataRequirementVersion: 'data/v1', definitionHash: 'catalog-hash', publishedAt: '2026-08-01T12:00:00Z', retiredAt: null,
+      },
+      elements: [],
+      features: [],
+      instruments: [
+        { id: 'aapl-id', assetType: 'STOCK', primaryExchangeMic: 'XNAS', currencyCode: 'USD', symbol: 'AAPL' },
+        { id: 'amd-id', assetType: 'STOCK', primaryExchangeMic: 'XNAS', currencyCode: 'USD', symbol: 'AMD' },
+        { id: 'meta-id', assetType: 'STOCK', primaryExchangeMic: 'XNAS', currencyCode: 'USD', symbol: 'META' },
+        { id: 'msft-id', assetType: 'STOCK', primaryExchangeMic: 'XNAS', currencyCode: 'USD', symbol: 'MSFT' },
+        { id: 'spy-id', assetType: 'ETF', primaryExchangeMic: 'ARCX', currencyCode: 'USD', symbol: 'SPY' },
+      ],
+    };
+    const catalogClient: StrategyCatalogClient = { getBasic: vi.fn().mockResolvedValue(catalog) };
+    render(<BasicEditor blank goBack={() => {}} catalogClient={catalogClient} />);
+    await waitFor(() => expect(catalogClient.getBasic).toHaveBeenCalledWith(expect.any(AbortSignal)));
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 종목 관리' }));
+
+    const alphabetFilter = screen.getByRole('group', { name: '종목 알파벳 필터' });
+    expect(within(alphabetFilter).getAllByRole('button')).toHaveLength(27);
+
+    await user.click(within(alphabetFilter).getByRole('button', { name: 'A' }));
+    expect(within(alphabetFilter).getByRole('button', { name: 'A' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(screen.getByRole('listbox', { name: '추가할 종목' })).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'AAPLSTOCK · XNAS',
+      'AMDSTOCK · XNAS',
+    ]);
+
+    await user.click(within(alphabetFilter).getByRole('button', { name: 'M' }));
+    expect(within(screen.getByRole('listbox', { name: '추가할 종목' })).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'METASTOCK · XNAS',
+      'MSFTSTOCK · XNAS',
+    ]);
   });
 
   test('retries a transient lease conflict left by a page navigation', async () => {

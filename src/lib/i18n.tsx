@@ -1341,6 +1341,7 @@ const english: Record<string, string> = {
   '연결 상태를 확인한 뒤 다시 시도해 주세요.': 'Check your connection and try again.',
   '연결 상태를 확인한 뒤 다시 시도해 주세요. 확인되지 않은 편집 내용은 표시하지 않습니다.': 'Check your connection and try again. Unverified editing content is not shown.',
   '추가할 종목': 'Symbol to add',
+  '종목 알파벳 필터': 'Symbol alphabet filter',
   '종목 미선택': 'No symbol selected',
   '실제 시장 데이터 기반 미리보기만 표시합니다.': 'Only previews backed by real market data are shown.',
   '현재 미리보기 데이터 계약이 연결되지 않아 차트와 거래 신호를 표시하지 않습니다. 저장된 종목과 전략 규칙은 편집 화면에서 계속 확인할 수 있습니다.': 'The preview data contract is not connected, so no chart or trade signals are shown. You can still review saved symbols and strategy rules in the editor.',
