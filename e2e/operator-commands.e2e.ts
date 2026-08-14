@@ -1,27 +1,27 @@
 import { expect, test } from '@playwright/test';
-import type { Page, Request } from '@playwright/test';
-import { LOCAL_OPERATOR_TOKEN_KEY } from '../src/lib/operatorLocalHarness';
+import type { Request } from '@playwright/test';
 import { MOCK_API_URL } from './ports';
 
-const OPERATOR_TOKEN = 'local-operator-token';
+const OPERATOR_CSRF = 'csrf-operator-commands-e2e';
 const CASE_ID = 'a1420000-0000-4000-8000-000000000001';
 const SANCTION_ID = 'a1420000-0000-4000-8000-000000000002';
 
-async function establishLocalOperator(page: Page): Promise<void> {
-  await page.addInitScript(
-    ([key, token]) => window.sessionStorage.setItem(key, token),
-    [LOCAL_OPERATOR_TOKEN_KEY, OPERATOR_TOKEN] as const,
-  );
-}
-
-test('runs a high-risk sanction journey with an isolated bearer token and correlation receipt', async ({ page }) => {
+test('runs a high-risk sanction journey with an opaque session, CSRF, and correlation receipt', async ({ page }) => {
   let version = 4;
   let commandRequest: Request | null = null;
-  await establishLocalOperator(page);
+  await page.route(`${MOCK_API_URL}/api/v1/operator-auth/session`, async (route) => {
+    await route.fulfill({
+      headers: { 'set-cookie': 'operator_session=opaque-browser-token; HttpOnly; SameSite=Strict; Path=/' },
+      json: {
+        operatorId: 'operator-browser-e2e', csrfToken: OPERATOR_CSRF,
+        mfaVerifiedAt: '2099-08-14T00:00:00Z', absoluteExpiresAt: '2099-08-14T08:00:00Z',
+      },
+    });
+  });
   await page.route(`${MOCK_API_URL}/api/v1/operations/**`, async (route) => {
     const request = route.request();
-    expect(await request.headerValue('authorization')).toBe(`Bearer ${OPERATOR_TOKEN}`);
-    expect(await request.headerValue('cookie')).toBeNull();
+    expect(await request.headerValue('authorization')).toBeNull();
+    expect(await request.headerValue('x-operator-csrf')).toBe(OPERATOR_CSRF);
     const url = new URL(request.url());
     if (request.method() === 'GET' && url.pathname === '/api/v1/operations/cases') {
       await route.fulfill({ json: { items: [{ caseId: CASE_ID, type: 'REPORT', status: 'UNDER_REVIEW', version, assigneeOperatorId: null, updatedAt: '2026-08-04T00:00:00Z' }], nextCursor: null } });

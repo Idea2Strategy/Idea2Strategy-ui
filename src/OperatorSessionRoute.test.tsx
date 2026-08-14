@@ -28,6 +28,15 @@ afterEach(() => {
 });
 
 describe('operator cookie-session route boundary', () => {
+  it('keeps a protected operator URL in place while the cookie session is restoring', () => {
+    window.history.replaceState({}, '', '/operations/cases');
+    render(<App operatorAuthentication={authentication({ kind: 'loading' })} />);
+
+    expect(screen.getByRole('status')).toBeVisible();
+    expect(window.location.pathname).toBe('/operations/cases');
+    expect(screen.queryByRole('heading', { name: 'Operator sign-in' })).not.toBeInTheDocument();
+  });
+
   it('redirects a protected operator route to the dedicated sign-in and preserves returnTo', async () => {
     const auth = authentication({ kind: 'unauthenticated' });
     window.history.replaceState({}, '', '/operations/rbac');
