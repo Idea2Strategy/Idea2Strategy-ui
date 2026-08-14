@@ -124,11 +124,12 @@ export class CompetitionApiError extends Error {
   get conflict() { return this.status === 409; }
 }
 
-export function createCompetitionRoomsClient({ baseUrl = '', fetchImpl = fetch, getAccessToken = getSessionAccessToken, getOperatorAccessToken }: { baseUrl?: string; fetchImpl?: typeof fetch; getAccessToken?: () => string | null; getOperatorAccessToken?: () => string | null } = {}): CompetitionRoomsClient {
+export function createCompetitionRoomsClient({ baseUrl = '', fetchImpl = fetch, getAccessToken = getSessionAccessToken, getOperatorCsrfToken }: { baseUrl?: string; fetchImpl?: typeof fetch; getAccessToken?: () => string | null; getOperatorCsrfToken?: () => string | null } = {}): CompetitionRoomsClient {
   const root = baseUrl.replace(/\/$/, '');
   const request = async (path: string, signal?: AbortSignal, init: RequestInit = {}, operator = false) => {
-    const token = operator ? getOperatorAccessToken?.() : getAccessToken();
-    const response = await fetchImpl(`${root}${path}`, { ...init, credentials: 'include', headers: { Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers }, signal });
+    const token = operator ? null : getAccessToken();
+    const csrf = operator ? getOperatorCsrfToken?.() : null;
+    const response = await fetchImpl(`${root}${path}`, { ...init, credentials: 'include', headers: { Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(csrf ? { 'X-Operator-CSRF': csrf } : {}), ...init.headers }, signal });
     if (!response.ok) throw await readError(response);
     if (response.status === 204) return null;
     return response.json() as Promise<unknown>;

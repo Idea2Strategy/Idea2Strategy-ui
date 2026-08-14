@@ -19,36 +19,38 @@ const client = (): OperatorRbacClient => ({
 
 const authentication = (
   snapshot: OperatorAuthentication['snapshot'],
-): OperatorAuthentication => ({ snapshot, login: vi.fn(), logout: vi.fn() });
+): OperatorAuthentication => ({ snapshot, login: vi.fn().mockResolvedValue(undefined),
+  reauthenticate: vi.fn().mockResolvedValue(undefined), logout: vi.fn() });
 
 afterEach(() => {
   cleanup();
   window.history.replaceState({}, '', '/');
 });
 
-describe('operator OIDC route boundary', () => {
+describe('operator cookie-session route boundary', () => {
   it('redirects a protected operator route to the dedicated sign-in and preserves returnTo', async () => {
     const auth = authentication({ kind: 'unauthenticated' });
     window.history.replaceState({}, '', '/operations/rbac');
     render(<App operatorAuthentication={auth} />);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Sign in as operator' }));
+    await userEvent.type(await screen.findByLabelText('Login name'), 'admin');
+    await userEvent.type(screen.getByLabelText('Password'), 'password');
+    await userEvent.type(screen.getByLabelText('Authenticator code'), '123456');
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in as operator' }));
 
-    expect(auth.login).toHaveBeenCalledWith('/operations/rbac');
+    expect(auth.login).toHaveBeenCalledWith({ loginName: 'admin', password: 'password', totpCode: '123456' });
   });
 
-  it('renders callback loading and fail-closed error states', () => {
-    window.history.replaceState({}, '', '/operations/callback');
-    const { rerender } = render(<App operatorAuthentication={authentication({ kind: 'loading' })} />);
-    expect(screen.getByRole('status')).toHaveTextContent('Completing the secure operator sign-in');
-
-    rerender(<App operatorAuthentication={authentication({ kind: 'error', code: 'OPERATOR_OIDC_STATE_INVALID' })} />);
-    expect(screen.getByRole('alert')).toHaveTextContent('Access remains blocked');
-    expect(screen.getByRole('alert')).toHaveTextContent('OPERATOR_OIDC_STATE_INVALID');
+  it('renders a fail-closed service error while keeping the login UI visible', () => {
+    window.history.replaceState({}, '', '/operations/login');
+    render(<App operatorAuthentication={authentication({ kind: 'error', code: 'OPERATOR_AUTHENTICATION_UNAVAILABLE' })} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('OPERATOR_AUTHENTICATION_UNAVAILABLE');
+    expect(screen.getByLabelText('Login name')).toBeVisible();
   });
 
   it('injects the real operator client only while authenticated and exposes logout', async () => {
-    const auth = authentication({ kind: 'authenticated', expiresAt: Date.now() + 60_000 });
+    const auth = authentication({ kind: 'authenticated', operatorId: 'operator-1',
+      mfaVerifiedAt: new Date().toISOString(), absoluteExpiresAt: new Date(Date.now() + 60_000).toISOString() });
     const operatorClient = client();
     window.history.replaceState({}, '', '/operations/rbac');
     render(<App operatorAuthentication={auth} operatorRbacClient={operatorClient} />);

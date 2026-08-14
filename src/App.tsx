@@ -542,9 +542,6 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/operations/login" element={operatorAuthentication
       ? <OperatorAuthenticationView authentication={operatorAuthentication} />
       : <Navigate to="/" replace />} />
-    <Route path="/operations/callback" element={operatorAuthentication
-      ? <OperatorAuthenticationView authentication={operatorAuthentication} />
-      : <Navigate to="/" replace />} />
     <Route path="/operations/cases" element={operatorCaseAccessVerified
       ? <OperatorCaseWorkspace client={operationsClient} />
       : operatorAuthentication
