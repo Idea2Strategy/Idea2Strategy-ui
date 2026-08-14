@@ -44,7 +44,9 @@ async function signIn(page: Page, token: string = OWNER_TOKEN): Promise<void> {
 function recordApiRequests(page: Page): Request[] {
   const seen: Request[] = [];
   page.on('request', (request) => {
-    if (request.url().startsWith(MOCK_API_URL)) seen.push(request);
+    const url = new URL(request.url());
+    if (request.url().startsWith(MOCK_API_URL)
+        && url.pathname.startsWith('/api/v1/backtests')) seen.push(request);
   });
   return seen;
 }

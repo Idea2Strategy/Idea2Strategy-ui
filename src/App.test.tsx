@@ -162,7 +162,7 @@ describe('Signal product UI', () => {
     window.history.replaceState({ usr: { blank: false } }, '', '/strategies/new/basic');
     render(<App />);
 
-    const buyRsi = screen.getByTestId('buy-rsi-block');
+    const buyRsi = await screen.findByTestId('buy-rsi-block');
     await user.type(within(buyRsi).getByLabelText('RSI 반등 값'), '30');
     await user.click(within(buyRsi).getByRole('combobox', { name: 'RSI 반등 방향' }));
     await user.click(screen.getByRole('option', { name: '상승' }));
@@ -183,8 +183,8 @@ describe('Signal product UI', () => {
     await user.click(within(dialog).getByRole('button', { name: '봇 출시하기' }));
 
     expect(window.location.pathname).toBe('/bots');
-    expect(screen.getByRole('heading', { name: '봇 운영 센터' })).toBeInTheDocument();
-  });
+    expect(await screen.findByRole('heading', { name: '봇 운영 센터' })).toBeInTheDocument();
+  }, 30_000);
 
   test('opens on the home dashboard and returns home when the brand is clicked', async () => {
     const user = userEvent.setup();

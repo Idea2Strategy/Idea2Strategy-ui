@@ -542,11 +542,10 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/operations/login" element={operatorAuthentication
       ? <OperatorAuthenticationView authentication={operatorAuthentication} />
       : <Navigate to="/" replace />} />
-    <Route path="/operations/callback" element={operatorAuthentication
-      ? <OperatorAuthenticationView authentication={operatorAuthentication} />
-      : <Navigate to="/" replace />} />
     <Route path="/operations/cases" element={operatorCaseAccessVerified
       ? <OperatorCaseWorkspace client={operationsClient} />
+      : operatorAuthentication?.snapshot.kind === 'loading'
+        ? <RouteLoadingState />
       : operatorAuthentication
         ? <Navigate to="/operations/login" state={{ returnTo: location.pathname }} replace />
         : <Navigate to="/" replace />} />
@@ -557,11 +556,15 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
         catalogReadPermissionId={catalogReadPermissionId}
         assignmentReadPermissionId={assignmentReadPermissionId}
       />
+      : operatorAuthentication?.snapshot.kind === 'loading'
+        ? <RouteLoadingState />
       : operatorAuthentication
         ? <Navigate to="/operations/login" state={{ returnTo: location.pathname }} replace />
         : <Navigate to="/" replace />} />
     <Route path="/operations/competition" element={operatorCompetitionClient
       ? <OperatorCompetitionWorkspace client={operatorCompetitionClient} />
+      : operatorAuthentication?.snapshot.kind === 'loading'
+        ? <RouteLoadingState />
       : operatorAuthentication
         ? <Navigate to="/operations/login" state={{ returnTo: location.pathname }} replace />
         : <Navigate to="/" replace />} />

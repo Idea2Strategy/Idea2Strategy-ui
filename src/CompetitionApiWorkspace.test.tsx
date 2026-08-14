@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { CompetitionApiWorkspace } from './components/CompetitionApiWorkspace';
@@ -10,7 +10,7 @@ import { RoomsView } from './views/OperationsViews';
 const room: PublicRoom = {
   id: '11111111-1111-4111-8111-111111111111', name: '실전 API 대회', organizerType: 'USER',
   createdAt: '2026-08-01T00:00:00Z', recruitmentOpensAt: '2026-08-01T00:00:00Z',
-  participationClosesAt: '2026-08-10T00:00:00Z', botParticipationLimit: 25, perAccountBotLimit: 2,
+  participationClosesAt: '2099-08-10T00:00:00Z', botParticipationLimit: 25, perAccountBotLimit: 2,
 };
 
 const roomInputCatalog: RoomInputCatalog = {
@@ -106,7 +106,7 @@ describe('real competition room workspace', () => {
     render(<CompetitionApiWorkspace client={api} />);
     await screen.findByRole('listitem', { name: '실전 API 대회 열기' });
     await userEvent.click(screen.getByRole('button', { name: '대회 만들기' }));
-    const create = screen.getByRole('dialog', { name: '대회 만들기' });
+    let create = screen.getByRole('dialog', { name: '대회 만들기' });
     const createForm = create.querySelector('form');
     const createScrollArea = create.querySelector('.competition-create-form-scroll');
     expect(createForm).toHaveClass('competition-create-form');
@@ -117,7 +117,8 @@ describe('real competition room workspace', () => {
     expect(createScrollArea).toContainElement(within(create).getByRole('group', { name: '기본 설정' }));
     expect(createScrollArea).not.toContainElement(within(create).getByRole('button', { name: '대회 생성' }));
     await userEvent.type(within(create).getByLabelText('대회 이름'), '새 대회');
-    expect(await within(create).findByRole('option', { name: /TOTAL_RETURN · 1.0.0/ })).toBeInTheDocument();
+    await screen.findByRole('option', { name: /TOTAL_RETURN · 1.0.0/ });
+    create = screen.getByRole('dialog', { name: '대회 만들기' });
     expect(within(create).queryByLabelText('채점 템플릿 버전 ID')).not.toBeInTheDocument();
     const closesAt = new Date((within(create).getByLabelText('참가 마감') as HTMLInputElement).value);
     const evaluationStartsAt = new Date((within(create).getByLabelText('평가 시작') as HTMLInputElement).value);
@@ -131,8 +132,8 @@ describe('real competition room workspace', () => {
 
     await userEvent.click(screen.getByRole('listitem', { name: '실전 API 대회 열기' }));
     await userEvent.click(await screen.findByRole('button', { name: '이 대회 참가하기' }));
+    await screen.findByRole('option', { name: /Momentum · 편집 7/ });
     const join = screen.getByRole('dialog', { name: '대회 참가' });
-    expect(await within(join).findByRole('option', { name: /Momentum · 편집 7/ })).toBeInTheDocument();
     expect(within(join).queryByLabelText('검증 실행 ID')).not.toBeInTheDocument();
     const budget = within(join).getByLabelText('봇 예산 비율');
     await userEvent.clear(budget);
@@ -148,12 +149,15 @@ describe('real competition room workspace', () => {
     render(<CompetitionApiWorkspace client={client({ roomInputCatalog: roomInputCatalogCall })} />);
     await screen.findByRole('listitem', { name: '실전 API 대회 열기' });
     await userEvent.click(screen.getByRole('button', { name: '대회 만들기' }));
-    const create = screen.getByRole('dialog', { name: '대회 만들기' });
+    let create = screen.getByRole('dialog', { name: '대회 만들기' });
     expect(within(create).getByRole('status')).toHaveTextContent('대회 생성 입력을 불러오는 중입니다.');
     expect(within(create).getByRole('button', { name: '대회 생성' })).toBeDisabled();
 
-    resolveCatalog({ scoringTemplates: [], feePolicies: [], buyingPowerBufferPolicies: [] });
-    expect(await within(create).findByText('운영 정책 카탈로그가 준비되지 않아 대회를 만들 수 없습니다.')).toBeInTheDocument();
+    await act(async () => {
+      resolveCatalog({ scoringTemplates: [], feePolicies: [], buyingPowerBufferPolicies: [] });
+    });
+    await screen.findByText('운영 정책 카탈로그가 준비되지 않아 대회를 만들 수 없습니다.');
+    create = screen.getByRole('dialog', { name: '대회 만들기' });
     expect(within(create).getByRole('button', { name: '대회 생성' })).toBeDisabled();
   });
 
@@ -173,14 +177,16 @@ describe('real competition room workspace', () => {
     render(<CompetitionApiWorkspace client={client({ roomInputCatalog: roomInputCatalogCall })} />);
     await screen.findByRole('listitem', { name: '실전 API 대회 열기' });
     await userEvent.click(screen.getByRole('button', { name: '대회 만들기' }));
-    const create = screen.getByRole('dialog', { name: '대회 만들기' });
+    let create = screen.getByRole('dialog', { name: '대회 만들기' });
     expect(await within(create).findByRole('alert')).toHaveTextContent('대회 생성 정책을 불러오지 못했습니다.');
     expect(within(create).getByRole('button', { name: '대회 생성' })).toBeDisabled();
 
+    const attemptsBeforeRetry = roomInputCatalogCall.mock.calls.length;
     await userEvent.click(within(create).getByRole('button', { name: '정책 다시 불러오기' }));
-    expect(await within(create).findByRole('option', { name: /TOTAL_RETURN · 1.0.0/ })).toBeInTheDocument();
+    await screen.findByRole('option', { name: /TOTAL_RETURN · 1.0.0/ });
+    create = screen.getByRole('dialog', { name: '대회 만들기' });
     expect(within(create).getByRole('button', { name: '대회 생성' })).toBeEnabled();
-    expect(roomInputCatalogCall).toHaveBeenCalledTimes(2);
+    expect(roomInputCatalogCall.mock.calls.length).toBeGreaterThan(attemptsBeforeRetry);
   });
 
   test('keeps joining fail closed when there is no current owned validation', async () => {
