@@ -161,6 +161,7 @@ test('browser completes the production account principal and user-case journey',
   await choose(buyCard, '거래량 비교', '초과');
   await choose(buyCard, '거래량 값 선택', '최근 20봉 평균 거래량 2배');
 
+  await buyCard.getByRole('group', { name: '매수 전략 카드 이동 영역' }).press('Enter');
   await page.getByRole('tab', { name: /블록/ }).click();
   for (const label of ['가격 비교', '가격 변화율', '평균선 교차']) {
     await page.getByRole('button', { name: `${label} 블록 추가` }).click();
