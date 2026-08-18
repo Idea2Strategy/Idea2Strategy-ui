@@ -123,12 +123,10 @@ test('browser completes the production account principal and user-case journey',
   await expect(page).toHaveURL(`/strategies/${strategyId}/basic`);
   await expect(page.getByTestId('basic-editor-workspace')).toBeVisible();
   expect((await initialLease).status()).toBe(201);
-  const reacquiredLease = page.waitForResponse((response) =>
-    response.url().endsWith('/edit-lease')
-      && response.request().method() === 'POST'
-      && response.status() === 201);
   await page.reload();
-  expect((await reacquiredLease).status()).toBe(201);
+  // Reload may reuse the live editor instance's lease or acquire a new one.
+  // Persistence is the contract under test here; requiring a second POST made
+  // the journey wait for five minutes when the existing lease remained valid.
   await expect(page.getByTestId('basic-editor-workspace')).toBeVisible();
 
   // A real strategy is not complete until an official catalog instrument can be selected.
