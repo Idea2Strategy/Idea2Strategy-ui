@@ -160,10 +160,16 @@ describe('strategy authoring API client', () => {
       requestedEditSequence: 4,
       semanticHash: 'a'.repeat(64),
       elementCatalogVersionId: '0f1a0000-0000-4000-8000-000000000001',
-      findings: [{
-        severity: 'WARNING', code: 'BACKTEST_FEED_UNAVAILABLE', location: 'groups[0]',
-        message: 'Historical coverage is unavailable', details: ['feed:ADJUSTED_BAR@1m'],
-      }],
+      findings: [
+        {
+          severity: 'INFORMATION', code: 'BACKTEST_FEED_REQUIRED', location: 'groups[0]',
+          message: 'Historical coverage is required', details: ['feed:ADJUSTED_BAR@30m'],
+        },
+        {
+          severity: 'BLOCKING_ERROR', code: 'REQUIRED_PARAMETER_MISSING', location: 'groups[0].blocks[0]',
+          message: 'A required parameter is missing', details: [],
+        },
+      ],
       completedAt: '2026-08-07T12:00:00Z',
     };
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify(validation), { status: 201 }));

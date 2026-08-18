@@ -103,6 +103,7 @@ export default async function globalSetup(): Promise<() => void> {
       '-v', `${bundle}:/flyway/sql:ro`, 'redgate/flyway:11-alpine',
       '-url=jdbc:postgresql://postgres:5432/a23', '-user=postgres', `-password=${databasePassword}`,
       'validate');
+    seedStrategyInstruments(postgres);
 
     docker('run', '-d', '--name', backend, '--network', network,
       '--label', projectLabel, '--label', runLabel,
@@ -135,6 +136,21 @@ export default async function globalSetup(): Promise<() => void> {
     process.removeListener('exit', onExit);
     cleanup(true);
   };
+}
+
+function seedStrategyInstruments(postgres: string): void {
+  const rows = [
+    ['52000000-0000-4000-8000-000000000001', '53000000-0000-4000-8000-000000000001', 'AAPL', 'STOCK'],
+    ['52000000-0000-4000-8000-000000000002', '53000000-0000-4000-8000-000000000002', 'MSFT', 'STOCK'],
+    ['52000000-0000-4000-8000-000000000003', '53000000-0000-4000-8000-000000000003', 'SPY', 'ETF'],
+  ];
+  const instruments = rows.map(([instrumentId, , symbol, assetType]) =>
+    `('${instrumentId}','${assetType}'::market_data.asset_type,'XNAS','USD','e2e-${symbol}','2000-01-01',now())`).join(',');
+  const symbols = rows.map(([instrumentId, symbolId, symbol]) =>
+    `('${symbolId}','${instrumentId}','XNAS','${symbol}','2000-01-01T00:00:00Z')`).join(',');
+  docker('exec', postgres, 'psql', '-U', 'postgres', '-d', 'a23', '-v', 'ON_ERROR_STOP=1', '-c',
+    `insert into market_data.instruments (id,asset_type,primary_exchange_mic,currency_code,provider_reference,listed_at,created_at) values ${instruments}; `
+    + `insert into market_data.instrument_symbols (id,instrument_id,exchange_mic,symbol,effective_from) values ${symbols};`);
 }
 
 function gradleCacheSource(): string {

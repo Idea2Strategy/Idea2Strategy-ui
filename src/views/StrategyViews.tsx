@@ -631,6 +631,12 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
 const NULL_BLOCK_VALUE = '';
 const UNSET_SELECT_LABEL = '선택';
 const UNSET_NUMBER_PLACEHOLDER = '입력';
+export const BASIC_COMPOSITION_LIMITS = {
+  sections: 4,
+  conditionsPerCard: 5,
+  instrumentsPerSection: 5,
+  cardsPerSidePerSection: 1,
+} as const;
 
 const INITIAL_BASIC_BLOCKS: Record<Side, BasicBlock[]> = {
   buy: [
@@ -1750,7 +1756,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       }];
     }
 
-    return sections.flatMap((section, sectionIndex): ValidationIssue[] => {
+    const strategyIssues: ValidationIssue[] = sections.length > BASIC_COMPOSITION_LIMITS.sections ? [{
+      id: 'strategy-too-many-sections',
+      sectionId: null,
+      cardId: null,
+      message: `Basic 전략은 파티션을 최대 ${BASIC_COMPOSITION_LIMITS.sections}개까지 만들 수 있습니다.`,
+    }] : [];
+
+    return [...strategyIssues, ...sections.flatMap((section, sectionIndex): ValidationIssue[] => {
       const sectionLabel = `PARTITION ${String(sectionIndex + 1).padStart(2, '0')}`;
       if (catalogClient && (section.instrumentIds?.length ?? 0) === 0) {
         return [{
@@ -1760,12 +1773,29 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           message: `${sectionLabel}에 거래 종목을 하나 이상 추가해 주세요.`,
         }];
       }
+      if ((section.instrumentIds?.length ?? 0) > BASIC_COMPOSITION_LIMITS.instrumentsPerSection) {
+        return [{
+          id: `${section.id}-too-many-instruments`,
+          sectionId: section.id,
+          cardId: null,
+          message: `${sectionLabel}에는 거래 종목을 최대 ${BASIC_COMPOSITION_LIMITS.instrumentsPerSection}개까지 추가할 수 있습니다.`,
+        }];
+      }
       if (section.cards.buy.length === 0) {
         return [{
           id: `${section.id}-no-buy`,
           sectionId: section.id,
           cardId: null,
           message: `${sectionLabel}에 매수 전략 카드가 필요합니다.`,
+        }];
+      }
+      if (section.cards.buy.length > BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection
+        || section.cards.sell.length > BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection) {
+        return [{
+          id: `${section.id}-too-many-cards`,
+          sectionId: section.id,
+          cardId: null,
+          message: `${sectionLabel}에는 매수와 매도 전략 카드를 각각 하나만 둘 수 있습니다.`,
         }];
       }
       if (catalogClient && section.cards.risk.length > 0) {
@@ -1788,6 +1818,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
               sectionId: section.id,
               cardId,
               message: `${sectionLabel}의 ${sideLabel} 전략 카드에 조건 블록을 하나 이상 추가해 주세요.`,
+            }];
+          }
+          if (blocks.length > BASIC_COMPOSITION_LIMITS.conditionsPerCard) {
+            return [{
+              id: `${cardId}-too-many-conditions`,
+              sectionId: section.id,
+              cardId,
+              message: `${sectionLabel}의 ${sideLabel} 전략 카드에는 조건 블록을 최대 ${BASIC_COMPOSITION_LIMITS.conditionsPerCard}개까지 넣을 수 있습니다.`,
             }];
           }
           const hasNullField = blocks.some((block) => {
@@ -1813,7 +1851,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           }] : [];
         });
       });
-    });
+    })];
   }, [cardBlocks, sections, sellSettings, buySettings, catalogClient]);
   const validationSignature = validationIssues.map((issue) => issue.id).join('|');
   const editorSignature = useMemo(() => JSON.stringify({
@@ -2524,6 +2562,11 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         return;
       }
     }
+    if (sourceCardId !== targetCardId
+      && (cardBlocks[targetCardId]?.length ?? 0) >= BASIC_COMPOSITION_LIMITS.conditionsPerCard) {
+      setAnnouncement(`전략 카드에는 조건 블록을 최대 ${BASIC_COMPOSITION_LIMITS.conditionsPerCard}개까지 넣을 수 있어요.`);
+      return;
+    }
     rememberEditorChange();
     setCardBlocks((current) => {
       const sourceBlocks = [...current[sourceCardId]];
@@ -2656,6 +2699,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         setAnnouncement(`${label}은(는) 매도 전략 카드에서만 사용할 수 있어요. 포지션을 보유한 뒤 평가되는 청산 조건입니다.`);
         return;
       }
+    }
+    if (cardBlocks[targetCardId].length >= BASIC_COMPOSITION_LIMITS.conditionsPerCard) {
+      setAnnouncement(`전략 카드에는 조건 블록을 최대 ${BASIC_COMPOSITION_LIMITS.conditionsPerCard}개까지 넣을 수 있어요.`);
+      return;
     }
     rememberEditorChange();
     const nextCount = customBlockCount + 1;
@@ -3057,6 +3104,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
 
   const addStrategyCard = (sectionId: string, side: Side) => {
     const section = sections.find((item) => item.id === sectionId)!;
+    if (section.cards[side].length >= BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection) {
+      setAnnouncement(`한 파티션에는 ${side === 'buy' ? '매수' : '매도'} 전략 카드를 하나만 둘 수 있어요.`);
+      return;
+    }
     rememberEditorChange();
     const nextCardCount = cardCount + 1;
     const cardId = `${sectionId}-${side}-${section.cards[side].length + 1}-${nextCardCount}`;
@@ -3244,6 +3295,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       return;
     }
     if (drawStart && draftRect && draftRect.width >= 120 && draftRect.height >= 100) {
+      if (sections.length >= BASIC_COMPOSITION_LIMITS.sections) {
+        setAnnouncement(`Basic 전략은 파티션을 최대 ${BASIC_COMPOSITION_LIMITS.sections}개까지 만들 수 있어요.`);
+        setDrawMode(false);
+        setDrawStart(null);
+        setDraftRect(null);
+        setPanGesture(null);
+        return;
+      }
       rememberEditorChange();
       const sectionNumber = sections.length + 1;
       const sectionId = `section-${sectionNumber}`;
@@ -3663,9 +3722,13 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       return { ...current, [symbolManagerSection.id]: nextSection };
     });
   };
-  const addManagedSymbol = () => {
-    if (!symbolManagerSection || !selectedInstrument) return;
-    const { id, symbol } = selectedInstrument;
+  const addManagedInstrument = (instrument: SelectableInstrument | undefined) => {
+    if (!symbolManagerSection || !instrument) return;
+    if (managedSymbols.length >= BASIC_COMPOSITION_LIMITS.instrumentsPerSection) {
+      setAnnouncement(`한 파티션에는 거래 종목을 최대 ${BASIC_COMPOSITION_LIMITS.instrumentsPerSection}개까지 추가할 수 있어요.`);
+      return;
+    }
+    const { id, symbol } = instrument;
     updateSection(symbolManagerSection.id, {
       symbol: [...managedSymbols, symbol].join(' · '),
       instrumentIds: id
@@ -3679,6 +3742,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     setPendingInstrumentKey('');
     setInstrumentQuery('');
   };
+  const addManagedSymbol = () => addManagedInstrument(selectedInstrument);
 
   const trashItemLabel = draggedBlock
     ? '블록'
@@ -4013,7 +4077,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         {catalogClient && !basicCatalog && !catalogError && <p className="bots-decision-note" role="status">공식 종목 확인 중…</p>}
         {catalogError && <p className="bots-decision-note" role="status">{catalogError}</p>}
         <div className="symbol-manager-list">
-          {managedSymbols.map((symbol) => <div key={symbol}><span><strong>{symbol}</strong><small>미국 주식</small></span><label><span>최대 보유 비율</span><span className="setting-with-unit"><input type="number" min=".1" max="100" step=".1" aria-label={`${symbol} 종목별 최대 보유 비율`} value={symbolLimits[symbolManagerSection.id]?.[symbol] ?? 25} onChange={(event) => setSymbolLimits((current) => ({ ...current, [symbolManagerSection.id]: { ...(current[symbolManagerSection.id] ?? {}), [symbol]: Number(event.target.value) } }))} /><b>%</b></span></label><button type="button" aria-label={`${symbol} 삭제`} onClick={() => removeManagedSymbol(symbol)}><Trash2 size={14} /></button></div>)}
+          {managedSymbols.map((symbol) => <div key={symbol}><span><strong>{symbol}</strong><small>미국 주식</small></span><label title="종목별 보유 한도는 다음 카탈로그에서 실행 연결 예정입니다."><span>최대 보유 비율 · 준비 중</span><span className="setting-with-unit"><input type="number" min=".1" max="100" step=".1" aria-label={`${symbol} 종목별 최대 보유 비율 (준비 중)`} value={symbolLimits[symbolManagerSection.id]?.[symbol] ?? 25} disabled /><b>%</b></span></label><button type="button" aria-label={`${symbol} 삭제`} onClick={() => removeManagedSymbol(symbol)}><Trash2 size={14} /></button></div>)}
         </div>
         <footer>
           <div className="symbol-manager-picker">
@@ -4069,7 +4133,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
                     className={selected ? 'is-selected' : ''}
                     ref={selected ? (node) => node?.scrollIntoView?.({ block: 'nearest' }) : undefined}
                     onClick={() => setPendingInstrumentKey(key)}
-                    onDoubleClick={() => { setPendingInstrumentKey(key); addManagedSymbol(); }}
+                    onDoubleClick={() => addManagedInstrument(instrument)}
                   >
                     <strong>{instrument.symbol}</strong>
                     {(instrument.assetType || instrument.primaryExchangeMic) && <small>
@@ -4080,10 +4144,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
               })}
             </ul>}
             {!catalogError && basicCatalog && normalizedInstrumentQuery && availableInstruments.length === 0 && <small className="symbol-manager-results-empty" role="status">일치하는 공식 지원 종목이 없습니다.</small>}
-            {!catalogError && basicCatalog && !normalizedInstrumentQuery && availableInstruments.length === 0 && <small className="symbol-manager-results-empty" role="status">추가할 수 있는 종목을 모두 담았습니다.</small>}
+            {!catalogError && basicCatalog && !normalizedInstrumentQuery && availableInstruments.length === 0 && <small className="symbol-manager-results-empty" role="status">{managedSymbols.length > 0 ? '추가할 수 있는 종목을 모두 담았습니다.' : '현재 서버에 등록된 지원 종목이 없습니다. 시장 데이터 카탈로그를 먼저 적재해 주세요.'}</small>}
           </div>
           <div className="symbol-manager-picker-actions">
-            <Button type="button" icon={Plus} disabled={!selectedInstrument} onClick={addManagedSymbol}>종목 추가</Button><Button type="button" kind="primary" onClick={() => setSymbolManagerSectionId(null)}>완료</Button>
+            <Button type="button" icon={Plus} disabled={!selectedInstrument || managedSymbols.length >= BASIC_COMPOSITION_LIMITS.instrumentsPerSection} onClick={addManagedSymbol}>종목 추가</Button><Button type="button" kind="primary" onClick={() => setSymbolManagerSectionId(null)}>완료</Button>
           </div>
         </footer>
       </section>

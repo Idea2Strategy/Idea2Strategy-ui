@@ -418,12 +418,14 @@ function readValidation(value: unknown): StrategyValidationResult {
     findings: result.findings.map((value) => {
       const finding = object(value, 'Invalid strategy validation finding');
       const severity = string(finding.severity, 'severity');
-      if (severity !== 'ERROR' && severity !== 'WARNING') throw new Error(`Unsupported finding severity: ${severity}`);
+      if (!['BLOCKING_ERROR', 'ERROR', 'WARNING', 'INFORMATION'].includes(severity)) {
+        throw new Error(`Unsupported finding severity: ${severity}`);
+      }
       if (!Array.isArray(finding.details) || !finding.details.every((detail) => typeof detail === 'string')) {
         throw new Error('Invalid strategy validation finding details');
       }
       return {
-        severity,
+        severity: severity as StrategyValidationFinding['severity'],
         code: string(finding.code, 'code'),
         location: string(finding.location, 'location'),
         message: string(finding.message, 'message'),
