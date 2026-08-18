@@ -165,7 +165,7 @@ test('browser completes the production account principal and user-case journey',
   const addBlock = async (card: typeof buyCard, label: string) => {
     const blocks = card.locator('.draggable-strategy-block');
     const before = await blocks.count();
-    await page.getByRole('button', { name: `${label} 블록 추가` }).last().click();
+    await page.getByRole('button', { name: `${label} 블록 추가` }).last().press('Enter');
     await expect(blocks).toHaveCount(before + 1);
   };
   await choose(buyCard, 'RSI 반등 방향', '상승');
