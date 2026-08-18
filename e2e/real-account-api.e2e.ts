@@ -156,15 +156,27 @@ test('browser completes the production account principal and user-case journey',
     await scope.getByRole('combobox', { name: label }).click();
     await page.getByRole('option', { name: option, exact: true }).click();
   };
+  const selectCard = async (card: typeof buyCard, side: '매수' | '매도') => {
+    if (await card.getAttribute('data-selected') !== 'true') {
+      await card.getByRole('group', { name: `${side} 전략 카드 이동 영역` }).press('Enter');
+    }
+    await expect(card).toHaveAttribute('data-selected', 'true');
+  };
+  const addBlock = async (card: typeof buyCard, label: string) => {
+    const blocks = card.locator('.draggable-strategy-block');
+    const before = await blocks.count();
+    await page.getByRole('button', { name: `${label} 블록 추가` }).last().click();
+    await expect(blocks).toHaveCount(before + 1);
+  };
   await choose(buyCard, 'RSI 반등 방향', '상승');
   await buyCard.getByRole('spinbutton', { name: 'RSI 반등 값' }).fill('31');
   await choose(buyCard, '거래량 비교', '초과');
   await choose(buyCard, '거래량 값 선택', '최근 20봉 평균 거래량 2배');
 
-  await buyCard.getByRole('group', { name: '매수 전략 카드 이동 영역' }).press('Enter');
+  await selectCard(buyCard, '매수');
   await page.getByRole('tab', { name: /블록/ }).click();
   for (const label of ['가격 비교', '가격 변화율', '평균선 교차']) {
-    await page.getByRole('button', { name: `${label} 블록 추가` }).click();
+    await addBlock(buyCard, label);
   }
   await choose(buyCard, '가격 비교 비교', '초과');
   await choose(buyCard, '가격 비교 값 선택', '이전 20봉 최고 가격');
@@ -174,11 +186,11 @@ test('browser completes the production account principal and user-case journey',
   await choose(buyCard, '평균선 교차 방향', '상승');
   await choose(buyCard, '평균선 교차 값 선택', '20봉 · 60봉');
 
-  await sellCard.getByRole('group', { name: '매도 전략 카드 이동 영역' }).press('Enter');
+  await selectCard(sellCard, '매도');
   await choose(sellCard, 'RSI 반등 방향', '하락');
   await sellCard.getByRole('spinbutton', { name: 'RSI 반등 값' }).fill('69');
   for (const label of ['현재 수익률', '보유 기간', '최고 수익률', '고점 대비 하락']) {
-    await page.getByRole('button', { name: `${label} 블록 추가` }).click();
+    await addBlock(sellCard, label);
   }
   await choose(sellCard, '현재 수익률 방향', '손실');
   await sellCard.getByRole('spinbutton', { name: '현재 수익률 값' }).fill('4');
