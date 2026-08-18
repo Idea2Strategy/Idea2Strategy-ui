@@ -163,11 +163,11 @@ describe('strategy authoring API client', () => {
       findings: [
         {
           severity: 'INFORMATION', code: 'BACKTEST_FEED_REQUIRED', location: 'groups[0]',
-          message: 'Historical coverage is required', details: ['feed:ADJUSTED_BAR@30m'],
+          message: 'Historical coverage is required', requirements: ['feed:ADJUSTED_BAR@30m'],
         },
         {
           severity: 'BLOCKING_ERROR', code: 'REQUIRED_PARAMETER_MISSING', location: 'groups[0].blocks[0]',
-          message: 'A required parameter is missing', details: [],
+          message: 'A required parameter is missing', requirements: [],
         },
       ],
       completedAt: '2026-08-07T12:00:00Z',
