@@ -273,6 +273,26 @@ describe('customer signup screen', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/login'));
   });
 
+  it('continues directly to login when signup does not require email verification', async () => {
+    const client = accountClient({
+      signup: vi.fn().mockResolvedValue({
+        accountId: 'account-1',
+        verificationRequired: false,
+        verificationExpiresAt: null,
+      }),
+    });
+    window.history.replaceState({}, '', '/signup');
+    render(<App accountClient={client} />);
+
+    await userEvent.type(await screen.findByLabelText('가입 이메일'), 'new@example.com');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호'), 'ValidPass!2026');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'ValidPass!2026');
+    await userEvent.click(screen.getByRole('button', { name: '가입' }));
+
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(await screen.findByRole('status')).toHaveTextContent('가입이 완료되었습니다. 바로 로그인할 수 있습니다.');
+  });
+
   it('resends the verification mail for the account the signup created', async () => {
     const client = accountClient();
     window.history.replaceState({}, '', '/signup');
