@@ -12,6 +12,13 @@ describe('real API Docker resource policy', () => {
     expect(setup).toContain("path.join('..', 'backend')");
     expect(setup).toContain("path.join('..')");
   });
+
+  it('keeps the extracted Flyway verifier independent of optional PowerShell cmdlets', () => {
+    const policy = readFileSync(resolve(process.cwd(), '..', 'scripts', 'test-flyway-ci-bundle.ps1'), 'utf8');
+    const dockerSection = policy.indexOf('$suffix = [guid]');
+    expect(dockerSection).toBeGreaterThan(0);
+    expect(policy.slice(0, dockerSection)).not.toContain('Get-FileHash');
+  });
   it('never reaps another running process and ages stopped resources before recovery', () => {
     expect(shouldReapContainer(true, '2026-08-03T01:00:00Z', now)).toBe(false);
     expect(shouldReapContainer(false, '2026-08-03T03:30:00Z', now)).toBe(false);
