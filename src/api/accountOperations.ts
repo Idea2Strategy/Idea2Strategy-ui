@@ -113,7 +113,7 @@ interface ClientOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
   getAccessToken?: () => string | null;
-  getOperatorAccessToken?: () => string | null;
+  getOperatorCsrfToken?: () => string | null;
   createCorrelationId?: () => string;
 }
 
@@ -142,7 +142,7 @@ export interface AccountOperationsClient {
 }
 
 export function createAccountOperationsClient({
-  baseUrl = '', fetchImpl = fetch, getAccessToken, getOperatorAccessToken,
+  baseUrl = '', fetchImpl = fetch, getAccessToken, getOperatorCsrfToken,
   createCorrelationId = () => crypto.randomUUID(),
 }: ClientOptions = {}): AccountOperationsClient {
   const root = baseUrl.replace(/\/$/, '');
@@ -170,9 +170,9 @@ export function createAccountOperationsClient({
     return response;
   };
   const operatorRequest = (path: string, init: RequestInit = {}, correlationId = createCorrelationId()) => {
-    const token = getOperatorAccessToken?.();
-    if (!token) throw new AccountOperationsApiError(403, 'OPERATOR_CONTEXT_REQUIRED', correlationId);
-    return request(path, init, correlationId, token, 'omit');
+    const csrf = getOperatorCsrfToken?.();
+    return request(path, { ...init, headers: { ...(csrf ? { 'X-Operator-CSRF': csrf } : {}), ...init.headers } },
+      correlationId, null, 'include');
   };
   const commandBody = async (input: Record<string, unknown>, idempotencyKey: string) => {
     const correlationId = createCorrelationId();
@@ -260,13 +260,12 @@ export function createAdminMcpClient(options: ClientOptions = {}): AdminMcpClien
   return {
     async invoke(toolName, input, idempotencyKey, signal) {
       const correlationId = correlation();
-      const token = options.getOperatorAccessToken?.();
-      if (!token) throw new AccountOperationsApiError(403, 'OPERATOR_CONTEXT_REQUIRED', correlationId);
+      const csrf = options.getOperatorCsrfToken?.();
       let response: Response;
       try {
         response = await fetchImpl(`${root}/mcp/v1/tools/${encodeURIComponent(toolName)}:invoke`, {
           method: 'POST', signal, credentials: 'include',
-          headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey, 'X-Correlation-Id': correlationId, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey, 'X-Correlation-Id': correlationId, ...(csrf ? { 'X-Operator-CSRF': csrf } : {}) },
           body: JSON.stringify({ ...input, targetVersion: input.targetVersion ?? null }),
         });
       } catch {

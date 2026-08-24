@@ -64,28 +64,27 @@ export interface OperatorRbacClient {
 interface ClientOptions {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
-  getOperatorAccessToken?: () => string | null;
+  getOperatorCsrfToken?: () => string | null;
   createCorrelationId?: () => string;
 }
 
 export function createOperatorRbacClient({
-  baseUrl = '', fetchImpl = fetch, getOperatorAccessToken,
+  baseUrl = '', fetchImpl = fetch, getOperatorCsrfToken,
   createCorrelationId = () => crypto.randomUUID(),
 }: ClientOptions = {}): OperatorRbacClient {
   const root = baseUrl.replace(/\/$/, '');
   const request = async (path: string, signal?: AbortSignal) => {
     const correlationId = createCorrelationId();
-    const token = getOperatorAccessToken?.();
-    if (!token) throw new OperatorRbacApiError(401, 'OPERATOR_AUTHENTICATION_REQUIRED', correlationId);
+    const csrf = getOperatorCsrfToken?.();
     let response: Response;
     try {
       response = await fetchImpl(`${root}${path}`, {
         signal,
-        credentials: 'omit',
+        credentials: 'include',
         headers: {
           Accept: 'application/json',
           'X-Correlation-Id': correlationId,
-          Authorization: `Bearer ${token}`,
+          ...(csrf ? { 'X-Operator-CSRF': csrf } : {}),
         },
       });
     } catch {

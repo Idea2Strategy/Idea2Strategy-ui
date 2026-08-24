@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from 'vitest';
+﻿import { describe, expect, test, vi } from 'vitest';
 import { CompetitionApiError, createCompetitionRoomsClient } from './competitionRooms';
 
 const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
@@ -105,7 +105,7 @@ describe('competition rooms API client', () => {
       if (url === `/api/v1/operations/competition/rooms/${room.id}`) return jsonResponse({ room: { roomId: room.id, name: room.name, competitionType: 'LIVE_PAPER', accessType: 'PUBLIC', status: 'RECRUITING', createdAt: occurredAt, evaluationStartsAt: occurredAt, evaluationEndsAt: occurredAt, endedAt: null, invalidatedAt: null, invalidationReasonCode: null, scoringTemplateVersionId: 'score-1', rulesHash: 'hash' }, roomEvents: [], participationEvents: [], finalResult: null });
       return jsonResponse({ roomId: room.id, participationsTerminated: 1, occurredAt });
     });
-    const client = createCompetitionRoomsClient({ fetchImpl, getAccessToken: () => 'user-token', getOperatorAccessToken: () => 'operator-token' });
+    const client = createCompetitionRoomsClient({ fetchImpl, getAccessToken: () => 'user-token', getOperatorCsrfToken: () => 'operator-token' });
 
     await client.strategyReleaseInputs();
     await client.ownedRooms(25);
@@ -136,6 +136,6 @@ describe('competition rooms API client', () => {
       `/api/v1/operations/competition/rooms/${room.id}/cancellation`,
       `/api/v1/operations/competition/rooms/${room.id}/invalidation`,
     ]);
-    expect(fetchImpl.mock.calls.slice(-4).every(([, init]) => (init?.headers as Record<string, string>).Authorization === 'Bearer operator-token')).toBe(true);
+    expect(fetchImpl.mock.calls.slice(-4).every(([, init]) => (init?.headers as Record<string, string>)['X-Operator-CSRF'] === 'operator-token')).toBe(true);
   });
 });
