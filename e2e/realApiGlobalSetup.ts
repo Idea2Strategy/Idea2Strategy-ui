@@ -58,8 +58,6 @@ export default async function globalSetup(): Promise<() => void> {
     if (cleaning) return;
     cleaning = true;
     const failures: string[] = [];
-    delete process.env.A23_POSTGRES_CONTAINER;
-    delete process.env.A23_VERIFICATION_HMAC_KEY;
     for (const container of ownedContainers) {
       try {
         if (resourceExists('container', container)) docker('rm', '-f', container);
@@ -123,8 +121,6 @@ export default async function globalSetup(): Promise<() => void> {
       '--project-cache-dir', '/tmp/a23-project-cache');
     ownedContainers.add(backend);
     await waitForBackend(backend);
-    process.env.A23_POSTGRES_CONTAINER = postgres;
-    process.env.A23_VERIFICATION_HMAC_KEY = verificationHmacKey;
     started = true;
   } finally {
     if (!started) cleanup(true);

@@ -1,14 +1,8 @@
-import { execFileSync } from 'node:child_process';
-import { createHmac } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 
 test('browser completes the production account principal and user-case journey', async ({ page }) => {
-  const postgres = process.env.A23_POSTGRES_CONTAINER;
-  const verificationKey = process.env.A23_VERIFICATION_HMAC_KEY;
-  if (!postgres || !verificationKey) throw new Error('real API runtime state is unavailable');
   const email = `a23-browser-${Date.now()}@example.com`;
   const password = 'CorrectHorse!2026';
-  const verificationToken = `a23-verification-${Date.now()}`;
 
   // Logged out, the account route goes straight to the sign-in screen.
   await page.goto('/account');
@@ -26,19 +20,9 @@ test('browser completes the production account principal and user-case journey',
     page.getByRole('button', { name: '가입', exact: true }).click(),
   ]);
   expect(signup.status()).toBe(202);
-  const accountId = String((await signup.json()).accountId);
-
-  const digest = createHmac('sha256', Buffer.from(verificationKey, 'base64'))
-    .update(verificationToken).digest('base64url');
-  execFileSync('docker', ['exec', postgres, 'psql', '-U', 'postgres', '-d', 'a23',
-    '-v', 'ON_ERROR_STOP=1', '-c',
-    `update identity.email_verification_requests set token_digest='${digest}' where account_id='${accountId}' and consumed_at is null and revoked_at is null`]);
-
-  await expect(page.getByRole('status')).toContainText('인증 링크를 이메일로 보냈습니다.');
-  await expect(page.getByLabel('가입 인증 코드')).toHaveCount(0);
-  await page.goto(`/api/v1/auth/verify-email?token=${encodeURIComponent(verificationToken)}`);
-  await expect(page).toHaveURL(/\/login\?emailVerified=true$/);
-  await expect(page.getByRole('status')).toContainText('이메일 인증이 완료되었습니다. 로그인해 주세요.');
+  expect(await signup.json()).toMatchObject({ verificationRequired: false, verificationExpiresAt: null });
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('status')).toContainText('가입이 완료되었습니다. 바로 로그인할 수 있습니다.');
 
   // Wrong password first: the screen reports the API's code and stays put.
   await page.getByLabel('로그인 이메일').fill(email);
@@ -49,7 +33,7 @@ test('browser completes the production account principal and user-case journey',
   ]);
   expect(rejectedLogin.status()).toBe(401);
   await expect(page.getByRole('alert')).toBeVisible();
-  await expect(page).toHaveURL(/\/login\?emailVerified=true$/);
+  await expect(page).toHaveURL(/\/login$/);
 
   await page.getByLabel('로그인 비밀번호', { exact: true }).fill(password);
   const preferencesLoaded = page.waitForResponse((response) =>
