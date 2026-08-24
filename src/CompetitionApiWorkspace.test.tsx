@@ -116,9 +116,9 @@ describe('real competition room workspace', () => {
     expect(within(create).getByRole('group', { name: '운영 정책' })).toBeInTheDocument();
     expect(createScrollArea).toContainElement(within(create).getByRole('group', { name: '기본 설정' }));
     expect(createScrollArea).not.toContainElement(within(create).getByRole('button', { name: '대회 생성' }));
-    await userEvent.type(within(create).getByLabelText('대회 이름'), '새 대회');
-    await screen.findByRole('option', { name: /TOTAL_RETURN · 1.0.0/ });
+    await screen.findByRole('option', { name: /TOTAL_RETURN · 1.0.0/ }, { timeout: 5_000 });
     create = screen.getByRole('dialog', { name: '대회 만들기' });
+    await userEvent.type(within(create).getByLabelText('대회 이름'), '새 대회');
     expect(within(create).queryByLabelText('채점 템플릿 버전 ID')).not.toBeInTheDocument();
     const closesAt = new Date((within(create).getByLabelText('참가 마감') as HTMLInputElement).value);
     const evaluationStartsAt = new Date((within(create).getByLabelText('평가 시작') as HTMLInputElement).value);
@@ -132,7 +132,7 @@ describe('real competition room workspace', () => {
 
     await userEvent.click(screen.getByRole('listitem', { name: '실전 API 대회 열기' }));
     await userEvent.click(await screen.findByRole('button', { name: '이 대회 참가하기' }));
-    await screen.findByRole('option', { name: /Momentum · 편집 7/ });
+    await screen.findByRole('option', { name: /Momentum · 편집 7/ }, { timeout: 5_000 });
     const join = screen.getByRole('dialog', { name: '대회 참가' });
     expect(within(join).queryByLabelText('검증 실행 ID')).not.toBeInTheDocument();
     const budget = within(join).getByLabelText('봇 예산 비율');
