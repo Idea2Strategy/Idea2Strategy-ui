@@ -14,7 +14,9 @@ export default defineConfig({
   retries: 0,
   reporter: [['list']],
   globalSetup: './e2e/realApiGlobalSetup.ts',
-  timeout: 120_000,
+  // This is a production-shaped account journey followed by a full composite
+  // strategy authoring pass, not a single-page smoke test.
+  timeout: 300_000,
   expect: { timeout: 15_000 },
   use: {
     baseURL: `http://127.0.0.1:${appPort}`,

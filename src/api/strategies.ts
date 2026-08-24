@@ -59,7 +59,7 @@ export interface StrategyValidationFinding {
   code: string;
   location: string;
   message: string;
-  details: string[];
+  requirements: string[];
 }
 
 export interface StrategyValidationResult {
@@ -418,16 +418,18 @@ function readValidation(value: unknown): StrategyValidationResult {
     findings: result.findings.map((value) => {
       const finding = object(value, 'Invalid strategy validation finding');
       const severity = string(finding.severity, 'severity');
-      if (severity !== 'ERROR' && severity !== 'WARNING') throw new Error(`Unsupported finding severity: ${severity}`);
-      if (!Array.isArray(finding.details) || !finding.details.every((detail) => typeof detail === 'string')) {
-        throw new Error('Invalid strategy validation finding details');
+      if (!['BLOCKING_ERROR', 'ERROR', 'WARNING', 'INFORMATION'].includes(severity)) {
+        throw new Error(`Unsupported finding severity: ${severity}`);
+      }
+      if (!Array.isArray(finding.requirements) || !finding.requirements.every((requirement) => typeof requirement === 'string')) {
+        throw new Error('Invalid strategy validation finding requirements');
       }
       return {
-        severity,
+        severity: severity as StrategyValidationFinding['severity'],
         code: string(finding.code, 'code'),
         location: string(finding.location, 'location'),
         message: string(finding.message, 'message'),
-        details: finding.details as string[],
+        requirements: finding.requirements as string[],
       };
     }),
     completedAt: string(result.completedAt, 'completedAt'),
