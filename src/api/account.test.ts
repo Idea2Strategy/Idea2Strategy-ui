@@ -2,6 +2,22 @@ import { describe, expect, it, vi } from 'vitest';
 import { AccountApiError, createAccountClient } from './account';
 
 describe('account API client', () => {
+  it('accepts the immediate-signup contract without requiring email delivery', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      accountId: 'account-1',
+      verificationRequired: false,
+      verificationExpiresAt: null,
+    }), { status: 201 }));
+
+    const client = createAccountClient({ fetchImpl });
+
+    await expect(client.signup('new@example.com', 'StrongPass!2026')).resolves.toEqual({
+      accountId: 'account-1',
+      verificationRequired: false,
+      verificationExpiresAt: null,
+    });
+  });
+
   it('stores the one-time login token and sends correlation evidence', async () => {
     const setAccessToken = vi.fn();
     const signIn = vi.fn();
