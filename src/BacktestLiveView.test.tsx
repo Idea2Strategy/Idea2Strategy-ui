@@ -535,7 +535,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     await openResultTab(user, '거래 내역');
 
     expect(await screen.findByText('2026년 8월 원본 거래 증거를 검증하는 중입니다.')).toBeInTheDocument();
-    expect(screen.getByText('전체 기간이 길면 최대 20초 정도 걸릴 수 있습니다.')).toBeInTheDocument();
+    expect(screen.getByText('전체 기간이 길면 시간이 더 걸릴 수 있습니다.')).toBeInTheDocument();
   });
 
   it('polls an active run until the server reports a terminal state', async () => {

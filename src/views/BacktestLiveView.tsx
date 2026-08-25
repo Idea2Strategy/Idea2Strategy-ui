@@ -1111,7 +1111,7 @@ function MonthlyTrades({
   if (trades === null) {
     return <div className="backtest-live-trade-loading" role="status" aria-live="polite">
       <LoadingState label={`${monthLabel(etYearMonth)} 원본 거래 증거를 검증하는 중입니다.`} />
-      <p>전체 기간이 길면 최대 20초 정도 걸릴 수 있습니다.</p>
+      <p>전체 기간이 길면 시간이 더 걸릴 수 있습니다.</p>
     </div>;
   }
   if (trades.length === 0) {
