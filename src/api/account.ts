@@ -60,7 +60,11 @@ interface AccountClientOptions {
 }
 
 export interface AccountClient {
-  signup(email: string, password: string, signal?: AbortSignal): Promise<{ accountId: string; verificationExpiresAt: string }>;
+  signup(email: string, password: string, signal?: AbortSignal): Promise<{
+    accountId: string;
+    verificationRequired: boolean;
+    verificationExpiresAt: string | null;
+  }>;
   verifyEmail(verificationToken: string, signal?: AbortSignal): Promise<void>;
   resendVerification(accountId: string, signal?: AbortSignal): Promise<{ verificationRequired: boolean; verificationExpiresAt: string }>;
   login(email: string, password: string, signal?: AbortSignal): Promise<LoginResult>;
@@ -178,9 +182,11 @@ export function createAccountClient({
       const value = object(await (await request('/api/v1/auth/signup', {
         method: 'POST', signal, body: JSON.stringify({ email, password }),
       })).json());
+      if (typeof value.verificationRequired !== 'boolean') throw new Error('Invalid verificationRequired');
       return {
         accountId: string(value.accountId, 'accountId'),
-        verificationExpiresAt: string(value.verificationExpiresAt, 'verificationExpiresAt'),
+        verificationRequired: value.verificationRequired,
+        verificationExpiresAt: nullableString(value.verificationExpiresAt),
       };
     },
     async verifyEmail(verificationToken, signal) {

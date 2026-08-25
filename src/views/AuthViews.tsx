@@ -119,7 +119,11 @@ const passwordError = (password: string) => {
 export function LoginView({ client }: AuthScreenProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const routeState = location.state as { returnTo?: string; passwordResetComplete?: boolean } | null;
+  const routeState = location.state as {
+    returnTo?: string;
+    passwordResetComplete?: boolean;
+    signupComplete?: boolean;
+  } | null;
   const returnTo = routeState?.returnTo ?? pagePaths.account;
   const emailVerified = new URLSearchParams(location.search).get('emailVerified') === 'true';
   const [email, setEmail] = useState('');
@@ -154,6 +158,7 @@ export function LoginView({ client }: AuthScreenProps) {
         <h1 id="auth-title">로그인</h1>
       </header>
       {emailVerified && <p role="status" className="auth-success">이메일 인증이 완료되었습니다. 로그인해 주세요.</p>}
+      {routeState?.signupComplete && <p role="status" className="auth-success">가입이 완료되었습니다. 바로 로그인할 수 있습니다.</p>}
       {routeState?.passwordResetComplete && <p role="status" className="auth-success">비밀번호가 변경되었습니다. 새 비밀번호로 로그인해 주세요.</p>}
       <form className="auth-form" noValidate onSubmit={(event) => { event.preventDefault(); void submit(); }}>
         <label><span>이메일</span><input aria-label="로그인 이메일" type="email" autoComplete="email" aria-describedby={currentEmailError ? 'login-email-help' : undefined} aria-invalid={Boolean(currentEmailError || credentialsRejected)} value={email} onChange={(event) => { setEmail(event.target.value); setFailure(null); }} /></label>
@@ -326,6 +331,14 @@ export function SignupView({ client }: AuthScreenProps) {
           if (emailError(email) || passwordError(password) || !passwordConfirm || !passwordsMatch || pending) return;
           void run(async () => {
             const result = await client.signup(email, password);
+            if (!result.verificationRequired) {
+              navigate('/login', {
+                replace: true,
+                state: { ...(returnTo ? { returnTo } : {}), signupComplete: true },
+              });
+              return;
+            }
+            if (!result.verificationExpiresAt) throw new Error('Missing verification expiry');
             setStep({ kind: 'verify', accountId: result.accountId, email: email.trim(), verificationExpiresAt: result.verificationExpiresAt });
           });
         }}>

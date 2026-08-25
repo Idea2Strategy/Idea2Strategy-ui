@@ -371,6 +371,55 @@ describe('Basic editor interactions', () => {
     expect(screen.getByRole('status')).toHaveTextContent('매도 전략 카드에서만 사용할 수 있어요');
   });
 
+  test('enforces the published condition and per-side card limits before save', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    const library = screen.getByTestId('basic-block-library');
+
+    for (let index = 0; index < 4; index += 1) {
+      await user.click(within(library).getByRole('button', { name: '가격 비교 블록 추가' }));
+    }
+    expect(screen.getByTestId('basic-buy-stack').querySelectorAll('.draggable-strategy-block')).toHaveLength(5);
+    await user.click(within(library).getByRole('button', { name: '가격 비교 블록 추가' }));
+    expect(screen.getByTestId('basic-buy-stack').querySelectorAll('.draggable-strategy-block')).toHaveLength(5);
+    expect(screen.getByRole('status')).toHaveTextContent('조건 블록을 최대 5개');
+
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 매수 전략 추가' }));
+    expect(screen.getByRole('article', { name: 'PARTITION 01' }).querySelectorAll('.buy-container')).toHaveLength(1);
+    expect(screen.getByRole('status')).toHaveTextContent('매수 전략 카드를 하나만');
+  });
+
+  test('explains an empty official instrument catalog instead of claiming every symbol was added', async () => {
+    const catalogClient = {
+      getBasic: vi.fn().mockResolvedValue({
+        version: {
+          id: '0f4a0000-0000-4000-8000-000000000001', languageVersion: 'basic/v1',
+          schemaVersion: 'basic-document/v1', catalogVersion: 'basic-elements:2026-08-08',
+          dataRequirementVersion: 'basic-data/v1', definitionHash: 'a'.repeat(64),
+          publishedAt: '2026-08-08T00:00:00Z', retiredAt: null,
+        },
+        elements: [
+          'BASIC_PRICE_COMPARE', 'BASIC_PRICE_CHANGE_PERCENT', 'BASIC_VOLUME_COMPARE', 'BASIC_STREAK',
+          'BASIC_SMA_CROSS', 'BASIC_RSI_CROSS', 'BASIC_MACD_CROSS', 'BASIC_BOLLINGER_REVERSAL',
+          'BASIC_POSITION_RETURN', 'BASIC_HOLDING_PERIOD', 'BASIC_PEAK_RETURN', 'BASIC_DRAWDOWN_FROM_PEAK',
+          'BASIC_SCHEDULE', 'BASIC_EQUAL_ALLOCATION_ORDER',
+        ].map((elementCode, index) => ({
+          id: `element-${index}`, catalogId: '0f4a0000-0000-4000-8000-000000000001', elementCode,
+          elementKind: 'CONDITION', parameterSchema: {}, inputPortSchema: {}, outputPortSchema: {},
+          executionContract: {}, definitionHash: 'b'.repeat(64),
+        })),
+        features: [], instruments: [],
+      }),
+    };
+    const user = userEvent.setup();
+    render(<BasicEditor goBack={() => {}} blank catalogClient={catalogClient} />);
+
+    await user.click(await screen.findByRole('button', { name: 'PARTITION 01 종목 관리' }));
+    const dialog = screen.getByRole('dialog', { name: 'PARTITION 1 종목 관리' });
+    expect(within(dialog).getByRole('status')).toHaveTextContent('현재 서버에 등록된 지원 종목이 없습니다');
+    expect(within(dialog).getByRole('button', { name: '종목 추가' })).toBeDisabled();
+  });
+
   test('offers only the four Basic bar periods and starts on 30분봉', () => {
     renderEditor();
     const barPeriod = screen.getByRole('combobox', { name: 'PARTITION 01 기본 봉 주기' });
@@ -436,6 +485,26 @@ describe('Basic editor interactions', () => {
     expect(within(drawer).getByRole('region', { name: 'PARTITION 01 오류' })).toBeInTheDocument();
     expect(within(drawer).getByRole('region', { name: 'PARTITION 01 오류' }).querySelector('li button > span:nth-child(2) strong')).toBeInTheDocument();
     expect(screen.getByTestId('basic-editor-workspace')).toHaveClass('is-validation-highlighting');
+  });
+
+  test('edits an executable position cap and focuses its exact invalid field from validation', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 종목 관리' }));
+    const cap = screen.getByRole('spinbutton', { name: 'AAPL 종목별 최대 보유 비율' });
+    expect(cap).toBeEnabled();
+    await user.clear(cap);
+    expect(cap).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('alert')).toHaveTextContent('0보다 크고 100 이하');
+    await user.click(screen.getByRole('button', { name: '완료' }));
+
+    await user.click(screen.getByRole('button', { name: '미완성 오류 강조' }));
+    const drawer = screen.getByRole('complementary', { name: '전략 오류 안내' });
+    await user.click(within(drawer).getByRole('button', { name: /AAPL 최대 보유 비율/ }));
+
+    const focusedCap = await screen.findByRole('spinbutton', { name: 'AAPL 종목별 최대 보유 비율' });
+    expect(focusedCap).toHaveFocus();
   });
 
   test('allows a complete strategy to launch after block fields and sell percentage are set', async () => {

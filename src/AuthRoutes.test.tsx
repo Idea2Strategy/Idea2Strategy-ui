@@ -247,7 +247,7 @@ describe('customer signup screen', () => {
     expect(confirmation).toHaveAttribute('type', 'text');
   });
 
-  it('continues directly to login when signup does not require email verification', async () => {
+  it('continues directly to login after signup when verification is not required', async () => {
     const client = accountClient();
     window.history.replaceState({}, '', '/signup');
     render(<App accountClient={client} />);
@@ -255,17 +255,58 @@ describe('customer signup screen', () => {
     const signupEmail = await screen.findByLabelText('가입 이메일');
     expect(within(signupEmail.closest('.auth-panel')!).getByRole('img', { name: 'Idea2Strategy' })).toBeInTheDocument();
     expect(screen.queryByText('ACCOUNT / SIGN UP')).not.toBeInTheDocument();
-    expect(screen.queryByText(/이메일 인증/u)).not.toBeInTheDocument();
+    expect(screen.queryByText('가입 후 이메일로 받은 인증 토큰을 입력해야 로그인할 수 있습니다.')).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('가입 이메일'), 'new@example.com');
     await userEvent.type(screen.getByLabelText('가입 비밀번호'), 'StrongPass!2026');
     await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'StrongPass!2026');
     await userEvent.click(screen.getByRole('button', { name: '가입' }));
     expect(client.signup).toHaveBeenCalledWith('new@example.com', 'StrongPass!2026');
 
-    await waitFor(() => expect(window.location.pathname).toBe('/login'));
-    expect(await screen.findByRole('status')).toHaveTextContent('가입이 완료되었습니다. 로그인해 주세요.');
-    expect(screen.queryByRole('button', { name: '인증 메일 다시 보내기' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('status')).toHaveTextContent('가입이 완료되었습니다. 바로 로그인할 수 있습니다.');
     expect(client.verifyEmail).not.toHaveBeenCalled();
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+  });
+
+  it('continues directly to login when signup does not require email verification', async () => {
+    const client = accountClient({
+      signup: vi.fn().mockResolvedValue({
+        accountId: 'account-1',
+        verificationRequired: false,
+        verificationExpiresAt: null,
+      }),
+    });
+    window.history.replaceState({}, '', '/signup');
+    render(<App accountClient={client} />);
+
+    await userEvent.type(await screen.findByLabelText('가입 이메일'), 'new@example.com');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호'), 'ValidPass!2026');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'ValidPass!2026');
+    await userEvent.click(screen.getByRole('button', { name: '가입' }));
+
+    await waitFor(() => expect(window.location.pathname).toBe('/login'));
+    expect(await screen.findByRole('status')).toHaveTextContent('가입이 완료되었습니다. 바로 로그인할 수 있습니다.');
+  });
+
+  it('resends the verification mail for the account the signup created', async () => {
+    const client = accountClient({
+      signup: vi.fn().mockResolvedValue({
+        accountId: 'account-1',
+        verificationRequired: true,
+        verificationExpiresAt: '2026-08-06T00:00:00Z',
+      }),
+    });
+    window.history.replaceState({}, '', '/signup');
+    render(<App accountClient={client} />);
+
+    await screen.findByLabelText('가입 이메일');
+    await userEvent.type(screen.getByLabelText('가입 이메일'), 'new@example.com');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호'), 'StrongPass!2026');
+    await userEvent.type(screen.getByLabelText('가입 비밀번호 확인'), 'StrongPass!2026');
+    await userEvent.click(screen.getByRole('button', { name: '가입' }));
+
+    await userEvent.click(await screen.findByRole('button', { name: '인증 메일 다시 보내기' }));
+    expect(client.resendVerification).toHaveBeenCalledWith('account-1');
+    expect(await screen.findByText(/인증 메일을 다시 보냈습니다\./)).toBeInTheDocument();
   });
 
   it('refuses to submit while the two passwords differ', async () => {

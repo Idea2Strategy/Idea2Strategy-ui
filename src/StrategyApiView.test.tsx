@@ -527,10 +527,10 @@ describe('Strategy API view', () => {
     expect(savedInput.semanticDocument).toMatchObject({
       mode: 'BASIC', catalogId,
       groups: [expect.objectContaining({
-        id: 'buy-card', container: 'BUY', instrumentIds: ['aapl-id'],
+        id: 'buy-card:aapl-id', allocationGroupId: 'buy-card', container: 'BUY', instrumentIds: ['aapl-id'],
         blocks: [
           expect.objectContaining({ elementCode: 'BASIC_RSI_CROSS', parameters: { resolution: '30m', direction: 'DOWN', period: '14', threshold: '31' } }),
-          expect.objectContaining({ elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER' }),
+          expect.objectContaining({ elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: expect.objectContaining({ maxPositionPercent: '100' }) }),
         ],
       })],
     });

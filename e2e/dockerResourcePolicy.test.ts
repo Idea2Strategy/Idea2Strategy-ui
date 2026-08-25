@@ -12,6 +12,7 @@ describe('real API Docker resource policy', () => {
     expect(setup).toContain("path.join('..', 'backend')");
     expect(setup).toContain("path.join('..')");
   });
+
   it('never reaps another running process and ages stopped resources before recovery', () => {
     expect(shouldReapContainer(true, '2026-08-03T01:00:00Z', now)).toBe(false);
     expect(shouldReapContainer(false, '2026-08-03T03:30:00Z', now)).toBe(false);

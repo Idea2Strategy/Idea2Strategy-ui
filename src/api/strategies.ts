@@ -59,7 +59,7 @@ export interface StrategyValidationFinding {
   code: string;
   location: string;
   message: string;
-  details: string[];
+  requirements: string[];
 }
 
 export interface StrategyValidationResult {
@@ -130,7 +130,7 @@ export interface StrategyAuthoringClient {
   previewValidation?(strategyId: string, input: PreviewStrategyValidationInput, signal?: AbortSignal): Promise<StrategyValidationResult>;
   getCurrentValidations?(signal?: AbortSignal): Promise<CurrentStrategyValidation[]>;
   validateStrategy(strategyId: string, catalogId: string, signal?: AbortSignal): Promise<StrategyValidationResult>;
-  releaseStrategy(strategyId: string, input: ReleaseStrategyInput, signal?: AbortSignal): Promise<{ botId: string; backtestLane: string }>;
+  releaseStrategy(strategyId: string, input: ReleaseStrategyInput, signal?: AbortSignal): Promise<{ releaseId: string; botId: string; backtestLane: string }>;
 }
 
 export interface BasicCatalogInstrument {
@@ -327,7 +327,11 @@ export function createStrategyAuthoringClient({
         { method: 'POST', signal, body: JSON.stringify(input) },
       );
       const result = object(await response.json(), 'Invalid strategy release response');
-      return { botId: string(result.botId, 'botId'), backtestLane: string(result.backtestLane, 'backtestLane') };
+      return {
+        releaseId: string(result.releaseId, 'releaseId'),
+        botId: string(result.botId, 'botId'),
+        backtestLane: string(result.backtestLane, 'backtestLane'),
+      };
     },
   };
 }
@@ -418,16 +422,18 @@ function readValidation(value: unknown): StrategyValidationResult {
     findings: result.findings.map((value) => {
       const finding = object(value, 'Invalid strategy validation finding');
       const severity = string(finding.severity, 'severity');
-      if (severity !== 'ERROR' && severity !== 'WARNING') throw new Error(`Unsupported finding severity: ${severity}`);
-      if (!Array.isArray(finding.details) || !finding.details.every((detail) => typeof detail === 'string')) {
-        throw new Error('Invalid strategy validation finding details');
+      if (!['BLOCKING_ERROR', 'ERROR', 'WARNING', 'INFORMATION'].includes(severity)) {
+        throw new Error(`Unsupported finding severity: ${severity}`);
+      }
+      if (!Array.isArray(finding.requirements) || !finding.requirements.every((requirement) => typeof requirement === 'string')) {
+        throw new Error('Invalid strategy validation finding requirements');
       }
       return {
-        severity,
+        severity: severity as StrategyValidationFinding['severity'],
         code: string(finding.code, 'code'),
         location: string(finding.location, 'location'),
         message: string(finding.message, 'message'),
-        details: finding.details as string[],
+        requirements: finding.requirements as string[],
       };
     }),
     completedAt: string(result.completedAt, 'completedAt'),

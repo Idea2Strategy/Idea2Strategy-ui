@@ -20,11 +20,13 @@ import { splitPartitionSymbols } from '../lib/strategyPreview';
 import type { PreviewBlock, PreviewCandle, PreviewFlow } from '../lib/strategyPreview';
 import { StrategyPreviewChart } from '../components/StrategyPreviewChart';
 import { defaultMarketDataClient, MarketDataRequestError } from '../api/marketData';
-import type { MarketBarPreviewSnapshot, MarketDataClient, MarketTimeframe } from '../api/marketData';
+import type { MarketBarPreviewSnapshot, MarketDataClient } from '../api/marketData';
 import { Localized } from '../lib/i18n';
 import { browserSessionStore } from '../lib/session';
 import { setSessionAccessToken } from '../api/sessionAccessToken';
 import { PRO_EDITOR_AVAILABLE } from '../lib/proEditorAccess';
+import { BASIC_EXECUTABLE_ELEMENT_CODES, buildBasicSemanticDocument, resolutionCode, validateMaxPositionPercent } from '../lib/basicStrategyDocument';
+export { buildBasicSemanticDocument } from '../lib/basicStrategyDocument';
 import {
   getBasicSectionLayout,
   getDefaultBasicCardPosition,
@@ -200,7 +202,7 @@ interface BasicEditorSnapshot {
   cardMeta: Record<string, CardMeta>;
   buySettings: Record<string, BuyContainerSettings>;
   sellSettings: Record<string, SellContainerSettings>;
-  symbolLimits: Record<string, Record<string, number>>;
+  symbolLimits: Record<string, Record<string, number | string>>;
 }
 
 const cloneBasicEditorSnapshot = (snapshot: BasicEditorSnapshot): BasicEditorSnapshot => ({
@@ -252,6 +254,7 @@ interface ValidationIssue {
   id: string;
   sectionId: string | null;
   cardId: string | null;
+  symbol?: string;
   message: string;
 }
 
@@ -647,6 +650,12 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
 const NULL_BLOCK_VALUE = '';
 const UNSET_SELECT_LABEL = '선택';
 const UNSET_NUMBER_PLACEHOLDER = '입력';
+export const BASIC_COMPOSITION_LIMITS = {
+  sections: 4,
+  conditionsPerCard: 5,
+  instrumentsPerSection: 5,
+  cardsPerSidePerSection: 1,
+} as const;
 
 const INITIAL_BASIC_BLOCKS: Record<Side, BasicBlock[]> = {
   buy: [
@@ -800,48 +809,7 @@ const serializeBasicEditorSnapshot = (snapshot: BasicEditorSnapshot): Record<str
   JSON.parse(JSON.stringify(snapshot)) as Record<string, unknown>
 );
 
-const BASIC_EDITOR_ELEMENT_CODES = new Set([
-  'BASIC_PRICE_COMPARE',
-  'BASIC_PRICE_CHANGE_PERCENT',
-  'BASIC_VOLUME_COMPARE',
-  'BASIC_STREAK',
-  'BASIC_SMA_CROSS',
-  'BASIC_RSI_CROSS',
-  'BASIC_MACD_CROSS',
-  'BASIC_BOLLINGER_REVERSAL',
-  'BASIC_POSITION_RETURN',
-  'BASIC_HOLDING_PERIOD',
-  'BASIC_PEAK_RETURN',
-  'BASIC_DRAWDOWN_FROM_PEAK',
-  'BASIC_SCHEDULE',
-  'BASIC_EQUAL_ALLOCATION_ORDER',
-]);
-
-const basicCompareOperator = (operator: string | undefined): string => {
-  if (operator === '>' || operator === '↑') return 'GT';
-  if (operator === '≥') return 'GTE';
-  if (operator === '=') return 'EQ';
-  return 'LT';
-};
-
-const basicDirection = (operator: string | undefined): string => (
-  operator === '↑' || operator === '상승' || operator === '수익' ? 'UP' : 'DOWN'
-);
-
-const numericParameter = (value: string | undefined): string => String(value ?? '').replace('%', '').trim();
-
-const firstNumber = (value: string | undefined, fallback = 0): number => {
-  const match = String(value ?? '').match(/\d+/);
-  return match ? Number(match[0]) : fallback;
-};
-
-const allNumbers = (value: string | undefined): number[] => (
-  [...String(value ?? '').matchAll(/\d+/g)].map((match) => Number(match[0]))
-);
-
-const resolutionCode = (timeframe: string): MarketTimeframe => ({
-  '30분봉': '30m', '1시간봉': '1h', '4시간봉': '4h', '일봉': '1d',
-}[timeframe] as MarketTimeframe | undefined) ?? '30m';
+const BASIC_EDITOR_ELEMENT_CODES = new Set(BASIC_EXECUTABLE_ELEMENT_CODES);
 
 const formatPreviewInstant = (value: string | null | undefined): string => {
   if (!value) return '알 수 없음';
@@ -871,38 +839,6 @@ const previewFailureMessage = (error: unknown): string => {
   return '알 수 없는 오류로 실제 시장 데이터를 불러오지 못했습니다.';
 };
 
-const priceReferenceCode = (value: string | undefined): string => {
-  const exact: Record<string, string> = {
-    '전일 종가': 'PREVIOUS_CLOSE',
-    '당일 장 시작가': 'SESSION_OPEN',
-    '평균 진입가': 'AVERAGE_ENTRY_PRICE',
-  };
-  if (value && exact[value]) return exact[value];
-  const period = firstNumber(value);
-  if (value?.includes('평균 가격')) return `SMA_${period}`;
-  if (value?.includes('최고 가격')) return `HIGH_${period}`;
-  if (value?.includes('최저 가격')) return `LOW_${period}`;
-  return '';
-};
-
-const volumeReference = (value: string | undefined): { reference: string; period: string; multiplier: string } => {
-  if (value === '이전 봉 거래량') return { reference: 'PREVIOUS_VOLUME', period: '1', multiplier: '1' };
-  const numbers = allNumbers(value);
-  return {
-    reference: 'AVERAGE_VOLUME',
-    period: String(numbers[0] ?? 0),
-    multiplier: String(numbers[1] ?? 1),
-  };
-};
-
-const scheduleCycleCode = (cycle: BuyCycle): string => ({
-  '매 거래일': 'EVERY_TRADING_DAY',
-  '매주 첫 거래일': 'WEEK_FIRST_TRADING_DAY',
-  '매월 첫 거래일': 'MONTH_FIRST_TRADING_DAY',
-  '매월 마지막 거래일': 'MONTH_LAST_TRADING_DAY',
-  'N거래일마다': 'EVERY_N_TRADING_DAYS',
-}[cycle]);
-
 const fixedScaleUsdAmount = (value: string): string | null => {
   const match = /^(0|[1-9][0-9]{0,15})(?:\.([0-9]{1,8}))?$/.exec(value.trim());
   if (!match) return null;
@@ -910,115 +846,6 @@ const fixedScaleUsdAmount = (value: string): string | null => {
   if (match[1] === '0' && /^0{8}$/.test(fraction)) return null;
   return `${match[1]}.${fraction}`;
 };
-
-const blockElement = (block: BasicBlock, resolution: string): { elementCode: string; parameters: Record<string, unknown> } => {
-  const common = { resolution };
-  switch (block.label) {
-    case '가격 비교':
-      return { elementCode: 'BASIC_PRICE_COMPARE', parameters: { ...common, operator: basicCompareOperator(block.op), reference: priceReferenceCode(block.value) } };
-    case '가격 변화율':
-      return { elementCode: 'BASIC_PRICE_CHANGE_PERCENT', parameters: { ...common, base: priceReferenceCode(block.base), direction: basicDirection(block.op), thresholdPercent: numericParameter(block.value) } };
-    case '거래량': {
-      const reference = volumeReference(block.value);
-      return { elementCode: 'BASIC_VOLUME_COMPARE', parameters: { ...common, operator: basicCompareOperator(block.op), ...reference } };
-    }
-    case '연속 상승·하락':
-      return { elementCode: 'BASIC_STREAK', parameters: { ...common, direction: basicDirection(block.op), bars: String(firstNumber(block.value)) } };
-    case '평균선 교차': {
-      const [shortPeriod = 0, longPeriod = 0] = allNumbers(block.value);
-      return { elementCode: 'BASIC_SMA_CROSS', parameters: { ...common, direction: basicDirection(block.op), shortPeriod: String(shortPeriod), longPeriod: String(longPeriod) } };
-    }
-    case 'RSI 반등':
-      return { elementCode: 'BASIC_RSI_CROSS', parameters: { ...common, direction: basicDirection(block.op), period: '14', threshold: numericParameter(block.value) } };
-    case 'MACD 전환': {
-      const [fastPeriod = 12, slowPeriod = 26, signalPeriod = 9] = allNumbers(block.value);
-      return { elementCode: 'BASIC_MACD_CROSS', parameters: { ...common, direction: basicDirection(block.op), fastPeriod: String(fastPeriod), slowPeriod: String(slowPeriod), signalPeriod: String(signalPeriod) } };
-    }
-    case '가격 띠 반전': {
-      const [period = 20, deviations = 2] = allNumbers(block.value);
-      return { elementCode: 'BASIC_BOLLINGER_REVERSAL', parameters: { ...common, direction: basicDirection(block.op), period: String(period), deviations: String(deviations) } };
-    }
-    case '현재 수익률':
-      return { elementCode: 'BASIC_POSITION_RETURN', parameters: { direction: block.op === '수익' ? 'PROFIT' : 'LOSS', thresholdPercent: numericParameter(block.value) } };
-    case '보유 기간': {
-      const value = String(block.value ?? '');
-      const unit = value === '당일 장 마감' ? 'SESSION_CLOSE' : value.includes('거래일') ? 'TRADING_DAY' : 'BAR';
-      return { elementCode: 'BASIC_HOLDING_PERIOD', parameters: { unit, amount: String(value === '당일 장 마감' ? 0 : firstNumber(value)), resolution } };
-    }
-    case '최고 수익률':
-      return { elementCode: 'BASIC_PEAK_RETURN', parameters: { operator: basicCompareOperator(block.op), thresholdPercent: numericParameter(block.value) } };
-    case '고점 대비 하락':
-      return { elementCode: 'BASIC_DRAWDOWN_FROM_PEAK', parameters: { operator: basicCompareOperator(block.op), thresholdPercent: numericParameter(block.value) } };
-    default:
-      return { elementCode: '', parameters: {} };
-  }
-};
-
-/**
- * Converts the editor's complete published block catalog into the canonical
- * server document. Every visible condition becomes one deterministic runtime
- * step and the container settings are pinned on the terminal order step.
- */
-export const buildBasicSemanticDocument = (
-  snapshot: BasicEditorSnapshot,
-  catalog: BasicStrategyCatalog,
-): Record<string, unknown> => ({
-  mode: 'BASIC',
-  catalogId: catalog.version.id,
-  groups: snapshot.sections.flatMap((section) => section.cardOrder.flatMap((cardId) => {
-    const side: Side | null = section.cards.buy.includes(cardId)
-      ? 'buy'
-      : section.cards.sell.includes(cardId)
-        ? 'sell'
-        : section.cards.risk.includes(cardId)
-          ? 'risk'
-          : null;
-    if (!side || side === 'risk') return [];
-    const resolution = resolutionCode(section.timeframe);
-    const configuredBlocks = snapshot.cardBlocks[cardId] ?? [];
-    const buy = side === 'buy' ? snapshot.buySettings[cardId] : null;
-    const sell = side === 'sell' ? snapshot.sellSettings[cardId] : null;
-    const schedule = buy?.entryMode === '주기마다'
-      ? [{
-        id: `${cardId}-schedule`,
-        elementCode: 'BASIC_SCHEDULE',
-        parameters: { cycle: scheduleCycleCode(buy.cycle), interval: String(buy.cycleInterval), resolution },
-      }]
-      : [];
-    const conditions = configuredBlocks.map((block) => ({ id: block.id, ...blockElement(block, resolution) }));
-    const executableConditions = [...schedule, ...conditions];
-    const orderId = `${cardId}-order`;
-    const orderPercent = side === 'buy' ? buy?.maxOrderPercent ?? 100 : sell?.sellPercent ?? '';
-    const blocks = [
-      ...executableConditions,
-      {
-        id: orderId,
-        elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER',
-        parameters: {
-          orderPercent: String(orderPercent),
-          executionMode: side === 'buy' ? buy?.entryMode ?? '1회만' : sell?.executeMode ?? '1회만',
-          waitMode: side === 'buy' ? buy?.reentryWait ?? '조건 재충족' : sell?.reexecWait ?? '조건 재충족',
-          waitInterval: String(side === 'buy' ? buy?.reentryInterval ?? 1 : sell?.reexecInterval ?? 1),
-          maxExecutions: String(side === 'buy' ? buy?.maxEntries ?? 1 : sell?.maxExecutions ?? 1),
-        },
-      },
-    ];
-    return [{
-      id: cardId,
-      container: side.toUpperCase(),
-      evaluationMode: 'INDEPENDENT',
-      allocationMode: 'EQUAL',
-      instrumentIds: [...(section.instrumentIds ?? [])],
-      blocks,
-      connections: blocks.slice(0, -1).map((block, index) => ({
-        fromBlockId: block.id,
-        outputPort: 'passed',
-        toBlockId: blocks[index + 1].id,
-        inputPort: 'passed',
-      })),
-    }];
-  })),
-});
 
 /**
  * Whether the saved semantic document describes a strategy that would be lost by
@@ -1659,7 +1486,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const [sellSettings, setSellSettings] = useState<Record<string, SellContainerSettings>>(
     startBlank ? {} : { 'primary-sell': createDefaultSellSettings() },
   );
-  const [symbolLimits, setSymbolLimits] = useState<Record<string, Record<string, number>>>(
+  const [symbolLimits, setSymbolLimits] = useState<Record<string, Record<string, number | string>>>(
     startBlank ? { 'section-1': {} } : { 'section-1': { AAPL: 40, MSFT: 40, SPY: 40 } },
   );
   const [symbolManagerSectionId, setSymbolManagerSectionId] = useState<string | null>(null);
@@ -1761,7 +1588,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     than just the card (mirroring the Pro editor). `field` distinguishes an
     empty card, a missing sell ratio, and unfilled block controls.
   */
-  const [validationFocus, setValidationFocus] = useState<{ cardId: string | null; field: 'blocks' | 'sellPercent' | 'empty' | 'section' } | null>(null);
+  const [validationFocus, setValidationFocus] = useState<{ cardId: string | null; field: 'blocks' | 'sellPercent' | 'empty' | 'section' | 'symbolLimit'; symbol?: string } | null>(null);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>(['primary-buy']);
   const [undoStack, setUndoStack] = useState<BasicEditorSnapshot[]>([]);
   const [redoStack, setRedoStack] = useState<BasicEditorSnapshot[]>([]);
@@ -1798,7 +1625,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       }];
     }
 
-    return sections.flatMap((section, sectionIndex): ValidationIssue[] => {
+    const strategyIssues: ValidationIssue[] = sections.length > BASIC_COMPOSITION_LIMITS.sections ? [{
+      id: 'strategy-too-many-sections',
+      sectionId: null,
+      cardId: null,
+      message: `Basic 전략은 파티션을 최대 ${BASIC_COMPOSITION_LIMITS.sections}개까지 만들 수 있습니다.`,
+    }] : [];
+
+    return [...strategyIssues, ...sections.flatMap((section, sectionIndex): ValidationIssue[] => {
       const sectionLabel = `PARTITION ${String(sectionIndex + 1).padStart(2, '0')}`;
       if (catalogClient && (section.instrumentIds?.length ?? 0) === 0) {
         return [{
@@ -1806,6 +1640,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           sectionId: section.id,
           cardId: null,
           message: `${sectionLabel}에 거래 종목을 하나 이상 추가해 주세요.`,
+        }];
+      }
+      if ((section.instrumentIds?.length ?? 0) > BASIC_COMPOSITION_LIMITS.instrumentsPerSection) {
+        return [{
+          id: `${section.id}-too-many-instruments`,
+          sectionId: section.id,
+          cardId: null,
+          message: `${sectionLabel}에는 거래 종목을 최대 ${BASIC_COMPOSITION_LIMITS.instrumentsPerSection}개까지 추가할 수 있습니다.`,
         }];
       }
       if (section.cards.buy.length === 0) {
@@ -1816,6 +1658,15 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           message: `${sectionLabel}에 매수 전략 카드가 필요합니다.`,
         }];
       }
+      if (section.cards.buy.length > BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection
+        || section.cards.sell.length > BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection) {
+        return [{
+          id: `${section.id}-too-many-cards`,
+          sectionId: section.id,
+          cardId: null,
+          message: `${sectionLabel}에는 매수와 매도 전략 카드를 각각 하나만 둘 수 있습니다.`,
+        }];
+      }
       if (catalogClient && section.cards.risk.length > 0) {
         return [{
           id: `${section.id}-unsupported-risk`,
@@ -1824,7 +1675,18 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           message: `${sectionLabel}의 위기관리 카드는 현재 공개된 실행 카탈로그에서 지원하지 않습니다.`,
         }];
       }
-      return (['buy', 'sell', 'risk'] as Side[]).flatMap((side) => {
+      const positionCapIssues = splitPartitionSymbols(section.symbol).flatMap((symbol): ValidationIssue[] => {
+        const issue = validateMaxPositionPercent(symbolLimits[section.id]?.[symbol] ?? 25, section.id, symbol);
+        if (!issue) return [];
+        return [{
+          id: `${section.id}-position-cap-${symbol}`,
+          sectionId: section.id,
+          cardId: null,
+          symbol,
+          message: `${sectionLabel}의 ${symbol} 최대 보유 비율을 0보다 크고 100 이하인 숫자로 입력해 주세요.`,
+        }];
+      });
+      const cardIssues = (['buy', 'sell', 'risk'] as Side[]).flatMap((side) => {
         const sideLabel = side === 'buy' ? '매수' : side === 'sell' ? '매도' : '위기관리';
         return section.cards[side].flatMap((cardId): ValidationIssue[] => {
           const blocks = cardBlocks[cardId] ?? [];
@@ -1836,6 +1698,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
               sectionId: section.id,
               cardId,
               message: `${sectionLabel}의 ${sideLabel} 전략 카드에 조건 블록을 하나 이상 추가해 주세요.`,
+            }];
+          }
+          if (blocks.length > BASIC_COMPOSITION_LIMITS.conditionsPerCard) {
+            return [{
+              id: `${cardId}-too-many-conditions`,
+              sectionId: section.id,
+              cardId,
+              message: `${sectionLabel}의 ${sideLabel} 전략 카드에는 조건 블록을 최대 ${BASIC_COMPOSITION_LIMITS.conditionsPerCard}개까지 넣을 수 있습니다.`,
             }];
           }
           const hasNullField = blocks.some((block) => {
@@ -1861,8 +1731,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           }] : [];
         });
       });
-    });
-  }, [cardBlocks, sections, sellSettings, buySettings, catalogClient]);
+      return [...positionCapIssues, ...cardIssues];
+    })];
+  }, [cardBlocks, sections, sellSettings, buySettings, catalogClient, symbolLimits]);
   const validationSignature = validationIssues.map((issue) => issue.id).join('|');
   const editorSignature = useMemo(() => JSON.stringify({
     sections,
@@ -1948,7 +1819,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     // not select the card — the natural-language overlay would obscure the fix.
     setSelectedCardId(null);
     setSelectedCardIds([]);
-    const field: 'blocks' | 'sellPercent' | 'empty' | 'section' = issue.cardId === null
+    const field: 'blocks' | 'sellPercent' | 'empty' | 'section' | 'symbolLimit' = issue.symbol
+      ? 'symbolLimit'
+      : issue.cardId === null
       ? 'section'
       : issue.id.endsWith('-empty')
         ? 'empty'
@@ -1958,8 +1831,17 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     // Surface the exact control that needs input: open the sell-ratio popover
     // so a missing ratio is shown inline rather than hidden behind a toggle.
     setExpandedSettingsCardId(field === 'sellPercent' ? issue.cardId : null);
-    setValidationFocus({ cardId: issue.cardId, field });
+    if (field === 'symbolLimit' && issue.sectionId) setSymbolManagerSectionId(issue.sectionId);
+    setValidationFocus({ cardId: issue.cardId, field, symbol: issue.symbol });
   };
+
+  useEffect(() => {
+    if (validationFocus?.field !== 'symbolLimit' || !validationFocus.symbol || !symbolManagerSectionId) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(`symbol-limit-${symbolManagerSectionId}-${validationFocus.symbol}`)?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [symbolManagerSectionId, validationFocus]);
 
   useEffect(() => {
     window.localStorage.setItem(BASIC_FAVORITE_BLOCKS_STORAGE_KEY, JSON.stringify(favoriteBlockLabels));
@@ -2572,6 +2454,11 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         return;
       }
     }
+    if (sourceCardId !== targetCardId
+      && (cardBlocks[targetCardId]?.length ?? 0) >= BASIC_COMPOSITION_LIMITS.conditionsPerCard) {
+      setAnnouncement(`전략 카드에는 조건 블록을 최대 ${BASIC_COMPOSITION_LIMITS.conditionsPerCard}개까지 넣을 수 있어요.`);
+      return;
+    }
     rememberEditorChange();
     setCardBlocks((current) => {
       const sourceBlocks = [...current[sourceCardId]];
@@ -2704,6 +2591,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         setAnnouncement(`${label}은(는) 매도 전략 카드에서만 사용할 수 있어요. 포지션을 보유한 뒤 평가되는 청산 조건입니다.`);
         return;
       }
+    }
+    if (cardBlocks[targetCardId].length >= BASIC_COMPOSITION_LIMITS.conditionsPerCard) {
+      setAnnouncement(`전략 카드에는 조건 블록을 최대 ${BASIC_COMPOSITION_LIMITS.conditionsPerCard}개까지 넣을 수 있어요.`);
+      return;
     }
     rememberEditorChange();
     const nextCount = customBlockCount + 1;
@@ -3138,6 +3029,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
 
   const addStrategyCard = (sectionId: string, side: Side) => {
     const section = sections.find((item) => item.id === sectionId)!;
+    if (section.cards[side].length >= BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection) {
+      setAnnouncement(`한 파티션에는 ${side === 'buy' ? '매수' : '매도'} 전략 카드를 하나만 둘 수 있어요.`);
+      return;
+    }
     rememberEditorChange();
     const nextCardCount = cardCount + 1;
     const cardId = `${sectionId}-${side}-${section.cards[side].length + 1}-${nextCardCount}`;
@@ -3325,6 +3220,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       return;
     }
     if (drawStart && draftRect && draftRect.width >= 120 && draftRect.height >= 100) {
+      if (sections.length >= BASIC_COMPOSITION_LIMITS.sections) {
+        setAnnouncement(`Basic 전략은 파티션을 최대 ${BASIC_COMPOSITION_LIMITS.sections}개까지 만들 수 있어요.`);
+        setDrawMode(false);
+        setDrawStart(null);
+        setDraftRect(null);
+        setPanGesture(null);
+        return;
+      }
       rememberEditorChange();
       const sectionNumber = sections.length + 1;
       const sectionId = `section-${sectionNumber}`;
@@ -3744,9 +3647,13 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       return { ...current, [symbolManagerSection.id]: nextSection };
     });
   };
-  const addManagedSymbol = () => {
-    if (!symbolManagerSection || !selectedInstrument) return;
-    const { id, symbol } = selectedInstrument;
+  const addManagedInstrument = (instrument: SelectableInstrument | undefined) => {
+    if (!symbolManagerSection || !instrument) return;
+    if (managedSymbols.length >= BASIC_COMPOSITION_LIMITS.instrumentsPerSection) {
+      setAnnouncement(`한 파티션에는 거래 종목을 최대 ${BASIC_COMPOSITION_LIMITS.instrumentsPerSection}개까지 추가할 수 있어요.`);
+      return;
+    }
+    const { id, symbol } = instrument;
     updateSection(symbolManagerSection.id, {
       symbol: [...managedSymbols, symbol].join(' · '),
       instrumentIds: id
@@ -3760,6 +3667,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     setPendingInstrumentKey('');
     setInstrumentQuery('');
   };
+  const addManagedSymbol = () => addManagedInstrument(selectedInstrument);
 
   const trashItemLabel = draggedBlock
     ? '블록'
@@ -4103,7 +4011,27 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         {catalogClient && !basicCatalog && !catalogError && <p className="bots-decision-note" role="status">공식 종목 확인 중…</p>}
         {catalogError && <p className="bots-decision-note" role="status">{catalogError}</p>}
         <div className="symbol-manager-list">
-          {managedSymbols.map((symbol) => <div key={symbol}><span><strong>{symbol}</strong><small>미국 주식</small></span><label><span>최대 보유 비율</span><span className="setting-with-unit"><input type="number" min=".1" max="100" step=".1" aria-label={`${symbol} 종목별 최대 보유 비율`} value={symbolLimits[symbolManagerSection.id]?.[symbol] ?? 25} onChange={(event) => setSymbolLimits((current) => ({ ...current, [symbolManagerSection.id]: { ...(current[symbolManagerSection.id] ?? {}), [symbol]: Number(event.target.value) } }))} /><b>%</b></span></label><button type="button" aria-label={`${symbol} 삭제`} onClick={() => removeManagedSymbol(symbol)}><Trash2 size={14} /></button></div>)}
+          {managedSymbols.map((symbol) => {
+            const capValue = symbolLimits[symbolManagerSection.id]?.[symbol] ?? 25;
+            const capIssue = validateMaxPositionPercent(capValue, symbolManagerSection.id, symbol);
+            return <div key={symbol}><span><strong>{symbol}</strong><small>미국 주식</small></span><label><span>최대 보유 비율</span><span className="setting-with-unit"><input
+              id={`symbol-limit-${symbolManagerSection.id}-${symbol}`}
+              type="number"
+              min=".1"
+              max="100"
+              step=".1"
+              aria-label={`${symbol} 종목별 최대 보유 비율`}
+              aria-invalid={Boolean(capIssue)}
+              value={capValue}
+              onChange={(event) => setSymbolLimits((current) => ({
+                ...current,
+                [symbolManagerSection.id]: {
+                  ...(current[symbolManagerSection.id] ?? {}),
+                  [symbol]: event.target.value,
+                },
+              }))}
+            /><b>%</b></span>{capIssue && <small role="alert">0보다 크고 100 이하로 입력해 주세요.</small>}</label><button type="button" aria-label={`${symbol} 삭제`} onClick={() => removeManagedSymbol(symbol)}><Trash2 size={14} /></button></div>;
+          })}
         </div>
         <footer>
           <div className="symbol-manager-picker">
@@ -4159,7 +4087,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
                     className={selected ? 'is-selected' : ''}
                     ref={selected ? (node) => node?.scrollIntoView?.({ block: 'nearest' }) : undefined}
                     onClick={() => setPendingInstrumentKey(key)}
-                    onDoubleClick={() => { setPendingInstrumentKey(key); addManagedSymbol(); }}
+                    onDoubleClick={() => addManagedInstrument(instrument)}
                   >
                     <strong>{instrument.symbol}</strong>
                     {(instrument.assetType || instrument.primaryExchangeMic) && <small>
@@ -4170,10 +4098,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
               })}
             </ul>}
             {!catalogError && basicCatalog && normalizedInstrumentQuery && availableInstruments.length === 0 && <small className="symbol-manager-results-empty" role="status">일치하는 공식 지원 종목이 없습니다.</small>}
-            {!catalogError && basicCatalog && !normalizedInstrumentQuery && availableInstruments.length === 0 && <small className="symbol-manager-results-empty" role="status">추가할 수 있는 종목을 모두 담았습니다.</small>}
+            {!catalogError && basicCatalog && !normalizedInstrumentQuery && availableInstruments.length === 0 && <small className="symbol-manager-results-empty" role="status">{managedSymbols.length > 0 ? '추가할 수 있는 종목을 모두 담았습니다.' : '현재 서버에 등록된 지원 종목이 없습니다. 시장 데이터 카탈로그를 먼저 적재해 주세요.'}</small>}
           </div>
           <div className="symbol-manager-picker-actions">
-            <Button type="button" icon={Plus} disabled={!selectedInstrument} onClick={addManagedSymbol}>종목 추가</Button><Button type="button" kind="primary" onClick={() => setSymbolManagerSectionId(null)}>완료</Button>
+            <Button type="button" icon={Plus} disabled={!selectedInstrument || managedSymbols.length >= BASIC_COMPOSITION_LIMITS.instrumentsPerSection} onClick={addManagedSymbol}>종목 추가</Button><Button type="button" kind="primary" onClick={() => setSymbolManagerSectionId(null)}>완료</Button>
           </div>
         </footer>
       </section>
