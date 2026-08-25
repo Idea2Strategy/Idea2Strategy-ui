@@ -487,6 +487,26 @@ describe('Basic editor interactions', () => {
     expect(screen.getByTestId('basic-editor-workspace')).toHaveClass('is-validation-highlighting');
   });
 
+  test('edits an executable position cap and focuses its exact invalid field from validation', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    await user.click(screen.getByRole('button', { name: 'PARTITION 01 종목 관리' }));
+    const cap = screen.getByRole('spinbutton', { name: 'AAPL 종목별 최대 보유 비율' });
+    expect(cap).toBeEnabled();
+    await user.clear(cap);
+    expect(cap).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('alert')).toHaveTextContent('0보다 크고 100 이하');
+    await user.click(screen.getByRole('button', { name: '완료' }));
+
+    await user.click(screen.getByRole('button', { name: '미완성 오류 강조' }));
+    const drawer = screen.getByRole('complementary', { name: '전략 오류 안내' });
+    await user.click(within(drawer).getByRole('button', { name: /AAPL 최대 보유 비율/ }));
+
+    const focusedCap = await screen.findByRole('spinbutton', { name: 'AAPL 종목별 최대 보유 비율' });
+    expect(focusedCap).toHaveFocus();
+  });
+
   test('allows a complete strategy to launch after block fields and sell percentage are set', async () => {
     const user = userEvent.setup();
     const onLaunchBot = vi.fn();
