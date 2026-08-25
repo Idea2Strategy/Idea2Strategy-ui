@@ -390,7 +390,7 @@ function JoinRoomDialog({ client, room, onClose, onJoined }: { client: Competiti
       return;
     }
     const input: JoinRoomInput = { validationRunId: validation.validationRunId, anonymousAlias: String(form.get('anonymousAlias')).trim(), languageVersion: validation.languageVersion, schemaVersion: validation.schemaVersion, catalogVersion: validation.catalogVersion, budgetCapBps }; setSaving(true); setError('');
-    try { await client.joinRoom(room.id, input); onJoined(); } catch (cause) { setError(cause instanceof CompetitionApiError && cause.unauthenticated ? '로그인 후 참가할 수 있습니다.' : cause instanceof CompetitionApiError && cause.forbidden ? '이 대회에 참가할 권한이 없습니다.' : cause instanceof CompetitionApiError && cause.conflict ? cause.detail || '참가 조건을 충족하지 못했습니다.' : '참가 요청을 완료하지 못했습니다.'); setSaving(false); }
+    try { await client.joinRoom(room.id, input); onJoined(); } catch (cause) { setError(joinFailureMessage(cause)); setSaving(false); }
   };
   const validationError = validations.error instanceof CompetitionApiError && validations.error.unauthenticated ? '로그인 후 검증 완료 전략을 확인할 수 있습니다.'
     : validations.error instanceof CompetitionApiError && validations.error.forbidden ? '검증 완료 전략을 조회할 권한이 없습니다.' : '검증 완료 전략을 불러오지 못했습니다.';
@@ -405,4 +405,21 @@ function JoinRoomDialog({ client, room, onClose, onJoined }: { client: Competiti
     <p className="competition-api-privacy"><Check size={14} aria-hidden="true" />계정 이름과 전략 내부는 공개되지 않습니다.</p>{error && <p role="alert">{error}</p>}
     <footer><button type="button" className="button button-secondary" onClick={onClose}>취소</button><button type="submit" className="button button-primary" disabled={saving || !available}>{saving ? '참가 중…' : '참가 확정'}</button></footer>
   </form></DialogShell>;
+}
+
+function joinFailureMessage(cause: unknown) {
+  if (!(cause instanceof CompetitionApiError)) return '참가 요청을 완료하지 못했습니다.';
+  if (cause.unauthenticated) return '로그인 후 참가할 수 있습니다.';
+  if (cause.forbidden) return '이 대회에 참가할 권한이 없습니다.';
+  if (!cause.conflict) return '참가 요청을 완료하지 못했습니다.';
+  switch (cause.code) {
+    case 'MARKET_SCOPE_MISMATCH': return '선택한 전략에 이 대회의 허용 시장 밖 종목이 포함되어 있습니다.';
+    case 'ACCOUNT_INELIGIBLE': return '현재 계정은 이 대회의 참가 조건을 충족하지 못했습니다.';
+    case 'ROOM_NOT_JOINABLE': return '현재는 참가 가능한 기간이 아니거나 유효한 초대가 없습니다.';
+    case 'ROOM_CAPACITY_REACHED': return '대회의 전체 참가 정원이 찼습니다.';
+    case 'ACCOUNT_ROOM_LIMIT_REACHED': return '이 대회에서 계정당 참가 가능한 봇 수를 모두 사용했습니다.';
+    case 'ACCOUNT_EXECUTION_LIMIT_REACHED': return '현재 실행·예약 중인 봇이 계정 한도에 도달했습니다.';
+    case 'ANONYMOUS_ALIAS_CONFLICT': return '이미 사용 중인 봇 별칭입니다. 다른 별칭을 입력해 주세요.';
+    default: return '참가 조건을 충족하지 못했습니다.';
+  }
 }
