@@ -54,10 +54,7 @@ describe('backtest results API client', () => {
     expect(page.items[0].slippageRateBps).toBe(5);
     expect(page.items[0].initialCashAmount).toBe('100000.00000000');
     expect(page.items[0].configurationHash).toBe(CONFIGURATION_HASH);
-    // The list endpoint always reports 0 here; see the note in the handlers. The screen
-    // reads /attempts rather than this field, so the defect stays visible instead of
-    // being papered over with a client-side guess.
-    expect(page.items[0].attemptCount).toBe(0);
+    expect(page.items[0].attemptCount).toBe(1);
   });
 
   it('reads one run, including the terminal timestamps and the result hash', async () => {

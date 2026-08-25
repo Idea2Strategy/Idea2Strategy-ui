@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { BasicEditor } from './views/StrategyViews';
 import { StrategyPreviewChart } from './components/StrategyPreviewChart';
 import { LanguageProvider } from './lib/i18n';
@@ -228,6 +228,24 @@ describe('strategy preview engine', () => {
 });
 
 describe('Basic editor partition preview state', () => {
+  test('reports symbol changes to the editor so it can fetch that instrument', async () => {
+    const onSymbolChange = vi.fn();
+    const user = userEvent.setup();
+    render(<StrategyPreviewChart
+      partitionLabel="PARTITION 01"
+      symbols={['AAPL', 'MSFT']}
+      selectedSymbol="AAPL"
+      onSymbolChange={onSymbolChange}
+      flows={flowsOf(BUY_BLOCKS, SELL_BLOCKS)}
+      candles={generatePreviewCandles('AAPL', 1800, 400)}
+      onClose={() => {}}
+    />);
+
+    await user.click(screen.getByRole('button', { name: 'MSFT 미리보기' }));
+
+    expect(onSymbolChange).toHaveBeenCalledWith('MSFT');
+  });
+
   test('renders fast supported buy and sell markers with an estimate disclaimer', () => {
     render(<StrategyPreviewChart
       partitionLabel="PARTITION 01"
@@ -241,6 +259,30 @@ describe('Basic editor partition preview state', () => {
     expect(screen.getAllByTestId('preview-marker-sell').length).toBeGreaterThan(0);
     expect(screen.getByText('빠르게 계산할 수 있는 조건만 반영한 예상 결과이며 실제 실행 결과와 다를 수 있습니다.'))
       .toBeInTheDocument();
+  });
+
+  test('labels the signal summary with the selected server-backed preview window', () => {
+    const { rerender } = render(<StrategyPreviewChart
+      partitionLabel="PARTITION 01"
+      symbols={['AAPL']}
+      flows={flowsOf(BUY_BLOCKS, SELL_BLOCKS)}
+      candles={generatePreviewCandles('AAPL', 1800, 400)}
+      previewWindow="1m"
+      onClose={() => {}}
+    />);
+
+    expect(screen.getByTestId('preview-note')).toHaveTextContent('최근 1개월');
+
+    rerender(<StrategyPreviewChart
+      partitionLabel="PARTITION 01"
+      symbols={['AAPL']}
+      flows={flowsOf(BUY_BLOCKS, SELL_BLOCKS)}
+      candles={generatePreviewCandles('AAPL', 1800, 400)}
+      previewWindow="3m"
+      onClose={() => {}}
+    />);
+
+    expect(screen.getByTestId('preview-note')).toHaveTextContent('최근 3개월');
   });
 
   test('always explains the buy and sell conditions and warns when bars are insufficient', () => {

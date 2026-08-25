@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { GripVertical, X } from 'lucide-react';
-import { PREVIEW_WINDOW, evaluateStrategyPreview } from '../lib/strategyPreview';
+import { evaluateStrategyPreview } from '../lib/strategyPreview';
 import type { PreviewCandle, PreviewFlow } from '../lib/strategyPreview';
 import { useLanguage } from '../lib/i18n';
 
 export interface StrategyPreviewChartProps {
   partitionLabel: string;
   symbols: string[];
+  selectedSymbol?: string;
+  onSymbolChange?: (symbol: string) => void;
   flows: PreviewFlow[];
   candles?: PreviewCandle[];
   previewWindow?: '1m' | '3m';
   onWindowChange?: (window: '1m' | '3m') => void;
+  coverageMessage?: string | null;
   onClose: () => void;
 }
 
@@ -65,22 +68,31 @@ const percent = (value: number): string => `${value >= 0 ? '+' : ''}${value.toFi
 
   차트는 인라인 SVG 하나다. 종가 선과 매수·매도 화살표만 그리므로 차트
   라이브러리가 필요하지 않고, 색은 테마 토큰을 그대로 쓰며 테스트에서도 선과
-  신호를 그대로 확인할 수 있다. 기간은 최근 1개월 고정이며 선택 UI를 두지
-  않는다. 지표 그래프와 상세 분석은 백테스트 화면이 담당한다.
+  신호를 그대로 확인할 수 있다. 기간은 서버가 실제 보유 데이터의 마지막 시점을
+  기준으로 계산한 1개월 또는 3개월이며, 지표 그래프와 상세 분석은 백테스트
+  화면이 담당한다.
 */
 export function StrategyPreviewChart({
   partitionLabel,
   symbols,
+  selectedSymbol,
+  onSymbolChange,
   flows,
   candles,
   previewWindow = '3m',
   onWindowChange,
+  coverageMessage,
   onClose,
 }: StrategyPreviewChartProps) {
   const cardRef = useRef<HTMLElement | null>(null);
   const dragRef = useRef<{ pointerId: number; offsetX: number; offsetY: number } | null>(null);
   const { t } = useLanguage();
-  const [symbol, setSymbol] = useState(symbols[0] ?? 'AAPL');
+  const [internalSymbol, setInternalSymbol] = useState(symbols[0] ?? 'AAPL');
+  const symbol = selectedSymbol ?? internalSymbol;
+  const selectSymbol = (next: string) => {
+    if (selectedSymbol === undefined) setInternalSymbol(next);
+    onSymbolChange?.(next);
+  };
   const [focusedFlowId, setFocusedFlowId] = useState<string | null>(null);
   const [position, setPosition] = useState<CardPosition>(() => clampToViewport({
     x: (typeof window === 'undefined' ? 1200 : window.innerWidth) - CARD_WIDTH - 28,
@@ -89,8 +101,10 @@ export function StrategyPreviewChart({
 
   /* 파티션 종목이 바뀌면 선택을 유효한 값으로 되돌린다. */
   useEffect(() => {
-    if (symbols.length > 0 && !symbols.includes(symbol)) setSymbol(symbols[0]);
-  }, [symbol, symbols]);
+    if (selectedSymbol === undefined && symbols.length > 0 && !symbols.includes(symbol)) {
+      setInternalSymbol(symbols[0]);
+    }
+  }, [selectedSymbol, symbol, symbols]);
   /* 플로우를 지우면 강조도 함께 해제한다. */
   useEffect(() => {
     if (focusedFlowId && !flows.some((flow) => flow.id === focusedFlowId)) setFocusedFlowId(null);
@@ -215,7 +229,7 @@ export function StrategyPreviewChart({
         aria-label={t(`${item} 미리보기`)}
         aria-pressed={symbol === item}
         className={symbol === item ? 'active' : ''}
-        onClick={() => setSymbol(item)}
+        onClick={() => selectSymbol(item)}
       >{item}</button>)}
     </div>}
 
@@ -259,6 +273,7 @@ export function StrategyPreviewChart({
       </svg>
       <span className="strategy-preview-last">{money(geometry.last.value)}</span>
     </div>
+    {coverageMessage && <p className="strategy-preview-coverage" role="status">{coverageMessage}</p>}
 
     {/* 어느 플로우가 몇 번 주문을 만들었는지. 누르면 그 플로우만 진하게 남는다. */}
     <div className="strategy-preview-flows" role="group" aria-label={t('신호를 만든 플로우')}>
@@ -299,7 +314,7 @@ export function StrategyPreviewChart({
           <span data-testid="preview-buy-count">{t('매수')} <b>{summary.buyCount}</b></span>
           <span data-testid="preview-sell-count">{t('매도')} <b>{summary.sellCount}</b></span>
           <span>{t('완료')} <b>{summary.tradeCount}</b></span>
-          <em>{t(PREVIEW_WINDOW.label)}</em>
+          <em>{t(previewWindow === '1m' ? '최근 1개월' : '최근 3개월')}</em>
         </>}
     </p>
 

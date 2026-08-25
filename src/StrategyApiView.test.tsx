@@ -201,6 +201,16 @@ describe('Strategy API view', () => {
           { eventId: 'bar-2', occurredAt: '2026-08-07T11:59:00Z', sequence: 2, revision: 0, open: 101, high: 103, low: 100, close: 102, volume: 1100, provider: 'alpaca', feed: 'sip' },
         ],
       }),
+      getPreviewBars: vi.fn().mockResolvedValue({
+        instrumentId: 'spy-id', symbol: 'SPY', timeframe: '1h', window: '3m',
+        requestedFrom: '2026-05-07T11:59:00Z', requestedTo: '2026-08-07T11:59:00Z',
+        availableFrom: '2026-08-07T11:58:00Z', availableTo: '2026-08-07T11:59:00Z',
+        coverageStatus: 'PARTIAL', reasonCode: 'HISTORY_STARTS_AFTER_REQUESTED_WINDOW',
+        bars: [
+          { eventId: 'bar-1', occurredAt: '2026-08-07T11:58:00Z', sequence: 1, revision: 0, open: 100, high: 102, low: 99, close: 101, volume: 1000, provider: 'alpaca', feed: 'sip' },
+          { eventId: 'bar-2', occurredAt: '2026-08-07T11:59:00Z', sequence: 2, revision: 0, open: 101, high: 103, low: 100, close: 102, volume: 1100, provider: 'alpaca', feed: 'sip' },
+        ],
+      }),
       streamPrices: vi.fn(),
     };
 
@@ -215,8 +225,8 @@ describe('Strategy API view', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'PARTITION 01 기본 봉 주기' }), '1시간봉');
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
     expect(await screen.findByTestId('strategy-preview-canvas')).toBeInTheDocument();
-    expect(marketDataClient.getRecentBars).toHaveBeenCalledWith(
-      'spy-id', '1h', 1000, expect.any(AbortSignal),
+    expect(marketDataClient.getPreviewBars).toHaveBeenCalledWith(
+      'spy-id', '1h', '3m', expect.any(AbortSignal),
     );
     const save = screen.getByRole('button', { name: '저장' });
     await waitFor(() => expect(save).toBeEnabled());

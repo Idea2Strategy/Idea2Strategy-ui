@@ -240,8 +240,30 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(within(row).getByText('1')).toBeInTheDocument();
     expect(within(row).getByText('SUCCEEDED')).toBeInTheDocument();
     expect(within(attempts).queryByText('실행 키')).not.toBeInTheDocument();
-    expect(within(attempts).queryByText('실패 코드')).not.toBeInTheDocument();
+    expect(within(attempts).getByText('실패 사유')).toBeInTheDocument();
     expect(within(attempts).queryByText('worker-execution-1')).not.toBeInTheDocument();
+  });
+
+  it('shows exhausted run and attempt failure reasons with the attempt count', async () => {
+    server.use(...backtestHandlers({
+      runs: [{ ...FAILED_RUN, attemptCount: 5, failureCode: 'MAX_ATTEMPTS_EXHAUSTED' }],
+      attempts: [{
+        attemptId: '00000000-0000-4000-8000-000000000905',
+        backtestRunId: RUN_ID,
+        attemptNumber: 5,
+        workerExecutionKey: 'worker-execution-5',
+        status: 'FAILED',
+        startedAt: '2026-07-31T12:20:00Z',
+        completedAt: '2026-07-31T12:25:00Z',
+        failureCode: 'WORKER_TIMEOUT',
+      }],
+    }));
+
+    view();
+
+    expect(await screen.findByText('MAX_ATTEMPTS_EXHAUSTED')).toBeInTheDocument();
+    expect(await screen.findByText('공식 백테스트 워커가 처리한 실행 시도 · 총 1회')).toBeInTheDocument();
+    expect(screen.getByText('WORKER_TIMEOUT')).toBeInTheDocument();
   });
 
   it('renders the six ET monthly counters and the first failure condition', async () => {

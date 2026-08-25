@@ -108,12 +108,8 @@ export function backtestHandlers(overrides: Partial<BacktestApiState> = {}): Req
       if (!Number.isInteger(offset) || offset < 0) {
         return HttpResponse.json({ detail: 'offset must not be negative' }, { status: 422 });
       }
-      // `lifecycle.list_runs` builds each `BacktestRun` without its attempts, so the
-      // list endpoint reports `attemptCount: 0` for every run however many attempts it
-      // really had. Reproduced rather than corrected: this is the server's behaviour,
-      // and the screen reads the attempts endpoint instead of trusting this field.
       const items = caller === 'owner'
-        ? state.runs.slice(offset, offset + limit).map((run) => ({ ...run, attemptCount: 0 }))
+        ? state.runs.slice(offset, offset + limit)
         : [];
       return HttpResponse.json({ items, limit, offset });
     }),

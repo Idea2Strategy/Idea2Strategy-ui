@@ -19,8 +19,8 @@ import { ErrorPage, SignInRequiredPage } from '../components/StatePages';
 import { splitPartitionSymbols } from '../lib/strategyPreview';
 import type { PreviewBlock, PreviewCandle, PreviewFlow } from '../lib/strategyPreview';
 import { StrategyPreviewChart } from '../components/StrategyPreviewChart';
-import { defaultMarketDataClient } from '../api/marketData';
-import type { MarketDataClient, MarketTimeframe } from '../api/marketData';
+import { defaultMarketDataClient, MarketDataRequestError } from '../api/marketData';
+import type { MarketBarPreviewSnapshot, MarketDataClient, MarketTimeframe } from '../api/marketData';
 import { Localized } from '../lib/i18n';
 import { browserSessionStore } from '../lib/session';
 import { setSessionAccessToken } from '../api/sessionAccessToken';
@@ -842,6 +842,34 @@ const allNumbers = (value: string | undefined): number[] => (
 const resolutionCode = (timeframe: string): MarketTimeframe => ({
   '30분봉': '30m', '1시간봉': '1h', '4시간봉': '4h', '일봉': '1d',
 }[timeframe] as MarketTimeframe | undefined) ?? '30m';
+
+const formatPreviewInstant = (value: string | null | undefined): string => {
+  if (!value) return '알 수 없음';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString().slice(0, 10);
+};
+
+const previewFailureMessage = (error: unknown): string => {
+  if (error instanceof MarketDataRequestError) {
+    if (error.code === 'AUTHENTICATION_REQUIRED') {
+      return '로그인 세션이 만료되어 시장 데이터를 조회할 수 없습니다. 다시 로그인해 주세요.';
+    }
+    if (error.code === 'MARKET_DATA_NOT_FOUND') {
+      return `요청한 종목의 시장 데이터 경로를 찾지 못했습니다. 서버 응답: ${error.detail}`;
+    }
+    if (error.code === 'MARKET_DATA_UNAVAILABLE') {
+      return `시장 데이터 저장소에 연결할 수 없습니다. 서버 응답: ${error.detail}`;
+    }
+    return `시장 데이터 요청이 거절되었습니다(${error.status}). ${error.detail}`;
+  }
+  if (error instanceof TypeError) {
+    return '시장 데이터 서버에 네트워크로 연결할 수 없습니다. 로컬 Docker 상태를 확인해 주세요.';
+  }
+  if (error instanceof Error) {
+    return `시장 데이터 응답 형식이 올바르지 않습니다. ${error.message}`;
+  }
+  return '알 수 없는 오류로 실제 시장 데이터를 불러오지 못했습니다.';
+};
 
 const priceReferenceCode = (value: string | undefined): string => {
   const exact: Record<string, string> = {
@@ -1741,8 +1769,11 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const [previewSectionId, setPreviewSectionId] = useState<string | null>(null);
   const [previewCandles, setPreviewCandles] = useState<PreviewCandle[] | null>(null);
   const [previewWindow, setPreviewWindow] = useState<'1m' | '3m'>('3m');
+  const [previewSymbol, setPreviewSymbol] = useState<string>('');
+  const [previewSnapshot, setPreviewSnapshot] = useState<MarketBarPreviewSnapshot | null>(null);
   const [previewPending, setPreviewPending] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const previewRequestSequence = useRef(0);
   const catalogSupportsEditor = basicCatalog?.elements.length
     ? [...BASIC_EDITOR_ELEMENT_CODES].every((code) => basicCatalog.elements.some((element) => element.elementCode === code))
     : !catalogClient;
@@ -3014,6 +3045,13 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     () => previewSection ? splitPartitionSymbols(previewSection.symbol) : [],
     [previewSection],
   );
+  useEffect(() => {
+    if (!previewSection) {
+      setPreviewSymbol('');
+      return;
+    }
+    setPreviewSymbol((current) => previewSymbols.includes(current) ? current : (previewSymbols[0] ?? ''));
+  }, [previewSection, previewSymbols]);
   const previewFlows = useMemo<PreviewFlow[]>(() => previewSection
     ? previewSection.cardOrder.flatMap((cardId): PreviewFlow[] => {
       const side = previewSection.cards.buy.includes(cardId) ? 'buy' : previewSection.cards.sell.includes(cardId) ? 'sell' : null;
@@ -3039,46 +3077,64 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     : [], [buySettings, cardBlocks, cardMeta, previewSection, sellSettings]);
 
   useEffect(() => {
+    const requestSequence = ++previewRequestSequence.current;
     if (!previewSection || !marketDataClient) {
       setPreviewCandles(null);
+      setPreviewSnapshot(null);
       setPreviewPending(false);
       setPreviewError(null);
       return undefined;
     }
-    const instrumentId = previewSection.instrumentIds?.[0]
-      ?? basicCatalog?.instruments.find((instrument) => instrument.symbol === previewSymbols[0])?.id;
+    const symbolIndex = previewSymbols.indexOf(previewSymbol);
+    const instrumentId = (symbolIndex >= 0 ? previewSection.instrumentIds?.[symbolIndex] : undefined)
+      ?? basicCatalog?.instruments.find((instrument) => instrument.symbol === previewSymbol)?.id;
     if (!instrumentId) {
       setPreviewCandles([]);
-      setPreviewError('미리보기를 조회할 공식 종목 식별자가 없습니다.');
+      setPreviewSnapshot(null);
+      setPreviewPending(false);
+      setPreviewError(`${previewSymbol || '선택한 종목'}의 공식 종목 식별자가 없어 실제 데이터를 조회할 수 없습니다.`);
       return undefined;
     }
+    if (!marketDataClient.getPreviewBars) {
+      setPreviewCandles(null);
+      setPreviewSnapshot(null);
+      setPreviewPending(false);
+      setPreviewError('시장 데이터 클라이언트가 실제 기간 미리보기 계약을 지원하지 않습니다.');
+      return undefined;
+    }
+    const getPreviewBars = marketDataClient.getPreviewBars.bind(marketDataClient);
     const controller = new AbortController();
     setPreviewPending(true);
+    setPreviewCandles(null);
+    setPreviewSnapshot(null);
     setPreviewError(null);
-    void marketDataClient.getRecentBars(instrumentId, resolutionCode(previewSection.timeframe), 1000, controller.signal)
+    void getPreviewBars(
+      instrumentId, resolutionCode(previewSection.timeframe), previewWindow, controller.signal,
+    )
       .then((snapshot) => {
+        if (previewRequestSequence.current !== requestSequence || controller.signal.aborted) return;
+        setPreviewSnapshot(snapshot);
         setPreviewCandles(snapshot.bars.map((bar) => ({
           time: Math.floor(new Date(bar.occurredAt).getTime() / 1000),
           open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume,
         })));
       })
       .catch((error) => {
-        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        if (previewRequestSequence.current === requestSequence
+          && !(error instanceof DOMException && error.name === 'AbortError')) {
           setPreviewCandles(null);
-          setPreviewError('실제 시장 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+          setPreviewSnapshot(null);
+          setPreviewError(previewFailureMessage(error));
         }
       })
-      .finally(() => setPreviewPending(false));
+      .finally(() => {
+        if (previewRequestSequence.current === requestSequence) setPreviewPending(false);
+      });
     return () => controller.abort();
-  }, [basicCatalog, marketDataClient, previewSection, previewSymbols]);
-  const visiblePreviewCandles = useMemo(() => {
-    if (!previewCandles?.length) return previewCandles;
-    const latest = new Date(previewCandles[previewCandles.length - 1].time * 1000);
-    const boundary = new Date(latest);
-    boundary.setUTCMonth(boundary.getUTCMonth() - (previewWindow === '3m' ? 3 : 1));
-    const boundarySeconds = Math.floor(boundary.getTime() / 1000);
-    return previewCandles.filter((candle) => candle.time >= boundarySeconds);
-  }, [previewCandles, previewWindow]);
+  }, [basicCatalog, marketDataClient, previewSection, previewSymbols, previewSymbol, previewWindow]);
+  const previewCoverageMessage = previewSnapshot && previewSnapshot.coverageStatus !== 'EMPTY'
+    ? `${previewSnapshot.coverageStatus === 'PARTIAL' ? '일부 데이터만 표시' : '실제 데이터 범위'}: ${formatPreviewInstant(previewSnapshot.bars[0]?.occurredAt ?? previewSnapshot.availableFrom)} — ${formatPreviewInstant(previewSnapshot.bars.at(-1)?.occurredAt ?? previewSnapshot.availableTo)} (마지막 보유 시점 기준)`
+    : null;
 
   const addStrategyCard = (sectionId: string, side: Side) => {
     const section = sections.find((item) => item.id === sectionId)!;
@@ -3981,14 +4037,17 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       미리보기는 PiP 창이다. 확대·이동하는 캔버스 안에 두면 좌표가 따라 움직이고
       transform이 fixed 기준을 바꿔 버리므로, 캔버스 밖 화면 단위에 띄운다.
     */}
-    {previewSection && marketDataClient && visiblePreviewCandles && visiblePreviewCandles.length > 0
+    {previewSection && marketDataClient && previewCandles && previewCandles.length > 0
       ? <StrategyPreviewChart
         partitionLabel={`PARTITION ${previewSectionNumber}`}
-        symbols={previewSymbols.slice(0, 1)}
+        symbols={previewSymbols}
+        selectedSymbol={previewSymbol}
+        onSymbolChange={setPreviewSymbol}
         flows={previewFlows}
-        candles={visiblePreviewCandles}
+        candles={previewCandles}
         previewWindow={previewWindow}
         onWindowChange={setPreviewWindow}
+        coverageMessage={previewCoverageMessage}
         onClose={() => setPreviewSectionId(null)}
       />
       : previewSection && <aside className="strategy-preview-card strategy-preview-unavailable" data-testid="strategy-preview-unavailable" aria-label={`PARTITION ${previewSectionNumber} 전략 미리보기`}>
@@ -4002,8 +4061,12 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           ? <ErrorState title={previewError} />
           : <EmptyState
             icon={CandlestickChart}
-            title="표시할 실제 시장 데이터가 없습니다."
-            detail="실제 시장 데이터 기반 미리보기만 표시합니다."
+            title={previewSnapshot?.coverageStatus === 'EMPTY'
+              ? `${previewSymbol} ${resolutionCode(previewSection.timeframe)} 실제 데이터가 없습니다.`
+              : '표시할 실제 시장 데이터가 없습니다.'}
+            detail={previewSnapshot?.reasonCode === 'NO_DATA_FOR_INSTRUMENT_TIMEFRAME'
+              ? '로컬 Parquet에서 이 종목과 타임프레임에 투영된 봉이 없습니다. 다른 종목이나 봉 주기를 선택해 주세요.'
+              : '실제 시장 데이터 기반 미리보기만 표시합니다.'}
           />}
     </aside>}
     {trashItemLabel && <div

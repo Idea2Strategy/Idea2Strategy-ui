@@ -737,7 +737,7 @@ function ExecutionPanel({ attempts }: { attempts: BacktestAttempt[] }) {
   return <Panel
     className="backtest-live-attempt-panel"
     title="자동 실행 기록"
-    subtitle="공식 백테스트 워커가 처리한 실행 시도"
+    subtitle={`공식 백테스트 워커가 처리한 실행 시도 · 총 ${attempts.length}회`}
   >
     <AttemptTable attempts={attempts} />
   </Panel>;
@@ -781,11 +781,12 @@ function AttemptTable({ attempts }: { attempts: BacktestAttempt[] }) {
   }
   return <div className="table-wrap backtest-live-attempts"><table aria-label="자동 실행 시도 기록">
     <thead><tr>
-      <th>시도</th><th>상태</th><th>시작 (ET)</th><th>종료 (ET)</th>
+      <th>시도</th><th>상태</th><th>실패 사유</th><th>시작 (ET)</th><th>종료 (ET)</th>
     </tr></thead>
     <tbody>{attempts.map((attempt) => <tr key={attempt.attemptId}>
       <td>{attempt.attemptNumber}</td>
       <td>{attempt.status}</td>
+      <td>{attempt.failureCode ?? '—'}</td>
       <td>{formatTime(attempt.startedAt)}</td>
       <td>{attempt.completedAt ? formatTime(attempt.completedAt) : '—'}</td>
     </tr>)}</tbody>

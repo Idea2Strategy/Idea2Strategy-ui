@@ -35,6 +35,42 @@ describe('market data client', () => {
     );
   });
 
+  it('requests a server-anchored preview window and preserves literal coverage metadata', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      instrumentId: 'instrument-1', symbol: 'AAPL', timeframe: '30m', window: '3m',
+      requestedFrom: '2026-04-30T20:00:00Z', requestedTo: '2026-07-30T20:00:00Z',
+      availableFrom: '2026-05-15T13:30:00Z', availableTo: '2026-07-30T20:00:00Z',
+      coverageStatus: 'PARTIAL', reasonCode: 'HISTORY_STARTS_AFTER_REQUESTED_WINDOW', bars: [bar],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const client = createMarketDataClient({ baseUrl: 'https://api.example.com', fetchImpl });
+
+    const result = await client.getPreviewBars!('instrument-1', '30m', '3m');
+
+    expect(result).toEqual(expect.objectContaining({
+      window: '3m', requestedTo: '2026-07-30T20:00:00Z', coverageStatus: 'PARTIAL',
+      reasonCode: 'HISTORY_STARTS_AFTER_REQUESTED_WINDOW',
+    }));
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/market-data/instruments/instrument-1/bars?timeframe=30m&window=3m',
+      expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+
+  it.each([
+    [401, 'AUTHENTICATION_REQUIRED'],
+    [404, 'MARKET_DATA_NOT_FOUND'],
+    [503, 'MARKET_DATA_UNAVAILABLE'],
+  ])('classifies preview HTTP %s without hiding it behind one message', async (status, code) => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ detail: 'literal server detail' }),
+      { status, headers: { 'Content-Type': 'application/problem+json' } },
+    ));
+    const client = createMarketDataClient({ fetchImpl });
+
+    await expect(client.getPreviewBars!('instrument-1', '30m', '1m'))
+      .rejects.toMatchObject({ code, status, detail: 'literal server detail' });
+  });
+
   it('uses a one-use authenticated ticket for display WebSocket prices', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       ticket: 'ticket-1', expiresAt: '2026-08-06T14:30:30Z',
