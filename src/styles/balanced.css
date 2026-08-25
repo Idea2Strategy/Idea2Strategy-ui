@@ -1446,6 +1446,8 @@
 .variant-balanced[data-design="signal-studio"] .corner-top-left { left: 18px; }
 .variant-balanced[data-design="signal-studio"] .corner-top-right { right: 18px; }
 .variant-balanced[data-design="signal-studio"] .strategy-section-header {
+  position: relative;
+  z-index: 3;
   min-height: 76px;
   display: grid;
   grid-template-columns: 28px minmax(104px, 1fr) auto auto;
@@ -1500,11 +1502,13 @@
   align-items: flex-end;
   gap: 8px;
 }
-.variant-balanced[data-design="signal-studio"] .section-settings label {
+.variant-balanced[data-design="signal-studio"] .section-settings label,
+.variant-balanced[data-design="signal-studio"] .section-settings .section-setting-control {
   display: grid;
   gap: 5px;
 }
-.variant-balanced[data-design="signal-studio"] .section-settings label > span:first-child {
+.variant-balanced[data-design="signal-studio"] .section-settings label > span:first-child,
+.variant-balanced[data-design="signal-studio"] .section-settings .section-setting-control > span:first-child {
   color: var(--text-faint);
   font: 7px var(--font-mono);
   letter-spacing: .05em;
@@ -11268,7 +11272,8 @@ small.dashboard-bot-scope {
 }
 
 /* Captions are centered on their own controls, so differing text lengths stay orderly. */
-.variant-balanced[data-design="signal-studio"] .strategy-section-header .section-settings label {
+.variant-balanced[data-design="signal-studio"] .strategy-section-header .section-settings label,
+.variant-balanced[data-design="signal-studio"] .strategy-section-header .section-settings .section-setting-control {
   grid-template-rows: 12px 32px;
   align-items: stretch;
 }

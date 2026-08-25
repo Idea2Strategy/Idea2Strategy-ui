@@ -216,6 +216,7 @@ describe('Strategy API view', () => {
 
     const { unmount } = render(<BasicEditor blank goBack={() => {}} strategyId="strategy-id" authoringClient={authoringClient} catalogClient={catalogClient} marketDataClient={marketDataClient} />);
     await waitFor(() => expect(catalogClient.getBasic).toHaveBeenCalledWith(expect.any(AbortSignal)));
+    expect(screen.getByRole('button', { name: 'PARTITION 01 종목 관리' }).closest('label')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 종목 관리' }));
     await user.click(within(screen.getByRole('listbox', { name: '추가할 종목' })).getByRole('option', { name: /SPY/ }));
     await user.click(screen.getByRole('button', { name: '종목 추가' }));

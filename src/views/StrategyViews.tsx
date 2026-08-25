@@ -35,7 +35,53 @@ import {
 } from '../lib/strategyCanvasLayout';
 import type { CanvasPoint, CanvasSize, CardMoveGesture } from '../lib/strategyCanvasLayout';
 import { defaultStrategyAuthoringClient, defaultStrategyCatalogClient, defaultStrategyLibraryClient, STRATEGY_LIBRARY_PAGE_SIZE, StrategyApiError } from '../api/strategies';
-import type { BasicCatalogInstrument, BasicStrategyCatalog, StrategyAuthoringClient, StrategyCatalogClient, StrategyLibraryClient, StrategyLibraryItem, StrategyValidationResult } from '../api/strategies';
+import type { BasicCatalogInstrument, BasicStrategyCatalog, StrategyAuthoringClient, StrategyCatalogClient, StrategyLibraryClient, StrategyLibraryItem, StrategyValidationFinding, StrategyValidationResult } from '../api/strategies';
+
+const VALIDATION_FINDING_MESSAGES: Record<string, string> = {
+  REPEATED_ORDER_EXPOSURE: '반복 매수는 한 종목의 보유 비중을 빠르게 높일 수 있습니다.',
+  RESTRICTIVE_COMBINATION: '조건을 다섯 개 이상 모두 충족해야 하므로 거래가 매우 드물 수 있습니다.',
+  SELL_REQUIRES_POSITION: '보유 수량이 없을 때는 이 매도 조건이 충족되어도 주문하지 않습니다.',
+  POSITION_CAP_REACHED: '설정한 최대 보유 비중에 도달해 추가 매수 주문을 내지 않습니다.',
+  DUPLICATE_CONDITION: '같은 조건이 중복되어 있습니다. 의도한 구성인지 확인해 주세요.',
+  CONTRADICTORY_CONDITION: '동시에 충족할 수 없는 기준값이 함께 설정되어 있습니다.',
+  CONDITION_ALWAYS_TRUE: '이 조건은 포지션을 보유한 동안 항상 참이 됩니다.',
+  CONDITION_ALWAYS_FALSE: '이 조건은 실제 시장 데이터에서 충족될 수 없습니다.',
+};
+
+const VALIDATION_PARAMETER_LABELS: Record<string, string> = {
+  maxExecutions: '최대 실행 횟수',
+  threshold: '기준값',
+  thresholdPercent: '기준 비율',
+  maxPositionPercent: '최대 보유 비율',
+  period: '계산 기간',
+  resolution: '봉 주기',
+  operator: '비교 방식',
+};
+
+const validationOrdinal = (zeroBased: number): string => {
+  if (zeroBased === 0) return '첫 번째';
+  if (zeroBased === 1) return '두 번째';
+  return `${zeroBased + 1}번째`;
+};
+
+const presentValidationLocation = (location: string): string => {
+  const parts: string[] = [];
+  const group = /groups\[(\d+)]/.exec(location);
+  const block = /blocks\[(\d+)]/.exec(location);
+  const parameter = /parameters\.([A-Za-z0-9_]+)/.exec(location);
+  if (group) parts.push(`${validationOrdinal(Number(group[1]))} 전략 흐름`);
+  if (block) parts.push(`${Number(block[1]) + 1}번째 블록`);
+  if (location.endsWith('.container')) parts.push('매수/매도 구분');
+  if (parameter) parts.push(VALIDATION_PARAMETER_LABELS[parameter[1]] ?? '블록 설정값');
+  return parts.length > 0 ? parts.join(' · ') : '전략 전체 설정';
+};
+
+export const presentServerValidationFinding = (
+  finding: StrategyValidationFinding,
+): { message: string; location: string } => ({
+  message: VALIDATION_FINDING_MESSAGES[finding.code] ?? finding.message,
+  location: presentValidationLocation(finding.location),
+});
 
 type EditorMode = 'basic' | 'pro';
 type EditorLoadFailure = 'sign-in' | 'missing' | 'conflict' | 'transport' | 'unreadable';
@@ -3864,7 +3910,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
                 <button className="section-move-handle" data-testid={`${section.id}-move-handle`} aria-label={`PARTITION ${sectionNumber} 이동`} onPointerDown={(event) => beginSectionMove(event, section)}><GripVertical size={16} /></button>
                 <div className="section-identity"><span>PARTITION {sectionNumber}</span><strong>{section.symbol}</strong><small>매수 {section.cards.buy.length} · 매도 {section.cards.sell.length}</small></div>
                 <div className="section-settings">
-                  <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="거래 종목">종목</span><button type="button" className="section-symbol-manager" aria-label={`PARTITION ${sectionNumber} 종목 관리`} onClick={() => { setPendingInstrumentKey(''); setInstrumentQuery(''); setInstrumentInitial(null); setSymbolManagerSectionId(section.id); }}><strong>{splitPartitionSymbols(section.symbol).length || 0}개 종목</strong><small>한도 설정</small></button></label>
+                  <div className="section-setting-control"><span className="section-setting-caption" data-testid="partition-setting-caption" title="거래 종목">종목</span><button type="button" className="section-symbol-manager" aria-label={`PARTITION ${sectionNumber} 종목 관리`} onClick={() => { setPendingInstrumentKey(''); setInstrumentQuery(''); setInstrumentInitial(null); setSymbolManagerSectionId(section.id); }}><strong>{splitPartitionSymbols(section.symbol).length || 0}개 종목</strong><small>한도 설정</small></button></div>
                   <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="전체 전략 대비 예산">예산</span><span className="section-allocation"><input type="number" min=".1" max="100" step=".1" aria-label={`PARTITION ${sectionNumber} 전체 전략 대비 예산`} value={section.allocation} onWheel={(event) => event.stopPropagation()} onChange={(event) => updateSection(section.id, { allocation: Number(event.target.value) })} /><b>%</b></span></label>
                   <label><span className="section-setting-caption" data-testid="partition-setting-caption" title="기본 봉 주기">봉 주기</span><select aria-label={`PARTITION ${sectionNumber} 기본 봉 주기`} value={section.timeframe} onChange={(event) => updateSection(section.id, { timeframe: event.target.value })}>{BASIC_TIMEFRAMES.map((timeframe) => <option key={timeframe}>{timeframe}</option>)}</select></label>
                 </div>
@@ -3938,7 +3984,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           <ul>{serverValidation.findings.map((finding, index) => <li key={`${finding.code}-${finding.location}-${index}`}>
             <div className="basic-validation-server-finding">
               <span>{finding.severity === 'ERROR' ? '오류' : '경고'}</span>
-              <span><strong>{finding.message}</strong><small>{finding.location}</small></span>
+              <span><strong>{presentServerValidationFinding(finding).message}</strong><small>{presentServerValidationFinding(finding).location}</small></span>
             </div>
           </li>)}</ul>
         </section>}
