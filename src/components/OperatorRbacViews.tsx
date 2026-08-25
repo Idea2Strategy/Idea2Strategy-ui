@@ -13,7 +13,7 @@ const apiError = (cause: unknown) => cause instanceof OperatorRbacApiError
   ? cause : new OperatorRbacApiError(0, 'NETWORK_ERROR', null);
 
 export function OperatorRbacWorkspace({
-  client, mutationsClient, catalogReadPermissionId, assignmentReadPermissionId,
+  client, mutationsClient,
 }: {
   client: OperatorRbacClient;
   mutationsClient?: AccountOperationsClient;
@@ -32,26 +32,31 @@ export function OperatorRbacWorkspace({
   if (self.kind === 'loading') return <OperatorPage><div className="operator-rbac-loading" role="status"><LoaderCircle size={18} /> 운영자 권한을 확인하는 중입니다.</div></OperatorPage>;
   if (self.kind === 'error') return <OperatorPage><OperatorReadError error={self.error} retry={loadSelf} /></OperatorPage>;
 
-  const permissionIds = new Set(self.value.permissions.map((permission) => permission.id));
-  const canReadCatalog = Boolean(catalogReadPermissionId && permissionIds.has(catalogReadPermissionId));
-  const canReadAssignments = Boolean(assignmentReadPermissionId && permissionIds.has(assignmentReadPermissionId));
-  const visibleTab = tab === 'catalog' && !canReadCatalog || tab === 'assignments' && !canReadAssignments ? 'self' : tab;
+  const permissionCodes = new Set(self.value.permissions.map((permission) => permission.code));
+  const canReadCatalog = permissionCodes.has('OPERATOR_RBAC_CATALOG_READ');
+  const canReadAssignments = permissionCodes.has('OPERATOR_RBAC_ASSIGNMENT_READ');
+  const canGrant = permissionCodes.has('OPERATOR_RBAC_GRANT');
+  const canRevoke = permissionCodes.has('OPERATOR_RBAC_REVOKE');
+  const canMutate = Boolean(mutationsClient && (canGrant || canRevoke));
+  const visibleTab = tab === 'catalog' && !canReadCatalog
+    || tab === 'assignments' && !canReadAssignments
+    || tab === 'mutations' && !canMutate ? 'self' : tab;
 
   return <OperatorPage>
     <nav className="operator-rbac-tabs" aria-label="운영자 권한 메뉴">
       <button type="button" aria-current={visibleTab === 'self' ? 'page' : undefined} onClick={() => setTab('self')}>내 권한</button>
       {canReadCatalog && <button type="button" aria-current={visibleTab === 'catalog' ? 'page' : undefined} onClick={() => setTab('catalog')}>권한 카탈로그</button>}
       {canReadAssignments && <button type="button" aria-current={visibleTab === 'assignments' ? 'page' : undefined} onClick={() => setTab('assignments')}>운영자 할당 조회</button>}
-      {mutationsClient && <button type="button" aria-current={visibleTab === 'mutations' ? 'page' : undefined} onClick={() => setTab('mutations')}>역할 부여·회수</button>}
+      {canMutate && <button type="button" aria-current={visibleTab === 'mutations' ? 'page' : undefined} onClick={() => setTab('mutations')}>역할 부여·회수</button>}
     </nav>
     {visibleTab === 'self' && <SelfView value={self.value} />}
     {visibleTab === 'catalog' && <CatalogView client={client} />}
     {visibleTab === 'assignments' && <AssignmentsView client={client} />}
-    {visibleTab === 'mutations' && mutationsClient && <RbacMutationView client={mutationsClient} />}
+    {visibleTab === 'mutations' && mutationsClient && <RbacMutationView client={mutationsClient} canGrant={canGrant} canRevoke={canRevoke} />}
   </OperatorPage>;
 }
 
-function RbacMutationView({ client, createIdempotencyKey = () => crypto.randomUUID() }: { client: AccountOperationsClient; createIdempotencyKey?: () => string }) {
+function RbacMutationView({ client, canGrant, canRevoke, createIdempotencyKey = () => crypto.randomUUID() }: { client: AccountOperationsClient; canGrant: boolean; canRevoke: boolean; createIdempotencyKey?: () => string }) {
   const [targetOperatorId, setTargetOperatorId] = useState('');
   const [roleId, setRoleId] = useState('');
   const [assignmentId, setAssignmentId] = useState('');
@@ -87,8 +92,8 @@ function RbacMutationView({ client, createIdempotencyKey = () => crypto.randomUU
       <label><span>역할 만료 시각</span><input aria-label="RBAC role expiry" type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></label>
     </div>
     <div className="account-api-actions">
-      <Button disabled={!targetOperatorId.trim() || !roleId.trim() || !reasonCode.trim() || state.kind === 'processing'} onClick={() => { setPending('GRANT'); setConfirmation(''); }}>역할 부여</Button>
-      <Button disabled={!targetOperatorId.trim() || !assignmentId.trim() || !reasonCode.trim() || state.kind === 'processing'} onClick={() => { setPending('REVOKE'); setConfirmation(''); }}>역할 회수</Button>
+      {canGrant && <Button disabled={!targetOperatorId.trim() || !roleId.trim() || !reasonCode.trim() || state.kind === 'processing'} onClick={() => { setPending('GRANT'); setConfirmation(''); }}>역할 부여</Button>}
+      {canRevoke && <Button disabled={!targetOperatorId.trim() || !assignmentId.trim() || !reasonCode.trim() || state.kind === 'processing'} onClick={() => { setPending('REVOKE'); setConfirmation(''); }}>역할 회수</Button>}
     </div>
     {pending && <div className="case-api-confirm" role="alertdialog" aria-label="Confirm RBAC mutation"><strong>{pending} 변경을 실행할까요?</strong><label><span>확인을 위해 {pending} 입력</span><input aria-label={`Type ${pending} to confirm`} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} /></label><div className="account-api-actions"><Button kind="primary" disabled={confirmation !== pending || state.kind === 'processing'} onClick={() => void execute()}>확인 후 실행</Button><Button onClick={() => setPending(null)}>취소</Button></div></div>}
     {state.kind === 'processing' && <p role="status">역할 변경을 처리하는 중입니다.</p>}

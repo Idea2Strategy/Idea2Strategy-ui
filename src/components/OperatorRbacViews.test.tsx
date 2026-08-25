@@ -34,9 +34,9 @@ const mutationsClient = (overrides: Partial<AccountOperationsClient> = {}): Acco
 });
 
 describe('operator RBAC workspace', () => {
-  it('bootstraps from /me and only exposes configured permissions returned by the server', async () => {
+  it('bootstraps from /me and exposes stable permission codes without environment-specific IDs', async () => {
     const me = vi.fn().mockResolvedValue({ view: self([catalogPermission]), correlationId: 'corr-me' });
-    render(<OperatorRbacWorkspace client={client({ me })} catalogReadPermissionId="catalog-read-id" assignmentReadPermissionId="assignment-read-id" />);
+    render(<OperatorRbacWorkspace client={client({ me })} />);
 
     expect(screen.getByRole('status')).toHaveTextContent('운영자 권한을 확인하는 중');
     expect(await screen.findByRole('button', { name: '권한 카탈로그' })).toBeInTheDocument();
@@ -49,7 +49,7 @@ describe('operator RBAC workspace', () => {
     const catalog = vi.fn().mockResolvedValue({
       view: { catalogVersion: 'catalog-v1', roles: [], permissions: [], rolePermissions: [] }, correlationId: 'corr-catalog',
     });
-    render(<OperatorRbacWorkspace client={client({ catalog })} catalogReadPermissionId="catalog-read-id" assignmentReadPermissionId="assignment-read-id" />);
+    render(<OperatorRbacWorkspace client={client({ catalog })} />);
     const user = userEvent.setup();
 
     expect(await screen.findByRole('heading', { name: '현재 운영자' })).toBeInTheDocument();
@@ -62,7 +62,7 @@ describe('operator RBAC workspace', () => {
 
   it('submits a target assignment read without using visibility as authorization', async () => {
     const assignments = vi.fn().mockResolvedValue({ view: { operatorId: 'operator-2', assignments: [] }, correlationId: 'corr-assignments' });
-    render(<OperatorRbacWorkspace client={client({ assignments })} catalogReadPermissionId="catalog-read-id" assignmentReadPermissionId="assignment-read-id" />);
+    render(<OperatorRbacWorkspace client={client({ assignments })} />);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: '운영자 할당 조회' }));
     await user.type(screen.getByRole('textbox', { name: '대상 운영자 ID' }), 'operator-2');
@@ -95,7 +95,8 @@ describe('operator RBAC workspace', () => {
 
   it('requires typed confirmation and sends a complete role grant command', async () => {
     const grantOperator = vi.fn().mockResolvedValue({ code: 'OPERATOR_ROLE_GRANTED', correlationId: 'corr-grant' });
-    render(<OperatorRbacWorkspace client={client()} mutationsClient={mutationsClient({ grantOperator })} />);
+    const grantPermission = { id: 'grant-id', code: 'OPERATOR_RBAC_GRANT' };
+    render(<OperatorRbacWorkspace client={client({ me: vi.fn().mockResolvedValue({ view: self([grantPermission]), correlationId: 'corr-me' }) })} mutationsClient={mutationsClient({ grantOperator })} />);
     await userEvent.click(await screen.findByRole('button', { name: '역할 부여·회수' }));
     await userEvent.type(screen.getByLabelText('RBAC target operator ID'), 'operator-2');
     await userEvent.type(screen.getByLabelText('RBAC role ID'), 'role-2');
@@ -110,5 +111,11 @@ describe('operator RBAC workspace', () => {
       targetOperatorId: 'operator-2', roleId: 'role-2', expiresAt: null, reasonCode: 'ON_CALL',
     }, expect.any(String)));
     expect(await screen.findByText(/OPERATOR_ROLE_GRANTED/)).toBeInTheDocument();
+  });
+
+  it('does not expose role mutations merely because a mutation client exists', async () => {
+    render(<OperatorRbacWorkspace client={client()} mutationsClient={mutationsClient()} />);
+    expect(await screen.findByRole('heading', { name: '현재 운영자' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '역할 부여·회수' })).not.toBeInTheDocument();
   });
 });
