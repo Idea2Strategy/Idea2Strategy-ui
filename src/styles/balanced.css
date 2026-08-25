@@ -13908,3 +13908,73 @@ small.dashboard-bot-scope {
 }
 .reduce-motion .variant-balanced[data-design="signal-studio"] .backtest-request-backdrop,
 .reduce-motion .variant-balanced[data-design="signal-studio"] .backtest-request-dialog { animation: none; }
+
+/* Dedicated operator authentication is intentionally distinct from customer sign-in. */
+.variant-balanced[data-design="signal-studio"] .operator-auth-page {
+  min-height: calc(100dvh - 72px);
+  display: grid;
+  place-items: center;
+  padding-block: clamp(32px, 8vh, 88px);
+}
+.variant-balanced[data-design="signal-studio"] .operator-auth-shell {
+  width: min(100%, 520px);
+  display: grid;
+  gap: 20px;
+  padding: clamp(24px, 4vw, 38px);
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--surface-2) 94%, var(--accent) 6%), var(--surface));
+  box-shadow: 0 28px 70px rgba(var(--shadow-rgb), .2);
+}
+.variant-balanced[data-design="signal-studio"] .operator-auth-heading {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr);
+  align-items: start;
+  gap: 15px;
+}
+.variant-balanced[data-design="signal-studio"] .operator-auth-mark {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--line));
+  border-radius: 14px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 56%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .operator-auth-heading small {
+  color: var(--accent);
+  font: 700 9px var(--font-mono);
+  letter-spacing: .13em;
+}
+.variant-balanced[data-design="signal-studio"] .operator-auth-heading h1 { margin: 5px 0 7px; font-size: 26px; }
+.variant-balanced[data-design="signal-studio"] .operator-auth-heading p { margin: 0; color: var(--text-soft); font-size: 13px; line-height: 1.6; }
+.variant-balanced[data-design="signal-studio"] .operator-auth-boundary {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--text-faint);
+  background: color-mix(in srgb, var(--surface-3) 82%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .operator-auth-boundary > span { display: grid; gap: 2px; }
+.variant-balanced[data-design="signal-studio"] .operator-auth-boundary strong { color: var(--text); font-size: 11px; }
+.variant-balanced[data-design="signal-studio"] .operator-auth-boundary small { font-size: 10px; line-height: 1.45; }
+.variant-balanced[data-design="signal-studio"] .operator-auth-form { display: grid; gap: 14px; }
+.variant-balanced[data-design="signal-studio"] .operator-auth-form label { display: grid; gap: 7px; }
+.variant-balanced[data-design="signal-studio"] .operator-auth-form label > span { display: flex; align-items: center; gap: 6px; color: var(--text-soft); font-size: 11px; font-weight: 700; }
+.variant-balanced[data-design="signal-studio"] .operator-auth-form input {
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  color: var(--text);
+  background: var(--surface);
+  outline: 0;
+}
+.variant-balanced[data-design="signal-studio"] .operator-auth-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent); }
+.variant-balanced[data-design="signal-studio"] .operator-auth-form .button { width: 100%; min-height: 44px; margin-top: 4px; }
+.variant-balanced[data-design="signal-studio"] .operator-auth-alert { padding: 11px 13px; border: 1px solid color-mix(in srgb, var(--negative) 42%, var(--line)); border-radius: 10px; color: var(--negative); background: color-mix(in srgb, var(--negative) 8%, transparent); font-size: 11px; }
+.variant-balanced[data-design="signal-studio"] .operator-auth-footnote { margin: -2px 0 0; color: var(--text-faint); font-size: 10px; line-height: 1.6; text-align: center; }
