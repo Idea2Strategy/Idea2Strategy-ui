@@ -190,6 +190,24 @@ describe('OperatorCaseWorkspace', () => {
       assigneeOperatorId: 'a1420000-0000-4000-8000-000000000003',
     }, 'idem-assign'));
   });
+
+  it('keeps a successful command receipt when the follow-up refresh fails', async () => {
+    const summary = { caseId: 'case-3', type: 'INQUIRY' as const, status: 'OPEN' as const, version: 1, assigneeOperatorId: null, updatedAt: '2026-08-03T00:00:00Z' };
+    const operatorCaseQueue = vi.fn().mockResolvedValue({ items: [summary], nextCursor: null });
+    const operatorCase = vi.fn()
+      .mockResolvedValueOnce({ ...summary, evidence: [] })
+      .mockRejectedValueOnce(new Error('refresh offline'));
+    const commandCase = vi.fn().mockResolvedValue({ status: 'APPLIED', code: 'CASE_REVIEW_STARTED', correlationId: 'corr-success', caseVersion: 2 });
+    render(<OperatorCaseWorkspace client={client({ operatorCaseQueue, operatorCase, commandCase })} createIdempotencyKey={() => 'idem-success'} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /INQUIRY/ }));
+    await userEvent.click(screen.getByRole('button', { name: '검토 시작' }));
+    await userEvent.click(screen.getByRole('button', { name: '확인 후 실행' }));
+
+    expect(await screen.findByText('Correlation corr-success')).toBeInTheDocument();
+    expect(screen.getByText('명령은 적용됐지만 최신 케이스 상태는 다시 불러와 주세요.')).toBeInTheDocument();
+    expect(screen.queryByText('운영 API에 일시적으로 연결할 수 없습니다.')).not.toBeInTheDocument();
+  });
 });
 
 describe('OperatorSanctionPanel', () => {

@@ -153,6 +153,7 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
   const [expectedSanctionVersion, setExpectedSanctionVersion] = useState('0');
   const [confirmation, setConfirmation] = useState('');
   const [pendingAction, setPendingAction] = useState<OperatorCaseAction | null>(null);
+  const [refreshWarning, setRefreshWarning] = useState(false);
   const [commandState, setCommandState] = useState<{ kind: 'idle' | 'processing' } | { kind: 'succeeded'; code: string; correlationId: string } | { kind: 'error'; error: AccountOperationsApiError }>({ kind: 'idle' });
   const loadQueue = async (cursor?: string, append = false) => {
     if (append) setQueueMoreLoading(true); else setQueue({ kind: 'loading' });
@@ -167,6 +168,7 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
     setPendingAction(null);
     setConfirmation('');
     setCommandState({ kind: 'idle' });
+    setRefreshWarning(false);
     setDetail({ kind: 'loading' });
     try { setDetail({ kind: 'ready', value: await client.operatorCase(caseId) }); }
     catch (cause) { setDetail({ kind: 'error', error: error(cause) }); }
@@ -192,11 +194,17 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
     setCommandState({ kind: 'processing' });
     try {
       const receipt = await client.commandCase(current.caseId, action, input, createIdempotencyKey());
-      setDetail({ kind: 'ready', value: await client.operatorCase(current.caseId) });
-      await loadQueue();
       setPendingAction(null);
       setConfirmation('');
       setCommandState({ kind: 'succeeded', code: receipt.code, correlationId: receipt.correlationId });
+      setRefreshWarning(false);
+      try {
+        setDetail({ kind: 'ready', value: await client.operatorCase(current.caseId) });
+      } catch {
+        setDetail({ kind: 'ready', value: current });
+        setRefreshWarning(true);
+      }
+      void loadQueue();
     } catch (cause) { setCommandState({ kind: 'error', error: error(cause) }); }
   };
 
@@ -244,6 +252,7 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
           </div>}
           {commandState.kind === 'processing' && <div role="status"><LoaderCircle size={16} /> 명령 처리 중</div>}
           {commandState.kind === 'succeeded' && <div className="case-api-receipt" role="status"><CheckCircle2 size={17} /><div><strong>{commandState.code}</strong><small>Correlation {commandState.correlationId}</small></div></div>}
+          {refreshWarning && <p role="status">명령은 적용됐지만 최신 케이스 상태는 다시 불러와 주세요.</p>}
           {commandState.kind === 'error' && <CaseError operator error={commandState.error} />}
           <small>증거 {detail.value.evidence.length}건 · 소유권 검증 결과는 서버 응답만 표시합니다.</small>
         </div>}
