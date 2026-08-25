@@ -1109,7 +1109,10 @@ function MonthlyTrades({
     />;
   }
   if (trades === null) {
-    return <LoadingState label={`${monthLabel(etYearMonth)} 개별 거래를 불러오는 중입니다.`} />;
+    return <div className="backtest-live-trade-loading" role="status" aria-live="polite">
+      <LoadingState label={`${monthLabel(etYearMonth)} 원본 거래 증거를 검증하는 중입니다.`} />
+      <p>전체 기간이 길면 최대 20초 정도 걸릴 수 있습니다.</p>
+    </div>;
   }
   if (trades.length === 0) {
     // The true answer for a completed month that produced no records, and the reason

@@ -6,7 +6,7 @@ import type { ReactElement } from 'react';
 // Views navigate to /login for sign-in states, so every render needs a router.
 const render = (ui: ReactElement) => renderBare(<MemoryRouter>{ui}</MemoryRouter>);
 import userEvent from '@testing-library/user-event';
-import { HttpResponse, http } from 'msw';
+import { HttpResponse, delay, http } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createBacktestClient } from './api/backtests';
@@ -519,6 +519,23 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     view();
 
     expect(await screen.findByText('고정된 입력으로 공식 백테스트를 실행하고 있습니다.')).toBeInTheDocument();
+  });
+
+  it('explains that a long monthly trade load is verifying source evidence', async () => {
+    const user = userEvent.setup();
+    server.use(http.get(
+      `${BACKTEST_API_BASE}/api/v1/backtests/:runId/monthly-trades`,
+      async () => {
+        await delay(1_000);
+        return HttpResponse.json({ backtestRunId: RUN_ID, etMonth: '2026-08', items: [] });
+      },
+    ));
+
+    view();
+    await openResultTab(user, '거래 내역');
+
+    expect(await screen.findByText('2026년 8월 원본 거래 증거를 검증하는 중입니다.')).toBeInTheDocument();
+    expect(screen.getByText('전체 기간이 길면 최대 20초 정도 걸릴 수 있습니다.')).toBeInTheDocument();
   });
 
   it('polls an active run until the server reports a terminal state', async () => {
