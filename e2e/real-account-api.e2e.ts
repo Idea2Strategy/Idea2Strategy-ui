@@ -191,7 +191,12 @@ test('browser completes the production account principal and user-case journey',
       && response.request().method() === 'PUT');
   await page.getByRole('button', { name: '저장', exact: true }).click();
   const savedDocument = await (await documentSaveResponse).json() as {
-    semanticDocument: { groups: Array<{ blocks: Array<{ elementCode: string; parameters: Record<string, string> }> }> };
+    semanticDocument: { groups: Array<{
+      allocationGroupId: string;
+      container: 'BUY' | 'SELL';
+      instrumentIds: string[];
+      blocks: Array<{ elementCode: string; parameters: Record<string, string> }>;
+    }> };
   };
   const validated = await validationResponse;
   expect(validated.status()).toBe(201);
@@ -200,16 +205,28 @@ test('browser completes the production account principal and user-case journey',
   expect(validationBody.findings.some((finding) => finding.severity === 'INFORMATION')).toBe(true);
   await expect(page.getByRole('alert')).toContainText('검증된 출시 가능 상태로 저장했습니다.');
 
-  const savedConditions = savedDocument.semanticDocument.groups.flatMap((group) => group.blocks)
-    .filter((block) => block.elementCode !== 'BASIC_EQUAL_ALLOCATION_ORDER');
-  expect(savedConditions.map((block) => block.elementCode)).toEqual([
+  const expectedConditionCodes = [
     'BASIC_RSI_CROSS', 'BASIC_VOLUME_COMPARE', 'BASIC_PRICE_COMPARE', 'BASIC_PRICE_CHANGE_PERCENT',
     'BASIC_SMA_CROSS', 'BASIC_RSI_CROSS', 'BASIC_POSITION_RETURN', 'BASIC_HOLDING_PERIOD',
     'BASIC_PEAK_RETURN', 'BASIC_DRAWDOWN_FROM_PEAK',
-  ]);
-  expect(savedConditions.find((block) => block.elementCode === 'BASIC_PRICE_CHANGE_PERCENT')?.parameters)
+  ];
+  expect(savedDocument.semanticDocument.groups).toHaveLength(4);
+  for (const group of savedDocument.semanticDocument.groups) {
+    const savedConditions = group.blocks
+      .filter((block) => block.elementCode !== 'BASIC_EQUAL_ALLOCATION_ORDER');
+    const expectedForSide = group.container === 'BUY'
+      ? expectedConditionCodes.slice(0, 5)
+      : expectedConditionCodes.slice(5);
+    expect(savedConditions.map((block) => block.elementCode)).toEqual(expectedForSide);
+    expect(group.instrumentIds).toHaveLength(1);
+  }
+  expect(new Set(savedDocument.semanticDocument.groups.flatMap((group) => group.instrumentIds)).size).toBe(2);
+  const representativeBlocks = savedDocument.semanticDocument.groups
+    .filter((group, index, groups) => groups.findIndex((entry) => entry.allocationGroupId === group.allocationGroupId) === index)
+    .flatMap((group) => group.blocks);
+  expect(representativeBlocks.find((block) => block.elementCode === 'BASIC_PRICE_CHANGE_PERCENT')?.parameters)
     .toMatchObject({ base: 'SESSION_OPEN', direction: 'UP', thresholdPercent: '2.5', resolution: '30m' });
-  expect(savedConditions.find((block) => block.elementCode === 'BASIC_HOLDING_PERIOD')?.parameters)
+  expect(representativeBlocks.find((block) => block.elementCode === 'BASIC_HOLDING_PERIOD')?.parameters)
     .toMatchObject({ unit: 'TRADING_DAY', amount: '5', resolution: '30m' });
 
   const persistedLease = page.waitForResponse((response) =>
