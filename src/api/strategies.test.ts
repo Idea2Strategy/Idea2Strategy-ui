@@ -219,11 +219,11 @@ describe('strategy authoring API client', () => {
       candidateConflictPolicy: { policy: 'FIRST_WINS' },
     };
     const fetchImpl = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ botId: 'bot-id', backtestLane: 'BASIC' }), { status: 201 }),
+      new Response(JSON.stringify({ releaseId: 'release-id', botId: 'bot-id', backtestLane: 'BASIC' }), { status: 201 }),
     );
     const client = createStrategyAuthoringClient({ fetchImpl });
 
-    await expect(client.releaseStrategy(document.strategyId, release)).resolves.toEqual({ botId: 'bot-id', backtestLane: 'BASIC' });
+    await expect(client.releaseStrategy(document.strategyId, release)).resolves.toEqual({ releaseId: 'release-id', botId: 'bot-id', backtestLane: 'BASIC' });
     expect(fetchImpl.mock.calls.map(([url, init]) => [url, (init as RequestInit).method ?? 'GET'])).toEqual([
       [`/api/v1/strategies/${document.strategyId}/releases`, 'POST'],
     ]);
