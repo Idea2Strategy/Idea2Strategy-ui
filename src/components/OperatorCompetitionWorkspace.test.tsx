@@ -35,14 +35,19 @@ describe('OperatorCompetitionWorkspace', () => {
     await waitFor(() => expect(api.cancelOperatorRoom).toHaveBeenCalledWith('room-1', 'OPERATOR_REQUEST'));
   });
 
-  it('creates an official room with server catalog identifiers and precision policy', async () => {
+  it('creates an official room from typed eligibility and market controls without raw JSON', async () => {
     const api = makeClient();
     render(<OperatorCompetitionWorkspace client={api} />);
     await screen.findByRole('button', { name: '공식 대회 생성' });
+    expect(screen.queryByRole('textbox', { name: 'Official eligibility criteria' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Official market scope' })).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('Official room name'), 'Platform Cup');
+    await userEvent.clear(screen.getByLabelText('최소 계정 가입일'));
+    await userEvent.type(screen.getByLabelText('최소 계정 가입일'), '7');
+    await userEvent.click(screen.getByLabelText('NYSE'));
     await userEvent.click(screen.getByRole('button', { name: '공식 대회 생성' }));
     await waitFor(() => expect(api.createOfficialRoom).toHaveBeenCalledWith(expect.objectContaining({
-      name: 'Platform Cup', scoringTemplateVersionId: 'score-1', feePolicyId: 'fee-1', buyingPowerBufferPolicyId: 'buffer-1', precisionRulesVersion: 'precision-2', eligibilityCriteria: { minimumAccountAgeDays: 0 }, marketScope: { market: 'US' },
+      name: 'Platform Cup', scoringTemplateVersionId: 'score-1', feePolicyId: 'fee-1', buyingPowerBufferPolicyId: 'buffer-1', precisionRulesVersion: 'precision-2', eligibilityCriteria: { minimumAccountAgeDays: 7, minimumAccountState: 'ACTIVE' }, marketScope: { market: 'US', exchangeMics: ['XNYS'] },
     })));
     expect(await screen.findByText('공식 대회 room-2가 생성되었습니다.')).toBeInTheDocument();
   });

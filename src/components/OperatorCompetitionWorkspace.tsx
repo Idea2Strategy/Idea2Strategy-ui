@@ -58,19 +58,22 @@ export function OperatorCompetitionWorkspace({ client }: { client: CompetitionRo
     const form = new FormData(event.currentTarget);
     setCreateState({ kind: 'loading' });
     try {
-      const schedule = Object.fromEntries(['recruitmentOpensAt', 'participationOpensAt', 'participationClosesAt', 'evaluationStartsAt', 'evaluationEndsAt', 'finalizationDeadlineAt']
-        .map((key) => [key, zonedLocalToIso(String(form.get(key)), timezone)]));
+      const schedule = {
+        recruitmentOpensAt: zonedLocalToIso(String(form.get('recruitmentOpensAt')), timezone),
+        participationOpensAt: zonedLocalToIso(String(form.get('participationOpensAt')), timezone),
+        participationClosesAt: zonedLocalToIso(String(form.get('participationClosesAt')), timezone),
+        evaluationStartsAt: zonedLocalToIso(String(form.get('evaluationStartsAt')), timezone),
+        evaluationEndsAt: zonedLocalToIso(String(form.get('evaluationEndsAt')), timezone),
+        finalizationDeadlineAt: zonedLocalToIso(String(form.get('finalizationDeadlineAt')), timezone),
+      };
       if (!(schedule.recruitmentOpensAt <= schedule.participationOpensAt
         && schedule.participationOpensAt < schedule.participationClosesAt
         && schedule.participationClosesAt < schedule.evaluationStartsAt
         && schedule.evaluationStartsAt < schedule.evaluationEndsAt
         && schedule.evaluationEndsAt <= schedule.finalizationDeadlineAt)) throw new Error('대회 일정의 시간 순서를 확인하세요.');
-      const parseObject = (name: string) => {
-        const value: unknown = JSON.parse(String(form.get(name)));
-        if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${name}은 JSON 객체여야 합니다.`);
-        return value as Record<string, unknown>;
-      };
       const template = catalog.value.room.scoringTemplates.find((item) => item.id === templateId);
+      const exchangeMics = form.getAll('exchangeMics').map(String);
+      const marketScope = exchangeMics.length ? { market: 'US', exchangeMics } : { market: 'US' };
       const input: CreateOfficialRoomInput = {
         name: String(form.get('name')).trim(), accessType: String(form.get('accessType')) as CreateOfficialRoomInput['accessType'],
         scoringTemplateVersionId: templateId,
@@ -79,7 +82,7 @@ export function OperatorCompetitionWorkspace({ client }: { client: CompetitionRo
         perAccountBotLimit: Number(form.get('perAccountBotLimit')), stoppedBotSlotPolicy: String(form.get('stoppedBotSlotPolicy')),
         minimumOperationSeconds: Number(form.get('minimumOperationSeconds')), minimumFillCount: Number(form.get('minimumFillCount')),
         feePolicyId: String(form.get('feePolicyId')), buyingPowerBufferPolicyId: String(form.get('buyingPowerBufferPolicyId')),
-        eligibilityCriteria: parseObject('eligibilityCriteria'), marketScope: parseObject('marketScope'),
+        eligibilityCriteria: { minimumAccountAgeDays: Number(form.get('minimumAccountAgeDays')), minimumAccountState: 'ACTIVE' }, marketScope,
         precisionRulesVersion: String(form.get('precisionRulesVersion')), ...schedule, timezoneName: timezone,
       } as CreateOfficialRoomInput;
       const result = await client.createOfficialRoom(input);
@@ -115,7 +118,11 @@ export function OperatorCompetitionWorkspace({ client }: { client: CompetitionRo
           <div className="competition-api-form-grid"><label>대회 이름<input name="name" aria-label="Official room name" required /></label><label>접근 방식<select name="accessType" aria-label="Official room access"><option value="PUBLIC">PUBLIC</option><option value="SECRET">SECRET</option></select></label><label>초기 자금<input name="initialCashAmount" type="number" min="1" defaultValue="10000" required /></label><label>전체 봇 한도<input name="botParticipationLimit" type="number" min="1" defaultValue="100" required /></label><label>계정별 봇 한도<input name="perAccountBotLimit" type="number" min="1" defaultValue="2" required /></label><label>중지 봇 슬롯<select name="stoppedBotSlotPolicy"><option value="RELEASE_SLOT">RELEASE_SLOT</option><option value="KEEP_SLOT">KEEP_SLOT</option></select></label><label>최소 운용 초<input name="minimumOperationSeconds" type="number" min="0" defaultValue="0" required /></label><label>최소 체결 수<input name="minimumFillCount" type="number" min="0" defaultValue="0" required /></label></div>
           <div className="competition-api-form-grid"><label>채점 템플릿<select name="scoringTemplateVersionId" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>{catalog.value.room.scoringTemplates.map((item) => <option key={item.id} value={item.id}>{item.templateCode} · {item.version}</option>)}</select></label><label>수수료 정책<select name="feePolicyId">{catalog.value.room.feePolicies.map((item) => <option key={item.id} value={item.id}>{item.policyCode} · {item.version}</option>)}</select></label><label>구매력 버퍼 정책<select name="buyingPowerBufferPolicyId">{catalog.value.room.buyingPowerBufferPolicies.map((item) => <option key={item.id} value={item.id}>{item.policyCode} · {item.version}</option>)}</select></label><label>정밀도 규칙<select name="precisionRulesVersion">{catalog.value.release.executionPolicies.map((item) => <option key={item.version} value={item.precisionRulesVersion}>{item.version} · {item.precisionRulesVersion}</option>)}</select></label></div>
           {catalog.value.room.scoringTemplates.find((item) => item.id === templateId)?.adjustments.map((item) => <label key={item.code}>{item.code}<input name={`adjustment:${item.code}`} type="number" min={item.minimum} max={item.maximum} step={10 ** -item.scale} defaultValue={item.minimum} required /></label>)}
-          <div className="competition-api-form-grid"><label>참가 자격 JSON<textarea name="eligibilityCriteria" aria-label="Official eligibility criteria" defaultValue={'{"minimumAccountAgeDays":0}'} required /></label><label>시장 범위 JSON<textarea name="marketScope" aria-label="Official market scope" defaultValue={'{"market":"US"}'} required /></label><label>표시 시간대<select value={timezone} onChange={(event) => setTimezone(event.target.value)}><option>Asia/Seoul</option><option>UTC</option><option>America/New_York</option></select></label></div>
+          <div className="competition-api-form-grid">
+            <label>최소 계정 가입일<input name="minimumAccountAgeDays" aria-label="최소 계정 가입일" type="number" min="0" step="1" defaultValue="0" required /><small>가입 후 이 일수가 지난 활성 계정만 참가할 수 있습니다.</small></label>
+            <fieldset><legend>허용 거래소</legend><p>선택하지 않으면 지원되는 미국 거래소 전체를 허용합니다.</p><label><input type="checkbox" name="exchangeMics" value="XNAS" /> NASDAQ</label><label><input type="checkbox" name="exchangeMics" value="XNYS" /> NYSE</label><label><input type="checkbox" name="exchangeMics" value="ARCX" /> NYSE Arca</label><label><input type="checkbox" name="exchangeMics" value="BATS" /> Cboe BZX</label></fieldset>
+            <label>표시 시간대<select value={timezone} onChange={(event) => setTimezone(event.target.value)}><option>Asia/Seoul</option><option>UTC</option><option>America/New_York</option></select></label>
+          </div>
           <div className="competition-api-form-grid"><label>모집 시작<input name="recruitmentOpensAt" type="datetime-local" defaultValue={futureLocal(0, timezone)} required /></label><label>참가 시작<input name="participationOpensAt" type="datetime-local" defaultValue={futureLocal(1, timezone)} required /></label><label>참가 마감<input name="participationClosesAt" type="datetime-local" defaultValue={futureLocal(3, timezone)} required /></label><label>평가 시작<input name="evaluationStartsAt" type="datetime-local" defaultValue={futureLocal(4, timezone)} required /></label><label>평가 종료<input name="evaluationEndsAt" type="datetime-local" defaultValue={futureLocal(10, timezone)} required /></label><label>최종 확정 시한<input name="finalizationDeadlineAt" type="datetime-local" defaultValue={futureLocal(11, timezone)} required /></label></div>
           <Button kind="primary" disabled={!templateId || !catalog.value.release.executionPolicies.length || createState.kind === 'loading'}>{createState.kind === 'loading' ? '생성 중' : '공식 대회 생성'}</Button>
           {createState.kind === 'ready' && <p role="status">공식 대회 {createState.value}가 생성되었습니다.</p>}{createState.kind === 'error' && <ErrorState title="공식 대회를 생성하지 못했습니다." detail={message(createState.error)} />}
