@@ -474,6 +474,14 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
     }
   };
 
+  const canOpenStrategy = (strategy: StrategyListItem) => strategy.kind === 'draft'
+    && strategy.editable
+    && (strategy.mode !== 'Pro' || PRO_EDITOR_AVAILABLE);
+  const openOwnedStrategy = (strategy: StrategyListItem) => {
+    if (!canOpenStrategy(strategy)) return;
+    openEditor(strategy.mode.toLowerCase() as EditorMode, false, strategy.id);
+  };
+
   const deleteOwnedStrategy = async () => {
     if (!deleteTarget || !canDeleteStrategy || deletePending) return;
     setDeletePending(true);
@@ -547,9 +555,17 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
         </div>
         <div className="strategy-rows" data-testid="strategy-list">
           {filteredItems.map((strategy) => <article
-            className="strategy-row"
+            className={`strategy-row ${canOpenStrategy(strategy) ? 'is-openable' : ''}`}
             key={strategy.id}
             data-testid={`strategy-row-${strategy.name}`}
+            aria-label={`${strategy.name} 전략`}
+            tabIndex={canOpenStrategy(strategy) ? 0 : undefined}
+            onClick={() => openOwnedStrategy(strategy)}
+            onKeyDown={(event) => {
+              if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
+              event.preventDefault();
+              openOwnedStrategy(strategy);
+            }}
           >
             <span className={`strategy-mode-icon mode-${strategy.mode.toLowerCase()}`} aria-hidden="true">{strategy.mode[0]}</span>
             <div className="strategy-row-main"><strong>{strategy.name}</strong><span>{[strategy.symbols.join(' · '), strategy.updated].filter(Boolean).join(' · ')}</span></div>
@@ -573,7 +589,7 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
                 aria-label={strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? `${strategy.name} 열기 (Pro 준비 중)` : `${strategy.name} 열기`}
                 title={!strategy.editable ? '출시된 전략은 편집할 수 없습니다' : strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? 'Pro 편집기는 준비 중입니다' : '열기'}
                 disabled={!strategy.editable || strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE}
-                onClick={(event) => { event.stopPropagation(); openEditor(strategy.mode.toLowerCase() as EditorMode, false, strategy.id); }}
+                onClick={(event) => { event.stopPropagation(); openOwnedStrategy(strategy); }}
               >{strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? <LockKeyhole size={15} /> : <ChevronRight size={17} />}</button>
             </div>
           </article>)}
@@ -1724,6 +1740,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   /* 미리보기 차트를 열어 둔 파티션. 파티션을 누르면 그 파티션 기준으로 열린다. */
   const [previewSectionId, setPreviewSectionId] = useState<string | null>(null);
   const [previewCandles, setPreviewCandles] = useState<PreviewCandle[] | null>(null);
+  const [previewWindow, setPreviewWindow] = useState<'1m' | '3m'>('3m');
   const [previewPending, setPreviewPending] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const catalogSupportsEditor = basicCatalog?.elements.length
@@ -3038,7 +3055,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     const controller = new AbortController();
     setPreviewPending(true);
     setPreviewError(null);
-    void marketDataClient.getRecentBars(instrumentId, resolutionCode(previewSection.timeframe), 400, controller.signal)
+    void marketDataClient.getRecentBars(instrumentId, resolutionCode(previewSection.timeframe), 1000, controller.signal)
       .then((snapshot) => {
         setPreviewCandles(snapshot.bars.map((bar) => ({
           time: Math.floor(new Date(bar.occurredAt).getTime() / 1000),
@@ -3054,6 +3071,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       .finally(() => setPreviewPending(false));
     return () => controller.abort();
   }, [basicCatalog, marketDataClient, previewSection, previewSymbols]);
+  const visiblePreviewCandles = useMemo(() => {
+    if (!previewCandles?.length) return previewCandles;
+    const latest = new Date(previewCandles[previewCandles.length - 1].time * 1000);
+    const boundary = new Date(latest);
+    boundary.setUTCMonth(boundary.getUTCMonth() - (previewWindow === '3m' ? 3 : 1));
+    const boundarySeconds = Math.floor(boundary.getTime() / 1000);
+    return previewCandles.filter((candle) => candle.time >= boundarySeconds);
+  }, [previewCandles, previewWindow]);
 
   const addStrategyCard = (sectionId: string, side: Side) => {
     const section = sections.find((item) => item.id === sectionId)!;
@@ -3956,12 +3981,14 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       미리보기는 PiP 창이다. 확대·이동하는 캔버스 안에 두면 좌표가 따라 움직이고
       transform이 fixed 기준을 바꿔 버리므로, 캔버스 밖 화면 단위에 띄운다.
     */}
-    {previewSection && marketDataClient && previewCandles && previewCandles.length > 0
+    {previewSection && marketDataClient && visiblePreviewCandles && visiblePreviewCandles.length > 0
       ? <StrategyPreviewChart
         partitionLabel={`PARTITION ${previewSectionNumber}`}
         symbols={previewSymbols.slice(0, 1)}
         flows={previewFlows}
-        candles={previewCandles}
+        candles={visiblePreviewCandles}
+        previewWindow={previewWindow}
+        onWindowChange={setPreviewWindow}
         onClose={() => setPreviewSectionId(null)}
       />
       : previewSection && <aside className="strategy-preview-card strategy-preview-unavailable" data-testid="strategy-preview-unavailable" aria-label={`PARTITION ${previewSectionNumber} 전략 미리보기`}>

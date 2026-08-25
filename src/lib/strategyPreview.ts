@@ -232,7 +232,7 @@ export const PREVIEW_WINDOW = {
 } as const;
 
 /* 브라우저에서 즉시 다시 계산할 수 있도록 실제 시세 입력도 최근 400봉으로 제한한다. */
-export const PREVIEW_MAX_CANDLES = 400;
+export const PREVIEW_MAX_CANDLES = 1000;
 
 /* ---------- 지표 계산 ---------------------------------------------------- */
 

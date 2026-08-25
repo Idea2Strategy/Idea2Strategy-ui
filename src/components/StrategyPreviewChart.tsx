@@ -10,6 +10,8 @@ export interface StrategyPreviewChartProps {
   symbols: string[];
   flows: PreviewFlow[];
   candles?: PreviewCandle[];
+  previewWindow?: '1m' | '3m';
+  onWindowChange?: (window: '1m' | '3m') => void;
   onClose: () => void;
 }
 
@@ -71,6 +73,8 @@ export function StrategyPreviewChart({
   symbols,
   flows,
   candles,
+  previewWindow = '3m',
+  onWindowChange,
   onClose,
 }: StrategyPreviewChartProps) {
   const cardRef = useRef<HTMLElement | null>(null);
@@ -191,6 +195,16 @@ export function StrategyPreviewChart({
         <small>{partitionLabel}</small>
       </div>
       <span className={`strategy-preview-return ${returnTone}`} data-testid="preview-return">{returnLabel}</span>
+      <span className="strategy-preview-window" role="group" aria-label={t('미리보기 기간')}>
+        {(['1m', '3m'] as const).map((item) => <button
+          key={item}
+          type="button"
+          aria-label={item === '1m' ? t('1개월 미리보기') : t('3개월 미리보기')}
+          aria-pressed={previewWindow === item}
+          className={previewWindow === item ? 'active' : ''}
+          onClick={() => onWindowChange?.(item)}
+        >{item === '1m' ? '1개월' : '3개월'}</button>)}
+      </span>
       <button type="button" className="strategy-preview-close" aria-label={t('미리보기 닫기')} onClick={onClose}><X size={13} /></button>
     </header>
 
@@ -206,7 +220,7 @@ export function StrategyPreviewChart({
     </div>}
 
     <div className="strategy-preview-frame" data-testid="strategy-preview-canvas">
-      <svg viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`} preserveAspectRatio="none" role="img" aria-label={t(`${symbol} 최근 1개월 종가와 신호`)}>
+      <svg viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`} preserveAspectRatio="none" role="img" aria-label={t(`${symbol} 최근 ${previewWindow === '1m' ? '1개월' : '3개월'} 종가와 신호`)}>
         <defs>
           <linearGradient id="strategy-preview-fill" x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor="var(--text-soft)" stopOpacity=".16" />

@@ -50,6 +50,35 @@ describe('Strategy API view', () => {
     expect(screen.queryByTestId('strategy-load-more')).not.toBeInTheDocument();
   });
 
+  test('opens an incomplete owned Basic draft from its row and keyboard', async () => {
+    const user = userEvent.setup();
+    const openEditor = vi.fn();
+    const client: StrategyLibraryClient = {
+      list: vi.fn().mockResolvedValue({
+        items: [{
+          id: 'incomplete-id', kind: 'draft', mode: 'BASIC', name: '미완성 전략', description: null,
+          status: 'DRAFT', validationStatus: 'INVALID', backtestStatus: null, editable: true,
+          updatedAt: '2026-08-01T12:00:00Z', version: null, blockCount: 1, symbols: ['AAPL'],
+        }],
+        nextCursor: null,
+        hasMore: false,
+      }),
+    };
+
+    render(<StrategyHome openEditor={openEditor} client={client} />);
+    const row = await screen.findByTestId('strategy-row-미완성 전략');
+
+    await user.click(row);
+    expect(openEditor).toHaveBeenLastCalledWith('basic', false, 'incomplete-id');
+    openEditor.mockClear();
+    row.focus();
+    await user.keyboard('{Enter}');
+    expect(openEditor).toHaveBeenLastCalledWith('basic', false, 'incomplete-id');
+    openEditor.mockClear();
+    await user.keyboard(' ');
+    expect(openEditor).toHaveBeenLastCalledWith('basic', false, 'incomplete-id');
+  });
+
   test('appends the next library page from the snapshot cursor', async () => {
     const user = userEvent.setup();
     const row = (id: string, name: string) => ({
@@ -187,7 +216,7 @@ describe('Strategy API view', () => {
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
     expect(await screen.findByTestId('strategy-preview-canvas')).toBeInTheDocument();
     expect(marketDataClient.getRecentBars).toHaveBeenCalledWith(
-      'spy-id', '1h', 400, expect.any(AbortSignal),
+      'spy-id', '1h', 1000, expect.any(AbortSignal),
     );
     const save = screen.getByRole('button', { name: '저장' });
     await waitFor(() => expect(save).toBeEnabled());

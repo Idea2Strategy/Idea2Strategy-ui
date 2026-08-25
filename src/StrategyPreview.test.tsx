@@ -118,8 +118,8 @@ describe('strategy preview engine', () => {
     expect(preview.summary.winRate).not.toBeNull();
   });
 
-  test('bounds the fast local preview to the latest 400 server bars', () => {
-    const supplied = candlesFrom(Array.from({ length: 450 }, (_, index) => 100 + index));
+  test('bounds the fast local preview to the latest 1000 server bars', () => {
+    const supplied = candlesFrom(Array.from({ length: 1050 }, (_, index) => 100 + index));
 
     const preview = evaluateStrategyPreview({
       symbol: 'AAPL',
@@ -127,8 +127,8 @@ describe('strategy preview engine', () => {
       flows: flowsOf(BUY_BLOCKS, SELL_BLOCKS),
     });
 
-    expect(PREVIEW_MAX_CANDLES).toBe(400);
-    expect(preview.candles).toHaveLength(400);
+    expect(PREVIEW_MAX_CANDLES).toBe(1000);
+    expect(preview.candles).toHaveLength(1000);
     expect(preview.candles[0]).toBe(supplied[50]);
   });
 

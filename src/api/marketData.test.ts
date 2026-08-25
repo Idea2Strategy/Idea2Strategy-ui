@@ -27,7 +27,7 @@ describe('market data client', () => {
 
     expect(result.bars[0].close).toBe(210.5);
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://api.example.com/api/v1/market-data/instruments/instrument-1/bars?timeframe=4h&limit=400',
+      'https://api.example.com/api/v1/market-data/instruments/instrument-1/bars?timeframe=4h&limit=1000',
       expect.objectContaining({
         credentials: 'include',
         headers: expect.objectContaining({ Authorization: 'Bearer session-token' }),
