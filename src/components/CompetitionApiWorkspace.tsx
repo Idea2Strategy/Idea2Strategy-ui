@@ -397,7 +397,7 @@ function JoinRoomDialog({ client, room, onClose, onJoined }: { client: Competiti
     event.preventDefault(); if (!available) return;
     const form = new FormData(event.currentTarget);
     const validation = validations.value!.items.find((item) => item.validationRunId === String(form.get('validationRunId')))!;
-    const policy = releaseInputs.value!.executionPolicies.find((item) => item.version === String(form.get('executionPolicyVersion')))!;
+    const policy = releaseInputs.value!.executionPolicies[0]!;
     const budgetPercent = Number(form.get('budgetPercent'));
     const budgetCapBps = Math.round(budgetPercent * 100);
     if (!Number.isFinite(budgetPercent) || budgetPercent < 1 || budgetPercent > 100 || !Number.isSafeInteger(budgetCapBps)) {
@@ -415,9 +415,8 @@ function JoinRoomDialog({ client, room, onClose, onJoined }: { client: Competiti
     {validations.state === 'error' && <div role="alert"><p>{validationError}</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>전략 다시 불러오기</button></div>}
     {validations.state === 'ready' && validations.value!.items.length === 0 && <p role="status">현재 제출 가능한 검증 완료 전략이 없습니다.</p>}
     {available && <label>검증 완료 전략<select name="validationRunId" aria-label="검증 완료 전략" required>{validations.value!.items.map((item) => <option key={item.validationRunId} value={item.validationRunId}>{item.strategyName} · 편집 {item.requestedEditSequence} · {dateLabel(item.completedAt)}</option>)}</select></label>}
-    {releaseInputs.state === 'error' && <div role="alert"><p>실행 정책을 불러오지 못했습니다.</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>실행 정책 다시 불러오기</button></div>}
-    {releaseInputs.state === 'ready' && releaseInputs.value?.executionPolicies.length === 0 && <p role="status">현재 사용할 수 있는 공식 실행 정책이 없습니다.</p>}
-    {available && <label>공식 실행 정책<select name="executionPolicyVersion" aria-label="공식 실행 정책" required>{releaseInputs.value!.executionPolicies.map((item) => <option key={item.version} value={item.version}>{item.version} · {item.brokerRulesVersion} · {item.accountingRulesVersion}</option>)}</select></label>}
+    {releaseInputs.state === 'error' && <div role="alert"><p>대회 실행 기준을 확인하지 못했습니다.</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>실행 기준 다시 확인</button></div>}
+    {releaseInputs.state === 'ready' && releaseInputs.value?.executionPolicies.length === 0 && <p role="status">현재 대회 참가에 필요한 실행 기준이 준비되지 않았습니다.</p>}
     <label>봇 예산 비율(1–100%)<input name="budgetPercent" aria-label="봇 예산 비율" type="number" min="1" max="100" step="0.01" defaultValue="100" required /></label>
     <label>익명 봇 별칭<input name="anonymousAlias" aria-label="익명 봇 별칭" placeholder="다른 참가자에게 표시될 별칭" required /></label>
     <p className="competition-api-privacy"><Check size={14} aria-hidden="true" />계정 이름과 전략 내부는 공개되지 않습니다.</p>{error && <p role="alert">{error}</p>}

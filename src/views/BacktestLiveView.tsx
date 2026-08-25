@@ -35,6 +35,8 @@ interface BacktestLiveViewProps {
    * tab holds; injectable so a test can drive both sides of the gate.
    */
   session?: SessionStore;
+  /** Active runs refresh until the backend returns a terminal state. */
+  activePollIntervalMs?: number;
 }
 
 interface RunDetail {
@@ -82,7 +84,11 @@ const STATUS_TONES: Record<BacktestRunStatus, StatusTone> = {
   UNAVAILABLE: 'warning',
 };
 
-export function BacktestLiveView({ client, session = browserSessionStore }: BacktestLiveViewProps) {
+export function BacktestLiveView({
+  client,
+  session = browserSessionStore,
+  activePollIntervalMs = 5000,
+}: BacktestLiveViewProps) {
   const sessionState = useSessionState(session);
   const signedIn = sessionState.status === 'authenticated';
   const [runs, setRuns] = useState<BacktestRun[] | null>(null);
@@ -139,6 +145,15 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
     return () => controller.abort();
   }, [client, listRevision, runOffset, signedIn, abandonSession]);
 
+  const hasActiveRun = runs?.some((run) => run.status === 'QUEUED' || run.status === 'RUNNING') ?? false;
+  useEffect(() => {
+    if (!signedIn || !hasActiveRun || activePollIntervalMs <= 0) return undefined;
+    const timer = window.setTimeout(() => {
+      if (document.visibilityState !== 'hidden') setListRevision((value) => value + 1);
+    }, activePollIntervalMs);
+    return () => window.clearTimeout(timer);
+  }, [activePollIntervalMs, hasActiveRun, signedIn]);
+
   useEffect(() => {
     if (!requestOpen || !signedIn) return undefined;
     const controller = new AbortController();
@@ -164,7 +179,7 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
       return undefined;
     }
     const controller = new AbortController();
-    setDetail(null);
+    setDetail((current) => current?.run.backtestRunId === selectedRunId ? current : null);
     setDetailFailure(null);
 
     const load = async (): Promise<RunDetail> => {
@@ -190,14 +205,14 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
       if (!aborted(error)) setDetailFailure(classify(error, abandonSession));
     });
     return () => controller.abort();
-  }, [client, selectedRunId, signedIn, abandonSession]);
+  }, [client, selectedRunId, signedIn, abandonSession, listRevision]);
 
   const retry = () => setListRevision((value) => value + 1);
 
   const requestCustomBacktest = async (event: FormEvent) => {
     event.preventDefault();
     if (!requestBotId || !requestDatasetId || !requestPolicyVersion || !requestPeriodStart || !requestPeriodEnd) {
-      setRequestError('봇, 데이터, 실행 정책, 시작일과 종료일을 모두 선택해 주세요.');
+      setRequestError('백테스트에 필요한 봇, 공식 데이터 또는 실행 기준이 준비되지 않았습니다.');
       return;
     }
     if (requestPeriodStart > requestPeriodEnd) {
@@ -287,15 +302,9 @@ export function BacktestLiveView({ client, session = browserSessionStore }: Back
         </BacktestRequestField>
         <label className="backtest-request-field"><span><strong>시작일</strong><small>ET 기준</small></span><input aria-label="백테스트 시작일" type="date" min={selectedRequestDataset?.periodStart} max={selectedRequestDataset?.periodEnd} value={requestPeriodStart} onChange={(event) => setRequestPeriodStart(event.target.value)} /></label>
         <label className="backtest-request-field"><span><strong>종료일</strong><small>ET 기준</small></span><input aria-label="백테스트 종료일" type="date" min={selectedRequestDataset?.periodStart} max={selectedRequestDataset?.periodEnd} value={requestPeriodEnd} onChange={(event) => setRequestPeriodEnd(event.target.value)} /></label>
-        <BacktestRequestField label="실행 정책" hint="공식 계산 규칙이 잠긴 버전입니다." className="is-wide">
-          <BacktestRequestSelect
-            label="백테스트 실행 정책"
-            value={requestPolicyVersion}
-            options={requestOptions.executionPolicies.map((policy) => ({ value: policy.version, label: policy.version }))}
-            onChange={setRequestPolicyVersion}
-            placement="up"
-          />
-        </BacktestRequestField>
+        {!requestPolicyVersion && <p className="backtest-request-unavailable" role="alert">
+          현재 백테스트 실행 기준이 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.
+        </p>}
         <footer className="backtest-request-actions"><Button type="button" onClick={closeRequest}>취소</Button><Button type="submit" kind="primary" disabled={requestPending || !requestDatasetId || !requestPolicyVersion}>{requestPending ? '요청 중…' : '백테스트 요청'}</Button></footer>
       </form>}
     </BacktestRequestModal>}

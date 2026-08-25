@@ -135,6 +135,7 @@ describe('real competition room workspace', () => {
     await screen.findByRole('option', { name: /Momentum · 편집 7/ }, { timeout: 5_000 });
     const join = screen.getByRole('dialog', { name: '대회 참가' });
     expect(within(join).queryByLabelText('검증 실행 ID')).not.toBeInTheDocument();
+    expect(within(join).queryByLabelText('공식 실행 정책')).not.toBeInTheDocument();
     const budget = within(join).getByLabelText('봇 예산 비율');
     await userEvent.clear(budget);
     await userEvent.type(budget, '25.5');

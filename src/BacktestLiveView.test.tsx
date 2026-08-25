@@ -60,12 +60,16 @@ function memorySession(token: string | null): SessionStore {
   return store;
 }
 
-function view(token: string | null = OWNER_TOKEN, session = memorySession(token)) {
+function view(token: string | null = OWNER_TOKEN, session = memorySession(token), activePollIntervalMs?: number) {
   const client = createBacktestClient({
     baseUrl: BACKTEST_API_BASE,
     getAccessToken: () => session.accessToken(),
   });
-  return { session, ...render(<BacktestLiveView client={client} session={session} />) };
+  return { session, ...render(<BacktestLiveView
+    client={client}
+    session={session}
+    activePollIntervalMs={activePollIntervalMs}
+  />) };
 }
 
 /**
@@ -121,6 +125,8 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
 
     const botSelect = within(dialog).getByRole('combobox', { name: '백테스트 봇' });
     expect(botSelect).toHaveAttribute('data-value', 'bot-1');
+    expect(within(dialog).queryByRole('combobox', { name: '백테스트 실행 정책' })).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('실행 정책')).not.toBeInTheDocument();
     await user.click(botSelect);
     const botOptions = within(dialog).getByRole('listbox', { name: '백테스트 봇 옵션' });
     expect(within(botOptions).getByRole('option', { name: 'RSI bot' })).toHaveAttribute('aria-selected', 'true');
@@ -512,6 +518,22 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     view();
 
     expect(await screen.findByText('고정된 입력으로 공식 백테스트를 실행하고 있습니다.')).toBeInTheDocument();
+  });
+
+  it('polls an active run until the server reports a terminal state', async () => {
+    let listCalls = 0;
+    server.use(
+      http.get(`${BACKTEST_API_BASE}/api/v1/backtests`, () => {
+        listCalls += 1;
+        return HttpResponse.json({ items: [listCalls === 1 ? QUEUED_RUN : FAILED_RUN], limit: 25, offset: 0 });
+      }),
+    );
+
+    view(OWNER_TOKEN, memorySession(OWNER_TOKEN), 20);
+
+    expect(await screen.findAllByText('대기 중')).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText('실패').length).toBeGreaterThan(0));
+    expect(listCalls).toBeGreaterThanOrEqual(2);
   });
 
   it('surfaces the real UNAVAILABLE reason code, not a generic message', async () => {
