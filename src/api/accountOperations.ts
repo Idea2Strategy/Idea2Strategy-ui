@@ -76,6 +76,8 @@ export interface OperatorCaseSummary {
 }
 
 export interface OperatorCaseDetail extends OperatorCaseSummary {
+  subject: string;
+  description: string;
   evidence: OperatorEvidenceView[];
 }
 
@@ -360,7 +362,7 @@ function readOperatorDetail(value: unknown): OperatorCaseDetail {
   const v = object(value);
   if (!Array.isArray(v.evidence)) throw new Error('Invalid case evidence');
   return {
-    ...readSummary(v), evidence: v.evidence.map((item) => {
+    ...readSummary(v), subject: text(v.subject, 'case subject'), description: text(v.description, 'case description'), evidence: v.evidence.map((item) => {
       const evidence = object(item);
       return {
         evidenceId: text(evidence.evidenceId, 'evidence id'), kind: text(evidence.kind, 'evidence kind'),

@@ -136,8 +136,8 @@ describe('OperatorCaseWorkspace', () => {
     const summary = { caseId: 'case-1', type: 'REPORT' as const, status: 'UNDER_REVIEW' as const, version: 4, assigneeOperatorId: 'operator-1', updatedAt: '2026-08-03T00:00:00Z' };
     const operatorCaseQueue = vi.fn().mockResolvedValue({ items: [summary], nextCursor: null });
     const operatorCase = vi.fn()
-      .mockResolvedValueOnce({ ...summary, evidence: [] })
-      .mockResolvedValueOnce({ ...summary, version: 5, evidence: [] });
+      .mockResolvedValueOnce({ ...summary, subject: '체결 조작 신고', description: '백테스트 체결 근거를 확인해 주세요.', evidence: [{ evidenceId: 'evidence-1', kind: 'application/json', status: 'AVAILABLE', sourceDomain: 'BACKTEST_RUN', ownershipVerified: true, linkedAt: '2026-08-03T00:00:00Z', attributes: { summaryCode: 'TRADE_MISMATCH' } }] })
+      .mockResolvedValueOnce({ ...summary, version: 5, subject: '체결 조작 신고', description: '백테스트 체결 근거를 확인해 주세요.', evidence: [] });
     const commandCase = vi.fn().mockResolvedValue({
       status: 'APPLIED', code: 'CASE_SANCTION_APPLIED', correlationId: 'corr-sanction', caseVersion: 5,
     });
@@ -149,6 +149,10 @@ describe('OperatorCaseWorkspace', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: /REPORT/ }));
     await screen.findByText('REPORT · UNDER_REVIEW');
+    expect(screen.getByText('체결 조작 신고')).toBeInTheDocument();
+    expect(screen.getByText('백테스트 체결 근거를 확인해 주세요.')).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: '검증된 증거' })).toHaveTextContent('BACKTEST_RUN');
+    expect(screen.getByRole('list', { name: '검증된 증거' })).toHaveTextContent('TRADE_MISMATCH');
     await userEvent.clear(screen.getByLabelText('Operation reason code'));
     await userEvent.type(screen.getByLabelText('Operation reason code'), 'POLICY_VIOLATION');
     await userEvent.click(screen.getByRole('button', { name: 'Apply sanction' }));
@@ -189,6 +193,20 @@ describe('OperatorCaseWorkspace', () => {
       reasonCode: 'ON_CALL',
       assigneeOperatorId: 'a1420000-0000-4000-8000-000000000003',
     }, 'idem-assign'));
+  });
+
+  it('does not allow terminal decisions or sanctions before readable evidence is available', async () => {
+    const summary = { caseId: 'case-no-evidence', type: 'REPORT' as const, status: 'UNDER_REVIEW' as const, version: 2, assigneeOperatorId: 'operator-1', updatedAt: '2026-08-03T00:00:00Z' };
+    render(<OperatorCaseWorkspace client={client({
+      operatorCaseQueue: vi.fn().mockResolvedValue({ items: [summary], nextCursor: null }),
+      operatorCase: vi.fn().mockResolvedValue({ ...summary, subject: '증거 대기', description: '자료가 아직 첨부되지 않았습니다.', evidence: [] }),
+    })} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /REPORT/ }));
+    expect(await screen.findByText('판단 가능한 증거가 없어 종결·기각·제재를 실행할 수 없습니다.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '해결' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '기각' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Apply sanction' })).toBeDisabled();
   });
 
   it('keeps a successful command receipt when the follow-up refresh fails', async () => {

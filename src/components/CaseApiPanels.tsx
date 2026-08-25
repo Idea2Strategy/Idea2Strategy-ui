@@ -226,6 +226,8 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
         {detail.kind === 'error' && <CaseError operator error={detail.error} />}
         {detail.kind === 'ready' && <div className="operator-case-detail">
           <div><strong>{detail.value.type} · {detail.value.status}</strong><span>버전 {detail.value.version}</span></div>
+          {(detail.value.subject || detail.value.description) && <section aria-label="고객 문의 내용" className="operator-case-content"><h3>{detail.value.subject}</h3><p>{detail.value.description}</p></section>}
+          {detail.value.evidence.length > 0 ? <ul aria-label="검증된 증거" className="operator-evidence-list">{detail.value.evidence.map((evidence) => <li key={evidence.evidenceId}><strong>{evidence.sourceDomain}</strong><span>{evidence.kind} · {evidence.status} · {evidence.ownershipVerified ? '소유권 확인' : '소유권 미확인'}</span>{Object.entries(evidence.attributes).filter(([key, value]) => key !== 'contentHash' && ['string', 'number', 'boolean'].includes(typeof value)).map(([key, value]) => <small key={key}>{key}: {String(value)}</small>)}</li>)}</ul> : <p role="status">판단 가능한 증거가 없어 종결·기각·제재를 실행할 수 없습니다.</p>}
           <label><span>사유 코드</span><input aria-label="Operation reason code" value={reasonCode} onChange={(event) => setReasonCode(event.target.value)} /></label>
           <label><span>사용자에게 보일 안내</span><textarea aria-label="Customer-facing case response" placeholder="문의 상세 화면에 표시할 답변을 입력하세요" value={customerMessage} onChange={(event) => setCustomerMessage(event.target.value)} /></label>
           <label><span>담당 운영자 ID</span><input aria-label="Assignee operator ID" placeholder="operator UUID" value={assigneeOperatorId} onChange={(event) => setAssigneeOperatorId(event.target.value)} /></label>
@@ -240,9 +242,9 @@ export function OperatorCaseWorkspace({ client, createIdempotencyKey = () => cry
             <Button aria-label="Assign case" disabled={!reasonCode.trim() || !assigneeOperatorId.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction(detail.value.assigneeOperatorId ? 'REASSIGN' : 'ASSIGN')}>케이스 배정</Button>
             <Button aria-label="Unassign case" disabled={!reasonCode.trim() || !detail.value.assigneeOperatorId || commandState.kind === 'processing'} onClick={() => setPendingAction('UNASSIGN')}>배정 해제</Button>
             <Button aria-label="Request information" disabled={!reasonCode.trim() || !customerMessage.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('REQUEST_INFORMATION')}>정보 요청</Button>
-            <Button disabled={!reasonCode.trim() || !customerMessage.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('RESOLVE')}>해결</Button>
-            <Button disabled={!reasonCode.trim() || !customerMessage.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('REJECT')}>기각</Button>
-            <Button aria-label="Apply sanction" disabled={!reasonCode.trim() || !validSanctionVersion(expectedSanctionVersion) || commandState.kind === 'processing'} onClick={() => { if (!sanctionId) setSanctionId(createSanctionId()); setPendingAction('APPLY_SANCTION'); }}>제재 적용</Button>
+            <Button disabled={!detail.value.evidence.length || !reasonCode.trim() || !customerMessage.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('RESOLVE')}>해결</Button>
+            <Button disabled={!detail.value.evidence.length || !reasonCode.trim() || !customerMessage.trim() || commandState.kind === 'processing'} onClick={() => setPendingAction('REJECT')}>기각</Button>
+            <Button aria-label="Apply sanction" disabled={!detail.value.evidence.length || !reasonCode.trim() || !validSanctionVersion(expectedSanctionVersion) || commandState.kind === 'processing'} onClick={() => { if (!sanctionId) setSanctionId(createSanctionId()); setPendingAction('APPLY_SANCTION'); }}>제재 적용</Button>
             <Button aria-label="Release sanction" disabled={!reasonCode.trim() || !sanctionId.trim() || !validSanctionVersion(expectedSanctionVersion) || commandState.kind === 'processing'} onClick={() => setPendingAction('RELEASE_SANCTION')}>제재 해제</Button>
           </div>
           {pendingAction && <div className="case-api-confirm" role="alertdialog" aria-label={HIGH_RISK_ACTIONS.has(pendingAction) ? 'Confirm high-risk operation' : '운영 명령 확인'}>

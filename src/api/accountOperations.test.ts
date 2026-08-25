@@ -62,6 +62,23 @@ describe('account operations API client', () => {
     }));
   });
 
+  it('preserves operator-readable case content and privacy-safe evidence', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      caseId: 'case-1', type: 'REPORT', status: 'UNDER_REVIEW', version: 2,
+      assigneeOperatorId: null, subject: '체결 결과 신고', description: '거래 내역을 확인해 주세요.',
+      updatedAt: '2026-08-03T00:00:00Z', evidence: [{
+        evidenceId: 'evidence-1', kind: 'application/json', status: 'AVAILABLE', sourceDomain: 'BACKTEST_RUN',
+        ownershipVerified: true, linkedAt: '2026-08-03T00:00:00Z', attributes: { summaryCode: 'TRADE_MISMATCH' },
+      }],
+    }), { status: 200 }));
+    const client = createAccountOperationsClient({ fetchImpl, getOperatorCsrfToken: () => 'operator-token' });
+
+    await expect(client.operatorCase('case-1')).resolves.toEqual(expect.objectContaining({
+      subject: '체결 결과 신고', description: '거래 내역을 확인해 주세요.',
+      evidence: [expect.objectContaining({ sourceDomain: 'BACKTEST_RUN', ownershipVerified: true })],
+    }));
+  });
+
   it('sends case commands with server-owned request hashing and surfaces the receipt', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: 'APPLIED', code: 'CASE_REVIEW_STARTED', correlationId: 'corr-3', caseVersion: 3 }), { status: 200 }));
     const client = createAccountOperationsClient({ fetchImpl, createCorrelationId: () => 'corr-3', getOperatorCsrfToken: () => 'operator-token' });
