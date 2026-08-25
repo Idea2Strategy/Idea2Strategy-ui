@@ -8,7 +8,6 @@ import type {
 } from '../api/competitionRooms';
 import { CompetitionApiError } from '../api/competitionRooms';
 import { formatDateTimeLocal, zonedLocalToIso } from '../lib/zonedDateTime';
-import type { StrategyReleaseInputs } from '../api/strategies';
 import { Button, PageHeading } from './common';
 import { ErrorPage, SignInRequiredPage } from './StatePages';
 import { Localized, useLanguage } from '../lib/i18n';
@@ -379,32 +378,27 @@ function CreateRoomDialog({ client, onClose, onCreated }: { client: CompetitionR
 
 function JoinRoomDialog({ client, room, onClose, onJoined }: { client: CompetitionRoomsClient; room: PublicRoom; onClose: () => void; onJoined: () => void }) {
   const [validations, setValidations] = useState<{ state: LoadState; value: CurrentStrategyValidationPage | null; error: unknown }>({ state: 'loading', value: null, error: null });
-  const [releaseInputs, setReleaseInputs] = useState<{ state: LoadState; value: StrategyReleaseInputs | null; error: unknown }>({ state: 'loading', value: null, error: null });
   const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState(''); const [saving, setSaving] = useState(false);
   useEffect(() => {
-    const controller = new AbortController(); setValidations({ state: 'loading', value: null, error: null }); setReleaseInputs({ state: 'loading', value: null, error: null });
+    const controller = new AbortController(); setValidations({ state: 'loading', value: null, error: null });
     client.currentStrategyValidations(controller.signal)
       .then((value) => setValidations({ state: 'ready', value, error: null }))
       .catch((cause) => { if ((cause as { name?: string }).name !== 'AbortError') setValidations({ state: 'error', value: null, error: cause }); });
-    client.strategyReleaseInputs(controller.signal)
-      .then((value) => setReleaseInputs({ state: 'ready', value, error: null }))
-      .catch((cause) => { if ((cause as { name?: string }).name !== 'AbortError') setReleaseInputs({ state: 'error', value: null, error: cause }); });
     return () => controller.abort();
   }, [client, reloadKey]);
-  const available = validations.state === 'ready' && Boolean(validations.value?.items.length) && releaseInputs.state === 'ready' && Boolean(releaseInputs.value?.executionPolicies.length);
+  const available = validations.state === 'ready' && Boolean(validations.value?.items.length);
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault(); if (!available) return;
     const form = new FormData(event.currentTarget);
     const validation = validations.value!.items.find((item) => item.validationRunId === String(form.get('validationRunId')))!;
-    const policy = releaseInputs.value!.executionPolicies[0]!;
     const budgetPercent = Number(form.get('budgetPercent'));
     const budgetCapBps = Math.round(budgetPercent * 100);
     if (!Number.isFinite(budgetPercent) || budgetPercent < 1 || budgetPercent > 100 || !Number.isSafeInteger(budgetCapBps)) {
       setError('봇 예산 비율은 1% 이상 100% 이하로 입력해 주세요.');
       return;
     }
-    const input: JoinRoomInput = { validationRunId: validation.validationRunId, anonymousAlias: String(form.get('anonymousAlias')).trim(), languageVersion: validation.languageVersion, schemaVersion: validation.schemaVersion, catalogVersion: validation.catalogVersion, budgetCapBps, brokerRulesVersion: policy.brokerRulesVersion, accountingRulesVersion: policy.accountingRulesVersion, candidateConflictPolicy: { policy: 'FIRST_WINS' } }; setSaving(true); setError('');
+    const input: JoinRoomInput = { validationRunId: validation.validationRunId, anonymousAlias: String(form.get('anonymousAlias')).trim(), languageVersion: validation.languageVersion, schemaVersion: validation.schemaVersion, catalogVersion: validation.catalogVersion, budgetCapBps }; setSaving(true); setError('');
     try { await client.joinRoom(room.id, input); onJoined(); } catch (cause) { setError(cause instanceof CompetitionApiError && cause.unauthenticated ? '로그인 후 참가할 수 있습니다.' : cause instanceof CompetitionApiError && cause.forbidden ? '이 대회에 참가할 권한이 없습니다.' : cause instanceof CompetitionApiError && cause.conflict ? cause.detail || '참가 조건을 충족하지 못했습니다.' : '참가 요청을 완료하지 못했습니다.'); setSaving(false); }
   };
   const validationError = validations.error instanceof CompetitionApiError && validations.error.unauthenticated ? '로그인 후 검증 완료 전략을 확인할 수 있습니다.'
@@ -415,8 +409,6 @@ function JoinRoomDialog({ client, room, onClose, onJoined }: { client: Competiti
     {validations.state === 'error' && <div role="alert"><p>{validationError}</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>전략 다시 불러오기</button></div>}
     {validations.state === 'ready' && validations.value!.items.length === 0 && <p role="status">현재 제출 가능한 검증 완료 전략이 없습니다.</p>}
     {available && <label>검증 완료 전략<select name="validationRunId" aria-label="검증 완료 전략" required>{validations.value!.items.map((item) => <option key={item.validationRunId} value={item.validationRunId}>{item.strategyName} · 편집 {item.requestedEditSequence} · {dateLabel(item.completedAt)}</option>)}</select></label>}
-    {releaseInputs.state === 'error' && <div role="alert"><p>대회 실행 기준을 확인하지 못했습니다.</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>실행 기준 다시 확인</button></div>}
-    {releaseInputs.state === 'ready' && releaseInputs.value?.executionPolicies.length === 0 && <p role="status">현재 대회 참가에 필요한 실행 기준이 준비되지 않았습니다.</p>}
     <label>봇 예산 비율(1–100%)<input name="budgetPercent" aria-label="봇 예산 비율" type="number" min="1" max="100" step="0.01" defaultValue="100" required /></label>
     <label>익명 봇 별칭<input name="anonymousAlias" aria-label="익명 봇 별칭" placeholder="다른 참가자에게 표시될 별칭" required /></label>
     <p className="competition-api-privacy"><Check size={14} aria-hidden="true" />계정 이름과 전략 내부는 공개되지 않습니다.</p>{error && <p role="alert">{error}</p>}

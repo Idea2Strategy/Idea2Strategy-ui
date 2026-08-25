@@ -141,7 +141,14 @@ describe('real competition room workspace', () => {
     await userEvent.type(budget, '25.5');
     await userEvent.type(within(join).getByLabelText('익명 봇 별칭'), 'Bot 7ABC');
     await userEvent.click(within(join).getByRole('button', { name: '참가 확정' }));
-    await waitFor(() => expect(api.joinRoom).toHaveBeenCalledWith(room.id, expect.objectContaining({ validationRunId: validation.validationRunId, anonymousAlias: 'Bot 7ABC', budgetCapBps: 2550 })));
+    await waitFor(() => expect(api.joinRoom).toHaveBeenCalledWith(room.id, {
+      validationRunId: validation.validationRunId,
+      anonymousAlias: 'Bot 7ABC',
+      languageVersion: validation.languageVersion,
+      schemaVersion: validation.schemaVersion,
+      catalogVersion: validation.catalogVersion,
+      budgetCapBps: 2550,
+    }));
   });
 
   test('keeps creation fail closed while catalog inputs load or are empty', async () => {

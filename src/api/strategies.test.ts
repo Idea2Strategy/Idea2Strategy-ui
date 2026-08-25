@@ -216,7 +216,6 @@ describe('strategy authoring API client', () => {
   it('creates an immutable release without client-selected policy or datasets', async () => {
     const release = {
       validationRunId: 'validation-id', initialCashAmount: '100000', budgetCapBps: 10000,
-      candidateConflictPolicy: { policy: 'FIRST_WINS' },
     };
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ releaseId: 'release-id', botId: 'bot-id', backtestLane: 'BASIC' }), { status: 201 }),

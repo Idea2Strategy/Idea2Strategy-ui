@@ -31,7 +31,7 @@ export interface CreateRoomInput {
 }
 export interface JoinRoomInput {
   validationRunId: string; anonymousAlias: string; languageVersion: string; schemaVersion: string; catalogVersion: string;
-  budgetCapBps: number; brokerRulesVersion: string; accountingRulesVersion: string; candidateConflictPolicy: Record<string, unknown>;
+  budgetCapBps: number;
 }
 export interface Participation { id: string; roomId: string; botId: string; anonymousAlias: string; joinedAt: string }
 export interface PostEvaluationChoice { roomId: string; participationId: string; action: PostEvaluationAction; recordedAt: string; lockedAt: string | null }

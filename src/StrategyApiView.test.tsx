@@ -545,7 +545,6 @@ describe('Strategy API view', () => {
       validationRunId: validation.validationRunId,
       initialCashAmount: '100000.00000000',
       budgetCapBps: 10000,
-      candidateConflictPolicy: { policy: 'FIRST_WINS' },
     }));
     expect(onLaunchBot).toHaveBeenCalledWith({ name: '', description: '', botId: 'bot-id' });
   });

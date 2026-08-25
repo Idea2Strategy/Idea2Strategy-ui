@@ -115,7 +115,6 @@ export interface ReleaseStrategyInput {
   validationRunId: string;
   initialCashAmount: string;
   budgetCapBps: number;
-  candidateConflictPolicy: Record<string, unknown>;
 }
 
 export interface StrategyAuthoringClient {

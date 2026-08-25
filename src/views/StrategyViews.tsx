@@ -2326,7 +2326,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           validationRunId: savedValidation.validationRunId,
           initialCashAmount: cash,
           budgetCapBps: Math.round(budget * 100),
-          candidateConflictPolicy: { policy: 'FIRST_WINS' },
         });
         setLaunchDialogOpen(false);
         setAnnouncement('검증된 전략으로 개인 운용 봇을 출시했습니다.');
