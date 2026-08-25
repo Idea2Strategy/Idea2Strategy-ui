@@ -597,7 +597,11 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
             </div>
           </article>)}
           {filteredItems.length === 0 && (items.length === 0 && !query && mode === 'all' && state === 'all'
-            ? <EmptyState title="아직 만든 전략이 없습니다." detail="새 전략을 만들면 이 목록에 표시됩니다." />
+            ? <EmptyState
+              title="아직 만든 전략이 없습니다."
+              detail="첫 Basic 전략을 만들고 종목과 매수·매도 조건을 구성해 보세요."
+              action={<Button kind="primary" icon={Plus} onClick={() => setShowCreate(true)}>첫 전략 만들기</Button>}
+            />
             : <div className="strategy-empty"><Search size={20} /><strong>조건에 맞는 전략이 없습니다.</strong><button onClick={() => { setQuery(''); setMode('all'); setState('all'); }}>필터 초기화</button></div>)}
           {nextCursor && <button
             type="button"

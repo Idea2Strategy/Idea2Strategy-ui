@@ -530,8 +530,8 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/strategies/new/pro" element={<RequireSignIn><ProEditorUnavailableView goBack={() => navigate(pagePaths.strategy)} /></RequireSignIn>} />
     <Route path="/strategies/:strategyId/basic" element={<RequireSignIn><SavedBasicEditorRoute goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} /></RequireSignIn>} />
     <Route path="/strategies/:strategyId/pro" element={<RequireSignIn><ProEditorUnavailableView goBack={() => navigate(pagePaths.strategy)} /></RequireSignIn>} />
-    <Route path="/bots" element={<RequireSignIn><BotsView key={requestedBot ?? 'bots'} botIcons={botIcons} onBotIconChange={changeBotIcon} initialBot={requestedBot} /></RequireSignIn>} />
-    <Route path="/backtests" element={<RequireSignIn><BacktestView client={defaultBacktestClient} /></RequireSignIn>} />
+    <Route path="/bots" element={<RequireSignIn><BotsView key={requestedBot ?? 'bots'} botIcons={botIcons} onBotIconChange={changeBotIcon} initialBot={requestedBot} onCreateStrategy={() => navigate(pagePaths.strategy)} /></RequireSignIn>} />
+    <Route path="/backtests" element={<RequireSignIn><BacktestView client={defaultBacktestClient} onCreateStrategy={() => navigate(pagePaths.strategy)} /></RequireSignIn>} />
     <Route path="/competition" element={<RoomsView client={competitionRoomsClient} openBot={openBot} />} />
     <Route path="/competition-v2" element={<Navigate to="/competition" replace />} />
     <Route path="/notifications" element={<RequireSignIn><NotificationsView setPage={setPage} client={notificationClient} /></RequireSignIn>} />

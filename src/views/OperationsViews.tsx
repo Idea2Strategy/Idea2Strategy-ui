@@ -925,8 +925,8 @@ function BacktestCandlestickChart({ instrument, timeframe, onVisibleRangeChange 
   </div>;
 }
 
-export function BacktestView({ client }: { client?: BacktestClient } = {}) {
-  return client ? <BacktestLiveView client={client} /> : <BacktestPrototypeView />;
+export function BacktestView({ client, onCreateStrategy }: { client?: BacktestClient; onCreateStrategy?: () => void } = {}) {
+  return client ? <BacktestLiveView client={client} onCreateStrategy={onCreateStrategy} /> : <BacktestPrototypeView />;
 }
 
 function BacktestPrototypeView() {

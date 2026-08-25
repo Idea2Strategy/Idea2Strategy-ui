@@ -37,6 +37,7 @@ interface BacktestLiveViewProps {
   session?: SessionStore;
   /** Active runs refresh until the backend returns a terminal state. */
   activePollIntervalMs?: number;
+  onCreateStrategy?: () => void;
 }
 
 interface RunDetail {
@@ -88,6 +89,7 @@ export function BacktestLiveView({
   client,
   session = browserSessionStore,
   activePollIntervalMs = 5000,
+  onCreateStrategy,
 }: BacktestLiveViewProps) {
   const sessionState = useSessionState(session);
   const signedIn = sessionState.status === 'authenticated';
@@ -314,6 +316,7 @@ export function BacktestLiveView({
         icon={BarChart3}
         title="백테스트할 봇이 없습니다."
         detail="출시된 봇이 생기면 공식 백테스트가 자동으로 시작되고 이곳에 결과가 표시됩니다."
+        action={onCreateStrategy ? <Button kind="primary" onClick={onCreateStrategy}>전략 만들기</Button> : undefined}
       />}
       {listFailure === null && runs && runs.length > 0 && <div
         className="backtest-live-workspace backtest-comparison-workspace"

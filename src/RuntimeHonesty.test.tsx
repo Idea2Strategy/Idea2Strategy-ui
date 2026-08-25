@@ -103,6 +103,8 @@ describe('production runtime honesty', () => {
 
     request.resolve(strategyPage());
     expect(await screen.findByText('아직 만든 전략이 없습니다.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '첫 전략 만들기' }));
+    expect(screen.getByRole('dialog', { name: '새 전략 선택' })).toBeInTheDocument();
     expect(screen.queryByTestId('strategy-row-Opening Range Flow')).not.toBeInTheDocument();
   });
 
@@ -131,7 +133,8 @@ describe('production runtime honesty', () => {
 
   test('bot operations show loading then a real empty result without static bots', async () => {
     const request = deferred<BotOperationsView[]>();
-    render(<BotsView operationsClient={botClient(() => request.promise)} tradingClient={null} />);
+    const onCreateStrategy = vi.fn();
+    render(<BotsView operationsClient={botClient(() => request.promise)} tradingClient={null} onCreateStrategy={onCreateStrategy} />);
 
     expect(screen.getByRole('status')).toHaveTextContent('봇 목록을 불러오는 중입니다.');
     expect(screen.queryByText('Atlas 07')).not.toBeInTheDocument();
@@ -139,6 +142,8 @@ describe('production runtime honesty', () => {
     request.resolve([]);
     expect(await screen.findByText('운용 중인 봇이 없습니다.')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: '봇 운영 안내' })).toHaveTextContent('운용할 봇을 선택하면');
+    fireEvent.click(screen.getByRole('button', { name: '전략 만들기' }));
+    expect(onCreateStrategy).toHaveBeenCalledOnce();
     expect(screen.queryByText('Atlas 07')).not.toBeInTheDocument();
   });
 
@@ -250,12 +255,16 @@ describe('production runtime honesty', () => {
   test('a real empty dashboard is an empty state while a failed request is an error', async () => {
     setSessionAccessToken('dashboard-session');
     try {
+      const setPage = vi.fn();
       const empty = render(<DashboardView
-        setPage={() => {}}
+        setPage={setPage}
         dataSource="live"
         dashboardClient={dashboardClient(() => Promise.resolve(dashboardSnapshot()))}
       />);
       expect(await screen.findByText('운용 중인 봇이 없습니다.')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: '첫 백테스트까지 3단계' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: '첫 전략 만들기' }));
+      expect(setPage).toHaveBeenCalledWith('strategy');
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
       empty.unmount();

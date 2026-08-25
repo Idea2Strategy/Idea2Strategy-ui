@@ -223,7 +223,13 @@ function LiveDashboard({ setPage, client }: { setPage: (page: PageId) => void; c
         : `${new Date(snapshot.generatedAt).toLocaleString(locale)} 기준 · 최신 데이터 갱신에 실패했습니다.`}
       onRetry={() => setRevision((current) => current + 1)}
     />}
-    {snapshot === null ? <LoadingState label="Home 데이터를 불러오는 중입니다." /> : <div className="dashboard-context-row">
+    {snapshot === null ? <LoadingState label="Home 데이터를 불러오는 중입니다." /> : <>
+    {bots.length === 0 && <section className="dashboard-onboarding" aria-labelledby="dashboard-onboarding-title">
+      <div><p className="eyebrow">GET STARTED</p><h2 id="dashboard-onboarding-title">첫 백테스트까지 3단계</h2><p>샘플 성과 없이, 직접 만든 전략과 서버의 실제 데이터로 시작합니다.</p></div>
+      <ol><li><strong>1. 전략 만들기</strong><span>종목과 매수·매도 조건 구성</span></li><li><strong>2. 저장·검증·출시</strong><span>서버 검증을 통과한 봇 생성</span></li><li><strong>3. 결과 확인</strong><span>공식 데이터 백테스트와 거래 내역 확인</span></li></ol>
+      <Button kind="primary" onClick={() => setPage('strategy')}>첫 전략 만들기</Button>
+    </section>}
+    <div className="dashboard-context-row">
       <section className="dashboard-section" aria-label="운용 성과">
         <header className="dashboard-section-head"><div><h2>운용 성과</h2></div></header>
         {bots.length === 0 ? <EmptyState
@@ -286,7 +292,7 @@ function LiveDashboard({ setPage, client }: { setPage: (page: PageId) => void; c
           </div>}
         </section>
       </div>
-    </div>}
+    </div></>}
   </div></Localized>;
 }
 

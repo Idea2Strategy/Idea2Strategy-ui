@@ -8,7 +8,7 @@ const render = (ui: ReactElement) => renderBare(<MemoryRouter>{ui}</MemoryRouter
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createBacktestClient } from './api/backtests';
 import {
   BACKTEST_API_BASE,
@@ -60,7 +60,7 @@ function memorySession(token: string | null): SessionStore {
   return store;
 }
 
-function view(token: string | null = OWNER_TOKEN, session = memorySession(token), activePollIntervalMs?: number) {
+function view(token: string | null = OWNER_TOKEN, session = memorySession(token), activePollIntervalMs?: number, onCreateStrategy?: () => void) {
   const client = createBacktestClient({
     baseUrl: BACKTEST_API_BASE,
     getAccessToken: () => session.accessToken(),
@@ -69,6 +69,7 @@ function view(token: string | null = OWNER_TOKEN, session = memorySession(token)
     client={client}
     session={session}
     activePollIntervalMs={activePollIntervalMs}
+    onCreateStrategy={onCreateStrategy}
   />) };
 }
 
@@ -653,6 +654,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
 
   it('retries the run list after a transport failure and then shows the empty state', async () => {
     const user = userEvent.setup();
+    const onCreateStrategy = vi.fn();
     let attempt = 0;
     server.use(http.get(`${BACKTEST_API_BASE}/api/v1/backtests`, () => {
       attempt += 1;
@@ -661,13 +663,15 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
         : HttpResponse.json({ items: [], limit: 50, offset: 0 });
     }));
 
-    view();
+    view(OWNER_TOKEN, memorySession(OWNER_TOKEN), undefined, onCreateStrategy);
 
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('백테스트 결과를 불러오지 못했습니다.');
     await user.click(within(alert).getByRole('button', { name: '다시 시도' }));
 
     expect(await screen.findByText('백테스트할 봇이 없습니다.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '전략 만들기' }));
+    expect(onCreateStrategy).toHaveBeenCalledOnce();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(attempt).toBe(2);
   });

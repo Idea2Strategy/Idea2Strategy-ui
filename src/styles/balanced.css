@@ -7134,6 +7134,23 @@
 /* Home keeps the same page width as every other screen — the container never
    changes size between pages. The standard width shortens the page by letting
    the performance and bot context sections sit side by side. */
+.dashboard-onboarding {
+  display:grid;
+  grid-template-columns:minmax(220px,1fr) minmax(360px,1.4fr) auto;
+  align-items:center;
+  gap:var(--space-5);
+  margin-bottom:var(--space-6);
+  padding:var(--space-5);
+  border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));
+  border-radius:var(--radius-lg);
+  background:color-mix(in srgb,var(--accent) 5%,var(--surface-1));
+}
+.dashboard-onboarding h2 { margin:2px 0 var(--space-2); font-size:var(--fs-card); }
+.dashboard-onboarding p { margin:0; color:var(--text-soft); font-size:var(--fs-caption); }
+.dashboard-onboarding ol { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-3); margin:0; padding:0; list-style:none; }
+.dashboard-onboarding li { display:grid; gap:4px; min-width:0; }
+.dashboard-onboarding li strong { font-size:var(--fs-caption); }
+.dashboard-onboarding li span { color:var(--text-faint); font-size:var(--fs-micro); }
 .dashboard-context-row {
   display:grid;
   grid-template-columns:minmax(0,1.5fr) minmax(360px,1fr);
@@ -7798,6 +7815,7 @@ small.dashboard-bot-scope {
 
 @media (max-width: 1120px) {
   .signal-product-nav > nav { width:auto; }
+  .dashboard-onboarding { grid-template-columns:1fr; align-items:start; }
   .dashboard-context-row { grid-template-columns:1fr; }
 }
 
@@ -7805,6 +7823,7 @@ small.dashboard-bot-scope {
   .signal-product-brand { align-self:center; }
   .dashboard-heading { align-items:flex-start; flex-direction:column; }
   .dashboard-section-head { align-items:flex-start; flex-direction:column; gap:var(--space-2); }
+  .dashboard-onboarding ol { grid-template-columns:1fr; }
   .dashboard-chart-controls { flex-wrap:wrap; }
   .dashboard-bot-list > button { grid-template-columns:32px minmax(0,1fr) auto; }
   .dashboard-bot-list .dashboard-bot-figures { display:none; }

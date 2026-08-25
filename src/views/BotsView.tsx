@@ -1214,6 +1214,7 @@ interface BotsViewProps {
   /* 대회 리더보드에서 내 봇을 눌러 들어오는 경로(#54). 그 봇이 보이는
      운용 유형으로 필터까지 맞춰 열어야 목록에서 사라지지 않는다. */
   initialBot?: string;
+  onCreateStrategy?: () => void;
 }
 
 export function BotsView({
@@ -1224,6 +1225,7 @@ export function BotsView({
   marketDataClient = automaticMarketDataClient,
   pollIntervalMs = 5000,
   initialBot,
+  onCreateStrategy,
 }: BotsViewProps = {}): ReactNode {
   const prototypeMode = operationsClient === null;
   const requestedBot = prototypeMode && initialBot && staticBotList.some((bot) => bot.name === initialBot) ? initialBot : null;
@@ -1846,7 +1848,7 @@ export function BotsView({
           detail={prototypeMode ? '다른 운용 유형을 선택하면 나머지 봇을 확인할 수 있습니다.' : '봇을 등록하고 실행하면 이 목록에 표시됩니다.'}
           action={prototypeMode ? <Button onClick={() => setFilter(filter === 'personal' ? 'competition' : 'personal')}>
             {filter === 'personal' ? '대회 참가 봇 보기' : '개인 운용 봇 보기'}
-          </Button> : undefined}
+          </Button> : onCreateStrategy ? <Button kind="primary" onClick={onCreateStrategy}>전략 만들기</Button> : undefined}
         />}
       </section>
 
