@@ -59,9 +59,12 @@ describe('published Basic catalog coverage', () => {
     } as unknown as Parameters<typeof buildBasicSemanticDocument>[0];
 
     const semantic = buildBasicSemanticDocument(snapshot, catalog) as {
-      groups: Array<{ id: string; instrumentIds: string[]; blocks: Array<{ elementCode: string; parameters: Record<string, string> }> }>;
+      groups: Array<{ id: string; allocationGroupId: string; instrumentIds: string[]; blocks: Array<{ elementCode: string; parameters: Record<string, string> }> }>;
     };
-    const conditionBlocks = semantic.groups.flatMap((group) => group.blocks)
+    const representativeGroups = semantic.groups.filter((group, index, groups) => (
+      groups.findIndex((candidate) => candidate.allocationGroupId === group.allocationGroupId) === index
+    ));
+    const conditionBlocks = representativeGroups.flatMap((group) => group.blocks)
       .filter((entry) => !['BASIC_SCHEDULE', 'BASIC_EQUAL_ALLOCATION_ORDER'].includes(entry.elementCode));
 
     expect(conditionBlocks.map((entry) => entry.elementCode)).toEqual([
@@ -83,14 +86,17 @@ describe('published Basic catalog coverage', () => {
       { operator: 'GT', thresholdPercent: '12' },
       { operator: 'GT', thresholdPercent: '6.5' },
     ]);
-    expect(semantic.groups.find((group) => group.id === 'buy-2')?.blocks[0]).toMatchObject({
+    expect(semantic.groups.find((group) => group.id === 'buy-2:instrument-spy')?.blocks[0]).toMatchObject({
       elementCode: 'BASIC_SCHEDULE',
       parameters: { cycle: 'EVERY_N_TRADING_DAYS', interval: '5', resolution: '1d' },
     });
     expect(semantic.groups.map((group) => group.instrumentIds)).toEqual([
-      ['instrument-aapl', 'instrument-msft'], ['instrument-aapl', 'instrument-msft'],
+      ['instrument-aapl'], ['instrument-msft'], ['instrument-aapl'], ['instrument-msft'],
       ['instrument-spy'], ['instrument-spy'],
     ]);
-    expect(semantic.groups.flatMap((group) => group.blocks.filter((entry) => entry.elementCode === 'BASIC_EQUAL_ALLOCATION_ORDER'))).toHaveLength(4);
+    expect(semantic.groups.map((group) => group.blocks.at(-1)?.parameters.maxPositionPercent)).toEqual([
+      '25', '40', '25', '40', '50', '50',
+    ]);
+    expect(semantic.groups.flatMap((group) => group.blocks.filter((entry) => entry.elementCode === 'BASIC_EQUAL_ALLOCATION_ORDER'))).toHaveLength(6);
   });
 });
