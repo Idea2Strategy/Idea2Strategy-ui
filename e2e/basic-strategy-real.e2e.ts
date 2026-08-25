@@ -40,10 +40,16 @@ test('releases missing Basic blocks and renders the real official backtest resul
   await page.getByRole('tab', { name: /패키지/ }).click();
   await page.getByRole('button', { name: '정기 매수 패키지 적용' }).click();
   const card = page.getByRole('article', { name: 'PARTITION 01' }).locator('[data-strategy-card]').first();
-  await card.getByRole('group', { name: '매수 전략 카드 이동 영역' }).press('Enter');
+  if (await card.getAttribute('data-selected') !== 'true') {
+    await card.getByRole('group', { name: '매수 전략 카드 이동 영역' }).press('Enter');
+  }
+  await expect(card).toHaveAttribute('data-selected', 'true');
   await page.getByRole('tab', { name: /블록/ }).click();
   for (const label of ['연속 상승·하락', 'MACD 전환', '가격 띠 반전']) {
+    const blocks = card.locator('.draggable-strategy-block');
+    const before = await blocks.count();
     await page.getByRole('button', { name: `${label} 블록 추가` }).last().press('Enter');
+    await expect(blocks).toHaveCount(before + 1);
   }
   const choose = async (label: string, option: string) => {
     await card.getByRole('combobox', { name: label }).click();
@@ -79,8 +85,9 @@ test('releases missing Basic blocks and renders the real official backtest resul
       && response.request().method() === 'POST'),
     launch.getByRole('button', { name: '봇 출시하기' }).click(),
   ]);
-  expect(releasedResponse.status()).toBe(201);
-  const released = await releasedResponse.json() as { releaseId: string; botId: string; backtestLane: string };
+  const releasedBody = await releasedResponse.json();
+  expect(releasedResponse.status(), JSON.stringify(releasedBody)).toBe(201);
+  const released = releasedBody as { releaseId: string; botId: string; backtestLane: string };
   expect(released.backtestLane).toBe('BASIC');
 
   let completedRun: { backtestRunId: string; status: string; resultHash: string | null } | undefined;
@@ -100,7 +107,7 @@ test('releases missing Basic blocks and renders the real official backtest resul
   await expect(page.getByTestId('backtest-live-workspace')).toBeVisible();
   await expect(page.getByText('검증된 공식 결과가 발행되었습니다.')).toBeVisible();
   await expect(page.getByTestId('backtest-live-metrics')).toBeVisible();
-  expect(completedRun?.resultHash).toMatch(/^sha256:[0-9a-f]{64}$/);
+  expect(completedRun?.resultHash).toMatch(/^[0-9a-f]{64}$/);
 
   mkdirSync(path.dirname(receiptPath), { recursive: true });
   writeFileSync(receiptPath, `${JSON.stringify({
