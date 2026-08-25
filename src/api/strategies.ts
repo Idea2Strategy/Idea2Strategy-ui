@@ -130,7 +130,7 @@ export interface StrategyAuthoringClient {
   previewValidation?(strategyId: string, input: PreviewStrategyValidationInput, signal?: AbortSignal): Promise<StrategyValidationResult>;
   getCurrentValidations?(signal?: AbortSignal): Promise<CurrentStrategyValidation[]>;
   validateStrategy(strategyId: string, catalogId: string, signal?: AbortSignal): Promise<StrategyValidationResult>;
-  releaseStrategy(strategyId: string, input: ReleaseStrategyInput, signal?: AbortSignal): Promise<{ botId: string; backtestLane: string }>;
+  releaseStrategy(strategyId: string, input: ReleaseStrategyInput, signal?: AbortSignal): Promise<{ releaseId: string; botId: string; backtestLane: string }>;
 }
 
 export interface BasicCatalogInstrument {
@@ -327,7 +327,11 @@ export function createStrategyAuthoringClient({
         { method: 'POST', signal, body: JSON.stringify(input) },
       );
       const result = object(await response.json(), 'Invalid strategy release response');
-      return { botId: string(result.botId, 'botId'), backtestLane: string(result.backtestLane, 'backtestLane') };
+      return {
+        releaseId: string(result.releaseId, 'releaseId'),
+        botId: string(result.botId, 'botId'),
+        backtestLane: string(result.backtestLane, 'backtestLane'),
+      };
     },
   };
 }
