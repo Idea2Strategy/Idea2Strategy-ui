@@ -67,6 +67,30 @@ describe('destructive resource flows', () => {
     expect(screen.queryByRole('button', { name: '정지된 봇 상세 보기' })).not.toBeInTheDocument();
   });
 
+  test('deletes the selected bot id when two bots have the same display name', async () => {
+    const user = userEvent.setup();
+    const deleteBot = vi.fn().mockResolvedValue(undefined);
+    const operationsClient: BotOperationsClient = {
+      listOperations: vi.fn().mockResolvedValue([
+        { ...stoppedBot, botId: 'bot-id-1', name: '같은 이름' },
+        { ...stoppedBot, botId: 'bot-id-2', name: '같은 이름' },
+      ]),
+      listJudgments: vi.fn().mockResolvedValue({ entries: [], nextAfterSequence: 0, hasMore: false }),
+      runBot: vi.fn(),
+      stopBot: vi.fn(),
+      deleteBot,
+    };
+
+    render(<MemoryRouter><BotsView operationsClient={operationsClient} tradingClient={null} marketDataClient={null} /></MemoryRouter>);
+
+    const duplicateRows = await screen.findAllByRole('button', { name: '같은 이름 상세 보기' });
+    await user.click(duplicateRows[1]);
+    await user.click(screen.getByRole('button', { name: '같은 이름 삭제' }));
+    await user.click(screen.getByRole('button', { name: '봇 삭제' }));
+
+    await waitFor(() => expect(deleteBot).toHaveBeenCalledWith('bot-id-2'));
+  });
+
   test('does not expose deletion while a bot is still running', async () => {
     const operationsClient: BotOperationsClient = {
       listOperations: vi.fn().mockResolvedValue([{ ...stoppedBot, name: '실행 중 봇', state: 'running' }]),

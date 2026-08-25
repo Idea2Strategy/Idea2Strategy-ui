@@ -1231,7 +1231,7 @@ export function BotsView({
     const bot = requestedBot ? staticBotList.find((item) => item.name === requestedBot) : null;
     return bot && !matchesBotFilter(bot, 'personal') ? 'competition' : 'personal';
   });
-  const [selectedName, setSelectedName] = useState<string>(requestedBot ?? (prototypeMode ? staticBotList[0].name : (initialBot ?? '')));
+  const [selectedBotKey, setSelectedBotKey] = useState<string>(requestedBot ?? (prototypeMode ? staticBotList[0].name : (initialBot ?? '')));
   const [tab, setTab] = useState<TabId>('live');
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [savedLayouts, setSavedLayouts] = useState<Record<string, SnapshotLayout>>(
@@ -1278,6 +1278,7 @@ export function BotsView({
     () => prototypeMode ? staticBotList : operations === null ? [] : mergeBotOperations(operations),
     [operations, prototypeMode],
   );
+  const selectionKey = (bot: BotRecord): string => bot.id ?? bot.name;
 
   useEffect(() => {
     if (!operationsClient) {
@@ -1334,9 +1335,10 @@ export function BotsView({
   }, [operationsClient, pollIntervalMs]);
 
   useEffect(() => {
-    if (activeBots.some((bot) => bot.name === selectedName)) return;
-    setSelectedName(activeBots[0]?.name ?? '');
-  }, [activeBots, selectedName]);
+    if (activeBots.some((bot) => selectionKey(bot) === selectedBotKey)) return;
+    const legacyNameMatch = activeBots.find((bot) => bot.name === selectedBotKey);
+    setSelectedBotKey(legacyNameMatch ? selectionKey(legacyNameMatch) : activeBots[0] ? selectionKey(activeBots[0]) : '');
+  }, [activeBots, selectedBotKey]);
 
   const changeBotIcon = (botName: string, selection: BotIconSelection) => {
     if (onBotIconChange) {
@@ -1347,7 +1349,7 @@ export function BotsView({
   };
 
   const visibleBots = prototypeMode ? activeBots.filter((bot) => matchesBotFilter(bot, filter)) : activeBots;
-  const selected = visibleBots.find((bot) => bot.name === selectedName) ?? visibleBots[0] ?? null;
+  const selected = visibleBots.find((bot) => selectionKey(bot) === selectedBotKey) ?? visibleBots[0] ?? null;
   /* Fills and refusals join the one timeline the decision log already is, so
      the same moment is never told in two places. */
   const tradingLogEvents = useMemo(() => {
@@ -1701,7 +1703,7 @@ export function BotsView({
   }, [colorVariantsOpen, iconPickerOpen]);
 
   const selectBot = (bot: BotRecord) => {
-    setSelectedName(bot.name);
+    setSelectedBotKey(selectionKey(bot));
     setTab('live');
     setLayoutOpen(false);
     setIconPickerOpen(false);
@@ -1821,11 +1823,11 @@ export function BotsView({
         {!prototypeMode && operations === null
           ? <LoadingState label="봇 목록을 불러오는 중입니다." />
           : visibleBots.length > 0 ? <div className="bots-list" role="list" aria-label="봇 목록 결과">
-          {visibleBots.map((bot) => <div role="listitem" key={bot.name}><button
+          {visibleBots.map((bot) => <div role="listitem" key={selectionKey(bot)}><button
             type="button"
             aria-label={`${bot.name} 상세 보기`}
-            aria-pressed={selected?.name === bot.name}
-            className={selected?.name === bot.name ? 'active' : ''}
+            aria-pressed={selected ? selectionKey(selected) === selectionKey(bot) : false}
+            className={selected && selectionKey(selected) === selectionKey(bot) ? 'active' : ''}
             onClick={() => selectBot(bot)}
           >
             <span className="bots-list-icon" aria-hidden="true">
