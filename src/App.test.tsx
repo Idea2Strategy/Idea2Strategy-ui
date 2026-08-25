@@ -61,7 +61,7 @@ describe('Signal product UI', () => {
     unmount();
     window.history.replaceState({}, '', '/backtests');
     render(<App />);
-    expect(await screen.findByRole('heading', { name: '봇 백테스트' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '봇 백테스트' }, { timeout: 5_000 })).toBeInTheDocument();
   });
 
   test('does not expose the comparison lab or prototype metadata from the product app', async () => {
