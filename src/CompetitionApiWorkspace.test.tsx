@@ -116,19 +116,35 @@ describe('real competition room workspace', () => {
     expect(within(create).getByRole('group', { name: '운영 정책' })).toBeInTheDocument();
     expect(createScrollArea).toContainElement(within(create).getByRole('group', { name: '기본 설정' }));
     expect(createScrollArea).not.toContainElement(within(create).getByRole('button', { name: '대회 생성' }));
-    await screen.findByRole('option', { name: /TOTAL_RETURN · 1.0.0/ }, { timeout: 5_000 });
+    await screen.findByText('검증된 표준 채점·수수료·구매력 정책을 자동 적용합니다.', {}, { timeout: 5_000 });
     create = screen.getByRole('dialog', { name: '대회 만들기' });
     await userEvent.type(within(create).getByLabelText('대회 이름'), '새 대회');
     expect(within(create).queryByLabelText('채점 템플릿 버전 ID')).not.toBeInTheDocument();
-    const closesAt = new Date((within(create).getByLabelText('참가 마감') as HTMLInputElement).value);
+    expect(within(create).queryByLabelText('채점 템플릿')).not.toBeInTheDocument();
+    expect(within(create).queryByLabelText('수수료 정책')).not.toBeInTheDocument();
+    expect(within(create).queryByLabelText('구매력 버퍼 정책')).not.toBeInTheDocument();
+    expect(within(create).queryByLabelText('중지 봇 슬롯 정책')).not.toBeInTheDocument();
+    expect(within(create).queryByLabelText('최소 운용시간')).not.toBeInTheDocument();
+    expect(within(create).queryByLabelText('최소 체결 수')).not.toBeInTheDocument();
+    expect(within(create).queryByLabelText('참가 시작')).not.toBeInTheDocument();
+    expect(within(create).queryByLabelText('참가 마감')).not.toBeInTheDocument();
+    expect(within(create).queryByLabelText('최종 확정 시한')).not.toBeInTheDocument();
     const evaluationStartsAt = new Date((within(create).getByLabelText('평가 시작') as HTMLInputElement).value);
-    expect(closesAt.getTime()).toBeLessThan(evaluationStartsAt.getTime());
     await userEvent.click(within(create).getByRole('button', { name: '대회 생성' }));
     await waitFor(() => expect(api.createRoom).toHaveBeenCalledWith(expect.objectContaining({
       scoringTemplateVersionId: roomInputCatalog.scoringTemplates[0].id,
       feePolicyId: roomInputCatalog.feePolicies[0].id,
       buyingPowerBufferPolicyId: roomInputCatalog.buyingPowerBufferPolicies[0].id,
+      stoppedBotSlotPolicy: 'RELEASE_SLOT',
+      minimumOperationSeconds: 0,
+      minimumFillCount: 0,
     })));
+    const submitted = vi.mocked(api.createRoom).mock.calls[0][0];
+    expect(submitted.participationOpensAt).toBe(submitted.recruitmentOpensAt);
+    expect(Date.parse(submitted.participationClosesAt)).toBe(Date.parse(submitted.evaluationStartsAt) - 60_000);
+    expect(Date.parse(submitted.finalizationDeadlineAt)).toBe(Date.parse(submitted.evaluationEndsAt) + 86_400_000);
+    expect(Date.parse(submitted.evaluationStartsAt)).not.toBeNaN();
+    expect(evaluationStartsAt.getTime()).not.toBeNaN();
 
     await userEvent.click(screen.getByRole('listitem', { name: '실전 API 대회 열기' }));
     await userEvent.click(await screen.findByRole('button', { name: '이 대회 참가하기' }));
@@ -191,7 +207,7 @@ describe('real competition room workspace', () => {
 
     const attemptsBeforeRetry = roomInputCatalogCall.mock.calls.length;
     await userEvent.click(within(create).getByRole('button', { name: '정책 다시 불러오기' }));
-    await screen.findByRole('option', { name: /TOTAL_RETURN · 1.0.0/ });
+    await screen.findByText('검증된 표준 채점·수수료·구매력 정책을 자동 적용합니다.');
     create = screen.getByRole('dialog', { name: '대회 만들기' });
     expect(within(create).getByRole('button', { name: '대회 생성' })).toBeEnabled();
     expect(roomInputCatalogCall.mock.calls.length).toBeGreaterThan(attemptsBeforeRetry);

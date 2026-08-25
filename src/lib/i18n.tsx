@@ -1361,6 +1361,10 @@ const english: Record<string, string> = {
   '채점 템플릿': 'Scoring template',
   '수수료 정책': 'Fee policy',
   '구매력 버퍼 정책': 'Buying-power buffer policy',
+  '입력한 현지 시각은 선택한 시간대를 기준으로 서버 UTC 시각으로 변환됩니다. 참가 마감과 결과 확정 시한은 평가 일정에 맞춰 자동 설정됩니다.': 'Local times are converted to UTC using the selected time zone. Participation close and result finalization are set automatically from the evaluation schedule.',
+  '검증된 표준 채점·수수료·구매력 정책을 자동 적용합니다.': 'Verified standard scoring, fee, and buying-power policies are applied automatically.',
+  '모집 시작·평가 시작·평가 종료를 시간 순서대로 입력해 주세요.': 'Enter recruitment start, evaluation start, and evaluation end in chronological order.',
+  '자금과 참가 한도 값을 확인해 주세요.': 'Check the funding and participation limits.',
   '모집·참가·평가·최종 확정 시한을 시간 순서대로 입력해 주세요.': 'Enter recruitment, participation, evaluation, and finalization times in chronological order.',
   '운영 정책 카탈로그가 준비되지 않아 대회를 만들 수 없습니다.': 'The competition cannot be created because the operating-policy catalog is not ready.',
 

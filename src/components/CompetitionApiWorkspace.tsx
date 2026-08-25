@@ -318,11 +318,10 @@ function CreateRoomDialog({ client, onClose, onCreated }: { client: CompetitionR
   const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState(''); const [saving, setSaving] = useState(false);
   const [timezone, setTimezone] = useState('Asia/Seoul');
-  const [scoringTemplateId, setScoringTemplateId] = useState('');
   useEffect(() => {
     const controller = new AbortController(); setCatalog({ state: 'loading', value: null, error: null });
     client.roomInputCatalog(controller.signal)
-      .then((value) => { setCatalog({ state: 'ready', value, error: null }); setScoringTemplateId((current) => current || value.scoringTemplates[0]?.id || ''); })
+      .then((value) => setCatalog({ state: 'ready', value, error: null }))
       .catch((cause) => { if ((cause as { name?: string }).name !== 'AbortError') setCatalog({ state: 'error', value: null, error: cause }); });
     return () => controller.abort();
   }, [client, reloadKey]);
@@ -332,43 +331,35 @@ function CreateRoomDialog({ client, onClose, onCreated }: { client: CompetitionR
     const form = new FormData(event.currentTarget); setError('');
     let schedule: Record<string, string>;
     try {
-      schedule = Object.fromEntries(['recruitmentOpensAt', 'participationOpensAt', 'participationClosesAt', 'evaluationStartsAt', 'evaluationEndsAt', 'finalizationDeadlineAt']
+      schedule = Object.fromEntries(['recruitmentOpensAt', 'evaluationStartsAt', 'evaluationEndsAt']
         .map((name) => [name, zonedLocalToIso(String(form.get(name)), timezone)]));
     } catch (cause) { setError(cause instanceof Error ? cause.message : '대회 일정을 확인해 주세요.'); return; }
-    const ordered = schedule.recruitmentOpensAt <= schedule.participationOpensAt
-      && schedule.participationOpensAt < schedule.participationClosesAt
-      && schedule.participationClosesAt < schedule.evaluationStartsAt
-      && schedule.evaluationStartsAt < schedule.evaluationEndsAt
-      && schedule.evaluationEndsAt <= schedule.finalizationDeadlineAt;
-    if (!ordered) { setError('모집·참가·평가·최종 확정 시한을 시간 순서대로 입력해 주세요.'); return; }
+    const ordered = schedule.recruitmentOpensAt < schedule.evaluationStartsAt && schedule.evaluationStartsAt < schedule.evaluationEndsAt;
+    if (!ordered) { setError('모집 시작·평가 시작·평가 종료를 시간 순서대로 입력해 주세요.'); return; }
+    schedule.participationOpensAt = schedule.recruitmentOpensAt;
+    schedule.participationClosesAt = new Date(Date.parse(schedule.evaluationStartsAt) - 60_000).toISOString();
+    schedule.finalizationDeadlineAt = new Date(Date.parse(schedule.evaluationEndsAt) + 86_400_000).toISOString();
     const initialCashAmount = Number(form.get('initialCashAmount'));
     const botParticipationLimit = Number(form.get('botParticipationLimit'));
     const perAccountBotLimit = Number(form.get('perAccountBotLimit'));
-    const minimumOperationSeconds = Number(form.get('minimumOperationSeconds'));
-    const minimumFillCount = Number(form.get('minimumFillCount'));
-    if (!(initialCashAmount > 0) || !Number.isSafeInteger(botParticipationLimit) || botParticipationLimit < 1 || !Number.isSafeInteger(perAccountBotLimit) || perAccountBotLimit < 1 || perAccountBotLimit > botParticipationLimit || !Number.isSafeInteger(minimumOperationSeconds) || minimumOperationSeconds < 0 || !Number.isSafeInteger(minimumFillCount) || minimumFillCount < 0) { setError('자금과 참가·운용 한도 값을 확인해 주세요.'); return; }
-    const template = catalog.value!.scoringTemplates.find((item) => item.id === scoringTemplateId)!;
-    const scoringAdjustments = Object.fromEntries(template.adjustments.map((adjustment) => [adjustment.code, Number(form.get(`adjustment:${adjustment.code}`))]));
+    if (!(initialCashAmount > 0) || !Number.isSafeInteger(botParticipationLimit) || botParticipationLimit < 1 || !Number.isSafeInteger(perAccountBotLimit) || perAccountBotLimit < 1 || perAccountBotLimit > botParticipationLimit) { setError('자금과 참가 한도 값을 확인해 주세요.'); return; }
+    const template = catalog.value!.scoringTemplates[0];
+    const scoringAdjustments = Object.fromEntries(template.adjustments.map((adjustment) => [adjustment.code, adjustment.minimum]));
     setSaving(true);
-    const input: CreateRoomInput = { name: String(form.get('name')).trim(), accessType: String(form.get('accessType')) as CreateRoomInput['accessType'], scoringTemplateVersionId: scoringTemplateId, scoringAdjustments, initialCashAmount, botParticipationLimit, perAccountBotLimit, stoppedBotSlotPolicy: String(form.get('stoppedBotSlotPolicy')), minimumOperationSeconds, minimumFillCount, feePolicyId: String(form.get('feePolicyId')), buyingPowerBufferPolicyId: String(form.get('buyingPowerBufferPolicyId')), recruitmentOpensAt: schedule.recruitmentOpensAt, participationOpensAt: schedule.participationOpensAt, evaluationStartsAt: schedule.evaluationStartsAt, participationClosesAt: schedule.participationClosesAt, evaluationEndsAt: schedule.evaluationEndsAt, finalizationDeadlineAt: schedule.finalizationDeadlineAt, timezoneName: timezone };
+    const input: CreateRoomInput = { name: String(form.get('name')).trim(), accessType: String(form.get('accessType')) as CreateRoomInput['accessType'], scoringTemplateVersionId: template.id, scoringAdjustments, initialCashAmount, botParticipationLimit, perAccountBotLimit, stoppedBotSlotPolicy: 'RELEASE_SLOT', minimumOperationSeconds: 0, minimumFillCount: 0, feePolicyId: catalog.value!.feePolicies[0].id, buyingPowerBufferPolicyId: catalog.value!.buyingPowerBufferPolicies[0].id, recruitmentOpensAt: schedule.recruitmentOpensAt, participationOpensAt: schedule.participationOpensAt, evaluationStartsAt: schedule.evaluationStartsAt, participationClosesAt: schedule.participationClosesAt, evaluationEndsAt: schedule.evaluationEndsAt, finalizationDeadlineAt: schedule.finalizationDeadlineAt, timezoneName: timezone };
     try { await client.createRoom(input); onCreated(); } catch (cause) { setError(cause instanceof CompetitionApiError && cause.forbidden ? '대회를 만들 권한이 없습니다.' : '대회를 만들지 못했습니다. 입력과 로그인 상태를 확인해 주세요.'); setSaving(false); }
   };
   const catalogError = catalog.error instanceof CompetitionApiError && catalog.error.unauthenticated ? '로그인 후 대회 생성 정책을 확인할 수 있습니다.'
     : catalog.error instanceof CompetitionApiError && catalog.error.forbidden ? '대회 생성 정책을 조회할 권한이 없습니다.' : '대회 생성 정책을 불러오지 못했습니다.';
   return <DialogShell title="대회 만들기" onClose={onClose}><form className="competition-api-form competition-create-form" onSubmit={submit}>
     <div className="competition-create-form-scroll">
-    <fieldset className="competition-api-form-section"><legend>기본 설정</legend><div className="competition-api-form-grid"><label>대회 이름<input name="name" aria-label="대회 이름" placeholder="참가자가 알아보기 쉬운 이름" required /></label><label>접근 방식<select name="accessType" aria-label="접근 방식"><option value="PUBLIC">공개 대회</option><option value="SECRET">초대 전용</option></select></label><label>초기 가상자금<input name="initialCashAmount" aria-label="초기 가상자금" type="number" min="1" step="0.01" defaultValue="10000" required /></label><label>전체 봇 한도<input name="botParticipationLimit" aria-label="전체 봇 한도" type="number" min="1" step="1" defaultValue="25" required /></label><label>계정당 봇 한도<input name="perAccountBotLimit" aria-label="계정당 봇 한도" type="number" min="1" step="1" defaultValue="2" required /></label><label>중지 봇 슬롯<select name="stoppedBotSlotPolicy" aria-label="중지 봇 슬롯 정책"><option value="RELEASE_SLOT">슬롯 반환</option><option value="KEEP_SLOT">슬롯 유지</option></select></label><label>최소 운용시간(초)<input name="minimumOperationSeconds" aria-label="최소 운용시간" type="number" min="0" step="1" defaultValue="0" required /></label><label>최소 체결 수<input name="minimumFillCount" aria-label="최소 체결 수" type="number" min="0" step="1" defaultValue="0" required /></label></div></fieldset>
-    <fieldset className="competition-api-form-section"><legend>대회 일정</legend><label>표시 시간대<select aria-label="대회 시간대" value={timezone} onChange={(event) => setTimezone(event.target.value)}><option value="Asia/Seoul">Asia/Seoul (KST)</option><option value="UTC">UTC</option><option value="America/New_York">America/New_York (ET)</option></select></label><p>입력한 현지 시각은 선택한 시간대를 기준으로 서버 UTC 시각으로 변환됩니다.</p><div className="competition-api-form-grid"><label>모집 시작<input aria-label="모집 시작" name="recruitmentOpensAt" type="datetime-local" defaultValue={dateTime(0, timezone)} required /></label><label>참가 시작<input aria-label="참가 시작" name="participationOpensAt" type="datetime-local" defaultValue={dateTime(1, timezone)} required /></label><label>참가 마감<input aria-label="참가 마감" name="participationClosesAt" type="datetime-local" defaultValue={dateTime(3, timezone)} required /></label><label>평가 시작<input aria-label="평가 시작" name="evaluationStartsAt" type="datetime-local" defaultValue={dateTime(4, timezone)} required /></label><label>평가 종료<input aria-label="평가 종료" name="evaluationEndsAt" type="datetime-local" defaultValue={dateTime(10, timezone)} required /></label><label>최종 확정 시한<input aria-label="최종 확정 시한" name="finalizationDeadlineAt" type="datetime-local" defaultValue={dateTime(11, timezone)} required /></label></div></fieldset>
+    <fieldset className="competition-api-form-section"><legend>기본 설정</legend><div className="competition-api-form-grid"><label>대회 이름<input name="name" aria-label="대회 이름" placeholder="참가자가 알아보기 쉬운 이름" required /></label><label>접근 방식<select name="accessType" aria-label="접근 방식"><option value="PUBLIC">공개 대회</option><option value="SECRET">초대 전용</option></select></label><label>초기 가상자금<input name="initialCashAmount" aria-label="초기 가상자금" type="number" min="1" step="0.01" defaultValue="10000" required /></label><label>전체 봇 한도<input name="botParticipationLimit" aria-label="전체 봇 한도" type="number" min="1" step="1" defaultValue="25" required /></label><label>계정당 봇 한도<input name="perAccountBotLimit" aria-label="계정당 봇 한도" type="number" min="1" step="1" defaultValue="2" required /></label></div></fieldset>
+    <fieldset className="competition-api-form-section"><legend>대회 일정</legend><label>표시 시간대<select aria-label="대회 시간대" value={timezone} onChange={(event) => setTimezone(event.target.value)}><option value="Asia/Seoul">Asia/Seoul (KST)</option><option value="UTC">UTC</option><option value="America/New_York">America/New_York (ET)</option></select></label><p>입력한 현지 시각은 선택한 시간대를 기준으로 서버 UTC 시각으로 변환됩니다. 참가 마감과 결과 확정 시한은 평가 일정에 맞춰 자동 설정됩니다.</p><div className="competition-api-form-grid"><label>모집 시작<input aria-label="모집 시작" name="recruitmentOpensAt" type="datetime-local" defaultValue={dateTime(0, timezone)} required /></label><label>평가 시작<input aria-label="평가 시작" name="evaluationStartsAt" type="datetime-local" defaultValue={dateTime(4, timezone)} required /></label><label>평가 종료<input aria-label="평가 종료" name="evaluationEndsAt" type="datetime-local" defaultValue={dateTime(10, timezone)} required /></label></div></fieldset>
     <fieldset className="competition-api-form-section"><legend>운영 정책</legend>
       {catalog.state === 'loading' && <p role="status">대회 생성 입력을 불러오는 중입니다.</p>}
       {catalog.state === 'error' && <div role="alert"><p>{catalogError}</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>정책 다시 불러오기</button></div>}
       {catalog.state === 'ready' && !complete && <p role="status">운영 정책 카탈로그가 준비되지 않아 대회를 만들 수 없습니다.</p>}
-      {complete && <div className="competition-api-form-grid">
-        <label>채점 템플릿<select name="scoringTemplateVersionId" aria-label="채점 템플릿" required value={scoringTemplateId} onChange={(event) => setScoringTemplateId(event.target.value)}>{catalog.value!.scoringTemplates.map((item) => <option key={item.id} value={item.id}>{item.templateCode} · {item.version}</option>)}</select></label>
-        <label>수수료 정책<select name="feePolicyId" aria-label="수수료 정책" required>{catalog.value!.feePolicies.map((item) => <option key={item.id} value={item.id}>{item.policyCode} · {item.version} · {item.feeRateBps}bps</option>)}</select></label>
-        <label>구매력 버퍼 정책<select name="buyingPowerBufferPolicyId" aria-label="구매력 버퍼 정책" required>{catalog.value!.buyingPowerBufferPolicies.map((item) => <option key={item.id} value={item.id}>{item.policyCode} · {item.version} · {item.bufferBps}bps</option>)}</select></label>
-      </div>}
-      {complete && catalog.value!.scoringTemplates.find((item) => item.id === scoringTemplateId)?.adjustments.map((adjustment) => <label key={adjustment.code}>{adjustment.code}<input name={`adjustment:${adjustment.code}`} aria-label={`채점 조정 ${adjustment.code}`} type="number" min={adjustment.minimum} max={adjustment.maximum} step={10 ** -adjustment.scale} defaultValue={adjustment.minimum} required /></label>)}
+      {complete && <p role="status">검증된 표준 채점·수수료·구매력 정책을 자동 적용합니다.</p>}
     </fieldset>
     {error && <p role="alert">{error}</p>}
     </div>
