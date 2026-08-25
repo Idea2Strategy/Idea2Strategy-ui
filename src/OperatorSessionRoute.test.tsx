@@ -42,10 +42,10 @@ describe('operator cookie-session route boundary', () => {
     window.history.replaceState({}, '', '/operations/rbac');
     render(<App operatorAuthentication={auth} />);
 
-    await userEvent.type(await screen.findByLabelText('Login name'), 'admin');
-    await userEvent.type(screen.getByLabelText('Password'), 'password');
-    await userEvent.type(screen.getByLabelText('Authenticator code'), '123456');
-    await userEvent.click(screen.getByRole('button', { name: 'Sign in as operator' }));
+    await userEvent.type(await screen.findByLabelText('운영자 아이디'), 'admin');
+    await userEvent.type(screen.getByLabelText('비밀번호'), 'password');
+    await userEvent.type(screen.getByLabelText('인증 앱 6자리 코드'), '123456');
+    await userEvent.click(screen.getByRole('button', { name: '운영자 로그인' }));
 
     expect(auth.login).toHaveBeenCalledWith({ loginName: 'admin', password: 'password', totpCode: '123456' });
   });
@@ -53,8 +53,9 @@ describe('operator cookie-session route boundary', () => {
   it('renders a fail-closed service error while keeping the login UI visible', () => {
     window.history.replaceState({}, '', '/operations/login');
     render(<App operatorAuthentication={authentication({ kind: 'error', code: 'OPERATOR_AUTHENTICATION_UNAVAILABLE' })} />);
-    expect(screen.getByRole('alert')).toHaveTextContent('OPERATOR_AUTHENTICATION_UNAVAILABLE');
-    expect(screen.getByLabelText('Login name')).toBeVisible();
+    expect(screen.getByRole('alert')).toHaveTextContent('운영자 인증을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    expect(screen.getByRole('alert')).not.toHaveTextContent('OPERATOR_AUTHENTICATION_UNAVAILABLE');
+    expect(screen.getByLabelText('운영자 아이디')).toBeVisible();
   });
 
   it('injects the real operator client only while authenticated and exposes logout', async () => {
