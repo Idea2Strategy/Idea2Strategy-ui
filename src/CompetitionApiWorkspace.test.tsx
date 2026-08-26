@@ -227,14 +227,15 @@ describe('real competition room workspace', () => {
   });
 
   test('explains a locked room market-scope rejection without exposing an internal server message', async () => {
+    const user = userEvent.setup();
     const api = client({ joinRoom: vi.fn().mockRejectedValue(new CompetitionApiError(409, 'Room participation rejected', 'Provisioned bot instruments are outside the room market scope', 'MARKET_SCOPE_MISMATCH')) });
     render(<CompetitionApiWorkspace client={api} />);
-    await userEvent.click(await screen.findByRole('listitem', { name: '실전 API 대회 열기' }));
-    await userEvent.click(await screen.findByRole('button', { name: '이 대회 참가하기' }));
+    await user.click(await screen.findByRole('listitem', { name: '실전 API 대회 열기' }));
+    await user.click(await screen.findByRole('button', { name: '이 대회 참가하기' }));
     const join = screen.getByRole('dialog', { name: '대회 참가' });
     await within(join).findByRole('option', { name: /Momentum · 편집 7/ });
-    await userEvent.type(within(join).getByLabelText('익명 봇 별칭'), 'Market Test');
-    fireEvent.click(within(join).getByRole('button', { name: '참가 확정' }));
+    await user.type(within(join).getByLabelText('익명 봇 별칭'), 'Market Test');
+    await user.click(within(join).getByRole('button', { name: '참가 확정' }));
 
     await waitFor(() => expect(api.joinRoom).toHaveBeenCalled());
     expect(await within(join).findByRole('alert')).toHaveTextContent('선택한 전략에 이 대회의 허용 시장 밖 종목이 포함되어 있습니다.');
