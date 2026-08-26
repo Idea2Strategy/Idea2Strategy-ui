@@ -159,6 +159,26 @@ describe('backtest results API client', () => {
     expect(performance.calculatedAt).toBe('2026-07-31T12:29:00Z');
   });
 
+  it('reads official equity points without flattening source money strings in transit', async () => {
+    server.use(http.get(`${BACKTEST_API_BASE}/api/v1/backtests/${RUN_ID}/performance-series`, () => HttpResponse.json({
+      backtestRunId: RUN_ID,
+      points: [
+        { occurredAt: '2026-07-30T20:00:00Z', equity: '100000.00000000' },
+        { occurredAt: '2026-07-31T20:00:00Z', equity: '101250.50000000' },
+      ],
+      resultHash: RESULT_HASH,
+      sourceSetHash: `sha256:${'b'.repeat(64)}`,
+    })));
+
+    const series = await client().getPerformanceSeries(RUN_ID);
+
+    expect(series.points).toEqual([
+      { occurredAt: '2026-07-30T20:00:00Z', equity: '100000.00000000' },
+      { occurredAt: '2026-07-31T20:00:00Z', equity: '101250.50000000' },
+    ]);
+    expect(series.resultHash).toBe(RESULT_HASH);
+  });
+
   it('keeps an undefined metric null rather than inventing a zero', async () => {
     server.use(...backtestHandlers({
       performance: {

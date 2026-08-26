@@ -10,6 +10,7 @@ import { HttpResponse, delay, http } from 'msw';
 import { setupServer } from 'msw/node';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createBacktestClient } from './api/backtests';
+import { createMarketDataClient } from './api/marketData';
 import {
   BACKTEST_API_BASE,
   FAILED_RUN,
@@ -66,8 +67,13 @@ function view(token: string | null = OWNER_TOKEN, session = memorySession(token)
     baseUrl: BACKTEST_API_BASE,
     getAccessToken: () => session.accessToken(),
   });
+  const marketDataClient = createMarketDataClient({
+    baseUrl: BACKTEST_API_BASE,
+    getAccessToken: () => session.accessToken(),
+  });
   return { session, ...render(<BacktestLiveView
     client={client}
+    marketDataClient={marketDataClient}
     session={session}
     activePollIntervalMs={activePollIntervalMs}
     onCreateStrategy={onCreateStrategy}
@@ -208,20 +214,73 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
       .toBeInTheDocument();
   });
 
-  it('keeps real results inside the original selector, overview chart and compact metric layout', async () => {
+  it('compares the official strategy curve with actual ETF buy-and-hold lines', async () => {
     view();
 
     const workspace = await screen.findByTestId('backtest-live-workspace');
     expect(workspace).toHaveClass('backtest-comparison-workspace');
 
     const overview = await screen.findByRole('region', { name: '선택한 백테스트 성과 개요' });
-    expect(within(overview).getByText('월별 활동')).toBeInTheDocument();
-    expect(within(overview).getByRole('img', { name: '월별 백테스트 활동' })).toBeInTheDocument();
-    expect(within(overview).getByText('2026.07')).toBeInTheDocument();
-    expect(within(overview).getByText('2026.08')).toBeInTheDocument();
+    expect(await within(overview).findByText('시장 대비 누적 수익률')).toBeInTheDocument();
+    expect(within(overview).getByText('S&P 500 (SPY)')).toBeInTheDocument();
+    expect(within(overview).getByText('NASDAQ-100 (QQQ)')).toBeInTheDocument();
+    expect(within(overview).getByRole('img', { name: '전략과 시장 ETF 누적 수익률 선 그래프' })).toBeInTheDocument();
+    expect(within(overview).getByTestId('backtest-comparison-series-strategy')).toBeInTheDocument();
+    expect(within(overview).getByTestId('backtest-comparison-series-spy')).toBeInTheDocument();
+    expect(within(overview).getByTestId('backtest-comparison-series-qqq')).toBeInTheDocument();
+    expect(within(overview).queryByText('월별 활동')).not.toBeInTheDocument();
+    expect(within(overview).getByText(/실제 비교 기간/)).toBeInTheDocument();
 
     expect(screen.getByTestId('backtest-live-metrics')).toHaveClass('backtest-metric-panel');
     expect(balancedStyles).toMatch(/\.backtest-live-overview-chart\s*\{[^}]*height:\s*330px/s);
+  });
+
+  it('keeps the market comparison available when the backtest request form options fail', async () => {
+    server.use(
+      http.get(`${BACKTEST_API_BASE}/api/v1/bots/operations`, () => new HttpResponse('unavailable', { status: 503 })),
+    );
+
+    view();
+
+    const overview = await screen.findByRole('region', { name: '선택한 백테스트 성과 개요' });
+    expect(await within(overview).findByText('시장 대비 누적 수익률')).toBeInTheDocument();
+    expect(within(overview).getByTestId('backtest-comparison-series-spy')).toBeInTheDocument();
+    expect(within(overview).getByTestId('backtest-comparison-series-qqq')).toBeInTheDocument();
+  });
+
+  it('explains a benchmark data failure without exposing a raw client error', async () => {
+    server.use(
+      http.get(`${BACKTEST_API_BASE}/api/v1/market-data/instruments/:instrumentId/bars`, () => (
+        new HttpResponse('upstream exploded', { status: 503 })
+      )),
+    );
+
+    view();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('시장 비교 데이터를 불러오지 못했습니다.');
+    expect(alert).toHaveTextContent('전략 결과는 그대로 확인할 수 있습니다.');
+    expect(alert).not.toHaveTextContent(/Market data|failed \(503\)|upstream/i);
+  });
+
+  it('explains non-overlapping market history without exposing an internal reason code', async () => {
+    server.use(...backtestHandlers({
+      performanceSeries: {
+        backtestRunId: RUN_ID,
+        resultHash: 'result-hash-1',
+        sourceSetHash: 'source-set-hash-1',
+        points: [
+          { occurredAt: '2020-01-02T20:00:00Z', equity: '10000.00' },
+          { occurredAt: '2020-01-03T20:00:00Z', equity: '10100.00' },
+        ],
+      },
+    }));
+
+    view();
+
+    expect(await screen.findByText('서로 비교할 수 있는 실제 데이터 기간이 없습니다.')).toBeInTheDocument();
+    expect(screen.getByText(/시장 ETF의 실제 보유 기간이 겹치지 않습니다/)).toBeInTheDocument();
+    expect(screen.queryByText(/NO_COMMON_RANGE|INVALID_BASELINE|MISSING_SERIES/)).not.toBeInTheDocument();
   });
 
   it('separates dense result categories into one-at-a-time tabs', async () => {

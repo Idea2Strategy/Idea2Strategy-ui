@@ -170,6 +170,17 @@ export const PERFORMANCE: Json = {
   calculatedAt: '2026-07-31T12:29:00Z',
 };
 
+export const PERFORMANCE_SERIES: Json = {
+  backtestRunId: RUN_ID,
+  points: [
+    { occurredAt: '2026-07-01T20:00:00Z', equity: '10000.00000000' },
+    { occurredAt: '2026-07-15T20:00:00Z', equity: '10150.00000000' },
+    { occurredAt: '2026-07-29T20:00:00Z', equity: '10300.00000000' },
+  ],
+  resultHash: RESULT_HASH,
+  sourceSetHash: `sha256:${'b'.repeat(64)}`,
+};
+
 export const JULY_FILL_RECORD_ID = '50000000-0000-4000-8000-000000000001';
 export const JULY_REJECTION_RECORD_ID = '50000000-0000-4000-8000-000000000002';
 export const INSTRUMENT_ID = '00000000-0000-4000-8000-000000002908';
@@ -379,6 +390,7 @@ export interface BacktestApiState {
   attempts: Json[];
   /** `null` reproduces the 404 the server returns until a summary is published. */
   performance: Json | null;
+  performanceSeries: Json | null;
   monthlySummaries: Json[];
   detailManifests: Json[];
   /** Trade detail rows by ET month. An unlisted month is an empty month. */
@@ -389,6 +401,7 @@ export const DEFAULT_STATE: BacktestApiState = {
   runs: [runPayload()],
   attempts: ATTEMPTS,
   performance: PERFORMANCE,
+  performanceSeries: PERFORMANCE_SERIES,
   monthlySummaries: MONTHLY_SUMMARIES,
   detailManifests: DETAIL_MANIFESTS,
   monthlyTrades: MONTHLY_TRADES,

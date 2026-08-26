@@ -147,12 +147,28 @@ function route(request: IncomingMessage, state: BacktestApiState): Answer {
   if (request.method === 'OPTIONS') return { status: 204, body: null };
   if (request.method !== 'GET') return json({ detail: 'method not allowed' }, 405);
   if (url.pathname === '/health') return json({ status: 'ok' });
-  if (!url.pathname.startsWith(PREFIX)) return json({ detail: 'not found' }, 404);
 
   // The credential is checked before anything else, including the query string, so an
   // anonymous caller cannot probe the parameter contract.
   const caller = principalOf(request.headers.authorization ?? null);
   if (caller === null) return UNAUTHENTICATED;
+
+  if (url.pathname === '/api/v1/bots/operations') {
+    return json(Array.from(new Map(state.runs.map((run) => [String(run.botId), {
+      botId: String(run.botId), name: '테스트 봇',
+    }])).values()));
+  }
+  if (url.pathname === '/api/v1/strategy-release-inputs') return json({ executionPolicies: [], datasets: [] });
+  if (url.pathname === '/api/v1/strategy-catalogs/basic') return json({
+    instruments: [
+      { id: 'benchmark-spy', symbol: 'SPY' },
+      { id: 'benchmark-qqq', symbol: 'QQQ' },
+      { id: 'benchmark-iwm', symbol: 'IWM' },
+    ],
+  });
+  const marketMatch = url.pathname.match(/^\/api\/v1\/market-data\/instruments\/([^/]+)\/bars$/);
+  if (marketMatch) return benchmarkBars(decodeURIComponent(marketMatch[1]));
+  if (!url.pathname.startsWith(PREFIX)) return json({ detail: 'not found' }, 404);
 
   const rest = url.pathname.slice(PREFIX.length).replace(/^\//, '');
   if (rest === '') return listRuns(url, caller, state);
@@ -196,6 +212,13 @@ function route(request: IncomingMessage, state: BacktestApiState): Answer {
         ?? (state.performance === null
           ? json({ detail: `backtest run ${runId} has no performance summary yet` }, 404)
           : json(state.performance));
+    case 'performance-series':
+      return caller !== 'owner' || runStatusOf(runId, state) === null
+        ? json({ detail: 'backtest not found' }, 404)
+        : requireCompleted(runId, state)
+          ?? (state.performanceSeries === null
+            ? json({ detail: 'performance series not found' }, 404)
+            : json(state.performanceSeries));
     case 'monthly-summaries':
       return owned(caller, runId, state)
         ?? requireCompleted(runId, state)
@@ -209,6 +232,25 @@ function route(request: IncomingMessage, state: BacktestApiState): Answer {
     default:
       return json({ detail: 'not found' }, 404);
   }
+}
+
+function benchmarkBars(instrumentId: string): Answer {
+  const symbols: Record<string, string> = {
+    'benchmark-spy': 'SPY', 'benchmark-qqq': 'QQQ', 'benchmark-iwm': 'IWM',
+  };
+  const symbol = symbols[instrumentId];
+  if (!symbol) return json({ detail: 'instrument not found' }, 404);
+  const closes = symbol === 'SPY' ? [550, 561, 572] : symbol === 'QQQ' ? [480, 494, 504] : [210, 208, 215];
+  return json({
+    instrumentId,
+    symbol,
+    timeframe: '1d',
+    bars: ['2026-07-01T20:00:00Z', '2026-07-15T20:00:00Z', '2026-07-29T20:00:00Z'].map((occurredAt, index) => ({
+      eventId: `${symbol}-${index}`, occurredAt, sequence: index + 1, revision: 1,
+      open: closes[index], high: closes[index] + 1, low: closes[index] - 1,
+      close: closes[index], volume: 1000000 + index, provider: 'LOCAL_PARQUET', feed: 'SIP',
+    })),
+  });
 }
 
 function listRuns(url: URL, caller: 'owner' | 'other', state: BacktestApiState): Answer {

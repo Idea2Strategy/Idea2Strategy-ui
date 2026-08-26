@@ -75,7 +75,7 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     const runs = page.getByRole('list', { name: '공식 백테스트 실행 목록' });
     await expect(runs).toBeVisible();
     await expect(runs.getByRole('listitem')).toHaveCount(1);
-    await expect(runs.getByRole('listitem').first()).toContainText(BOT_ID.slice(0, 8));
+    await expect(runs.getByRole('listitem').first()).toContainText('테스트 봇');
     await expect(runs.getByRole('listitem').first()).toContainText('완료');
 
     // The credential really left the browser on the wire, from the session store and
@@ -124,7 +124,11 @@ test.describe('backtest screens against the /api/v1 contract', () => {
 
     const detail = page.getByRole('region', { name: '선택한 백테스트 결과' });
     await expect(detail).toBeVisible();
-    await expect(detail).toContainText('검증된 공식 결과가 발행되었습니다.');
+    await expect(detail).toContainText('시장 대비 누적 수익률');
+    await expect(detail.getByRole('img', { name: '전략과 시장 ETF 누적 수익률 선 그래프' })).toBeVisible();
+    await expect(detail.getByTestId('backtest-comparison-series-strategy')).toBeVisible();
+    await expect(detail.getByTestId('backtest-comparison-series-spy')).toBeVisible();
+    await expect(detail.getByTestId('backtest-comparison-series-qqq')).toBeVisible();
 
     // The metrics document, rendered from `metricsDocument` rather than from zeroes.
     await expect(detail).toContainText('$10,299.96');

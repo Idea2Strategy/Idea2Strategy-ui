@@ -96,6 +96,46 @@ export function backtestHandlers(overrides: Partial<BacktestApiState> = {}): Req
   const path = (suffix: string) => `${BACKTEST_API_BASE}/api/v1/backtests${suffix}`;
 
   return [
+    http.get(`${BACKTEST_API_BASE}/api/v1/strategy-catalogs/basic`, ({ request }) => {
+      if (principalOf(request.headers.get('Authorization')) === null) return UNAUTHENTICATED();
+      return HttpResponse.json({
+        instruments: [
+          { id: 'benchmark-spy', symbol: 'SPY' },
+          { id: 'benchmark-qqq', symbol: 'QQQ' },
+          { id: 'benchmark-iwm', symbol: 'IWM' },
+        ],
+      });
+    }),
+    http.get(`${BACKTEST_API_BASE}/api/v1/market-data/instruments/:instrumentId/bars`, ({ request, params }) => {
+      if (principalOf(request.headers.get('Authorization')) === null) return UNAUTHENTICATED();
+      const instrumentId = String(params.instrumentId);
+      const symbols: Record<string, string> = {
+        'benchmark-spy': 'SPY',
+        'benchmark-qqq': 'QQQ',
+        'benchmark-iwm': 'IWM',
+      };
+      const symbol = symbols[instrumentId];
+      if (!symbol) return HttpResponse.json({ detail: 'instrument not found' }, { status: 404 });
+      const closes = symbol === 'SPY' ? [550, 561, 572] : symbol === 'QQQ' ? [480, 494, 504] : [210, 208, 215];
+      return HttpResponse.json({
+        instrumentId,
+        symbol,
+        timeframe: '1d',
+        bars: ['2026-07-01T20:00:00Z', '2026-07-15T20:00:00Z', '2026-07-29T20:00:00Z'].map((occurredAt, index) => ({
+          eventId: `${symbol}-${index}`,
+          occurredAt,
+          sequence: index + 1,
+          revision: 1,
+          open: closes[index],
+          high: closes[index] + 1,
+          low: closes[index] - 1,
+          close: closes[index],
+          volume: 1000000 + index,
+          provider: 'LOCAL_PARQUET',
+          feed: 'SIP',
+        })),
+      });
+    }),
     http.get(`${BACKTEST_API_BASE}/api/v1/bots/operations`, ({ request }) => {
       if (principalOf(request.headers.get('Authorization')) === null) return UNAUTHENTICATED();
       const unique = new Map(state.runs.map((run) => [String(run.botId), { botId: String(run.botId), name: '테스트 봇' }]));
@@ -166,6 +206,15 @@ export function backtestHandlers(overrides: Partial<BacktestApiState> = {}): Req
         );
       }
       return HttpResponse.json(state.performance);
+    }),
+
+    http.get(path('/:runId/performance-series'), ({ request, params }) => {
+      const runId = String(params.runId);
+      const denied = ownedEvidence(request, runId, state);
+      if (denied) return denied;
+      return state.performanceSeries === null
+        ? HttpResponse.json({ detail: 'performance series not found' }, { status: 404 })
+        : HttpResponse.json(state.performanceSeries);
     }),
 
     http.get(path('/:runId/monthly-summaries'), ({ request, params }) => {

@@ -35,6 +35,20 @@ describe('market data client', () => {
     );
   });
 
+  it('requests enough actual daily bars for a long-range benchmark comparison', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      instrumentId: 'spy-id', symbol: 'SPY', timeframe: '1d', bars: [bar],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const client = createMarketDataClient({ baseUrl: 'https://api.example.com', fetchImpl });
+
+    await client.getRecentBars('spy-id', '1d', 5000);
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/market-data/instruments/spy-id/bars?timeframe=1d&limit=5000',
+      expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+
   it('requests a server-anchored preview window and preserves literal coverage metadata', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       instrumentId: 'instrument-1', symbol: 'AAPL', timeframe: '30m', window: '3m',

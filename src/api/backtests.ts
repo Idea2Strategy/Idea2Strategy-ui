@@ -124,6 +124,13 @@ export interface BacktestPerformanceSummary {
   calculatedAt: string;
 }
 
+export interface BacktestPerformanceSeries {
+  backtestRunId: string;
+  points: Array<{ occurredAt: string; equity: string }>;
+  resultHash: string;
+  sourceSetHash: string;
+}
+
 /** One row of `backtest.failure_condition_counts`, as carried in `summaryDocument`. */
 export interface BacktestFirstFailureCount {
   mode: string;
@@ -249,6 +256,7 @@ export interface BacktestRunInputs {
 
 export interface BacktestRequestOptions {
   bots: Array<{ botId: string; name: string }>;
+  benchmarkInstruments: Array<{ instrumentId: string; symbol: string }>;
   executionPolicies: Array<{ version: string }>;
   datasets: Array<{
     id: string;
@@ -279,14 +287,18 @@ export interface ListRunsOptions {
   offset?: number;
 }
 
+export type BacktestBenchmarkInstrument = BacktestRequestOptions['benchmarkInstruments'][number];
+
 export interface BacktestClient {
   listRuns(options?: ListRunsOptions, signal?: AbortSignal): Promise<BacktestRunPage>;
   getRun(runId: string, signal?: AbortSignal): Promise<BacktestRun>;
   listAttempts(runId: string, signal?: AbortSignal): Promise<BacktestAttempt[]>;
   getPerformance(runId: string, signal?: AbortSignal): Promise<BacktestPerformanceSummary>;
+  getPerformanceSeries(runId: string, signal?: AbortSignal): Promise<BacktestPerformanceSeries>;
   listMonthlySummaries(runId: string, signal?: AbortSignal): Promise<BacktestMonthlySummary[]>;
   listDetailManifests(runId: string, signal?: AbortSignal): Promise<BacktestDetailManifest[]>;
   getInputs(runId: string, signal?: AbortSignal): Promise<BacktestRunInputs>;
+  getBenchmarkInstruments(signal?: AbortSignal): Promise<BacktestBenchmarkInstrument[]>;
   getRequestOptions(signal?: AbortSignal): Promise<BacktestRequestOptions>;
   requestBacktest(botId: string, input: CustomBacktestInput, signal?: AbortSignal): Promise<CustomBacktestReceipt>;
   cancelBacktest(runId: string, signal?: AbortSignal): Promise<BacktestRun>;
@@ -445,6 +457,18 @@ export function createBacktestClient({
 
   const runPath = (runId: string) => `/api/v1/backtests/${encodeURIComponent(runId)}`;
 
+  const readBenchmarkInstruments = (payload: unknown): BacktestBenchmarkInstrument[] => {
+    const catalog = object(payload, 'strategy catalog');
+    if (!Array.isArray(catalog.instruments)) throw new BacktestContractError('Invalid benchmark instruments');
+    return catalog.instruments.flatMap((value) => {
+      const instrument = object(value, 'benchmark instrument');
+      const symbolValue = string(instrument.symbol, 'symbol').toUpperCase();
+      return ['SPY', 'QQQ', 'IWM'].includes(symbolValue)
+        ? [{ instrumentId: string(instrument.id, 'instrument id'), symbol: symbolValue }]
+        : [];
+    });
+  };
+
   return {
     async listRuns({ limit = 50, offset = 0 } = {}, signal) {
       const query = new URLSearchParams({ limit: String(limit), offset: String(offset) });
@@ -477,6 +501,15 @@ export function createBacktestClient({
       return readPerformance(payload);
     },
 
+    async getPerformanceSeries(runId, signal) {
+      const payload = await request(
+        `${runPath(runId)}/performance-series`,
+        'Backtest performance series request',
+        signal,
+      );
+      return readPerformanceSeries(payload);
+    },
+
     async listMonthlySummaries(runId, signal) {
       const payload = await request(
         `${runPath(runId)}/monthly-summaries`,
@@ -503,10 +536,17 @@ export function createBacktestClient({
       ));
     },
 
+    async getBenchmarkInstruments(signal) {
+      return readBenchmarkInstruments(await request(
+        '/api/v1/strategy-catalogs/basic', 'Benchmark instrument request', signal,
+      ));
+    },
+
     async getRequestOptions(signal) {
-      const [botsPayload, inputsPayload] = await Promise.all([
+      const [botsPayload, inputsPayload, catalogPayload] = await Promise.all([
         request('/api/v1/bots/operations', 'Backtest bot option request', signal),
         request('/api/v1/strategy-release-inputs', 'Backtest input option request', signal),
+        request('/api/v1/strategy-catalogs/basic', 'Benchmark instrument request', signal),
       ]);
       if (!Array.isArray(botsPayload)) throw new BacktestContractError('Invalid backtest bot options');
       const inputs = object(inputsPayload, 'backtest input options');
@@ -518,6 +558,7 @@ export function createBacktestClient({
           const bot = object(value, 'backtest bot option');
           return { botId: string(bot.botId, 'botId'), name: string(bot.name, 'name') };
         }),
+        benchmarkInstruments: readBenchmarkInstruments(catalogPayload),
         executionPolicies: inputs.executionPolicies.map((value) => {
           const policy = object(value, 'backtest execution policy option');
           return { version: string(policy.version, 'version') };
@@ -673,6 +714,29 @@ function readPerformance(value: unknown): BacktestPerformanceSummary {
     inputHash: string(item.inputHash, 'inputHash'),
     resultHash: string(item.resultHash, 'resultHash'),
     calculatedAt: string(item.calculatedAt, 'calculatedAt'),
+  };
+}
+
+function readPerformanceSeries(value: unknown): BacktestPerformanceSeries {
+  const item = object(value, 'performance series');
+  if (!Array.isArray(item.points) || item.points.length === 0) {
+    throw new BacktestContractError('Invalid performance series points');
+  }
+  const points = item.points.map((value) => {
+    const point = object(value, 'performance series point');
+    const equity = decimal(point.equity, 'equity');
+    if (Number(equity) < 0) throw new BacktestContractError('Invalid negative performance equity');
+    return { occurredAt: string(point.occurredAt, 'occurredAt'), equity };
+  });
+  const instants = points.map((point) => point.occurredAt);
+  if (new Set(instants).size !== instants.length || instants.some((value, index) => index > 0 && value <= instants[index - 1])) {
+    throw new BacktestContractError('Performance series points must be unique and ordered');
+  }
+  return {
+    backtestRunId: string(item.backtestRunId, 'backtestRunId'),
+    points,
+    resultHash: string(item.resultHash, 'resultHash'),
+    sourceSetHash: string(item.sourceSetHash, 'sourceSetHash'),
   };
 }
 
