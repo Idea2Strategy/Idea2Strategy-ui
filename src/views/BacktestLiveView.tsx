@@ -29,6 +29,8 @@ import { ErrorPage, SignInRequiredPage } from '../components/StatePages';
 import type { StatusTone } from '../components/common';
 import { Localized } from '../lib/i18n';
 import { buildBacktestComparison } from '../lib/backtestComparison';
+import { buildMonthlyPerformance } from '../lib/backtestMonthlyPerformance';
+import type { BacktestMonthlyPerformance } from '../lib/backtestMonthlyPerformance';
 import { browserSessionStore, useSessionState } from '../lib/session';
 import type { AnonymousReason, SessionStore } from '../lib/session';
 
@@ -779,6 +781,7 @@ function BacktestResultTabs({
         mode="judgment"
         client={client}
         runId={detail.run.backtestRunId}
+        performanceSeries={detail.performanceSeries}
         summaries={detail.monthlySummaries}
         manifests={detail.detailManifests}
         selectedMonth={selectedMonth}
@@ -1100,6 +1103,7 @@ function MonthlyPanel({
   mode,
   client,
   runId,
+  performanceSeries = null,
   summaries,
   manifests,
   selectedMonth,
@@ -1109,6 +1113,7 @@ function MonthlyPanel({
   mode: 'judgment' | 'trades';
   client: BacktestClient;
   runId: string;
+  performanceSeries?: BacktestPerformanceSeries | null;
   summaries: BacktestMonthlySummary[];
   manifests: BacktestDetailManifest[];
   selectedMonth: string | null;
@@ -1116,19 +1121,30 @@ function MonthlyPanel({
   onUnauthenticated: () => void;
 }) {
   const active = summaries.find((item) => item.etYearMonth === selectedMonth);
+  const monthlyPerformance = useMemo(
+    () => buildMonthlyPerformance(performanceSeries, summaries.map((item) => item.etYearMonth)),
+    [performanceSeries, summaries],
+  );
   return <Panel
     className="backtest-live-monthly"
-    title={mode === 'judgment' ? 'ET 월별 판단' : 'ET 월별 거래'}
+    title={mode === 'judgment' ? '월별 성과' : 'ET 월별 거래'}
     subtitle={mode === 'judgment'
-      ? '미국 동부 시각 기준으로 월별 판단 흐름을 살펴봅니다.'
+      ? '공식 자산곡선을 월말 기준으로 나눠 수익과 손실의 흐름을 확인합니다.'
       : '선택한 달에 기록된 개별 주문과 체결을 확인합니다.'}
   >
-    {summaries.length === 0
+    {summaries.length === 0 && monthlyPerformance.length === 0
       ? <EmptyState
-        title="월별 판단 기록이 없습니다."
-        detail="월별 집계가 발행되면 여기에 표시됩니다."
+        title="월별 성과를 계산할 데이터가 없습니다."
+        detail="공식 자산곡선이나 월별 집계가 발행되면 실제 관측값으로 표시됩니다."
       />
-      : <>
+      : mode === 'judgment'
+        ? <MonthlyPerformanceAnalysis
+          performance={monthlyPerformance}
+          summaries={summaries}
+          selectedMonth={selectedMonth}
+          onSelectMonth={onSelectMonth}
+        />
+        : <>
         <div className="backtest-live-month-tabs" role="tablist" aria-label="ET 월 선택">
           {summaries.map((summary) => <button
             type="button"
@@ -1140,8 +1156,7 @@ function MonthlyPanel({
             onClick={() => onSelectMonth(summary.etYearMonth)}
           >{monthLabel(summary.etYearMonth)}</button>)}
         </div>
-        {active && mode === 'judgment' && <MonthlyJudgment summary={active} />}
-        {active && mode === 'trades' && <>
+        {active && <>
           <MonthlyTrades
             key={active.etYearMonth}
             client={client}
@@ -1159,6 +1174,126 @@ function MonthlyPanel({
         </>}
       </>}
   </Panel>;
+}
+
+function MonthlyPerformanceAnalysis({
+  performance,
+  summaries,
+  selectedMonth,
+  onSelectMonth,
+}: {
+  performance: BacktestMonthlyPerformance[];
+  summaries: BacktestMonthlySummary[];
+  selectedMonth: string | null;
+  onSelectMonth: (month: string) => void;
+}) {
+  const byMonth = new Map(performance.map((item) => [item.month, item]));
+  const years = [...new Set(performance.map((item) => item.month.slice(0, 4)))];
+  const available = performance.filter((item) => item.returnPct !== null);
+  const profitable = available.filter((item) => item.returnPct! > 0).length;
+  const losing = available.filter((item) => item.returnPct! < 0).length;
+  const best = available.reduce<BacktestMonthlyPerformance | null>(
+    (current, item) => current === null || item.returnPct! > current.returnPct! ? item : current,
+    null,
+  );
+  const worst = available.reduce<BacktestMonthlyPerformance | null>(
+    (current, item) => current === null || item.returnPct! < current.returnPct! ? item : current,
+    null,
+  );
+  const effectiveMonth = selectedMonth ?? performance.at(-1)?.month ?? null;
+  const activePerformance = effectiveMonth === null ? undefined : byMonth.get(effectiveMonth);
+  const activeSummary = summaries.find((item) => item.etYearMonth === effectiveMonth);
+
+  return <div className="backtest-monthly-analysis">
+    <dl className="backtest-monthly-overview" aria-label="월별 성과 요약">
+      <div><dt>수익 월</dt><dd>{profitable}개월</dd></div>
+      <div><dt>손실 월</dt><dd>{losing}개월</dd></div>
+      <div><dt>최고 월</dt><dd>{best === null ? '—' : `${shortMonthLabel(best.month)} ${signedPercent(best.returnPct!)}`}</dd></div>
+      <div><dt>최저 월</dt><dd>{worst === null ? '—' : `${shortMonthLabel(worst.month)} ${signedPercent(worst.returnPct!)}`}</dd></div>
+    </dl>
+
+    <div className="backtest-monthly-calendar-scroll">
+      <div className="backtest-monthly-calendar" role="grid" aria-label="월간 수익률">
+        <div className="backtest-monthly-calendar-row is-header" role="row">
+          <span role="columnheader">연도</span>
+          {Array.from({ length: 12 }, (_, index) => <span role="columnheader" key={index}>{index + 1}월</span>)}
+        </div>
+        {years.map((year) => <div className="backtest-monthly-calendar-row" role="row" key={year}>
+          <strong role="rowheader">{year}</strong>
+          {Array.from({ length: 12 }, (_, index) => {
+            const month = `${year}-${String(index + 1).padStart(2, '0')}`;
+            const item = byMonth.get(month);
+            const value = item?.returnPct ?? null;
+            const selectable = item !== undefined;
+            const label = value === null
+              ? `${monthLabel(month)} 수익률 데이터 없음`
+              : `${monthLabel(month)} ${signedPercent(value)}${item?.partial ? ' 평가 시작 월' : ''}`;
+            return <button
+              type="button"
+              role="gridcell"
+              key={month}
+              aria-label={label}
+              aria-selected={month === effectiveMonth}
+              disabled={!selectable}
+              className={`${monthlyReturnTone(value)}${month === effectiveMonth ? ' active' : ''}`}
+              onClick={() => onSelectMonth(month)}
+            >
+              <span>{index + 1}월</span>
+              <strong>{value === null ? '—' : signedPercent(value)}</strong>
+            </button>;
+          })}
+        </div>)}
+      </div>
+    </div>
+    <p className="backtest-monthly-calendar-note">
+      월 수익률은 미국 동부 시각 기준 월말 자산을 직전 월말과 비교합니다. 첫 달은 실제 첫 관측값부터 계산합니다.
+    </p>
+
+    {activePerformance !== undefined && <MonthlyPerformanceDetail performance={activePerformance} />}
+    {activeSummary !== undefined && <MonthlyJudgment summary={activeSummary} />}
+    {activePerformance === undefined && activeSummary === undefined && <EmptyState
+      title="선택한 달의 분석 데이터가 없습니다."
+      detail="값이 있는 달을 선택하면 월간 성과와 전략 실행 진단을 함께 확인할 수 있습니다."
+    />}
+  </div>;
+}
+
+function MonthlyPerformanceDetail({ performance }: { performance: BacktestMonthlyPerformance }) {
+  return <section
+    className="backtest-monthly-detail"
+    aria-label={`${monthLabel(performance.month)} 월간 성과 상세`}
+  >
+    <header>
+      <div>
+        <small>MONTHLY PERFORMANCE</small>
+        <h3>{monthLabel(performance.month)}</h3>
+      </div>
+      <span>{performance.partial ? '평가 시작 월 · 부분 기간' : `${performance.observationCount}개 일별 관측값`}</span>
+    </header>
+    {performance.returnPct === null
+      ? <EmptyState
+        title={`${monthLabel(performance.month)} 수익률을 계산할 수 없습니다.`}
+        detail="월간 변화율을 계산하려면 비교 가능한 실제 자산 관측값이 필요합니다. 0% 수익률과는 다른 상태입니다."
+      />
+      : <dl className="backtest-monthly-detail-metrics">
+        <div><dt>월 수익률</dt><dd className={performance.returnPct >= 0 ? 'positive' : 'negative'}>{signedPercent(performance.returnPct)}</dd></div>
+        <div><dt>기초 자산</dt><dd>{money(performance.startEquity)}</dd></div>
+        <div><dt>기말 자산</dt><dd>{money(performance.endEquity)}</dd></div>
+        <div><dt>월중 최대 낙폭</dt><dd className={performance.maxDrawdownPct! < 0 ? 'negative' : ''}>{signedPercent(performance.maxDrawdownPct!)}</dd></div>
+      </dl>}
+  </section>;
+}
+
+function monthlyReturnTone(value: number | null): string {
+  if (value === null) return 'is-missing';
+  if (value === 0) return 'is-flat';
+  const strength = Math.abs(value) >= 5 ? 'strong' : Math.abs(value) >= 2 ? 'medium' : 'soft';
+  return `${value > 0 ? 'is-gain' : 'is-loss'} is-${strength}`;
+}
+
+function shortMonthLabel(value: string): string {
+  const [year, month] = value.split('-');
+  return `${year}.${month}`;
 }
 
 /** Why a month's individual trades could not be shown. */
@@ -1338,68 +1473,58 @@ function sameRecords(trades: BacktestTrade[], expected: string[]): boolean {
 function MonthlyJudgment({ summary }: { summary: BacktestMonthlySummary }) {
   const counters = [
     {
-      label: '평가',
+      label: '평가 횟수',
       value: `${summary.evaluationCount}회`,
-      tone: 'evaluation',
       description: '해당 월에 전략 조건을 확인한 총 평가 횟수입니다.',
     },
     {
       label: '활성 분기',
       value: `${summary.activeBranchCount}개`,
-      tone: 'branch',
       description: '해당 월의 평가에 실제로 참여한 서로 다른 전략 흐름의 수입니다.',
     },
     {
-      label: '트리거',
+      label: '트리거 발생',
       value: `${summary.triggeredCount}회`,
-      tone: 'trigger',
       description: '전략 조건이 충족되어 거래 판단이 시작된 횟수입니다.',
     },
     {
       label: '거래 이벤트',
       value: `${summary.tradeEventCount}건`,
-      tone: 'trade',
       description: '전략 실행 과정에서 생성된 거래 관련 이벤트의 수입니다.',
     },
     {
       label: '데이터 공백',
       value: `${summary.dataGapCount}회`,
-      tone: 'gap',
       description: '평가에 필요한 시장 데이터가 없거나 충분하지 않았던 횟수입니다.',
     },
     {
       label: '거부',
       value: `${summary.rejectedCount}건`,
-      tone: 'rejected',
       description: '거래 판단이나 주문이 검증 또는 실행 단계에서 거부로 집계된 건수입니다.',
     },
   ];
   return <section
     className="backtest-live-judgments"
-    aria-label={`${monthLabel(summary.etYearMonth)} ET 월별 판단`}
+    aria-label={`${monthLabel(summary.etYearMonth)} 전략 실행 진단`}
   >
     <header className="backtest-live-monthly-summary-head">
       <div>
-        <small>MONTHLY DECISION</small>
-        <strong>{monthLabel(summary.etYearMonth)}</strong>
+        <small>EXECUTION DIAGNOSTICS</small>
+        <h3>전략 실행 진단</h3>
       </div>
       <div className="backtest-live-monthly-context">
-        <span>{`거래 기록 ${summary.tradeRecordIds.length}건`}</span>
+        <span>{`${monthLabel(summary.etYearMonth)} · 거래 기록 ${summary.tradeRecordIds.length}건`}</span>
       </div>
     </header>
-    <div className="backtest-live-monthly-kpis">
-      {counters.map((counter) => <article
-        className={counter.tone}
-      key={counter.label}
-      aria-label={`${counter.label} ${counter.value}`}
-    >
-      <div className="backtest-live-monthly-kpi-label">
-        <span>{counter.label}</span>
-        <MetricHelp label={counter.label} description={counter.description} />
-      </div>
-      <strong>{counter.value}</strong>
-    </article>)}
-    </div>
+    <dl className="backtest-live-monthly-kpis">
+      {counters.map((counter) => <div key={counter.label}>
+        <dt className="backtest-live-monthly-kpi-label">
+          <span>{counter.label}</span>
+          <MetricHelp label={counter.label} description={counter.description} />
+        </dt>
+        <dd>{counter.value}</dd>
+      </div>)}
+    </dl>
     <section className="backtest-live-failure-summary" aria-label="첫 실패 조건">
       <header>
         <div>

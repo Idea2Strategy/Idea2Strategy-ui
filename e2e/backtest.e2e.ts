@@ -143,13 +143,18 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     await expect(totalReturnTooltip).toBeVisible();
 
     await detail.getByRole('tab', { name: '월별 분석' }).click();
-    await detail.getByRole('tab', { name: '2026년 7월 ET 결과 보기' }).click();
+    const monthlyReturns = detail.getByRole('grid', { name: '월간 수익률' });
+    await expect(monthlyReturns).toBeVisible();
+    await monthlyReturns.getByRole('gridcell', { name: /2026년 7월/ }).click();
+    await expect(detail.getByRole('region', { name: '2026년 7월 월간 성과 상세' })).toContainText('+3.00%');
     await expect(detail.getByText('America/New_York')).toHaveCount(0);
-    await expect(detail.getByRole('article', { name: '평가 21회' })).toBeVisible();
+    const diagnostic = detail.getByRole('region', { name: '2026년 7월 전략 실행 진단' });
+    await expect(diagnostic).toContainText('평가 횟수');
+    await expect(diagnostic).toContainText('21회');
     const counterHelp = [
-      ['평가', '해당 월에 전략 조건을 확인한 총 평가 횟수입니다.'],
+      ['평가 횟수', '해당 월에 전략 조건을 확인한 총 평가 횟수입니다.'],
       ['활성 분기', '해당 월의 평가에 실제로 참여한 서로 다른 전략 흐름의 수입니다.'],
-      ['트리거', '전략 조건이 충족되어 거래 판단이 시작된 횟수입니다.'],
+      ['트리거 발생', '전략 조건이 충족되어 거래 판단이 시작된 횟수입니다.'],
       ['거래 이벤트', '전략 실행 과정에서 생성된 거래 관련 이벤트의 수입니다.'],
       ['데이터 공백', '평가에 필요한 시장 데이터가 없거나 충분하지 않았던 횟수입니다.'],
       ['거부', '거래 판단이나 주문이 검증 또는 실행 단계에서 거부로 집계된 건수입니다.'],
@@ -226,18 +231,18 @@ test.describe('backtest screens against the /api/v1 contract', () => {
 
     const resultTab = page.getByRole('tab', { name: '월별 분석' });
     await resultTab.click();
-    const monthTab = page.getByRole('tab', { name: '2026년 8월 ET 결과 보기' });
+    const monthCell = page.getByRole('gridcell', { name: /2026년 8월/ });
 
     await page.getByRole('button', { name: '화면 설정 열기' }).click();
     await page.getByRole('button', { name: '다크 모드' }).click();
     await expect(page.getByTestId('app-shell')).toHaveAttribute('data-theme', 'dark');
     await expect(resultTab).toHaveCSS('color', 'rgb(220, 227, 228)');
-    await expect(monthTab).toHaveCSS('color', 'rgb(94, 207, 202)');
+    await expect(monthCell.locator('strong')).toHaveCSS('font-size', '11px');
 
     await page.getByRole('button', { name: '라이트 모드' }).click();
     await expect(page.getByTestId('app-shell')).toHaveAttribute('data-theme', 'light');
     await expect(resultTab).toHaveCSS('color', 'rgb(26, 34, 36)');
-    await expect(monthTab).toHaveCSS('color', 'rgb(14, 116, 118)');
+    await expect(monthCell.locator('strong')).toHaveCSS('font-size', '11px');
   });
 
   test('says an ET month traded nothing instead of showing an empty table', async ({ page }) => {

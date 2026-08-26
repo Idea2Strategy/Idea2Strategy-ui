@@ -13441,11 +13441,183 @@ small.dashboard-bot-scope {
   background: color-mix(in srgb, var(--accent) 13%, var(--surface));
   color: var(--accent);
 }
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-analysis {
+  display: grid;
+  gap: 0;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 58%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-overview > div {
+  display: grid;
+  gap: 7px;
+  min-height: 84px;
+  align-content: center;
+  padding: 16px 20px;
+  border-left: 1px solid var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-overview > div:first-child {
+  border-left: 0;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-overview dt {
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 650;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-overview dd {
+  margin: 0;
+  color: var(--text);
+  font: 700 17px/1.2 var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-scroll {
+  overflow-x: auto;
+  padding: 22px 20px 12px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar {
+  display: grid;
+  gap: 6px;
+  min-width: 820px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row {
+  display: grid;
+  grid-template-columns: 62px repeat(12, minmax(54px, 1fr));
+  gap: 6px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row.is-header {
+  align-items: end;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row.is-header span,
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row > strong {
+  display: grid;
+  min-height: 28px;
+  place-items: center;
+  color: var(--text-faint);
+  font: 650 11px var(--font-sans);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row button {
+  min-height: 54px;
+  display: grid;
+  place-items: center;
+  padding: 7px 4px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--text-soft);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row button > span {
+  display: none;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row button > strong {
+  font: 700 11px var(--font-mono);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row button.is-gain {
+  color: var(--gain);
+  background: color-mix(in srgb, var(--gain) 11%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row button.is-gain.is-medium {
+  background: color-mix(in srgb, var(--gain) 18%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row button.is-gain.is-strong {
+  background: color-mix(in srgb, var(--gain) 27%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row button.is-loss {
+  color: var(--loss);
+  background: color-mix(in srgb, var(--loss) 11%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row button.is-loss.is-medium {
+  background: color-mix(in srgb, var(--loss) 18%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row button.is-loss.is-strong {
+  background: color-mix(in srgb, var(--loss) 27%, var(--surface));
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row button.is-flat {
+  color: var(--text-soft);
+  border-color: var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row button.is-missing {
+  color: var(--text-faint);
+  background: repeating-linear-gradient(-45deg, var(--surface-2), var(--surface-2) 5px, var(--surface-3) 5px, var(--surface-3) 6px);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row button:disabled {
+  cursor: default;
+  opacity: .5;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-row button.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-note {
+  margin: 0;
+  padding: 0 20px 20px;
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.55;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-detail,
 .variant-balanced[data-design="signal-studio"] .backtest-live-judgments {
   display: grid;
   gap: var(--space-5);
-  margin: 0;
+  margin: 0 20px 20px;
   padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-detail > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-detail > header > div {
+  display: grid;
+  gap: 3px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-detail > header small {
+  color: var(--accent);
+  font: 700 11px var(--font-mono);
+  letter-spacing: .12em;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-detail h3,
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-summary-head h3 {
+  margin: 0;
+  font-size: 17px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-detail > header > span {
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  font-size: 11px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-detail-metrics > div {
+  display: grid;
+  gap: 7px;
+  padding: 14px;
+  background: var(--surface-2);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-detail-metrics dt {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-monthly-detail-metrics dd {
+  margin: 0;
+  font: 700 16px var(--font-mono);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-summary-head {
   display: flex;
@@ -13461,9 +13633,6 @@ small.dashboard-bot-scope {
   color: var(--accent);
   font: 700 11px var(--font-mono);
   letter-spacing: .12em;
-}
-.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-summary-head strong {
-  font-size: 18px;
 }
 .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-context {
   display: flex;
@@ -13482,34 +13651,22 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article {
-  position: relative;
-  display: grid;
-  gap: 8px;
-  min-height: 88px;
-  align-content: center;
-  padding: 16px;
+  gap: 1px;
+  margin: 0;
   overflow: visible;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
+  background: var(--line);
+}
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis > div {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 13px;
+  overflow: visible;
   background: var(--surface-2);
-}
-.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 2px;
-  background: var(--line-strong);
-}
-.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article.trigger::before,
-.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article.trade::before {
-  background: var(--accent);
-}
-.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article.gap::before,
-.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article.rejected::before {
-  background: var(--warning);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpi-label {
   display: flex;
@@ -13521,12 +13678,14 @@ small.dashboard-bot-scope {
   font-size: 11px;
   font-weight: 650;
 }
-.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article:nth-child(3n + 1) .backtest-live-metric-tooltip {
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis > div:nth-child(3n + 1) .backtest-live-metric-tooltip {
   right: auto;
   left: 0;
 }
-.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis strong {
-  font: 700 20px var(--font-mono);
+.variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis dd {
+  margin: 0;
+  color: var(--text);
+  font: 700 13px var(--font-mono);
 }
 .variant-balanced[data-design="signal-studio"] .backtest-live-failure-summary {
   overflow: visible;
@@ -14093,7 +14252,36 @@ small.dashboard-bot-scope {
   }
   .variant-balanced[data-design="signal-studio"] .backtest-live-judgments {
     gap: var(--space-4);
+    margin: 0 14px 14px;
     padding: var(--space-4);
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-monthly-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-monthly-overview > div:nth-child(3) {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-monthly-overview > div:nth-child(4) {
+    border-top: 1px solid var(--line);
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-scroll {
+    padding-inline: 14px;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-monthly-calendar-note {
+    padding-inline: 14px;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-monthly-detail {
+    gap: var(--space-4);
+    margin: 0 14px 14px;
+    padding: var(--space-4);
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-monthly-detail > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .variant-balanced[data-design="signal-studio"] .backtest-monthly-detail-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-summary-head {
     align-items: flex-start;
@@ -14105,11 +14293,11 @@ small.dashboard-bot-scope {
   .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article:nth-child(odd) .backtest-live-metric-tooltip {
+  .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis > div:nth-child(odd) .backtest-live-metric-tooltip {
     right: auto;
     left: 0;
   }
-  .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis article:nth-child(even) .backtest-live-metric-tooltip {
+  .variant-balanced[data-design="signal-studio"] .backtest-live-monthly-kpis > div:nth-child(even) .backtest-live-metric-tooltip {
     right: 0;
     left: auto;
   }

@@ -293,10 +293,10 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(within(tabs).getByRole('tab', { name: '거래 내역' })).toBeInTheDocument();
     expect(within(tabs).getByRole('tab', { name: '실행 정보' })).toBeInTheDocument();
     expect(screen.getByTestId('backtest-live-metrics')).toBeVisible();
-    expect(screen.queryByRole('heading', { name: 'ET 월별 판단' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '월별 성과' })).not.toBeInTheDocument();
 
     await user.click(within(tabs).getByRole('tab', { name: '월별 분석' }));
-    expect(await screen.findByRole('heading', { name: 'ET 월별 판단' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: '월별 성과' })).toBeVisible();
     expect(screen.queryByTestId('backtest-live-metrics')).not.toBeInTheDocument();
 
     await user.click(within(tabs).getByRole('tab', { name: '거래 내역' }));
@@ -351,26 +351,30 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(screen.getByText('WORKER_TIMEOUT')).toBeInTheDocument();
   });
 
-  it('renders the six ET monthly counters and the first failure condition', async () => {
+  it('keeps monthly engine counters in a compact execution diagnostic', async () => {
     const user = userEvent.setup();
     view();
 
     await openResultTab(user, '월별 분석');
     // The most recent ET month is selected first; July is the month with activity.
-    await user.click(await screen.findByRole('tab', { name: '2026년 7월 ET 결과 보기' }));
+    await user.click(await screen.findByRole('gridcell', { name: /2026년 7월/ }));
 
-    const judgment = await screen.findByRole('region', { name: '2026년 7월 ET 월별 판단' });
+    const judgment = await screen.findByRole('region', { name: '2026년 7월 전략 실행 진단' });
     expect(within(judgment).queryByText('America/New_York')).not.toBeInTheDocument();
-    expect(within(judgment).getByRole('article', { name: '평가 21회' })).toBeInTheDocument();
-    expect(within(judgment).getByRole('article', { name: '활성 분기 2개' })).toBeInTheDocument();
-    expect(within(judgment).getByRole('article', { name: '거래 이벤트 2건' })).toBeInTheDocument();
-    expect(within(judgment).getByRole('article', { name: '데이터 공백 1회' })).toBeInTheDocument();
-    expect(within(judgment).getByRole('article', { name: '트리거 2회' })).toBeInTheDocument();
-    expect(within(judgment).getByRole('article', { name: '거부 1건' })).toBeInTheDocument();
+    expect(within(judgment).getByText('평가 횟수')).toBeInTheDocument();
+    expect(within(judgment).getByText('21회')).toBeInTheDocument();
+    expect(within(judgment).getByText('활성 분기')).toBeInTheDocument();
+    expect(within(judgment).getByText('2개')).toBeInTheDocument();
+    expect(within(judgment).getByText('거래 이벤트')).toBeInTheDocument();
+    expect(within(judgment).getByText('데이터 공백')).toBeInTheDocument();
+    expect(within(judgment).getByText('1회')).toBeInTheDocument();
+    expect(within(judgment).getByText('트리거 발생')).toBeInTheDocument();
+    expect(within(judgment).getByText('거부')).toBeInTheDocument();
+    expect(within(judgment).queryAllByRole('article')).toHaveLength(0);
     const counterHelp = [
-      ['평가', '해당 월에 전략 조건을 확인한 총 평가 횟수입니다.'],
+      ['평가 횟수', '해당 월에 전략 조건을 확인한 총 평가 횟수입니다.'],
       ['활성 분기', '해당 월의 평가에 실제로 참여한 서로 다른 전략 흐름의 수입니다.'],
-      ['트리거', '전략 조건이 충족되어 거래 판단이 시작된 횟수입니다.'],
+      ['트리거 발생', '전략 조건이 충족되어 거래 판단이 시작된 횟수입니다.'],
       ['거래 이벤트', '전략 실행 과정에서 생성된 거래 관련 이벤트의 수입니다.'],
       ['데이터 공백', '평가에 필요한 시장 데이터가 없거나 충분하지 않았던 횟수입니다.'],
       ['거부', '거래 판단이나 주문이 검증 또는 실행 단계에서 거부로 집계된 건수입니다.'],
@@ -387,6 +391,33 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(within(judgment).queryByText('BASIC · BASIC')).not.toBeInTheDocument();
     expect(within(judgment).queryByText(/\|step-/)).not.toBeInTheDocument();
     expect(within(judgment).getByText('3회')).toBeInTheDocument();
+  });
+
+  it('leads monthly analysis with actual returns and keeps execution counters secondary', async () => {
+    const user = userEvent.setup();
+    view();
+
+    await openResultTab(user, '월별 분석');
+
+    expect(await screen.findByRole('heading', { name: '월별 성과' })).toBeVisible();
+    const calendar = screen.getByRole('grid', { name: '월간 수익률' });
+    const july = within(calendar).getByRole('gridcell', { name: /2026년 7월/ });
+    const august = within(calendar).getByRole('gridcell', { name: /2026년 8월/ });
+    expect(july).toHaveAccessibleName(/\+3\.00%/);
+    expect(august).toHaveAccessibleName(/수익률 데이터 없음/);
+    expect(within(calendar).getByText('+3.00%')).toBeInTheDocument();
+    expect(within(calendar).getAllByText('—').length).toBeGreaterThan(0);
+
+    await user.click(july);
+    const detail = await screen.findByRole('region', { name: '2026년 7월 월간 성과 상세' });
+    expect(within(detail).getByText('월 수익률')).toBeInTheDocument();
+    expect(within(detail).getByText('+3.00%')).toBeInTheDocument();
+    expect(within(detail).getByText('기초 자산')).toBeInTheDocument();
+    expect(within(detail).getByText('$10,000.00')).toBeInTheDocument();
+    expect(within(detail).getByText('기말 자산')).toBeInTheDocument();
+    expect(within(detail).getByText('$10,300.00')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '전략 실행 진단' })).toBeVisible();
+    expect(screen.queryByText('MONTHLY DECISION')).not.toBeInTheDocument();
   });
 
   it('joins ET Monday week detail parts onto the selected ET month', async () => {
@@ -660,9 +691,9 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     view();
 
     expect(await screen.findByText('성과 요약이 아직 발행되지 않았습니다.')).toBeInTheDocument();
-    // The monthly judgment the server does publish is still shown.
+    // The monthly analysis stays available and distinguishes missing returns from zero.
     await openResultTab(user, '월별 분석');
-    expect(screen.getByRole('tab', { name: '2026년 8월 ET 결과 보기' })).toBeInTheDocument();
+    expect(screen.getByRole('gridcell', { name: '2026년 8월 수익률 데이터 없음' })).toBeInTheDocument();
   });
 
   it('stops a signed-out visit at a visible gate instead of firing requests', async () => {
