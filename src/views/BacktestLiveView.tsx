@@ -428,7 +428,7 @@ function BacktestRequestModal({ onClose, children }: { onClose: () => void; chil
     >
       <header>
         <span className="backtest-request-dialog-icon"><BarChart3 size={18} aria-hidden="true" /></span>
-        <div><small>OFFICIAL BACKTEST</small><h2 id="backtest-request-dialog-title">새 백테스트</h2><p>검증된 봇과 공식 입력을 선택해 새로운 실행을 요청합니다.</p></div>
+        <div><small>OFFICIAL BACKTEST</small><h2 id="backtest-request-dialog-title">새 백테스트</h2><p>검증된 봇과 평가 기간을 입력하면 시스템이 공식 데이터를 선택해 실행합니다.</p></div>
         <button ref={closeButtonRef} type="button" aria-label="새 백테스트 창 닫기" onClick={onClose}><X size={18} aria-hidden="true" /></button>
       </header>
       <div className="backtest-request-dialog-body">{children}</div>
