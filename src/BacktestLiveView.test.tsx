@@ -154,7 +154,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(within(dialog).queryByRole('combobox', { name: '백테스트 실행 정책' })).not.toBeInTheDocument();
     expect(within(dialog).queryByText('실행 정책')).not.toBeInTheDocument();
     expect(within(dialog).queryByRole('combobox', { name: '백테스트 데이터' })).not.toBeInTheDocument();
-    expect(within(dialog).getByText('공식 시장 데이터는 전략과 기간에 맞춰 시스템이 자동으로 선택합니다.')).toBeInTheDocument();
+    expect(within(dialog).queryByText('공식 시장 데이터는 전략과 기간에 맞춰 시스템이 자동으로 선택합니다.')).not.toBeInTheDocument();
     expect(within(dialog).getByLabelText('백테스트 시작일')).toHaveValue('');
     expect(within(dialog).getByLabelText('백테스트 시작일')).not.toHaveAttribute('min');
     expect(within(dialog).getByLabelText('백테스트 종료일')).toHaveValue('');

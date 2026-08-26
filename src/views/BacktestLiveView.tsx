@@ -314,10 +314,6 @@ export function BacktestLiveView({
             onChange={setRequestBotId}
           />
         </BacktestRequestField>
-        <p className="backtest-request-auto-input is-wide">
-          공식 시장 데이터는 전략과 기간에 맞춰 시스템이 자동으로 선택합니다.
-          <small>실행에 사용된 데이터 버전과 범위는 결과의 실행 정보에서 확인할 수 있습니다.</small>
-        </p>
         <label className="backtest-request-field"><span><strong>시작일</strong><small>ET 기준</small></span><input aria-label="백테스트 시작일" type="date" value={requestPeriodStart} onChange={(event) => setRequestPeriodStart(event.target.value)} /></label>
         <label className="backtest-request-field"><span><strong>종료일</strong><small>ET 기준</small></span><input aria-label="백테스트 종료일" type="date" value={requestPeriodEnd} onChange={(event) => setRequestPeriodEnd(event.target.value)} /></label>
         {!officialInputsAvailable && <p className="backtest-request-unavailable" role="alert">

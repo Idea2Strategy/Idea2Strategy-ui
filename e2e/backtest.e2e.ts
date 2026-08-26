@@ -112,7 +112,7 @@ test.describe('backtest screens against the /api/v1 contract', () => {
 
     const botSelect = dialog.getByRole('combobox', { name: '백테스트 봇' });
     await expect(dialog.getByRole('combobox', { name: '백테스트 데이터' })).toHaveCount(0);
-    await expect(dialog.getByText('공식 시장 데이터는 전략과 기간에 맞춰 시스템이 자동으로 선택합니다.')).toBeVisible();
+    await expect(dialog.getByText('공식 시장 데이터는 전략과 기간에 맞춰 시스템이 자동으로 선택합니다.')).toHaveCount(0);
     await botSelect.click();
     const botOptions = dialog.getByRole('listbox', { name: '백테스트 봇 옵션' });
     await expect(botOptions).toBeVisible();
