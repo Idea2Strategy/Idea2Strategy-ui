@@ -124,8 +124,6 @@ export function BacktestLiveView({
   const [requestPending, setRequestPending] = useState(false);
   const [requestMessage, setRequestMessage] = useState<string | null>(null);
   const [requestBotId, setRequestBotId] = useState('');
-  const [requestDatasetId, setRequestDatasetId] = useState('');
-  const [requestPolicyVersion, setRequestPolicyVersion] = useState('');
   const [requestPeriodStart, setRequestPeriodStart] = useState('');
   const [requestPeriodEnd, setRequestPeriodEnd] = useState('');
   const [requestIdempotencyKey, setRequestIdempotencyKey] = useState(newIdempotencyKey);
@@ -180,11 +178,6 @@ export function BacktestLiveView({
     client.getRequestOptions(controller.signal).then((options) => {
       setRequestOptions(options);
       setRequestBotId((current) => current || options.bots[0]?.botId || '');
-      setRequestPolicyVersion((current) => current || options.executionPolicies[0]?.version || '');
-      const dataset = options.datasets[0];
-      setRequestDatasetId((current) => current || dataset?.id || '');
-      setRequestPeriodStart((current) => current || dataset?.periodStart || '');
-      setRequestPeriodEnd((current) => current || dataset?.periodEnd || '');
     }).catch((error) => {
       if (!aborted(error) && requestOpen) setRequestError('백테스트에 사용할 봇과 공식 입력을 불러오지 못했습니다.');
     });
@@ -245,8 +238,8 @@ export function BacktestLiveView({
 
   const requestCustomBacktest = async (event: FormEvent) => {
     event.preventDefault();
-    if (!requestBotId || !requestDatasetId || !requestPolicyVersion || !requestPeriodStart || !requestPeriodEnd) {
-      setRequestError('백테스트에 필요한 봇, 공식 데이터 또는 실행 기준이 준비되지 않았습니다.');
+    if (!requestBotId || !requestPeriodStart || !requestPeriodEnd) {
+      setRequestError('백테스트에 필요한 봇과 평가 기간을 확인해 주세요.');
       return;
     }
     if (requestPeriodStart > requestPeriodEnd) {
@@ -257,10 +250,8 @@ export function BacktestLiveView({
     setRequestError(null);
     try {
       const receipt = await client.requestBacktest(requestBotId, {
-        datasetManifestId: requestDatasetId,
         periodStart: requestPeriodStart,
         periodEnd: requestPeriodEnd,
-        executionPolicyVersion: requestPolicyVersion,
         idempotencyKey: requestIdempotencyKey,
       });
       setRequestMessage(receipt.created
@@ -270,13 +261,18 @@ export function BacktestLiveView({
       setRequestIdempotencyKey(newIdempotencyKey());
       setRunOffset(0);
       retry();
-    } catch {
-      setRequestError('백테스트 요청을 접수하지 못했습니다. 입력 범위와 서버 상태를 확인한 뒤 다시 시도해 주세요.');
+    } catch (error: unknown) {
+      setRequestError(error instanceof BacktestApiError
+          && error.reasonCode === 'OFFICIAL_BACKTEST_INPUTS_UNAVAILABLE'
+        ? '선택한 전략과 기간을 함께 지원하는 공식 시장 데이터가 없습니다. 기간을 줄이거나 데이터 발행 후 다시 시도해 주세요.'
+        : '백테스트 요청을 접수하지 못했습니다. 입력 범위와 서버 상태를 확인한 뒤 다시 시도해 주세요.');
     } finally {
       setRequestPending(false);
     }
   };
-  const selectedRequestDataset = requestOptions?.datasets.find((dataset) => dataset.id === requestDatasetId) ?? null;
+  const officialInputsAvailable = requestOptions !== null
+    && requestOptions.datasets.length > 0
+    && requestOptions.executionPolicies.length > 0;
   const closeRequest = useCallback(() => setRequestOpen(false), []);
 
   /*
@@ -318,28 +314,16 @@ export function BacktestLiveView({
             onChange={setRequestBotId}
           />
         </BacktestRequestField>
-        <BacktestRequestField label="공식 데이터" hint="검증된 데이터 범위 안에서 실행됩니다." className="is-wide">
-          <BacktestRequestSelect
-            label="백테스트 데이터"
-            value={requestDatasetId}
-            options={requestOptions.datasets.map((dataset) => ({
-              value: dataset.id,
-              label: `${dataset.feedCode} · ${dataset.resolution}`,
-              detail: `${dataset.periodStart} — ${dataset.periodEnd}`,
-            }))}
-            onChange={(value) => {
-          const dataset = requestOptions.datasets.find((item) => item.id === value);
-          setRequestDatasetId(value);
-          if (dataset) { setRequestPeriodStart(dataset.periodStart); setRequestPeriodEnd(dataset.periodEnd); }
-            }}
-          />
-        </BacktestRequestField>
-        <label className="backtest-request-field"><span><strong>시작일</strong><small>ET 기준</small></span><input aria-label="백테스트 시작일" type="date" min={selectedRequestDataset?.periodStart} max={selectedRequestDataset?.periodEnd} value={requestPeriodStart} onChange={(event) => setRequestPeriodStart(event.target.value)} /></label>
-        <label className="backtest-request-field"><span><strong>종료일</strong><small>ET 기준</small></span><input aria-label="백테스트 종료일" type="date" min={selectedRequestDataset?.periodStart} max={selectedRequestDataset?.periodEnd} value={requestPeriodEnd} onChange={(event) => setRequestPeriodEnd(event.target.value)} /></label>
-        {!requestPolicyVersion && <p className="backtest-request-unavailable" role="alert">
-          현재 백테스트 실행 기준이 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.
+        <p className="backtest-request-auto-input is-wide">
+          공식 시장 데이터는 전략과 기간에 맞춰 시스템이 자동으로 선택합니다.
+          <small>실행에 사용된 데이터 버전과 범위는 결과의 실행 정보에서 확인할 수 있습니다.</small>
+        </p>
+        <label className="backtest-request-field"><span><strong>시작일</strong><small>ET 기준</small></span><input aria-label="백테스트 시작일" type="date" value={requestPeriodStart} onChange={(event) => setRequestPeriodStart(event.target.value)} /></label>
+        <label className="backtest-request-field"><span><strong>종료일</strong><small>ET 기준</small></span><input aria-label="백테스트 종료일" type="date" value={requestPeriodEnd} onChange={(event) => setRequestPeriodEnd(event.target.value)} /></label>
+        {!officialInputsAvailable && <p className="backtest-request-unavailable" role="alert">
+          현재 전략을 실행할 공식 데이터 또는 실행 기준이 준비되지 않았습니다. 준비된 뒤 다시 시도해 주세요.
         </p>}
-        <footer className="backtest-request-actions"><Button type="button" onClick={closeRequest}>취소</Button><Button type="submit" kind="primary" disabled={requestPending || !requestDatasetId || !requestPolicyVersion}>{requestPending ? '요청 중…' : '백테스트 요청'}</Button></footer>
+        <footer className="backtest-request-actions"><Button type="button" onClick={closeRequest}>취소</Button><Button type="submit" kind="primary" disabled={requestPending || !officialInputsAvailable}>{requestPending ? '요청 중…' : '백테스트 요청'}</Button></footer>
       </form>}
     </BacktestRequestModal>}
     {signedIn && <>

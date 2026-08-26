@@ -128,18 +128,14 @@ describe('backtest results API client', () => {
 
     const options = await client().getRequestOptions();
     const receipt = await client().requestBacktest(options.bots[0].botId, {
-      datasetManifestId: options.datasets[0].id,
       periodStart: '2026-02-01',
       periodEnd: '2026-03-31',
-      executionPolicyVersion: options.executionPolicies[0].version,
       idempotencyKey: 'intent-1',
     });
 
     expect(receipt).toMatchObject({ created: true, runId: 'run-2' });
     expect(receivedKey).toBe('intent-1');
-    expect(receivedBody).toEqual({
-      datasetManifestId: 'dataset-1', periodStart: '2026-02-01', periodEnd: '2026-03-31', executionPolicyVersion: 'policy-v1',
-    });
+    expect(receivedBody).toEqual({ periodStart: '2026-02-01', periodEnd: '2026-03-31' });
   });
 
   it('reads the metrics document without flattening money into a float', async () => {

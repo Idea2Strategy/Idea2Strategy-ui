@@ -127,7 +127,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(screen.queryByLabelText('백테스트 실행 목록 페이지 이동')).not.toBeInTheDocument();
   });
 
-  it('requests a custom backtest from server-confirmed bots and immutable inputs', async () => {
+  it('lets the server choose official inputs instead of asking the user for dataset identifiers', async () => {
     let received: Record<string, unknown> | null = null;
     server.use(
       http.get(`${BACKTEST_API_BASE}/api/v1/bots/operations`, () => HttpResponse.json([
@@ -153,19 +153,79 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(botSelect).toHaveAttribute('data-value', 'bot-1');
     expect(within(dialog).queryByRole('combobox', { name: '백테스트 실행 정책' })).not.toBeInTheDocument();
     expect(within(dialog).queryByText('실행 정책')).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('combobox', { name: '백테스트 데이터' })).not.toBeInTheDocument();
+    expect(within(dialog).getByText('공식 시장 데이터는 전략과 기간에 맞춰 시스템이 자동으로 선택합니다.')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('백테스트 시작일')).toHaveValue('');
+    expect(within(dialog).getByLabelText('백테스트 시작일')).not.toHaveAttribute('min');
+    expect(within(dialog).getByLabelText('백테스트 종료일')).toHaveValue('');
+    expect(within(dialog).getByLabelText('백테스트 종료일')).not.toHaveAttribute('max');
     await user.click(botSelect);
     const botOptions = within(dialog).getByRole('listbox', { name: '백테스트 봇 옵션' });
     expect(within(botOptions).getByRole('option', { name: 'RSI bot' })).toHaveAttribute('aria-selected', 'true');
     await user.click(within(botOptions).getByRole('option', { name: 'RSI bot' }));
 
-    await user.clear(within(dialog).getByLabelText('백테스트 시작일'));
     await user.type(within(dialog).getByLabelText('백테스트 시작일'), '2026-02-01');
+    await user.type(within(dialog).getByLabelText('백테스트 종료일'), '2026-06-30');
     await user.click(within(dialog).getByRole('button', { name: '백테스트 요청' }));
 
-    await waitFor(() => expect(received).toMatchObject({
-      datasetManifestId: 'dataset-1', periodStart: '2026-02-01', executionPolicyVersion: 'policy-v1',
+    await waitFor(() => expect(received).toEqual({
+      periodStart: '2026-02-01', periodEnd: '2026-06-30',
     }));
     expect(await screen.findByText(/백테스트 요청을 접수했습니다/)).toBeInTheDocument();
+  });
+
+  it('explains when the strategy and period have no coherent official dataset set', async () => {
+    server.use(
+      http.get(`${BACKTEST_API_BASE}/api/v1/bots/operations`, () => HttpResponse.json([
+        { botId: 'bot-1', name: 'Mixed timeframe bot' },
+      ])),
+      http.get(`${BACKTEST_API_BASE}/api/v1/strategy-release-inputs`, () => HttpResponse.json({
+        executionPolicies: [{ version: 'policy-v1' }],
+        datasets: [{ id: 'dataset-1', feedCode: 'SIP', resolution: '30m', periodStart: '2026-01-01', periodEnd: '2026-06-30' }],
+      })),
+      http.post(`${BACKTEST_API_BASE}/api/v1/bots/:botId/backtests`, () => HttpResponse.json({
+        reasonCode: 'OFFICIAL_BACKTEST_INPUTS_UNAVAILABLE',
+        detail: 'No coherent official backtest dataset set covers required resolutions 30m, 1d',
+      }, { status: 422 })),
+    );
+    const user = userEvent.setup();
+    view();
+
+    await user.click(screen.getByRole('button', { name: '새 백테스트' }));
+    const dialog = await screen.findByRole('dialog', { name: '새 백테스트' });
+    await user.type(within(dialog).getByLabelText('백테스트 시작일'), '2026-02-01');
+    await user.type(within(dialog).getByLabelText('백테스트 종료일'), '2026-06-30');
+    await user.click(within(dialog).getByRole('button', { name: '백테스트 요청' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      '선택한 전략과 기간을 함께 지원하는 공식 시장 데이터가 없습니다.',
+    );
+  });
+
+  it('does not mislabel an unrelated 422 response as missing official market data', async () => {
+    server.use(
+      http.get(`${BACKTEST_API_BASE}/api/v1/bots/operations`, () => HttpResponse.json([
+        { botId: 'bot-1', name: 'RSI bot' },
+      ])),
+      http.get(`${BACKTEST_API_BASE}/api/v1/strategy-release-inputs`, () => HttpResponse.json({
+        executionPolicies: [{ version: 'policy-v1' }],
+        datasets: [{ id: 'dataset-1', feedCode: 'SIP', resolution: '30m', periodStart: '2026-01-01', periodEnd: '2026-06-30' }],
+      })),
+      http.post(`${BACKTEST_API_BASE}/api/v1/bots/:botId/backtests`, () => HttpResponse.json({
+        reasonCode: 'INPUT_INVALID', detail: 'invalid input',
+      }, { status: 422 })),
+    );
+    const user = userEvent.setup();
+    view();
+
+    await user.click(screen.getByRole('button', { name: '새 백테스트' }));
+    const dialog = await screen.findByRole('dialog', { name: '새 백테스트' });
+    await user.type(within(dialog).getByLabelText('백테스트 시작일'), '2026-02-01');
+    await user.type(within(dialog).getByLabelText('백테스트 종료일'), '2026-06-30');
+    await user.click(within(dialog).getByRole('button', { name: '백테스트 요청' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('백테스트 요청을 접수하지 못했습니다.');
+    expect(within(dialog).getByRole('alert')).not.toHaveTextContent('공식 시장 데이터가 없습니다');
   });
 
   it('closes the new backtest modal with Escape without resizing the page workspace', async () => {

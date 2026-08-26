@@ -268,10 +268,8 @@ export interface BacktestRequestOptions {
 }
 
 export interface CustomBacktestInput {
-  datasetManifestId: string;
   periodStart: string;
   periodEnd: string;
-  executionPolicyVersion: string;
   idempotencyKey: string;
 }
 
@@ -404,17 +402,18 @@ const ORDER_STATUSES = new Set<BacktestOrderStatus>([
 ]);
 
 /**
- * Pull `detail.reasonCode` off a refused response, if it published one.
+ * Pull a stable reason code off a refused response, if it published one.
  *
- * FastAPI nests an `HTTPException` detail under `detail`, and only the structured
- * details carry a code — a plain-string detail, an HTML error page from a proxy, or
- * an empty body all have to come back `null` rather than throw a second error on top
- * of the first.
+ * FastAPI nests an `HTTPException` detail under `detail`; Spring ProblemDetail emits
+ * extension properties at the root. A plain-string detail, an HTML error page from a
+ * proxy, or an empty body all come back `null` rather than causing a second error.
  */
 async function reasonCodeOf(response: Response): Promise<string | null> {
   try {
     const body: unknown = await response.json();
     if (typeof body !== 'object' || body === null) return null;
+    const rootCode = (body as { reasonCode?: unknown }).reasonCode;
+    if (typeof rootCode === 'string' && rootCode.length > 0) return rootCode;
     const detail = (body as { detail?: unknown }).detail;
     if (typeof detail !== 'object' || detail === null) return null;
     const code = (detail as { reasonCode?: unknown }).reasonCode;
@@ -585,10 +584,8 @@ export function createBacktestClient({
           method: 'POST',
           headers: { 'Idempotency-Key': input.idempotencyKey },
           body: JSON.stringify({
-            datasetManifestId: input.datasetManifestId,
             periodStart: input.periodStart,
             periodEnd: input.periodEnd,
-            executionPolicyVersion: input.executionPolicyVersion,
           }),
         },
       ));

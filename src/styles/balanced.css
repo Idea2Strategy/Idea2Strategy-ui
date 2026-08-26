@@ -13174,6 +13174,23 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .backtest-request-field.is-wide {
   grid-column: 1 / -1;
 }
+.variant-balanced[data-design="signal-studio"] .backtest-request-auto-input {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 4px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line));
+  border-radius: 10px;
+  color: var(--text-soft);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-2));
+  font-size: 12px;
+  line-height: 1.5;
+}
+.variant-balanced[data-design="signal-studio"] .backtest-request-auto-input small {
+  color: var(--text-faint);
+  font-size: 11px;
+}
 .variant-balanced[data-design="signal-studio"] .backtest-request-field > span:first-child {
   display: flex;
   align-items: baseline;

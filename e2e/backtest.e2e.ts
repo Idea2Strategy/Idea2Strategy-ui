@@ -97,8 +97,8 @@ test.describe('backtest screens against the /api/v1 contract', () => {
       json: {
         executionPolicies: [{ version: 'policy-v1' }, { version: 'policy-v2' }],
         datasets: [
-          { id: 'dataset-1', feedCode: 'SIP', resolution: '1m', periodStart: '2025-01-01', periodEnd: '2026-06-30' },
-          { id: 'dataset-2', feedCode: 'IEX', resolution: '5m', periodStart: '2025-07-01', periodEnd: '2026-06-30' },
+          { id: 'dataset-1', feedCode: 'SIP', resolution: '30m', periodStart: '2025-01-01', periodEnd: '2026-06-30' },
+          { id: 'dataset-2', feedCode: 'SIP', resolution: '1d', periodStart: '2025-07-01', periodEnd: '2026-06-30' },
         ],
       },
     }));
@@ -111,6 +111,8 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     await expect(page.locator('.backtest-request-panel')).toHaveCount(0);
 
     const botSelect = dialog.getByRole('combobox', { name: '백테스트 봇' });
+    await expect(dialog.getByRole('combobox', { name: '백테스트 데이터' })).toHaveCount(0);
+    await expect(dialog.getByText('공식 시장 데이터는 전략과 기간에 맞춰 시스템이 자동으로 선택합니다.')).toBeVisible();
     await botSelect.click();
     const botOptions = dialog.getByRole('listbox', { name: '백테스트 봇 옵션' });
     await expect(botOptions).toBeVisible();
