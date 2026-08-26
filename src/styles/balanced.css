@@ -692,6 +692,16 @@
 .signal-product-nav > nav button.active::after { opacity:1; }
 .signal-product-nav > nav button.active::after { transform:scaleX(1); }
 .signal-nav-tools { display:flex; align-items:center; justify-content:flex-end; gap:6px; }
+.operator-boundary-label {
+  padding:7px 10px;
+  border:1px solid var(--line-strong);
+  border-radius:4px;
+  color:var(--text-soft);
+  background:var(--surface-2);
+  font:700 10px var(--font-mono);
+  letter-spacing:.08em;
+}
+
 .signal-product-nav .icon-button,
 .signal-product-nav .signal-terminal-switch {
   width:34px;
@@ -2331,25 +2341,33 @@
 @media (max-width: 800px) {
   .variant-balanced[data-design="signal-studio"] .signal-product-nav {
     min-height:58px;
-    height:auto;
+    height:58px;
     grid-template-columns:auto 1fr;
-    grid-template-rows:58px auto;
-    padding:0 14px 8px;
+    grid-template-rows:58px;
+    padding:0 14px;
   }
   .signal-product-nav > nav {
-    grid-column:1 / -1;
-    grid-row:2;
-    overflow-x:auto;
-    /* CSS promotes `visible` to `auto` on the other axis whenever one axis
-       scrolls, so this row inherited a vertical scrollbar the moment the
-       active item's 2px underline (bottom:-1px) bled 1px past the box. Say
-       hidden explicitly: only the horizontal axis may ever scroll here. */
-    overflow-y:hidden;
-    justify-content:flex-start;
+    position:fixed;
+    z-index:40;
+    right:0;
+    bottom:0;
+    left:0;
+    height:62px;
+    display:grid;
+    grid-template-columns:repeat(5,minmax(0,1fr));
+    gap:0;
+    padding:0 max(6px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(6px, env(safe-area-inset-left));
+    overflow:hidden;
+    border-top:1px solid var(--line-strong);
+    background:color-mix(in srgb,var(--surface) 96%,transparent);
+    box-shadow:0 -8px 24px color-mix(in srgb,#000 16%,transparent);
+    backdrop-filter:blur(18px);
   }
-  .signal-product-nav > nav button { min-width:max-content; }
+  .signal-product-nav > nav button { min-width:0; height:100%; padding:0 3px; text-align:center; }
+  .signal-product-nav > nav button::after { top:0; bottom:auto; }
   .signal-nav-tools { justify-self:end; }
   .signal-product-nav .signal-user { display:none; }
+  .variant-balanced[data-design="signal-studio"] .page { padding-bottom:calc(82px + env(safe-area-inset-bottom)); }
 }
 .variant-balanced[data-design="signal-studio"] .app-sidebar nav button.active,
 .variant-balanced[data-design="signal-studio"] .sidebar-bottom > button.active {
@@ -7148,6 +7166,134 @@
   border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));
   border-radius:var(--radius-lg);
   background:color-mix(in srgb,var(--accent) 5%,var(--surface-1));
+}
+
+/* Resource workspace coherence -------------------------------------------------
+   Keep these final rules together: they are the product-level contract shared
+   by strategy, bot and backtest pages after their feature-specific layouts. */
+.variant-balanced[data-design="signal-studio"] .page,
+.variant-balanced[data-design="signal-studio"] .balanced-strategy-home {
+  width: min(1280px, 100%);
+  margin-inline: auto;
+}
+
+.strategy-row.is-openable { cursor: pointer; }
+.strategy-row.is-openable:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline-offset: -3px;
+  background: color-mix(in srgb, var(--accent-soft) 38%, var(--surface));
+}
+.strategy-row-menu-anchor { position:relative; }
+.strategy-row-menu {
+  position:absolute;
+  z-index:12;
+  top:calc(100% + 6px);
+  right:0;
+  min-width:154px;
+  overflow:hidden;
+  padding:5px;
+  border:1px solid var(--line-strong);
+  border-radius:7px;
+  background:var(--surface);
+  box-shadow:var(--shadow-overlay);
+}
+.strategy-row-menu button {
+  width:100%;
+  min-height:36px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:9px;
+  padding:0 10px;
+  border:0;
+  border-radius:4px;
+  color:var(--text-soft);
+  background:transparent;
+  font-size:12px;
+}
+.strategy-row-menu button:hover { color:var(--text); background:var(--surface-2); }
+.strategy-row-menu button.is-danger { color:var(--negative); }
+.strategy-row-lock { width:34px; height:34px; display:grid; place-items:center; color:var(--text-faint); }
+
+.strategy-pagination {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 45%, var(--surface));
+}
+.strategy-pagination button {
+  min-width: 68px;
+  min-height: 34px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  color: var(--text-soft);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+.strategy-pagination button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 56%, var(--line-strong));
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.strategy-pagination button:disabled { opacity: .42; cursor: not-allowed; }
+.strategy-pagination span {
+  min-width: 68px;
+  color: var(--text);
+  text-align: center;
+  font: 700 10px var(--font-mono);
+}
+
+.variant-balanced[data-design="signal-studio"] .result-state {
+  min-height: 260px;
+  align-content: center;
+  justify-items: center;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+@media (max-width: 760px) {
+  .variant-balanced[data-design="signal-studio"] .page,
+  .variant-balanced[data-design="signal-studio"] .balanced-strategy-home {
+    padding: 24px 14px 48px;
+  }
+  .variant-balanced[data-design="signal-studio"] .page-heading {
+    min-height: 0;
+    align-items: stretch;
+    flex-direction: column;
+    padding-bottom: 18px;
+  }
+  .variant-balanced[data-design="signal-studio"] .page-actions .button { width: 100%; }
+  .strategy-library-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .strategy-title-group {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .strategy-counts { padding-left: 0 !important; border-left: 0 !important; }
+  .strategy-search { width: 100%; }
+  .strategy-filter-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .strategy-filter-group { overflow-x: auto; }
+  .strategy-filter-group.is-secondary { padding-left: 0; border-left: 0; }
+  .variant-balanced[data-design="signal-studio"] .strategy-row {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+  .strategy-row .strategy-mode-label { display: none; }
+  .strategy-row .status { grid-column: 2; }
+  .strategy-row-actions { grid-column: 3; grid-row: 1 / span 2; }
 }
 .dashboard-onboarding h2 { margin:2px 0 var(--space-2); font-size:var(--fs-card); }
 .dashboard-onboarding p { margin:0; color:var(--text-soft); font-size:var(--fs-caption); }
@@ -13978,3 +14124,45 @@ small.dashboard-bot-scope {
 .variant-balanced[data-design="signal-studio"] .operator-auth-form .button { width: 100%; min-height: 44px; margin-top: 4px; }
 .variant-balanced[data-design="signal-studio"] .operator-auth-alert { padding: 11px 13px; border: 1px solid color-mix(in srgb, var(--negative) 42%, var(--line)); border-radius: 10px; color: var(--negative); background: color-mix(in srgb, var(--negative) 8%, transparent); font-size: 11px; }
 .variant-balanced[data-design="signal-studio"] .operator-auth-footnote { margin: -2px 0 0; color: var(--text-faint); font-size: 10px; line-height: 1.6; text-align: center; }
+
+/* Shipped narrow navigation contract. Keep this at EOF so the older design
+   experiments above cannot turn it back into a clipped horizontal strip. */
+@media (max-width: 800px) {
+  .variant-balanced[data-design="signal-studio"] .signal-product-nav {
+    height:58px;
+    min-height:58px;
+    grid-template-columns:auto 1fr;
+    grid-template-rows:58px;
+    padding:0 14px;
+  }
+  .signal-product-nav > nav {
+    position:fixed;
+    z-index:40;
+    right:0;
+    bottom:0;
+    left:0;
+    width:100%;
+    height:62px;
+    display:grid;
+    grid-template-columns:repeat(5,minmax(0,1fr));
+    gap:0;
+    padding:0 max(6px,env(safe-area-inset-right)) env(safe-area-inset-bottom) max(6px,env(safe-area-inset-left));
+    overflow:hidden;
+    border-top:1px solid var(--line-strong);
+    background:color-mix(in srgb,var(--surface) 96%,transparent);
+    box-shadow:0 -8px 24px color-mix(in srgb,#000 16%,transparent);
+    backdrop-filter:blur(18px);
+  }
+  .signal-product-nav > nav button {
+    width:100%;
+    min-width:0;
+    height:100%;
+    padding:0 3px;
+    text-align:center;
+  }
+  .signal-product-nav > nav button::after { top:0; bottom:auto; }
+  .variant-balanced[data-design="signal-studio"] .page,
+  .variant-balanced[data-design="signal-studio"] .balanced-strategy-home {
+    padding-bottom:calc(82px + env(safe-area-inset-bottom));
+  }
+}

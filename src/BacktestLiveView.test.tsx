@@ -18,6 +18,7 @@ import {
   JULY_TRADES,
   OWNER_ACCOUNT_ID,
   OWNER_TOKEN,
+  BOT_ID,
   QUEUED_RUN,
   RUNNING_RUN,
   RUN_ID,
@@ -102,6 +103,24 @@ async function openResultTab(
 }
 
 describe('BacktestLiveView against the /api/v1 backtest surface', () => {
+  it('identifies runs by their bot name instead of an opaque id', async () => {
+    server.use(
+      http.get(`${BACKTEST_API_BASE}/api/v1/bots/operations`, () => HttpResponse.json([
+        { botId: BOT_ID, name: 'AAPL RSI·거래량 봇' },
+      ])),
+      http.get(`${BACKTEST_API_BASE}/api/v1/strategy-release-inputs`, () => HttpResponse.json({
+        executionPolicies: [], datasets: [],
+      })),
+    );
+
+    view();
+
+    expect(await screen.findByRole('button', { name: 'AAPL RSI·거래량 봇 완료 백테스트 보기' })).toBeInTheDocument();
+    expect(screen.queryByText(BOT_ID.slice(0, 8))).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'AAPL RSI·거래량 봇 성과 개요' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('백테스트 실행 목록 페이지 이동')).not.toBeInTheDocument();
+  });
+
   it('requests a custom backtest from server-confirmed bots and immutable inputs', async () => {
     let received: Record<string, unknown> | null = null;
     server.use(

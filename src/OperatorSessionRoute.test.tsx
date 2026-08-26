@@ -42,6 +42,9 @@ describe('operator cookie-session route boundary', () => {
     window.history.replaceState({}, '', '/operations/rbac');
     render(<App operatorAuthentication={auth} />);
 
+    expect(screen.queryByRole('navigation', { name: 'Signal 주요 메뉴' })).not.toBeInTheDocument();
+    expect(screen.getByText('운영자 전용')).toBeInTheDocument();
+
     await userEvent.type(await screen.findByLabelText('운영자 아이디'), 'admin');
     await userEvent.type(screen.getByLabelText('비밀번호'), 'password');
     await userEvent.type(screen.getByLabelText('인증 앱 6자리 코드'), '123456');

@@ -38,7 +38,8 @@ describe('destructive resource flows', () => {
 
     render(<MemoryRouter><StrategyHome openEditor={() => {}} client={strategyLibrary} authoringClient={authoringClient} /></MemoryRouter>);
 
-    await user.click(await screen.findByRole('button', { name: '삭제할 전략 삭제' }));
+    await user.click(await screen.findByRole('button', { name: '삭제할 전략 작업 메뉴' }));
+    await user.click(screen.getByRole('menuitem', { name: '삭제할 전략 삭제' }));
     expect(screen.getByRole('dialog', { name: '전략 삭제 확인' })).toHaveTextContent('출시된 봇과 기록은 유지됩니다');
     await user.click(screen.getByRole('button', { name: '전략 삭제' }));
 

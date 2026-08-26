@@ -77,7 +77,7 @@ export function CompetitionApiWorkspace({ client }: { client: CompetitionRoomsCl
       : <ErrorPage title="대회 목록을 불러오지 못했습니다." detail="네트워크 상태를 확인해 주세요." onRetry={() => setReloadKey((key) => key + 1)} />;
   }
   return <Localized><div className="page competition-page competition-lobby-page competition-api-page">
-    <PageHeading eyebrow="BOT COMPETITION · LIVE API" title="모의투자" description="실제 대회 API에서 공개 방과 일정을 조회하고, 익명 봇 성과만 비교합니다." actions={<><Button icon={KeyRound} onClick={() => setInvitationOpen(true)}>초대 코드 참가</Button><Button kind="primary" icon={Plus} onClick={() => setCreateOpen(true)}>대회 만들기</Button></>} />
+    <PageHeading eyebrow="BOT COMPETITION" title="모의투자" description="같은 조건에서 봇의 성과를 겨루고, 참가자 정보 없이 결과를 비교합니다." actions={<><Button icon={KeyRound} onClick={() => setInvitationOpen(true)}>초대 코드 참가</Button><Button kind="primary" icon={Plus} onClick={() => setCreateOpen(true)}>대회 만들기</Button></>} />
     {createOpen && <CreateRoomDialog client={client} onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); setReloadKey((key) => key + 1); setOwnedReloadKey((key) => key + 1); }} />}
     {invitationOpen && <InvitationConsumeDialog client={client} onClose={() => setInvitationOpen(false)} onConsumed={(roomId) => { setInvitationOpen(false); setQuery(''); setReloadKey((key) => key + 1); setNotice(`초대를 확인했습니다. 대회 ID: ${roomId}`); }} />}
     <div className="competition-api-toolbar">
@@ -97,7 +97,7 @@ export function CompetitionApiWorkspace({ client }: { client: CompetitionRoomsCl
     <section className="competition-bulletin" aria-label="대회 게시판">
       <header className="competition-bulletin-head"><h2><Trophy size={14} aria-hidden="true" />공개 대회</h2><span>{state === 'ready' ? <CountLabel value={rooms.length} /> : 'API 연결'}</span></header>
       {state === 'loading' && <div className="competition-api-state" role="status"><LoaderCircle className="is-spinning" aria-hidden="true" /><strong>대회 목록을 불러오는 중입니다.</strong></div>}
-      {state === 'ready' && rooms.length === 0 && <div className="competition-api-state"><Trophy aria-hidden="true" /><strong>참가 가능한 공개 대회가 없습니다.</strong><span>검색어를 지우거나 나중에 다시 확인해 주세요.</span></div>}
+      {state === 'ready' && rooms.length === 0 && <div className="competition-api-state"><Trophy aria-hidden="true" /><strong>{query ? '검색 결과가 없습니다.' : '참가 가능한 공개 대회가 없습니다.'}</strong><span>{query ? '다른 대회명으로 검색하거나 검색어를 지워 주세요.' : '새 대회를 만들거나 초대 코드로 참가할 수 있습니다.'}</span>{query && <button type="button" onClick={() => setQuery('')}>검색어 지우기</button>}</div>}
       {state === 'ready' && <div role="list" aria-label="공개 대회 탐색 결과">{rooms.map((room) => <button type="button" role="listitem" className="competition-row" aria-label={`${room.name} 열기`} key={room.id} onClick={() => setSelected(room)}>
         <span className="competition-row-cell is-type"><span className="competition-kind-chip" data-kind="live">LIVE</span></span>
         <span className="competition-row-name"><strong>{room.name}{room.organizerType === 'PLATFORM' && <em className="competition-row-official">Official</em>}</strong><small>{statusLabel(room)}</small></span>

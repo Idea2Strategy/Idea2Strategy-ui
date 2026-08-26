@@ -96,6 +96,15 @@ export function backtestHandlers(overrides: Partial<BacktestApiState> = {}): Req
   const path = (suffix: string) => `${BACKTEST_API_BASE}/api/v1/backtests${suffix}`;
 
   return [
+    http.get(`${BACKTEST_API_BASE}/api/v1/bots/operations`, ({ request }) => {
+      if (principalOf(request.headers.get('Authorization')) === null) return UNAUTHENTICATED();
+      const unique = new Map(state.runs.map((run) => [String(run.botId), { botId: String(run.botId), name: '테스트 봇' }]));
+      return HttpResponse.json(Array.from(unique.values()));
+    }),
+    http.get(`${BACKTEST_API_BASE}/api/v1/strategy-release-inputs`, ({ request }) => {
+      if (principalOf(request.headers.get('Authorization')) === null) return UNAUTHENTICATED();
+      return HttpResponse.json({ executionPolicies: [], datasets: [] });
+    }),
     http.get(path(''), ({ request }) => {
       const caller = principalOf(request.headers.get('Authorization'));
       if (caller === null) return UNAUTHENTICATED();

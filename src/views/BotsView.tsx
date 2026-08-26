@@ -461,7 +461,7 @@ const mergeBotOperations = (operations: BotOperationsView[]): BotRecord[] => ope
     capital: '—',
     change: '—',
     strategies: null,
-    room: '운용 유형 미제공',
+    room: '출시 봇',
     labels: [],
     startDaysAgo: age,
     startedAt: formatRuntimeTime(operation.lifecycleChangedAt),
@@ -1838,8 +1838,8 @@ export function BotsView({
             {/* One template string, not interpolated fragments: Localized
                 translates whole text nodes, and a number in the middle would
                 split this into untranslatable pieces. */}
-            <span className="bots-list-copy"><strong>{bot.name}</strong><small>{`${bot.room} · 전략 ${bot.strategies === null ? '—' : `${bot.strategies}개`}`}</small></span>
-            <span className="bots-list-figures"><b>{bot.capital}</b><em className={bot.change === '—' ? '' : bot.change.startsWith('+') ? 'positive' : 'negative'}>{bot.change}</em></span>
+            <span className="bots-list-copy"><strong>{bot.name}</strong><small>{prototypeMode ? `${bot.room} · 전략 ${bot.strategies ?? 0}개` : `출시 봇 · 상태 변경 ${bot.startedAt}`}</small></span>
+            {prototypeMode && <span className="bots-list-figures"><b>{bot.capital}</b><em className={bot.change === '—' ? '' : bot.change.startsWith('+') ? 'positive' : 'negative'}>{bot.change}</em></span>}
             <Status tone={botTone(bot.state)}>{bot.state}</Status>
           </button></div>)}
         </div> : <EmptyState

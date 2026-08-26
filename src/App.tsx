@@ -190,6 +190,7 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
   const navigate = useNavigate();
   const location = useLocation();
   const signedIn = useSignedIn();
+  const operatorRoute = location.pathname.startsWith('/operations/');
   const [openPanel, setOpenPanel] = useState<string | null>(null);
   const [topbarHidden, setTopbarHidden] = useState(false);
   const [notificationState, setNotificationState] = useState<TopbarNotificationState>({ kind: 'idle' });
@@ -244,7 +245,7 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
     };
   }, [signedIn]);
   const [notificationReload, setNotificationReload] = useState(0);
-  const labels: Partial<Record<PageId, string>> = { home: 'HOME', strategy: 'STRATEGIES', bots: 'BOTS', backtest: 'BACKTEST', rooms: 'COMPETITION' };
+  const labels: Partial<Record<PageId, string>> = { home: '홈', strategy: '전략', bots: '봇', backtest: '백테스트', rooms: '모의투자' };
   const togglePanel = (panel: string) => setOpenPanel((current) => current === panel ? null : panel);
   const unreadCount = notificationState.kind === 'ready'
     ? notificationState.items.filter((item) => item.readAt === null).length
@@ -294,13 +295,13 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
         the HOME menu item remains the operational dashboard. */}
     {/* Signed out the logo is the front door (landing introduction); signed in
         it is the way home, same as the HOME menu item. */}
-    <button className="signal-product-brand" aria-label={signedIn ? '홈으로 이동' : 'Idea2Strategy 소개'} onClick={() => setPage(signedIn ? 'home' : 'landing')}>
+    <button className="signal-product-brand" aria-label={operatorRoute ? '운영자 로그인으로 이동' : signedIn ? '홈으로 이동' : 'Idea2Strategy 소개'} onClick={() => operatorRoute ? navigate('/operations/login') : setPage(signedIn ? 'home' : 'landing')}>
       <img src={i2sLogo} alt="Idea2Strategy" />
       <strong>IDEA<span>2</span>STRATEGY</strong>
     </button>
     {/* The product areas are all account-scoped, so the tabs only exist for
         signed-in visitors; signed out they would each just open sign-in. */}
-    {signedIn && <nav aria-label="Signal 주요 메뉴" data-orientation="horizontal">
+    {signedIn && !operatorRoute && <nav aria-label="Signal 주요 메뉴" data-orientation="horizontal">
       {navItems.map(({ id, label }) => <button
         key={id}
         className={page === id ? 'active' : ''}
@@ -309,7 +310,8 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
       >{labels[id]}</button>)}
     </nav>}
     <div className="signal-nav-tools">
-      {signedIn && <div className="topbar-popover-anchor">
+      {operatorRoute && <span className="operator-boundary-label">운영자 전용</span>}
+      {signedIn && !operatorRoute && <div className="topbar-popover-anchor">
         <button className="icon-button has-count" aria-label="알림" onClick={() => togglePanel('notifications')}><Bell size={17} />{unreadCount > 0 && <b>{unreadCount}</b>}</button>
         {openPanel === 'notifications' && <section className="topbar-popover notifications-popover" role="dialog" aria-label="최근 알림">
           <header><div><strong>최근 알림</strong><span>{notificationState.kind === 'loading'
@@ -352,11 +354,11 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
             && <footer><button onClick={() => { setOpenPanel(null); setPage('notifications'); }}>알림 전체 보기<ArrowRight size={13} aria-hidden="true" /></button></footer>}
         </section>}
       </div>}
-      <button className={`icon-button ${page === 'help' ? 'active' : ''}`} aria-label="도움말" onClick={() => setPage('help')}><CircleHelp size={17} /></button>
+      {!operatorRoute && <button className={`icon-button ${page === 'help' ? 'active' : ''}`} aria-label="도움말" onClick={() => setPage('help')}><CircleHelp size={17} /></button>}
       {/* Theme, market colour convention and language are all display
           preferences set once and rarely revisited, so they sit behind one gear
           instead of three toggles competing with the five product areas. */}
-      <div className="topbar-popover-anchor">
+      {!operatorRoute && <div className="topbar-popover-anchor">
         <button
           className={`icon-button ${openPanel === 'settings' ? 'active' : ''}`}
           aria-label="화면 설정 열기"
@@ -408,19 +410,19 @@ function Topbar({ theme, setTheme, page, setPage, updown, setUpdown, notificatio
             </div>
           </div>
         </section>}
-      </div>
+      </div>}
       {/* No fabricated identity: the API never returns the account's name or
           email, so the account entry is an icon, not a made-up "KIM". Signed
           out there is no account (and no notifications), so the tools give way
           to the two ways in. */}
-      {signedIn
+      {!operatorRoute && (signedIn
         ? <button className={`icon-button signal-user ${page === 'account' ? 'active' : ''}`} aria-label="내 계정" onClick={() => setPage('account')}><UserRound size={17} /></button>
         : <div className="topbar-auth">
           {/* aria-label keeps this distinct from the sign-in form's submit
               button, which owns the bare name "로그인". */}
           <button type="button" className="button" aria-label="로그인 페이지로 이동" onClick={() => navigate('/login', { state: { returnTo: location.pathname } })}>로그인</button>
           <button type="button" className="button button-primary" onClick={() => navigate('/signup')}>회원가입</button>
-        </div>}
+        </div>)}
     </div>
   </header></Localized>;
 }
@@ -525,7 +527,7 @@ function ProductApp({ accountClient, operationsClient, notificationClient, compe
     <Route path="/" element={<RequireSignIn><DashboardView setPage={setPage} botIcons={botIcons} /></RequireSignIn>} />
     <Route path="/landing" element={<LandingView setPage={setPage} />} />
     <Route path="/cli-auth" element={<RequireSignIn><CliAuthView /></RequireSignIn>} />
-    <Route path="/strategies" element={<RequireSignIn><StrategyHome openEditor={openEditor} /></RequireSignIn>} />
+    <Route path="/strategies" element={<RequireSignIn><StrategyHome openEditor={openEditor} openBot={openBot} /></RequireSignIn>} />
     <Route path="/strategies/new/basic" element={<RequireSignIn><BasicEditor blank={editorBlank} goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} /></RequireSignIn>} />
     <Route path="/strategies/new/pro" element={<RequireSignIn><ProEditorUnavailableView goBack={() => navigate(pagePaths.strategy)} /></RequireSignIn>} />
     <Route path="/strategies/:strategyId/basic" element={<RequireSignIn><SavedBasicEditorRoute goBack={() => navigate(pagePaths.strategy)} openEditor={openEditor} onLaunchBot={() => navigate(pagePaths.bots)} /></RequireSignIn>} />

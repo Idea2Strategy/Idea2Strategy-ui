@@ -59,7 +59,7 @@ describe('NotificationCenter', () => {
 describe('NotificationPreferencesPanel', () => {
   it('shows one friendly account-wide toggle and trusts the saved server response', async () => {
     const replaceEmailPreference = vi.fn().mockResolvedValue({ enabled: true });
-    render(<NotificationPreferencesPanel client={client({ replaceEmailPreference })} />);
+    render(<NotificationPreferencesPanel client={client({ replaceEmailPreference })} deliveryAvailable />);
     expect(await screen.findByRole('heading', { name: '이메일 알림' })).toBeInTheDocument();
     expect(screen.queryByText(/SECURITY_EVENT|CASE_UPDATED|policy-v/)).not.toBeInTheDocument();
     const toggle = screen.getByRole('switch', { name: '이메일 알림 받기' });
@@ -73,7 +73,7 @@ describe('NotificationPreferencesPanel', () => {
 
   it('keeps the toggle visible without offering a retry button when loading fails', async () => {
     const emailPreference = vi.fn().mockRejectedValue(new NotificationApiError(503, 'UNAVAILABLE', 'corr-load'));
-    render(<NotificationPreferencesPanel client={client({ emailPreference })} />);
+    render(<NotificationPreferencesPanel client={client({ emailPreference })} deliveryAvailable />);
     await waitFor(() => expect(emailPreference).toHaveBeenCalledTimes(1));
     expect(screen.queryByText('알림 서버에 일시적으로 연결할 수 없습니다.')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -85,10 +85,20 @@ describe('NotificationPreferencesPanel', () => {
 
   it('keeps the previous value when saving fails', async () => {
     const replaceEmailPreference = vi.fn().mockRejectedValue(new NotificationApiError(503, 'UNAVAILABLE', 'corr-save'));
-    render(<NotificationPreferencesPanel client={client({ replaceEmailPreference })} />);
+    render(<NotificationPreferencesPanel client={client({ replaceEmailPreference })} deliveryAvailable />);
     const toggle = await screen.findByRole('switch', { name: '이메일 알림 받기' });
     await userEvent.click(toggle);
     expect(await screen.findByText('변경 내용을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.')).toBeInTheDocument();
     expect(toggle).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('keeps the future setting visible but does not claim email delivery while the channel is disabled', () => {
+    const api = client();
+    render(<NotificationPreferencesPanel client={api} />);
+
+    expect(screen.getByRole('heading', { name: '이메일 알림 (준비 중)' })).toBeInTheDocument();
+    expect(screen.getByText('현재 알림은 앱 안에서 확인할 수 있습니다.')).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: '이메일 알림 받기' })).toBeDisabled();
+    expect(api.emailPreference).not.toHaveBeenCalled();
   });
 });

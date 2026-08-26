@@ -165,7 +165,8 @@ describe('production runtime honesty', () => {
 
     expect(await screen.findByRole('button', { name: 'Atlas 07 상세 보기' })).toBeInTheDocument();
     expect(screen.queryByText('$10,540.00')).not.toBeInTheDocument();
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/운용 유형 미제공|전략 —/)).not.toBeInTheDocument();
+    expect(screen.getByText(/출시 봇 · 상태 변경/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Atlas 07 손익과 수익률 차트/)).not.toBeInTheDocument();
   });
 
@@ -228,6 +229,24 @@ describe('production runtime honesty', () => {
       expect(await screen.findAllByText('Confirmed Bot')).not.toHaveLength(0);
       expect(screen.getAllByText(/10,540\.00/)).not.toHaveLength(0);
       expect(screen.queryByLabelText(/수익률 차트/)).not.toBeInTheDocument();
+    } finally {
+      setSessionAccessToken(null);
+    }
+  });
+
+  test('offers the next useful action when a bot has no published performance yet', async () => {
+    setSessionAccessToken('dashboard-session');
+    try {
+      const setPage = vi.fn();
+      render(<DashboardView
+        setPage={setPage}
+        dataSource="live"
+        dashboardClient={dashboardClient(() => Promise.resolve(dashboardSnapshot('Pending Bot', false)))}
+      />);
+
+      await screen.findByText('성과 계산이 아직 완료되지 않았습니다.');
+      fireEvent.click(screen.getByRole('button', { name: '백테스트 결과 보기' }));
+      expect(setPage).toHaveBeenCalledWith('backtest');
     } finally {
       setSessionAccessToken(null);
     }

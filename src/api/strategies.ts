@@ -27,7 +27,12 @@ export interface StrategyLibraryPage {
 }
 
 export interface StrategyLibraryClient {
-  list(limit?: number, cursor?: string, signal?: AbortSignal): Promise<StrategyLibraryPage>;
+  list(
+    limit?: number,
+    cursor?: string,
+    signal?: AbortSignal,
+    kind?: StrategyLibraryItem['kind'],
+  ): Promise<StrategyLibraryPage>;
 }
 
 export interface StrategyDocument {
@@ -203,9 +208,10 @@ export function createStrategyLibraryClient({
 }: ClientOptions = {}): StrategyLibraryClient {
   const root = baseUrl.replace(/\/$/, '');
   return {
-    async list(limit = STRATEGY_LIBRARY_PAGE_SIZE, cursor, signal) {
+    async list(limit = STRATEGY_LIBRARY_PAGE_SIZE, cursor, signal, kind) {
       const query = new URLSearchParams({ limit: String(limit) });
       if (cursor) query.set('cursor', cursor);
+      if (kind) query.set('kind', kind);
       const token = getAccessToken?.();
       const response = await fetchImpl(`${root}/api/v1/strategies?${query.toString()}`, {
         credentials: 'include',

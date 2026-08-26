@@ -45,7 +45,7 @@ describe('Strategy API view', () => {
 
     expect(await screen.findByTestId('strategy-row-Live Momentum')).toBeInTheDocument();
     expect(screen.getByTestId('strategy-counts')).toHaveTextContent('출시 가능 1');
-    expect(client.list).toHaveBeenCalledWith(10, undefined, expect.any(AbortSignal));
+    expect(client.list).toHaveBeenCalledWith(10, undefined, expect.any(AbortSignal), 'draft');
     // A single complete page must not offer to load more.
     expect(screen.queryByTestId('strategy-load-more')).not.toBeInTheDocument();
   });
@@ -79,7 +79,7 @@ describe('Strategy API view', () => {
     expect(openEditor).toHaveBeenLastCalledWith('basic', false, 'incomplete-id');
   });
 
-  test('appends the next library page from the snapshot cursor', async () => {
+  test('replaces rows when moving between cursor pages and returns to the cached previous page', async () => {
     const user = userEvent.setup();
     const row = (id: string, name: string) => ({
       id, kind: 'draft' as const, mode: 'BASIC' as const, name, description: null,
@@ -96,18 +96,44 @@ describe('Strategy API view', () => {
     render(<StrategyHome openEditor={() => {}} client={client} />);
 
     expect(await screen.findByTestId('strategy-row-First Page')).toBeInTheDocument();
-    // The count is marked as partial while more pages exist.
-    expect(screen.getByTestId('strategy-counts')).toHaveTextContent('전체 1+');
+    expect(screen.getByTestId('strategy-pagination')).toHaveTextContent('1페이지');
 
-    await user.click(screen.getByTestId('strategy-load-more'));
+    await user.click(screen.getByRole('button', { name: '다음 전략 페이지' }));
 
     expect(await screen.findByTestId('strategy-row-Second Page')).toBeInTheDocument();
-    // The first page is appended to, never replaced.
+    expect(screen.queryByTestId('strategy-row-First Page')).not.toBeInTheDocument();
+    expect(client.list).toHaveBeenLastCalledWith(10, 'cursor-2', undefined, 'draft');
+    expect(screen.getByTestId('strategy-pagination')).toHaveTextContent('2페이지');
+    expect(screen.getByRole('button', { name: '다음 전략 페이지' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: '이전 전략 페이지' }));
     expect(screen.getByTestId('strategy-row-First Page')).toBeInTheDocument();
-    expect(client.list).toHaveBeenLastCalledWith(10, 'cursor-2');
-    // Exhausted pages retire the control and the partial marker.
-    expect(screen.queryByTestId('strategy-load-more')).not.toBeInTheDocument();
-    expect(screen.getByTestId('strategy-counts')).toHaveTextContent('전체 2');
+    expect(screen.queryByTestId('strategy-row-Second Page')).not.toBeInTheDocument();
+    expect(client.list).toHaveBeenCalledTimes(2);
+  });
+
+  test('labels an unexpected released resource truthfully and opens bot operations', async () => {
+    const user = userEvent.setup();
+    const openBot = vi.fn();
+    const client: StrategyLibraryClient = {
+      list: vi.fn().mockResolvedValue({
+        items: [{
+          id: 'bot-id', kind: 'released', mode: 'BASIC', name: '운영 봇', description: null,
+          status: 'RUNNING', validationStatus: null, backtestStatus: 'COMPLETED', editable: false,
+          updatedAt: '2026-08-01T12:00:00Z', version: null, blockCount: 2, symbols: ['AAPL'],
+        }],
+        nextCursor: null,
+        hasMore: false,
+      }),
+    };
+
+    render(<StrategyHome openEditor={() => {}} openBot={openBot} client={client} />);
+
+    const row = await screen.findByTestId('strategy-row-운영 봇');
+    expect(row).toHaveTextContent('운영 중');
+    expect(row).not.toHaveTextContent('미완성');
+    await user.click(row);
+    expect(openBot).toHaveBeenCalledWith('bot-id');
   });
 
   test('creates a Basic draft before opening the blank editor', async () => {
@@ -144,10 +170,38 @@ describe('Strategy API view', () => {
     } as unknown as StrategyAuthoringClient;
 
     render(<StrategyHome openEditor={openEditor} client={client} authoringClient={authoringClient} />);
-    await user.click(await screen.findByRole('button', { name: '원본 전략 복사' }));
+    await user.click(await screen.findByRole('button', { name: '원본 전략 작업 메뉴' }));
+    await user.click(await screen.findByRole('menuitem', { name: '원본 전략 복사' }));
 
     await waitFor(() => expect(openEditor).toHaveBeenCalledWith('basic', false, 'copy-id'));
     expect(authoringClient.copyStrategy).toHaveBeenCalledWith('source-id');
+  });
+
+  test('keeps the row as the only open action and moves secondary actions into one menu', async () => {
+    const user = userEvent.setup();
+    const client: StrategyLibraryClient = {
+      list: vi.fn().mockResolvedValue({
+        items: [{
+          id: 'draft-id', kind: 'draft', mode: 'BASIC', name: 'AAPL 반전 전략', description: null,
+          status: 'DRAFT', validationStatus: 'VALID', backtestStatus: null, editable: true,
+          updatedAt: '2026-08-01T12:00:00Z', version: null, blockCount: 2, symbols: ['AAPL'],
+        }],
+        nextCursor: null,
+        hasMore: false,
+      }),
+    };
+
+    const authoringClient = { deleteStrategy: vi.fn() } as unknown as StrategyAuthoringClient;
+    render(<StrategyHome openEditor={() => {}} client={client} authoringClient={authoringClient} />);
+    const row = await screen.findByTestId('strategy-row-AAPL 반전 전략');
+
+    expect(within(row).queryByRole('button', { name: 'AAPL 반전 전략 열기' })).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: 'AAPL 반전 전략 복사' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: '전략 모드 필터' })).not.toBeInTheDocument();
+
+    await user.click(within(row).getByRole('button', { name: 'AAPL 반전 전략 작업 메뉴' }));
+    expect(within(row).getByRole('menuitem', { name: 'AAPL 반전 전략 복사' })).toBeInTheDocument();
+    expect(within(row).getByRole('menuitem', { name: 'AAPL 반전 전략 삭제' })).toBeInTheDocument();
   });
 
   test('loads an owned document, acquires a lease, and saves the Basic presentation safely', async () => {

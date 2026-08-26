@@ -147,7 +147,8 @@ describe('Signal product UI', () => {
 
     await user.click(screen.getByRole('button', { name: '새 전략 선택 닫기' }));
     const proRow = screen.getByTestId('strategy-row-Pair Spread Monitor');
-    expect(within(proRow).getByRole('button', { name: 'Pair Spread Monitor 열기 (Pro 준비 중)' })).toBeDisabled();
+    expect(within(proRow).queryByRole('button', { name: /Pair Spread Monitor 열기/ })).not.toBeInTheDocument();
+    expect(proRow.querySelector('.strategy-row-lock')).toHaveAttribute('title', '현재 이 형식은 편집할 수 없습니다');
 
     await user.click(screen.getByRole('button', { name: '새 전략' }));
     await user.click(screen.getByRole('button', { name: '기존 전략 가져오기' }));
@@ -523,25 +524,12 @@ describe('Signal product UI', () => {
     expect(userRule).toContain('cursor:pointer');
   });
 
-  test('the narrow-width nav row scrolls sideways only, never vertically', () => {
-    /* #74. The reported scrollbar was inside the nav row, not on the document:
-       CSS promotes the other axis to `auto` when one axis scrolls, so the row
-       gained a vertical scrollbar as soon as the active item's underline bled
-       past its box. Both halves of the fix are pinned here. */
-    const narrowNavRule = balancedStyles.match(
-      /\.signal-product-nav > nav \{[^}]*overflow-x:\s*auto[^}]*\}/,
-    )?.[0] ?? '';
-
-    expect(narrowNavRule).toContain('overflow-x:auto');
-    expect(narrowNavRule).toMatch(/overflow-y:\s*hidden/);
-
-    /* And the underline must sit inside the box, so `overflow-y: hidden` has
-       nothing to clip. A negative bottom is what caused the overflow. */
-    const underlineRule = balancedStyles.match(
-      /\.signal-product-nav > nav button::after \{([^}]*)\}/,
-    )?.[1] ?? '';
-    expect(underlineRule).toMatch(/bottom:\s*0/);
-    expect(underlineRule).not.toMatch(/bottom:\s*-/);
+  test('uses a fixed five-destination bottom navigation at narrow widths', () => {
+    const narrowMedia = balancedStyles.match(/@media \(max-width: 800px\) \{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(narrowMedia).toMatch(/\.signal-product-nav > nav\s*\{[^}]*position:\s*fixed/s);
+    expect(narrowMedia).toMatch(/bottom:\s*0/);
+    expect(narrowMedia).toMatch(/grid-template-columns:\s*repeat\(5,/);
+    expect(narrowMedia).not.toMatch(/overflow-x:\s*auto/);
   });
 
   test('does not reserve blank space for a scrollbar on pages that fit', () => {
@@ -710,7 +698,7 @@ describe('Signal product UI', () => {
     expect(screen.queryByText('SIMULATION OS')).not.toBeInTheDocument();
   });
 
-  test('searches and filters balanced strategies', async () => {
+  test('searches current strategy pages without offering unavailable editor modes', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
     await user.click(screen.getByRole('button', { name: '전략' }));
@@ -719,23 +707,21 @@ describe('Signal product UI', () => {
     expect(screen.getByText('Pair Spread Monitor')).toBeInTheDocument();
     expect(screen.queryByText('Opening Range Flow')).not.toBeInTheDocument();
 
-    await user.clear(screen.getByRole('searchbox', { name: '전략 검색' }));
-    await user.click(screen.getByRole('button', { name: 'Pro 전략만 보기' }));
-    expect(screen.getByText('Pair Spread Monitor')).toBeInTheDocument();
-    expect(screen.getByText('Volume Regime Draft')).toBeInTheDocument();
-    expect(screen.queryByText('Opening Range Flow')).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: '전략 모드 필터' })).not.toBeInTheDocument();
   });
 
-  test('uses only launchable and incomplete strategy states', async () => {
+  test('uses only launchable and needs-work strategy states', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
     await user.click(screen.getByRole('button', { name: '전략' }));
+    await screen.findByTestId('strategy-counts');
 
-    const stateLabels = Array.from(document.querySelectorAll('[data-testid^="strategy-row-"] .status'))
+    const stateLabels = screen.getAllByText(/^(출시 가능|작성 필요)$/)
+      .filter((element) => element.classList.contains('status'))
       .map((element) => element.textContent);
-    expect(stateLabels).toEqual(['출시 가능', '미완성', '미완성']);
+    expect(stateLabels).toEqual(['출시 가능', '작성 필요', '작성 필요']);
     expect(screen.getByTestId('strategy-counts')).toHaveTextContent('출시 가능 1');
-    expect(screen.getByTestId('strategy-counts')).toHaveTextContent('미완성 2');
+    expect(screen.getByTestId('strategy-counts')).toHaveTextContent('작성 필요 2');
     expect(screen.queryByText('검증 완료')).not.toBeInTheDocument();
     expect(screen.queryByText('임시 저장')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '준비 완료' })).not.toBeInTheDocument();
@@ -753,7 +739,7 @@ describe('Signal product UI', () => {
     await user.click(screen.getByRole('button', { name: '전략' }));
 
     expect(screen.queryByRole('searchbox', { name: '블록 검색' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Opening Range Flow 복사' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Opening Range Flow 작업 메뉴' })).toBeInTheDocument();
     expect(screen.queryByText('7 blocks')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: '새 전략' }));
@@ -769,7 +755,7 @@ describe('Signal product UI', () => {
     fireEvent.click(screen.getByRole('button', { name: '전략' }));
 
     expect(screen.queryByLabelText('전략 요약')).not.toBeInTheDocument();
-    expect(screen.getByTestId('strategy-counts')).toHaveTextContent('전체 3');
+    expect(screen.getByTestId('strategy-counts')).toHaveTextContent('초안 3');
     expect(screen.queryByRole('heading', { name: '블록' })).not.toBeInTheDocument();
   });
 
@@ -792,6 +778,11 @@ describe('Signal product UI', () => {
     expect(balancedStyles).toMatch(/\.strategy-row-actions\s*\{[^}]*justify-content:\s*flex-end/s);
   });
 
+  test('centers product pages and renders pagination as a balanced navigation control', () => {
+    expect(balancedStyles).toMatch(/\.variant-balanced\[data-design="signal-studio"\] \.page,[\s\S]*?margin-inline:\s*auto/);
+    expect(balancedStyles).toMatch(/\.strategy-pagination\s*\{[^}]*display:\s*flex[^}]*justify-content:\s*center/s);
+  });
+
   test('keeps market status out of navigation and uses topbar notifications', async () => {
     const user = userEvent.setup();
     render(<App initialVariant="balanced" />);
@@ -804,10 +795,11 @@ describe('Signal product UI', () => {
     expect(screen.getByRole('dialog', { name: '최근 알림' })).toBeInTheDocument();
   });
 
-  test('uses unfinished terminology instead of input-needed terminology', () => {
+  test('uses needs-work terminology instead of ambiguous unfinished terminology', () => {
     render(<App initialVariant="balanced" />);
     fireEvent.click(screen.getByRole('button', { name: '전략' }));
-    expect(screen.getAllByText('미완성').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('작성 필요').length).toBeGreaterThan(0);
+    expect(screen.queryByText('미완성')).not.toBeInTheDocument();
     expect(screen.queryByText('입력 필요')).not.toBeInTheDocument();
   });
 

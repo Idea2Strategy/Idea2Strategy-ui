@@ -99,6 +99,9 @@ describe('real competition room workspace', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('대회 목록을 불러오지 못했습니다');
     await userEvent.click(screen.getByRole('button', { name: '다시 시도' }));
     expect(await screen.findByText('참가 가능한 공개 대회가 없습니다.')).toBeInTheDocument();
+    expect(screen.getByText('새 대회를 만들거나 초대 코드로 참가할 수 있습니다.')).toBeInTheDocument();
+    expect(screen.queryByText('검색어를 지우거나 나중에 다시 확인해 주세요.')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '모의투자' }).closest('.page-heading')).not.toHaveTextContent('API');
   });
 
   test('submits room creation schedule and joins with a validation run', async () => {

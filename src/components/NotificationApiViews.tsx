@@ -76,7 +76,7 @@ export function NotificationCenter({ client }: { client: NotificationClient }) {
   </div></Localized>;
 }
 
-export function NotificationPreferencesPanel({ client }: { client: NotificationClient }) {
+export function NotificationPreferencesPanel({ client, deliveryAvailable = false }: { client: NotificationClient; deliveryAvailable?: boolean }) {
   const [state, setState] = useState<LoadState<EmailNotificationPreference>>({ kind: 'loading' });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -86,7 +86,13 @@ export function NotificationPreferencesPanel({ client }: { client: NotificationC
     try { setState({ kind: 'ready', value: await client.emailPreference() }); }
     catch (cause) { setState({ kind: 'error', error: apiError(cause) }); }
   };
-  useEffect(() => { void load(); }, [client]);
+  useEffect(() => {
+    if (!deliveryAvailable) {
+      setState({ kind: 'ready', value: { enabled: false } });
+      return;
+    }
+    void load();
+  }, [client, deliveryAvailable]);
   const toggleEmail = async () => {
     if (state.kind !== 'ready') return;
     const requested = !state.value.enabled;
@@ -99,15 +105,19 @@ export function NotificationPreferencesPanel({ client }: { client: NotificationC
     finally { setSaving(false); }
   };
   const enabled = state.kind === 'ready' ? state.value.enabled : false;
-  const unavailable = state.kind !== 'ready';
-  const description = state.kind === 'loading'
+  const unavailable = !deliveryAvailable || state.kind !== 'ready';
+  const description = !deliveryAvailable
+    ? '현재 알림은 앱 안에서 확인할 수 있습니다.'
+    : state.kind === 'loading'
     ? '현재 이메일 알림 설정을 확인하고 있습니다.'
     : state.kind === 'error'
       ? '설정을 확인한 뒤 이메일 알림을 변경할 수 있습니다.'
       : enabled
         ? '선택한 소식을 이메일로 받고 있습니다.'
         : '선택형 이메일 알림을 받지 않습니다.';
-  const status = saving
+  const status = !deliveryAvailable
+    ? '준비 중'
+    : saving
     ? '저장 중'
     : state.kind === 'loading'
       ? '확인 중'
@@ -116,7 +126,7 @@ export function NotificationPreferencesPanel({ client }: { client: NotificationC
         : enabled
           ? '수신 중'
           : '수신 안 함';
-  return <Localized><Panel className="span-2 notification-preferences-api" title="이메일 알림" subtitle="문의 답변과 서비스 이용에 필요한 소식을 이메일로 받아보세요.">
+  return <Localized><Panel className="span-2 notification-preferences-api" title={deliveryAvailable ? '이메일 알림' : '이메일 알림 (준비 중)'} subtitle={deliveryAvailable ? '문의 답변과 서비스 이용에 필요한 소식을 이메일로 받아보세요.' : '이메일 발송 채널을 준비 중입니다. 설정은 채널이 연결되면 사용할 수 있습니다.'}>
     {saveError && <p className="notification-preferences-save-error" role="alert">변경 내용을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.</p>}
     <div className="notification-preference-list"><div className="notification-preference-row">
         <span className="notification-preference-icon"><Mail size={17} /></span>
@@ -134,7 +144,7 @@ export function NotificationPreferencesPanel({ client }: { client: NotificationC
           <small>{status}</small>
         </span>
         {saved && <span className="notification-preference-saved" role="status"><Check size={13} />저장 완료</span>}
-      </div><p className="notification-preference-help"><Info size={15} aria-hidden="true" />중요한 보안 안내는 이 설정과 관계없이 발송될 수 있습니다.</p></div>
+      </div><p className="notification-preference-help"><Info size={15} aria-hidden="true" />{deliveryAvailable ? '중요한 보안 안내는 이 설정과 관계없이 발송될 수 있습니다.' : '보안 및 서비스 알림은 상단 알림 센터에 표시됩니다.'}</p></div>
   </Panel></Localized>;
 }
 

@@ -42,7 +42,7 @@ describe('strategy library API client', () => {
     const page = await createStrategyLibraryClient({
       baseUrl: 'https://api.example.com/',
       fetchImpl,
-    }).list(10);
+    }).list(10, undefined, undefined, 'draft');
 
     expect(page.items[0]).toMatchObject({
       mode: 'BASIC',
@@ -52,7 +52,7 @@ describe('strategy library API client', () => {
       symbols: ['AAPL', 'MSFT'],
     });
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://api.example.com/api/v1/strategies?limit=10',
+      'https://api.example.com/api/v1/strategies?limit=10&kind=draft',
       expect.objectContaining({ credentials: 'include' }),
     );
   });

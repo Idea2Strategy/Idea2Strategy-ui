@@ -239,7 +239,8 @@ function LiveDashboard({ setPage, client }: { setPage: (page: PageId) => void; c
         /> : performanceBots.length === 0 ? <EmptyState
           icon={Gauge}
           title="성과 계산이 아직 완료되지 않았습니다."
-          detail="봇은 생성되었지만 검증된 최신 성과 Projection이 없습니다. 잠시 뒤 다시 확인해 주세요."
+          detail="봇은 준비됐지만 아직 집계된 성과가 없습니다. 백테스트 실행 상태와 결과를 확인해 주세요."
+          action={<Button onClick={() => setPage('backtest')}>백테스트 결과 보기</Button>}
         /> : <>
           <MetricRow label="계정 성과 요약" items={[
             { label: '검증된 평가액', figure: formatMoney(totalEquity), detail: language === 'en' ? `${performanceBots.length} bots included` : `${performanceBots.length}개 봇 합계` },

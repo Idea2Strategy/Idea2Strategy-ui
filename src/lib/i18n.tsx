@@ -231,6 +231,8 @@ const english: Record<string, string> = {
   '포지션을 보유한 상태에서 RSI가 70 위로 올라가면 보유 수량 100%의 매도 후보를 만듭니다.': 'When a position is open and RSI rises above 70, create a sell candidate for 100% of the position.',
   '전략 편집은 데스크톱에서 사용할 수 있습니다': 'Strategy editing is available on desktop',
   '현재 화면에서는 구성만 조회할 수 있습니다.': 'This screen supports read-only viewing.',
+  '모바일에서는 전략 내용을 확인하고 목록으로 돌아갈 수 있습니다.': 'On mobile, you can review the strategy and return to the list.',
+  '전략 목록으로': 'Back to strategies',
   '타입이 맞는 노드를 좌우로 연결해 분기·다종목·자금 정책을 명시합니다.': 'Connect compatible nodes to define branches, multi-symbol rules, and capital policy.',
   '같은 규칙 안에서 봇의 결과를 비교하고 참여할 Competition을 찾으세요.': 'Compare bots under the same rules and find a competition to join.',
   '조건을 비교하고 내 봇에 맞는 Competition을 쉽게 찾아보세요.': 'Compare conditions and quickly find a competition that fits your bot.',

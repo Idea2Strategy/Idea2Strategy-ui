@@ -10,7 +10,7 @@ import type {
   WheelEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Activity, ArrowDown, ArrowLeft, ArrowUp, BarChart3, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, CircleDot, Copy, Gauge, GitBranch, Grid3X3, GripVertical, History, Import, Layers3, LayoutGrid, Link2, LockKeyhole, Minus, Mouse, MousePointer2, Pencil, Play, Plus, Redo2, RefreshCw, Repeat2, Rocket, Save, Scale, Search, Settings2, ShieldCheck, Sparkles, Split, Star, Target, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, Undo2, X } from 'lucide-react';
+import { Activity, ArrowDown, ArrowLeft, ArrowUp, BarChart3, BellRing, Boxes, CalendarDays, CandlestickChart, Check, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, CircleDot, Copy, Gauge, GitBranch, Grid3X3, GripVertical, History, Import, Layers3, LayoutGrid, Link2, LockKeyhole, Minus, MoreHorizontal, Mouse, MousePointer2, Pencil, Play, Plus, Redo2, RefreshCw, Repeat2, Rocket, Save, Scale, Search, Settings2, ShieldCheck, Sparkles, Split, Star, Target, Timer, Trash2, TrendingDown, TrendingUp, TriangleAlert, Undo2, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { strategies } from '../data/mockData';
 import type { StrategySummary } from '../data/mockData';
@@ -349,10 +349,13 @@ interface BlockRuleInput {
   tone?: BlockTone;
 }
 
-const statusTone = (state: string) => state === '출시 가능' ? 'positive' : 'warning';
+const statusTone = (state: string) => state === '출시 가능' || state === '운영 중'
+  ? 'positive'
+  : state === '중지됨' ? 'info' : 'warning';
 
 interface StrategyHomeProps {
   openEditor: (mode: EditorMode, blank?: boolean, strategyId?: string) => void;
+  openBot?: (botId: string) => void;
   client?: StrategyLibraryClient | null;
   authoringClient?: StrategyAuthoringClient | null;
 }
@@ -369,11 +372,22 @@ const automaticStrategyCatalogClient = import.meta.env.MODE === 'test'
   ? null
   : defaultStrategyCatalogClient;
 
+const libraryState = (item: StrategyLibraryItem): string => {
+  if (item.kind === 'draft') return item.validationStatus === 'VALID' ? '출시 가능' : '작성 필요';
+  if (item.kind === 'released') {
+    if (item.status === 'RUNNING') return '운영 중';
+    if (item.status === 'STOPPED') return '중지됨';
+    if (item.status === 'STOPPING') return '중지 중';
+    return '출시됨';
+  }
+  return item.kind === 'package' ? '패키지' : '템플릿';
+};
+
 const strategyListItem = (item: StrategyLibraryItem): StrategyListItem => ({
   id: item.id,
   name: item.name,
   mode: item.mode === 'BASIC' ? 'Basic' : 'Pro',
-  state: item.validationStatus === 'VALID' ? '출시 가능' : '미완성',
+  state: libraryState(item),
   updated: item.updatedAt.slice(0, 10),
   blocks: item.blockCount,
   backtest: item.backtestStatus === 'COMPLETED' || item.backtestStatus === 'AVAILABLE'
@@ -384,18 +398,21 @@ const strategyListItem = (item: StrategyLibraryItem): StrategyListItem => ({
   editable: item.editable,
 });
 
-export function StrategyHome({ openEditor, client = automaticStrategyLibraryClient, authoringClient = automaticStrategyAuthoringClient }: StrategyHomeProps) {
+export function StrategyHome({ openEditor, openBot, client = automaticStrategyLibraryClient, authoringClient = automaticStrategyAuthoringClient }: StrategyHomeProps) {
   const prototypeItems = useMemo<StrategyListItem[]>(() => strategies.map((strategy, index) => ({
     ...strategy,
+    state: strategy.state === '출시 가능' ? '출시 가능' : '작성 필요',
     id: `strategy-${index}`,
     symbols: index === 0 ? ['AAPL', 'MSFT'] : index === 1 ? ['SPY', 'QQQ'] : ['NVDA'],
     kind: 'draft',
     editable: true,
   })), []);
   const [items, setItems] = useState<StrategyListItem[] | null>(() => client ? null : prototypeItems);
+  const pageCacheRef = useRef<Array<{ items: StrategyListItem[]; nextCursor: string | null }>>([]);
+  const [pageIndex, setPageIndex] = useState(0);
   const [query, setQuery] = useState('');
-  const [mode, setMode] = useState<'all' | 'basic' | 'pro'>('all');
   const [state, setState] = useState<'all' | 'launchable' | 'incomplete'>('all');
+  const [actionMenuId, setActionMenuId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [libraryError, setLibraryError] = useState<string | null>(null);
@@ -426,11 +443,14 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
     setLibraryError(null);
     setSignInRequired(false);
     setNextCursor(null);
+    setPageIndex(0);
+    pageCacheRef.current = [];
     const controller = new AbortController();
-    void client.list(STRATEGY_LIBRARY_PAGE_SIZE, undefined, controller.signal)
+    void client.list(STRATEGY_LIBRARY_PAGE_SIZE, undefined, controller.signal, 'draft')
       .then((page) => {
         const confirmedItems = page.items.map(strategyListItem);
         confirmedItemsRef.current = confirmedItems;
+        pageCacheRef.current = [{ items: confirmedItems, nextCursor: page.hasMore ? page.nextCursor : null }];
         setItems(confirmedItems);
         setNextCursor(page.hasMore ? page.nextCursor : null);
         setLibraryError(null);
@@ -448,15 +468,26 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
     return () => controller.abort();
   }, [client, prototypeItems, libraryAttempt]);
 
-  const loadMoreStrategies = async () => {
+  const showNextStrategyPage = async () => {
     if (!client || !nextCursor || morePending) return;
+    const cached = pageCacheRef.current[pageIndex + 1];
+    if (cached) {
+      confirmedItemsRef.current = cached.items;
+      setItems(cached.items);
+      setPageIndex((current) => current + 1);
+      setNextCursor(cached.nextCursor);
+      return;
+    }
     setMorePending(true);
     try {
-      const page = await client.list(STRATEGY_LIBRARY_PAGE_SIZE, nextCursor);
-      const appended = [...(confirmedItemsRef.current ?? []), ...page.items.map(strategyListItem)];
-      confirmedItemsRef.current = appended;
-      setItems(appended);
-      setNextCursor(page.hasMore ? page.nextCursor : null);
+      const page = await client.list(STRATEGY_LIBRARY_PAGE_SIZE, nextCursor, undefined, 'draft');
+      const nextItems = page.items.map(strategyListItem);
+      const cachedPage = { items: nextItems, nextCursor: page.hasMore ? page.nextCursor : null };
+      pageCacheRef.current = [...pageCacheRef.current.slice(0, pageIndex + 1), cachedPage];
+      confirmedItemsRef.current = nextItems;
+      setItems(nextItems);
+      setPageIndex((current) => current + 1);
+      setNextCursor(cachedPage.nextCursor);
       setLibraryError(null);
     } catch (error) {
       if (error instanceof StrategyApiError && error.status === 401) {
@@ -469,16 +500,25 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
     }
   };
 
+  const showPreviousStrategyPage = () => {
+    if (pageIndex === 0) return;
+    const previous = pageCacheRef.current[pageIndex - 1];
+    confirmedItemsRef.current = previous.items;
+    setItems(previous.items);
+    setPageIndex((current) => current - 1);
+    setNextCursor(previous.nextCursor);
+    setLibraryError(null);
+  };
+
   const filteredItems = useMemo(() => (items ?? []).filter((strategy) => {
     const matchesQuery = strategy.name.toLowerCase().includes(query.trim().toLowerCase());
-    const matchesMode = mode === 'all' || strategy.mode.toLowerCase() === mode;
     const matchesState = state === 'all'
-      || (state === 'launchable' ? strategy.state === '출시 가능' : strategy.state === '미완성');
-    return matchesQuery && matchesMode && matchesState;
-  }), [items, mode, query, state]);
+      || (state === 'launchable' ? strategy.state === '출시 가능' : strategy.state === '작성 필요');
+    return matchesQuery && matchesState;
+  }), [items, query, state]);
 
   const launchableCount = (items ?? []).filter((strategy) => strategy.state === '출시 가능').length;
-  const incompleteCount = (items ?? []).filter((strategy) => strategy.state === '미완성').length;
+  const incompleteCount = (items ?? []).filter((strategy) => strategy.state === '작성 필요').length;
 
   const beginBasicStrategy = async () => {
     if (!authoringClient) {
@@ -526,9 +566,16 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
   const canOpenStrategy = (strategy: StrategyListItem) => strategy.kind === 'draft'
     && strategy.editable
     && (strategy.mode !== 'Pro' || PRO_EDITOR_AVAILABLE);
+  const canOpenResource = (strategy: StrategyListItem) => canOpenStrategy(strategy)
+    || (strategy.kind === 'released' && Boolean(openBot));
   const openOwnedStrategy = (strategy: StrategyListItem) => {
-    if (!canOpenStrategy(strategy)) return;
-    openEditor(strategy.mode.toLowerCase() as EditorMode, false, strategy.id);
+    if (strategy.kind === 'released' && openBot) {
+      openBot(strategy.id);
+      return;
+    }
+    if (canOpenStrategy(strategy)) {
+      openEditor(strategy.mode.toLowerCase() as EditorMode, false, strategy.id);
+    }
   };
 
   const deleteOwnedStrategy = async () => {
@@ -587,28 +634,23 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
         {copyError && <ErrorState title={copyError} onRetry={() => setCopyError(null)} retryLabel="닫기" />}
         {items !== null && <>
         <header className="strategy-library-head">
-          <div className="strategy-title-group"><div><h2>내 전략</h2><span>{filteredItems.length}</span></div><div className="strategy-counts" data-testid="strategy-counts"><span>전체 <b>{items.length}{nextCursor ? '+' : ''}</b></span><span>출시 가능 <b>{launchableCount}</b></span><span>미완성 <b>{incompleteCount}</b></span></div></div>
-          <label className="strategy-search"><Search size={16} /><input type="search" aria-label="전략 검색" placeholder="이름으로 검색" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+          <div className="strategy-title-group"><div><h2>내 전략</h2></div><div className="strategy-counts" data-testid="strategy-counts"><span>초안 <b>{items.length}</b></span><span>출시 가능 <b>{launchableCount}</b></span><span>작성 필요 <b>{incompleteCount}</b></span></div></div>
+          <label className="strategy-search"><Search size={16} /><input type="search" aria-label="전략 검색" placeholder="현재 페이지에서 검색" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
         </header>
         <div className="strategy-filter-row">
-          <div className="strategy-filter-group" aria-label="전략 모드 필터">
-            <button className={mode === 'all' ? 'active' : ''} aria-label="전체 전략 보기" onClick={() => setMode('all')}>전체</button>
-            <button className={mode === 'basic' ? 'active' : ''} aria-label="Basic 전략만 보기" onClick={() => setMode('basic')}>Basic</button>
-            <button className={mode === 'pro' ? 'active' : ''} aria-label="Pro 전략만 보기" onClick={() => setMode('pro')}>Pro</button>
-          </div>
-          <div className="strategy-filter-group is-secondary" aria-label="전략 상태 필터">
+          <div className="strategy-filter-group" aria-label="전략 상태 필터">
             <button className={state === 'all' ? 'active' : ''} onClick={() => setState('all')}>모든 상태</button>
             <button className={state === 'launchable' ? 'active' : ''} onClick={() => setState('launchable')}>출시 가능</button>
-            <button className={state === 'incomplete' ? 'active' : ''} onClick={() => setState('incomplete')}>미완성</button>
+            <button className={state === 'incomplete' ? 'active' : ''} onClick={() => setState('incomplete')}>작성 필요</button>
           </div>
         </div>
         <div className="strategy-rows" data-testid="strategy-list">
           {filteredItems.map((strategy) => <article
-            className={`strategy-row ${canOpenStrategy(strategy) ? 'is-openable' : ''}`}
+            className={`strategy-row ${canOpenResource(strategy) ? 'is-openable' : ''}`}
             key={strategy.id}
             data-testid={`strategy-row-${strategy.name}`}
             aria-label={`${strategy.name} 전략`}
-            tabIndex={canOpenStrategy(strategy) ? 0 : undefined}
+            tabIndex={canOpenResource(strategy) ? 0 : undefined}
             onClick={() => openOwnedStrategy(strategy)}
             onKeyDown={(event) => {
               if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
@@ -621,42 +663,48 @@ export function StrategyHome({ openEditor, client = automaticStrategyLibraryClie
             <span className="strategy-mode-label">{strategy.mode}</span>
             <Status tone={statusTone(strategy.state)}>{strategy.state}</Status>
             <div className="strategy-row-actions">
-              {strategy.kind === 'draft' && strategy.editable && <button
-                aria-label={`${strategy.name} 복사`}
-                title="복사"
-                disabled={copyPendingId !== null}
-                onClick={(event) => { event.stopPropagation(); void copyOwnedStrategy(strategy); }}
-              >{copyPendingId === strategy.id ? <RefreshCw className="is-spinning" size={15} /> : <Copy size={15} />}</button>}
-              {strategy.kind === 'draft' && strategy.editable && canDeleteStrategy && <button
-                className="is-danger"
-                aria-label={`${strategy.name} 삭제`}
-                title="삭제"
-                disabled={deletePending}
-                onClick={(event) => { event.stopPropagation(); setDeleteError(null); setDeleteTarget(strategy); }}
-              ><Trash2 size={15} /></button>}
-              <button
-                aria-label={strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? `${strategy.name} 열기 (Pro 준비 중)` : `${strategy.name} 열기`}
-                title={!strategy.editable ? '출시된 전략은 편집할 수 없습니다' : strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? 'Pro 편집기는 준비 중입니다' : '열기'}
-                disabled={!strategy.editable || strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE}
-                onClick={(event) => { event.stopPropagation(); openOwnedStrategy(strategy); }}
-              >{strategy.mode === 'Pro' && !PRO_EDITOR_AVAILABLE ? <LockKeyhole size={15} /> : <ChevronRight size={17} />}</button>
+              {strategy.kind === 'draft' && strategy.editable && <div className="strategy-row-menu-anchor">
+                <button
+                  aria-label={`${strategy.name} 작업 메뉴`}
+                  aria-expanded={actionMenuId === strategy.id}
+                  title="복사 또는 삭제"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setActionMenuId((current) => current === strategy.id ? null : strategy.id);
+                  }}
+                ><MoreHorizontal size={17} /></button>
+                {actionMenuId === strategy.id && <div className="strategy-row-menu" role="menu" onClick={(event) => event.stopPropagation()}>
+                  <button
+                    role="menuitem"
+                    aria-label={`${strategy.name} 복사`}
+                    disabled={copyPendingId !== null}
+                    onClick={() => { setActionMenuId(null); void copyOwnedStrategy(strategy); }}
+                  >{copyPendingId === strategy.id ? <RefreshCw className="is-spinning" size={15} /> : <Copy size={15} />}<span>복사본 만들기</span></button>
+                  {canDeleteStrategy && <button
+                    role="menuitem"
+                    className="is-danger"
+                    aria-label={`${strategy.name} 삭제`}
+                    disabled={deletePending}
+                    onClick={() => { setActionMenuId(null); setDeleteError(null); setDeleteTarget(strategy); }}
+                  ><Trash2 size={15} /><span>삭제</span></button>}
+                </div>}
+              </div>}
+              {!canOpenResource(strategy) && <span className="strategy-row-lock" title="현재 이 형식은 편집할 수 없습니다"><LockKeyhole size={15} /></span>}
             </div>
           </article>)}
-          {filteredItems.length === 0 && (items.length === 0 && !query && mode === 'all' && state === 'all'
+          {filteredItems.length === 0 && (items.length === 0 && !query && state === 'all'
             ? <EmptyState
               title="아직 만든 전략이 없습니다."
               detail="첫 Basic 전략을 만들고 종목과 매수·매도 조건을 구성해 보세요."
               action={<Button kind="primary" icon={Plus} onClick={() => setShowCreate(true)}>첫 전략 만들기</Button>}
             />
-            : <div className="strategy-empty"><Search size={20} /><strong>조건에 맞는 전략이 없습니다.</strong><button onClick={() => { setQuery(''); setMode('all'); setState('all'); }}>필터 초기화</button></div>)}
-          {nextCursor && <button
-            type="button"
-            className="strategy-load-more"
-            data-testid="strategy-load-more"
-            disabled={morePending}
-            onClick={() => { void loadMoreStrategies(); }}
-          >{morePending ? '불러오는 중…' : '더 보기'}</button>}
+            : <div className="strategy-empty"><Search size={20} /><strong>조건에 맞는 전략이 없습니다.</strong><button onClick={() => { setQuery(''); setState('all'); }}>필터 초기화</button></div>)}
         </div>
+        {(pageIndex > 0 || nextCursor) && <nav className="strategy-pagination" data-testid="strategy-pagination" aria-label="전략 목록 페이지 이동">
+          <button type="button" aria-label="이전 전략 페이지" disabled={pageIndex === 0 || morePending} onClick={showPreviousStrategyPage}>이전</button>
+          <span aria-current="page">{pageIndex + 1}페이지</span>
+          <button type="button" aria-label="다음 전략 페이지" disabled={!nextCursor || morePending} onClick={() => { void showNextStrategyPage(); }}>{morePending ? '불러오는 중…' : '다음'}</button>
+        </nav>}
         </>}
       </section>
 
@@ -3873,7 +3921,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           <button className="floating-editor-button zoom-level" aria-label="배율 초기화" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>{Math.round(zoom * 100)}%</button>
           <button className="floating-editor-button" aria-label="확대" disabled={zoom >= 2} onClick={() => setZoom((current) => Math.min(2, Number((current + .1).toFixed(1))))}>+</button>
         </div>
-        <div className="mobile-editor-notice"><Boxes size={24} /><strong>전략 편집은 데스크톱에서 사용할 수 있습니다</strong><span>현재 화면에서는 구성만 조회할 수 있습니다.</span></div>
+        <div className="mobile-editor-notice"><Boxes size={24} /><strong>전략 편집은 데스크톱에서 사용할 수 있습니다</strong><span>모바일에서는 전략 내용을 확인하고 목록으로 돌아갈 수 있습니다.</span><Button onClick={goBack}>전략 목록으로</Button></div>
         <div
           className={`section-workspace ${drawMode ? 'is-drawing-mode' : ''} ${panGesture || spacePanning ? 'is-panning' : ''} ${spacePanning ? 'is-space-panning' : ''} ${cardMove ? 'is-moving-card' : ''}`}
           data-testid="section-drawing-surface"
@@ -5055,7 +5103,7 @@ function LegacyProEditor({ goBack, openEditor }: ProEditorProps) {
           <button type="button" className="floating-editor-button zoom-level" aria-label="배율 초기화" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>{Math.round(zoom * 100)}%</button>
           <button type="button" className="floating-editor-button" aria-label="확대" disabled={zoom >= 2} onClick={() => setZoom((current) => Math.min(2, Number((current + .1).toFixed(1))))}>+</button>
         </div>
-        <div className="mobile-editor-notice"><Split size={24} /><strong>Pro 그래프 편집은 데스크톱에서 사용할 수 있습니다</strong><span>현재 화면에서는 구성만 조회할 수 있습니다.</span></div>
+        <div className="mobile-editor-notice"><Split size={24} /><strong>Pro 그래프 편집은 데스크톱에서 사용할 수 있습니다</strong><span>모바일에서는 전략 내용을 확인하고 목록으로 돌아갈 수 있습니다.</span><Button onClick={goBack}>전략 목록으로</Button></div>
         <div
           ref={(element) => { workspaceRef.current = element; }}
           className={`graph-workspace ${panGesture || spacePanning ? 'is-panning' : ''} ${spacePanning ? 'is-space-panning' : ''} ${nodeMove ? 'is-moving-node' : ''} ${linkDraft ? 'is-linking' : ''}`}

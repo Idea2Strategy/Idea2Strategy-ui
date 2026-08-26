@@ -157,7 +157,7 @@ export function BacktestLiveView({
   }, [activePollIntervalMs, hasActiveRun, signedIn]);
 
   useEffect(() => {
-    if (!requestOpen || !signedIn) return undefined;
+    if (!signedIn) return undefined;
     const controller = new AbortController();
     setRequestOptions(null);
     setRequestError(null);
@@ -170,7 +170,7 @@ export function BacktestLiveView({
       setRequestPeriodStart((current) => current || dataset?.periodStart || '');
       setRequestPeriodEnd((current) => current || dataset?.periodEnd || '');
     }).catch((error) => {
-      if (!aborted(error)) setRequestError('백테스트에 사용할 봇과 공식 입력을 불러오지 못했습니다.');
+      if (!aborted(error) && requestOpen) setRequestError('백테스트에 사용할 봇과 공식 입력을 불러오지 못했습니다.');
     });
     return () => controller.abort();
   }, [client, requestOpen, signedIn]);
@@ -324,6 +324,7 @@ export function BacktestLiveView({
       >
         <RunList
           runs={runs}
+          botNames={new Map((requestOptions?.bots ?? []).map((bot) => [bot.botId, bot.name]))}
           selectedRunId={selectedRunId}
           onSelect={setSelectedRunId}
           offset={runOffset}
@@ -338,6 +339,7 @@ export function BacktestLiveView({
           {detail && <RunDetailPanels
             client={client}
             detail={detail}
+            botName={requestOptions?.bots.find((bot) => bot.botId === detail.run.botId)?.name ?? `봇 ${shortId(detail.run.botId)}`}
             selectedMonth={selectedMonth}
             onSelectMonth={setSelectedMonth}
             onUnauthenticated={abandonSession}
@@ -569,6 +571,7 @@ function DetailFailure({ kind }: { kind: FailureKind }) {
 
 function RunList({
   runs,
+  botNames,
   selectedRunId,
   onSelect,
   offset,
@@ -577,6 +580,7 @@ function RunList({
   onNext,
 }: {
   runs: BacktestRun[];
+  botNames: ReadonlyMap<string, string>;
   selectedRunId: string | null;
   onSelect: (runId: string) => void;
   offset: number;
@@ -590,28 +594,32 @@ function RunList({
       <small>{runs.length}건</small>
     </header>
     <div className="backtest-bot-options" role="list" aria-label="공식 백테스트 실행 목록">
-      {runs.map((run) => <div role="listitem" key={run.backtestRunId}><button
+      {runs.map((run) => {
+        const botName = botNames.get(run.botId) ?? `봇 ${shortId(run.botId)}`;
+        return <div role="listitem" key={run.backtestRunId}><button
         type="button"
         className={run.backtestRunId === selectedRunId ? 'active' : ''}
-        aria-label={`${shortId(run.botId)} ${STATUS_LABELS[run.status]} 백테스트 보기`}
+        aria-label={`${botName} ${STATUS_LABELS[run.status]} 백테스트 보기`}
         onClick={() => onSelect(run.backtestRunId)}
       >
         <span className="backtest-bot-icon"><Bot size={17} aria-hidden="true" /></span>
-        <span><strong>{shortId(run.botId)}</strong><small>{formatTime(run.queuedAt)}</small></span>
+        <span><strong>{botName}</strong><small>{formatTime(run.queuedAt)}</small></span>
         <Status tone={STATUS_TONES[run.status]}>{STATUS_LABELS[run.status]}</Status>
-      </button></div>)}
+      </button></div>;
+      })}
     </div>
-    <footer className="backtest-bot-selector-footer backtest-live-pagination" aria-label="백테스트 실행 목록 페이지 이동">
+    {(offset > 0 || hasNext) && <footer className="backtest-bot-selector-footer backtest-live-pagination" aria-label="백테스트 실행 목록 페이지 이동">
       <Button disabled={offset === 0} onClick={onPrevious}>이전</Button>
       <span>{Math.floor(offset / RUN_PAGE_SIZE) + 1}페이지</span>
       <Button disabled={!hasNext} onClick={onNext}>다음</Button>
-    </footer>
+    </footer>}
   </aside>;
 }
 
 function RunDetailPanels({
   client,
   detail,
+  botName,
   selectedMonth,
   onSelectMonth,
   onUnauthenticated,
@@ -619,6 +627,7 @@ function RunDetailPanels({
 }: {
   client: BacktestClient;
   detail: RunDetail;
+  botName: string;
   selectedMonth: string | null;
   onSelectMonth: (month: string) => void;
   onUnauthenticated: () => void;
@@ -643,7 +652,7 @@ function RunDetailPanels({
   return <>
     <Panel
       className="backtest-performance-panel backtest-live-status-panel backtest-live-overview-panel"
-      title={`${shortId(run.botId)} 성과 개요`}
+      title={`${botName} 성과 개요`}
       subtitle={`요청 ${formatTime(run.queuedAt)} · 평가 ${run.evaluationStart} ~ ${run.evaluationEnd}`}
       action={<div className="backtest-live-heading-actions">
         <Status tone={STATUS_TONES[run.status]}>{STATUS_LABELS[run.status]}</Status>
