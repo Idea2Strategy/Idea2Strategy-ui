@@ -23,9 +23,8 @@ test('creates and cancels a real competition room through the three-milestone ca
   const monthLabel = await dialog.locator('.competition-schedule-calendar > header strong').innerText();
   const [, year, month] = monthLabel.match(/(\d{4})년 (\d+)월/) ?? [];
   expect(year && month).toBeTruthy();
-  for (const [buttonName, day] of [[/모집 시작 선택/, 2], [/평가 시작 선택/, 6], [/평가 종료 선택/, 12]] as const) {
-    await dialog.getByRole('button', { name: buttonName }).click();
-    await dialog.getByRole('gridcell', { name: new RegExp(`${day}일을 .* 선택`) }).click();
+  for (const [label, suffix, day] of [['모집 시작', '으로', 2], ['평가 시작', '으로', 6], ['평가 종료', '로', 12]] as const) {
+    await dialog.getByRole('gridcell', { name: `${year}년 ${Number(month)}월 ${day}일을 ${label}${suffix} 선택` }).click();
   }
   await dialog.getByLabel('모집 시작 시간').fill('09:00');
   await dialog.getByLabel('평가 시작 시간').fill('10:30');
