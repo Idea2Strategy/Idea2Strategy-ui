@@ -307,9 +307,11 @@
 .variant-balanced[data-design="signal-studio"] .competition-schedule-calendar > header strong { font-size: 13px; }
 .variant-balanced[data-design="signal-studio"] .competition-schedule-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .variant-balanced[data-design="signal-studio"] .competition-schedule-weekdays { margin-bottom: 4px; color: var(--text-faint); font: 650 11px/28px var(--font-sans); text-align: center; }
-.variant-balanced[data-design="signal-studio"] .competition-schedule-grid[role="grid"] > button { position: relative; min-height: 40px; padding: 5px; border: 1px solid transparent; border-radius: 8px; color: var(--text-soft); background: transparent; }
-.variant-balanced[data-design="signal-studio"] .competition-schedule-grid[role="grid"] > button:hover { border-color: var(--line-strong); color: var(--text); background: var(--surface-2); }
-.variant-balanced[data-design="signal-studio"] .competition-schedule-grid[role="grid"] > button.is-selected { border-color: color-mix(in srgb, var(--accent) 36%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); color: var(--text); }
+.variant-balanced[data-design="signal-studio"] .competition-schedule-grid[role="grid"] > [role="row"] { display: contents; }
+.variant-balanced[data-design="signal-studio"] .competition-schedule-grid[role="grid"] button { position: relative; min-height: 40px; padding: 5px; border: 1px solid transparent; border-radius: 8px; color: var(--text-soft); background: transparent; }
+.variant-balanced[data-design="signal-studio"] .competition-schedule-grid[role="grid"] button:hover { border-color: var(--line-strong); color: var(--text); background: var(--surface-2); }
+.variant-balanced[data-design="signal-studio"] .competition-schedule-grid[role="grid"] button.is-in-range { border-radius: 3px; background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+.variant-balanced[data-design="signal-studio"] .competition-schedule-grid[role="grid"] button.is-selected { border-color: color-mix(in srgb, var(--accent) 36%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); color: var(--text); }
 .variant-balanced[data-design="signal-studio"] .competition-schedule-grid[role="grid"] b { display: block; font: 650 11px/1.2 var(--font-mono); }
 .variant-balanced[data-design="signal-studio"] .competition-schedule-grid[role="grid"] span { display: flex; justify-content: center; gap: 2px; margin-top: 4px; }
 .variant-balanced[data-design="signal-studio"] .competition-schedule-grid[role="grid"] i { width: 5px; height: 5px; border-radius: 999px; background: var(--accent); }

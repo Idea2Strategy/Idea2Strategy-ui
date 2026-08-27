@@ -340,8 +340,8 @@ function CreateRoomDialog({ client, onClose, onCreated }: { client: CompetitionR
       schedule = Object.fromEntries(Object.entries(scheduleInput)
         .map(([name, value]) => [name, zonedLocalToIso(value, timezone)]));
     } catch (cause) { setError(cause instanceof Error ? cause.message : '대회 일정을 확인해 주세요.'); return; }
-    const ordered = schedule.recruitmentOpensAt < schedule.evaluationStartsAt && schedule.evaluationStartsAt < schedule.evaluationEndsAt;
-    if (!ordered) { setError('모집 시작·평가 시작·평가 종료를 시간 순서대로 입력해 주세요.'); return; }
+    if (schedule.recruitmentOpensAt >= schedule.evaluationStartsAt) { setError('평가 시작은 모집 시작보다 뒤여야 합니다.'); return; }
+    if (schedule.evaluationStartsAt >= schedule.evaluationEndsAt) { setError('평가 종료는 평가 시작보다 뒤여야 합니다.'); return; }
     schedule.participationOpensAt = schedule.recruitmentOpensAt;
     schedule.participationClosesAt = new Date(Date.parse(schedule.evaluationStartsAt) - 60_000).toISOString();
     schedule.finalizationDeadlineAt = new Date(Date.parse(schedule.evaluationEndsAt) + 86_400_000).toISOString();
@@ -364,7 +364,7 @@ function CreateRoomDialog({ client, onClose, onCreated }: { client: CompetitionR
     <fieldset className="competition-api-form-section"><legend>운영 정책</legend>
       {catalog.state === 'loading' && <p role="status">대회 생성 입력을 불러오는 중입니다.</p>}
       {catalog.state === 'error' && <div role="alert"><p>{catalogError}</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>정책 다시 불러오기</button></div>}
-      {catalog.state === 'ready' && !complete && <p role="status">운영 정책 카탈로그가 준비되지 않아 대회를 만들 수 없습니다.</p>}
+      {catalog.state === 'ready' && !complete && <div role="alert"><p>{catalog.value!.scoringTemplates.length === 0 ? '사용 가능한 채점 정책이 없어 대회를 만들 수 없습니다.' : catalog.value!.feePolicies.length === 0 ? '사용 가능한 수수료 정책이 없어 대회를 만들 수 없습니다.' : '사용 가능한 구매력 정책이 없어 대회를 만들 수 없습니다.'}</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>정책 다시 불러오기</button></div>}
       {complete && <p role="status">검증된 표준 채점·수수료·구매력 정책을 자동 적용합니다.</p>}
     </fieldset>
     {error && <p role="alert">{error}</p>}
@@ -429,7 +429,7 @@ function createRoomFailureMessage(cause: unknown) {
   return `대회를 만들지 못했습니다. (오류 ${cause.status})`;
 }
 
-function joinFailureMessage(cause: unknown) {
+export function joinFailureMessage(cause: unknown) {
   if (!(cause instanceof CompetitionApiError)) return '참가 요청을 완료하지 못했습니다.';
   if (cause.unauthenticated) return '로그인 후 참가할 수 있습니다.';
   if (cause.forbidden) return '이 대회에 참가할 권한이 없습니다.';

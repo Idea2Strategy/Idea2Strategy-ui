@@ -63,13 +63,19 @@ export function CompetitionSchedulePicker({ value, onChange }: { value: Competit
       </header>
       <div className="competition-schedule-grid competition-schedule-weekdays" aria-hidden="true">{weekdays.map((day) => <span key={day}>{day}</span>)}</div>
       <div className="competition-schedule-grid" role="grid" aria-label="대회 일정 달력">
-        {cells.map((day, index) => day === null ? <span key={`blank-${index}`} /> : (() => {
-          const date = isoDate(year, month, day);
-          const marks = milestones.filter((item) => datePart(value[item.key]) === date);
-          const suffix = active === 'evaluationEndsAt' ? '로' : '으로';
-          const aria = language === 'en' ? `Select ${new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(`${date}T12:00:00`))} as ${t(activeLabel)}` : `${year}년 ${month + 1}월 ${day}일을 ${activeLabel}${suffix} 선택`;
-          return <button key={date} type="button" role="gridcell" aria-label={aria} className={marks.length ? 'is-selected' : ''} onClick={() => selectDate(day)}><b>{day}</b><span>{marks.map((mark) => <i key={mark.key} className={`is-${mark.tone}`} title={mark.label} />)}</span></button>;
-        })())}
+        {Array.from({ length: cells.length / 7 }, (_, rowIndex) => <div role="row" key={`week-${rowIndex}`}>
+          {cells.slice(rowIndex * 7, rowIndex * 7 + 7).map((day, cellIndex) => day === null
+            ? <span key={`blank-${rowIndex}-${cellIndex}`} role="gridcell" aria-hidden="true" />
+            : (() => {
+              const date = isoDate(year, month, day);
+              const marks = milestones.filter((item) => datePart(value[item.key]) === date);
+              const inEvaluationRange = date > datePart(value.evaluationStartsAt) && date < datePart(value.evaluationEndsAt);
+              const suffix = active === 'evaluationEndsAt' ? '로' : '으로';
+              const rangeLabel = inEvaluationRange ? (language === 'en' ? ', evaluation period' : ', 평가 기간') : '';
+              const aria = language === 'en' ? `Select ${new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(`${date}T12:00:00`))} as ${t(activeLabel)}${rangeLabel}` : `${year}년 ${month + 1}월 ${day}일을 ${activeLabel}${suffix} 선택${rangeLabel}`;
+              return <button key={date} type="button" role="gridcell" aria-label={aria} aria-selected={marks.length > 0} className={`${marks.length ? 'is-selected' : ''}${inEvaluationRange ? ' is-in-range' : ''}`.trim()} onClick={() => selectDate(day)}><b>{day}</b><span>{marks.map((mark) => <i key={mark.key} className={`is-${mark.tone}`} title={mark.label} />)}</span></button>;
+            })())}
+        </div>)}
       </div>
     </div>
     <div className="competition-schedule-times">

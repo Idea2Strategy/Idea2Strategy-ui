@@ -19,14 +19,17 @@ test('creates and cancels a real competition room through the three-milestone ca
   await expect(dialog.locator('input[type="datetime-local"]')).toHaveCount(0);
   await expect(dialog.locator('input[type="time"]')).toHaveCount(3);
 
-  for (const [buttonName, marker] of [
-    [/모집 시작 선택/, 'recruitment'],
-    [/평가 시작 선택/, 'evaluation'],
-    [/평가 종료 선택/, 'ending'],
-  ] as const) {
+  await dialog.getByRole('button', { name: '다음 달' }).click();
+  const monthLabel = await dialog.locator('.competition-schedule-calendar > header strong').innerText();
+  const [, year, month] = monthLabel.match(/(\d{4})년 (\d+)월/) ?? [];
+  expect(year && month).toBeTruthy();
+  for (const [buttonName, day] of [[/모집 시작 선택/, 2], [/평가 시작 선택/, 6], [/평가 종료 선택/, 12]] as const) {
     await dialog.getByRole('button', { name: buttonName }).click();
-    await dialog.locator(`[role="gridcell"]:has(i.is-${marker})`).click();
+    await dialog.getByRole('gridcell', { name: new RegExp(`${day}일을 .* 선택`) }).click();
   }
+  await dialog.getByLabel('모집 시작 시간').fill('09:00');
+  await dialog.getByLabel('평가 시작 시간').fill('10:30');
+  await dialog.getByLabel('평가 종료 시간').fill('16:00');
 
   const name = `달력 생성 검증 ${Date.now()}`;
   await dialog.getByLabel('대회 이름').fill(name);
@@ -36,6 +39,14 @@ test('creates and cancels a real competition room through the three-milestone ca
   ]);
   expect(created.status()).toBe(201);
   expect(await created.json()).toMatchObject({ status: 'DRAFT' });
+  const request = created.request().postDataJSON();
+  const prefix = `${year}-${String(Number(month)).padStart(2, '0')}`;
+  expect(request).toMatchObject({
+    recruitmentOpensAt: `${prefix}-02T00:00:00.000Z`,
+    evaluationStartsAt: `${prefix}-06T01:30:00.000Z`,
+    evaluationEndsAt: `${prefix}-12T07:00:00.000Z`,
+    timezoneName: 'Asia/Seoul',
+  });
 
   const owned = page.getByRole('listitem', { name: `${name} 관리` });
   await expect(owned).toBeVisible();
