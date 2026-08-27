@@ -25,9 +25,17 @@ test('opens a CLI-authored Basic strategy from canonical semantics', async ({ pa
   await expect(page.getByTestId('basic-editor-workspace')).toBeVisible();
   await expect(page.getByText('이 전략은 현재 편집기에서 열 수 없습니다.')).toHaveCount(0);
   await expect(page.getByRole('article', { name: 'PARTITION 01' })).toContainText('AAPL');
-  await expect(page.getByRole('article', { name: 'PARTITION 01' })).toContainText('1시간봉');
+  await expect(page.getByRole('article', { name: 'PARTITION 01' })).toContainText('30분봉');
   await expect(page.getByRole('article', { name: 'PARTITION 02' })).toContainText('MSFT');
   await expect(page.getByRole('article', { name: 'PARTITION 02' })).toContainText('4시간봉');
+  await expect(page.getByRole('article', { name: 'PARTITION 03' })).toContainText('NVDA');
+  await expect(page.getByRole('article', { name: 'PARTITION 03' })).toContainText('일봉');
+  await expect(page.getByText('조건 충족마다')).toHaveCount(6);
+
+  const released = page.waitForResponse((response) => response.url().endsWith(`/api/v1/strategies/${strategyId}/edit-lease`)
+    && response.request().method() === 'DELETE');
+  await page.getByRole('button', { name: '목록', exact: true }).click();
+  expect((await released).status()).toBe(204);
 });
 
 test('releases missing Basic blocks and renders the real official backtest result', async ({ page }) => {

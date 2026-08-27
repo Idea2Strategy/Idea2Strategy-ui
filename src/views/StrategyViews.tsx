@@ -227,8 +227,8 @@ const createDefaultBuySettings = (): BuyContainerSettings => ({
 
 interface SellContainerSettings {
   sellPercent: number | '';
-  // 매도에는 주기 개념이 없어 1회만 / 대기 후 재실행 두 모드만 둔다.
-  executeMode: '1회만' | '대기 후 재실행';
+  // 정기 매도 일정은 없지만, 조건이 충족될 때마다 반복 매도할 수 있다.
+  executeMode: '1회만' | '조건 충족마다' | '대기 후 재실행';
   reexecWait: RerunWait;
   reexecInterval: number;
   maxExecutions: number;
@@ -2052,12 +2052,18 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         grantedLeaseToken = null;
         return;
       }
-      const savedBasicEditor = document.presentationDocument.basicEditor;
-      const rebuilt = savedBasicEditor === undefined && basicCatalog
+      const savedSnapshot = readBasicEditorSnapshot(document.presentationDocument);
+      const hasSemanticGroups = semanticDocumentCarriesGroups(document.semanticDocument);
+      const rebuilt = hasSemanticGroups && basicCatalog
         ? rebuildBasicSnapshot(document.semanticDocument, document.presentationDocument, basicCatalog)
         : null;
-      const snapshot = readBasicEditorSnapshot(document.presentationDocument)
-        ?? (rebuilt ? cloneBasicEditorSnapshot(rebuilt as BasicEditorSnapshot) : null);
+      /* Semantics are canonical. A CLI edit made by an older server may have left a perfectly
+         readable but stale v1 layout behind, so valid shape/version alone is not proof that the
+         snapshot still describes the strategy. Rebuild every non-empty strategy from semantics
+         and use the saved snapshot only as disposable layout metadata. */
+      const snapshot = hasSemanticGroups
+        ? (rebuilt ? cloneBasicEditorSnapshot(rebuilt as BasicEditorSnapshot) : null)
+        : savedSnapshot;
       if (snapshot && rebuilt) {
         snapshot.cardBlocks = Object.fromEntries(Object.entries(snapshot.cardBlocks).map(([cardId, blocks]) => [
           cardId,
@@ -2068,7 +2074,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
          snapshot cannot be read but the semantic document does carry groups, opening
          a blank canvas would let the next save overwrite a real strategy with an
          empty one, so refuse to open instead of silently discarding it. */
-      if (!snapshot && semanticDocumentCarriesGroups(document.semanticDocument)) {
+      if (!snapshot && hasSemanticGroups) {
         await authoringClient.releaseLease(strategyId, lease.leaseToken).catch(() => undefined);
         grantedLeaseToken = null;
         setDocumentPending(false);
@@ -3640,12 +3646,11 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           <span><Settings2 size={13} aria-hidden="true" /><strong>매도 설정</strong></span>
           <button type="button" aria-label="매도 실행 설정 닫기" onClick={() => setExpandedSettingsCardId(null)}><X size={13} /></button>
         </header>
-        {/* 매도 비율은 카드 하단 요청 블록에서 편집하므로, 설정창에는 '실행 방식'만 둔다.
-            매도엔 주기 개념이 없어 1회만 / 대기 후 재실행 두 모드만 제공한다. */}
+        {/* 매도 비율은 카드 하단 요청 블록에서 편집하므로 설정창에는 실행 방식만 둔다. */}
         <div className="setting-field-group">
           <span className="setting-field-title"><strong>실행 방식</strong><small>조건을 언제 다시 확인해 매도할지 정합니다</small></span>
           <div className="setting-mode-tabs" role="radiogroup" aria-label="실행 방식">
-            {(['1회만', '대기 후 재실행'] as const).map((mode) => (
+            {(['1회만', '조건 충족마다', '대기 후 재실행'] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
@@ -3661,6 +3666,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           </div>
         </div>
         {sellExecution.executeMode === '1회만' && <p className="setting-mode-hint">조건을 충족하면 한 번만 매도합니다.</p>}
+        {sellExecution.executeMode === '조건 충족마다' && <p className="setting-mode-hint">조건을 충족할 때마다 최대 실행 횟수 안에서 매도합니다.</p>}
         {sellExecution.executeMode === '대기 후 재실행' && <div className="additional-buy-settings">
           <label><span>대기</span><select aria-label="재매도 대기 방식" value={sellExecution.reexecWait} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), reexecWait: event.target.value as RerunWait } }))}><option>조건 재충족</option><option>N봉 이후</option><option>N거래일 이후</option></select></label>
           {sellExecution.reexecWait !== '조건 재충족' && <label><span>간격</span><input type="number" min="1" max="365" aria-label="재매도 간격" value={sellExecution.reexecInterval} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), reexecInterval: Number(event.target.value) } }))} /></label>}

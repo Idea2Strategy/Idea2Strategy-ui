@@ -61,7 +61,7 @@ export interface BasicDocumentSnapshot {
   }>;
   sellSettings: Record<string, {
     sellPercent: number | '';
-    executeMode: '1회만' | '대기 후 재실행';
+    executeMode: '1회만' | '조건 충족마다' | '대기 후 재실행';
     reexecWait: BasicRerunWait;
     reexecInterval: number;
     maxExecutions: number;
@@ -278,7 +278,7 @@ export const buildBasicSemanticDocument = (
             maxPositionPercent: String(rawCap).trim(),
             executionMode: side === 'buy'
               ? buy?.entryMode === '조건 충족마다' ? '주기마다' : buy?.entryMode ?? '1회만'
-              : sell?.executeMode ?? '1회만',
+              : sell?.executeMode === '조건 충족마다' ? '주기마다' : sell?.executeMode ?? '1회만',
             waitMode: side === 'buy' ? buy?.reentryWait ?? '조건 재충족' : sell?.reexecWait ?? '조건 재충족',
             waitInterval: String(side === 'buy' ? buy?.reentryInterval ?? 1 : sell?.reexecInterval ?? 1),
             maxExecutions: String(side === 'buy' ? buy?.maxEntries ?? 1 : sell?.maxExecutions ?? 1),
@@ -588,7 +588,7 @@ export const rebuildBasicSnapshot = (
     if ((side === 'buy' && schedule && executionMode !== '주기마다')
       || (side === 'buy' && !schedule && !['1회만', '주기마다', '대기 후 재진입'].includes(executionMode))
       || (side === 'sell' && schedule)
-      || (side === 'sell' && !['1회만', '대기 후 재실행'].includes(executionMode))) return null;
+      || (side === 'sell' && !['1회만', '주기마다', '대기 후 재실행'].includes(executionMode))) return null;
     const cycle = schedule ? cycleLabel(schedule.parameters.cycle) : '매 거래일';
     const cycleInterval = schedule ? positiveInteger(schedule.parameters.interval) : 1;
     const waitMode = ['조건 재충족', 'N봉 이후', 'N거래일 이후'].includes(order.parameters.waitMode)
@@ -620,7 +620,9 @@ export const rebuildBasicSnapshot = (
       } : {
         sellSettings: {
           sellPercent: orderPercent,
-          executeMode: order.parameters.executionMode === '대기 후 재실행' ? '대기 후 재실행' : '1회만',
+          executeMode: order.parameters.executionMode === '주기마다'
+            ? '조건 충족마다'
+            : order.parameters.executionMode === '대기 후 재실행' ? '대기 후 재실행' : '1회만',
           reexecWait: waitMode,
           reexecInterval: waitInterval,
           maxExecutions,
@@ -642,7 +644,11 @@ export const rebuildBasicSnapshot = (
   }
 
   const presentation = record(presentationDocument);
-  const legacySections = Array.isArray(presentation?.sections) ? presentation.sections : [];
+  const savedEditor = record(presentation?.basicEditor);
+  const savedSnapshot = record(savedEditor?.snapshot);
+  const savedSections = Array.isArray(savedSnapshot?.sections) ? savedSnapshot.sections : null;
+  const legacySections = savedSections ?? (Array.isArray(presentation?.sections) ? presentation.sections : []);
+  const savedCardMeta = record(savedSnapshot?.cardMeta);
   const sections: BasicDocumentSectionInput[] = [];
   const placedCards = new Set<string>();
   for (const [index, rawSection] of legacySections.entries()) {
@@ -724,11 +730,16 @@ export const rebuildBasicSnapshot = (
   return {
     sections,
     cardBlocks: Object.fromEntries([...cards.values()].map((card) => [card.id, card.blocks])),
-    cardMeta: Object.fromEntries([...cards.values()].map((card) => [card.id, {
-      title: card.side === 'buy' ? '매수 전략' : '매도 전략',
-      detail: 'CLI와 서버에서 불러온 전략',
-      explanation: '저장된 공식 전략 조건을 편집 가능한 화면으로 복원했습니다.',
-    }])),
+    cardMeta: Object.fromEntries([...cards.values()].map((card) => {
+      const saved = record(savedCardMeta?.[card.id]);
+      return [card.id, {
+        title: typeof saved?.title === 'string' ? saved.title : card.side === 'buy' ? '매수 전략' : '매도 전략',
+        detail: typeof saved?.detail === 'string' ? saved.detail : 'CLI와 서버에서 불러온 전략',
+        explanation: typeof saved?.explanation === 'string'
+          ? saved.explanation
+          : '저장된 공식 전략 조건을 편집 가능한 화면으로 복원했습니다.',
+      }];
+    })),
     buySettings: Object.fromEntries([...cards.values()].filter((card) => card.buySettings).map((card) => [card.id, card.buySettings!])),
     sellSettings: Object.fromEntries([...cards.values()].filter((card) => card.sellSettings).map((card) => [card.id, card.sellSettings!])),
     symbolLimits,

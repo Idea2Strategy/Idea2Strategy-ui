@@ -220,6 +220,36 @@ describe('rebuildBasicSnapshot', () => {
     expect(rebuiltSemantic.groups[0].blocks.at(-1)?.parameters.executionMode).toBe('주기마다');
   });
 
+  test('round-trips repeated sell execution used by CLI-authored mixed-resolution strategies', () => {
+    const semanticDocument = {
+      mode: 'BASIC', catalogId: 'catalog-v2', groups: [
+        ['aapl-buy', 'BUY', 'instrument-aapl', '30m', 'GT'],
+        ['aapl-sell', 'SELL', 'instrument-aapl', '30m', 'LT'],
+        ['msft-buy', 'BUY', 'instrument-msft', '4h', 'GT'],
+        ['msft-sell', 'SELL', 'instrument-msft', '4h', 'LT'],
+      ].map(([id, container, instrumentId, resolution, operator]) => ({
+        id, allocationGroupId: id, container, evaluationMode: 'INDEPENDENT', allocationMode: 'EQUAL',
+        instrumentIds: [instrumentId],
+        blocks: [
+          { id: `${id}-condition`, elementCode: 'BASIC_PRICE_COMPARE', parameters: { resolution, operator, reference: 'PREVIOUS_CLOSE' } },
+          { id: `${id}-order`, elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: { orderPercent: '100', maxPositionPercent: '25', executionMode: '주기마다', waitMode: '조건 재충족', waitInterval: '1', maxExecutions: '100' } },
+        ],
+        connections: [{ fromBlockId: `${id}-condition`, outputPort: 'passed', toBlockId: `${id}-order`, inputPort: 'passed' }],
+      })),
+    };
+
+    const rebuilt = rebuildBasicSnapshot(semanticDocument, { positions: {}, viewport: { x: 0, y: 0, zoom: 1 } }, officialCatalog);
+
+    expect(rebuilt).not.toBeNull();
+    expect(rebuilt?.sections.map(({ symbol, timeframe }) => ({ symbol, timeframe }))).toEqual([
+      { symbol: 'AAPL', timeframe: '30분봉' },
+      { symbol: 'MSFT', timeframe: '4시간봉' },
+    ]);
+    expect(rebuilt?.sellSettings['aapl-sell'].executeMode).toBe('조건 충족마다');
+    expect(rebuilt?.sellSettings['msft-sell'].executeMode).toBe('조건 충족마다');
+    expect(buildBasicSemanticDocument(rebuilt!, officialCatalog, semanticDocument)).toEqual(semanticDocument);
+  });
+
   test('refuses semantics the Basic editor cannot represent without loss', () => {
     const semanticDocument = {
       mode: 'BASIC', catalogId: 'catalog-v2', groups: [{
@@ -273,7 +303,7 @@ describe('rebuildBasicSnapshot', () => {
   test.each([
     ['BUY', '1회만', true],
     ['BUY', '대기 후 재실행', false],
-    ['SELL', '주기마다', false],
+    ['SELL', '주기마다', true],
   ])('refuses an unrepresentable schedule/execution combination: %s %s schedule=%s', (container, executionMode, withSchedule) => {
     const blocks = [
       ...(withSchedule ? [{ id: 'schedule', elementCode: 'BASIC_SCHEDULE', parameters: { resolution: '30m', cycle: 'EVERY_TRADING_DAY', interval: '1' } }] : []),
