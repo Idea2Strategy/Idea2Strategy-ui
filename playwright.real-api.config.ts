@@ -10,7 +10,7 @@ if (!externalBaseUrl && ![appPort, backendPort].every((port) => Number.isInteger
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: fullStack ? /basic-strategy-real\.e2e\.ts/ : /real-account-api\.e2e\.ts/,
+  testMatch: fullStack ? /basic-strategy-real\.e2e\.ts/ : /(?:real-account-api|competition-room-create-real)\.e2e\.ts/,
   fullyParallel: false,
   workers: 1,
   retries: 0,

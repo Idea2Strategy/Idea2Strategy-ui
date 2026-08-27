@@ -132,7 +132,9 @@ describe('real competition room workspace', () => {
     expect(within(create).queryByLabelText('참가 시작')).not.toBeInTheDocument();
     expect(within(create).queryByLabelText('참가 마감')).not.toBeInTheDocument();
     expect(within(create).queryByLabelText('최종 확정 시한')).not.toBeInTheDocument();
-    const evaluationStartsAt = new Date((within(create).getByLabelText('평가 시작') as HTMLInputElement).value);
+    expect(within(create).queryByDisplayValue(/^\d{4}-\d{2}-\d{2}T/)).not.toBeInTheDocument();
+    expect(within(create).getByRole('grid', { name: '대회 일정 달력' })).toBeInTheDocument();
+    expect(within(create).getByLabelText('평가 시작 시간')).toHaveAttribute('type', 'time');
     await userEvent.click(within(create).getByRole('button', { name: '대회 생성' }));
     await waitFor(() => expect(api.createRoom).toHaveBeenCalledWith(expect.objectContaining({
       scoringTemplateVersionId: roomInputCatalog.scoringTemplates[0].id,
@@ -147,7 +149,6 @@ describe('real competition room workspace', () => {
     expect(Date.parse(submitted.participationClosesAt)).toBe(Date.parse(submitted.evaluationStartsAt) - 60_000);
     expect(Date.parse(submitted.finalizationDeadlineAt)).toBe(Date.parse(submitted.evaluationEndsAt) + 86_400_000);
     expect(Date.parse(submitted.evaluationStartsAt)).not.toBeNaN();
-    expect(evaluationStartsAt.getTime()).not.toBeNaN();
 
     await userEvent.click(screen.getByRole('listitem', { name: '실전 API 대회 열기' }));
     await userEvent.click(await screen.findByRole('button', { name: '이 대회 참가하기' }));
@@ -235,7 +236,9 @@ describe('real competition room workspace', () => {
     const join = screen.getByRole('dialog', { name: '대회 참가' });
     await within(join).findByRole('option', { name: /Momentum · 편집 7/ });
     await user.type(within(join).getByLabelText('익명 봇 별칭'), 'Market Test');
-    await user.click(within(join).getByRole('button', { name: '참가 확정' }));
+    const submit = within(join).getByRole('button', { name: '참가 확정' });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.submit(submit.closest('form')!);
 
     await waitFor(() => expect(api.joinRoom).toHaveBeenCalled(), { timeout: 5_000 });
     expect(await within(join).findByRole('alert')).toHaveTextContent('선택한 전략에 이 대회의 허용 시장 밖 종목이 포함되어 있습니다.');

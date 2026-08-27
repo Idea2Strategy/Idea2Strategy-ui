@@ -11,6 +11,7 @@ import { formatDateTimeLocal, zonedLocalToIso } from '../lib/zonedDateTime';
 import { Button, PageHeading } from './common';
 import { ErrorPage, SignInRequiredPage } from './StatePages';
 import { Localized, useLanguage } from '../lib/i18n';
+import { CompetitionSchedulePicker, type CompetitionSchedule } from './CompetitionSchedulePicker';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -309,7 +310,7 @@ function InvitationConsumeDialog({ client, onClose, onConsumed }: { client: Comp
 }
 
 const dateTime = (days: number, timeZone: string) => {
-  const date = new Date(Date.now() + days * 86400000);
+  const date = new Date(Date.now() + days * 86400000 + 3_600_000);
   date.setMinutes(0, 0, 0);
   return formatDateTimeLocal(date, timeZone);
 };
@@ -318,6 +319,11 @@ function CreateRoomDialog({ client, onClose, onCreated }: { client: CompetitionR
   const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState(''); const [saving, setSaving] = useState(false);
   const [timezone, setTimezone] = useState('Asia/Seoul');
+  const [scheduleInput, setScheduleInput] = useState<CompetitionSchedule>(() => ({
+    recruitmentOpensAt: dateTime(0, 'Asia/Seoul'),
+    evaluationStartsAt: dateTime(4, 'Asia/Seoul'),
+    evaluationEndsAt: dateTime(10, 'Asia/Seoul'),
+  }));
   useEffect(() => {
     const controller = new AbortController(); setCatalog({ state: 'loading', value: null, error: null });
     client.roomInputCatalog(controller.signal)
@@ -331,8 +337,8 @@ function CreateRoomDialog({ client, onClose, onCreated }: { client: CompetitionR
     const form = new FormData(event.currentTarget); setError('');
     let schedule: Record<string, string>;
     try {
-      schedule = Object.fromEntries(['recruitmentOpensAt', 'evaluationStartsAt', 'evaluationEndsAt']
-        .map((name) => [name, zonedLocalToIso(String(form.get(name)), timezone)]));
+      schedule = Object.fromEntries(Object.entries(scheduleInput)
+        .map(([name, value]) => [name, zonedLocalToIso(value, timezone)]));
     } catch (cause) { setError(cause instanceof Error ? cause.message : '대회 일정을 확인해 주세요.'); return; }
     const ordered = schedule.recruitmentOpensAt < schedule.evaluationStartsAt && schedule.evaluationStartsAt < schedule.evaluationEndsAt;
     if (!ordered) { setError('모집 시작·평가 시작·평가 종료를 시간 순서대로 입력해 주세요.'); return; }
@@ -347,14 +353,14 @@ function CreateRoomDialog({ client, onClose, onCreated }: { client: CompetitionR
     const scoringAdjustments = Object.fromEntries(template.adjustments.map((adjustment) => [adjustment.code, adjustment.minimum]));
     setSaving(true);
     const input: CreateRoomInput = { name: String(form.get('name')).trim(), accessType: String(form.get('accessType')) as CreateRoomInput['accessType'], scoringTemplateVersionId: template.id, scoringAdjustments, initialCashAmount, botParticipationLimit, perAccountBotLimit, stoppedBotSlotPolicy: 'RELEASE_SLOT', minimumOperationSeconds: 0, minimumFillCount: 0, feePolicyId: catalog.value!.feePolicies[0].id, buyingPowerBufferPolicyId: catalog.value!.buyingPowerBufferPolicies[0].id, recruitmentOpensAt: schedule.recruitmentOpensAt, participationOpensAt: schedule.participationOpensAt, evaluationStartsAt: schedule.evaluationStartsAt, participationClosesAt: schedule.participationClosesAt, evaluationEndsAt: schedule.evaluationEndsAt, finalizationDeadlineAt: schedule.finalizationDeadlineAt, timezoneName: timezone };
-    try { await client.createRoom(input); onCreated(); } catch (cause) { setError(cause instanceof CompetitionApiError && cause.forbidden ? '대회를 만들 권한이 없습니다.' : '대회를 만들지 못했습니다. 입력과 로그인 상태를 확인해 주세요.'); setSaving(false); }
+    try { await client.createRoom(input); onCreated(); } catch (cause) { setError(createRoomFailureMessage(cause)); setSaving(false); }
   };
   const catalogError = catalog.error instanceof CompetitionApiError && catalog.error.unauthenticated ? '로그인 후 대회 생성 정책을 확인할 수 있습니다.'
     : catalog.error instanceof CompetitionApiError && catalog.error.forbidden ? '대회 생성 정책을 조회할 권한이 없습니다.' : '대회 생성 정책을 불러오지 못했습니다.';
   return <DialogShell title="대회 만들기" onClose={onClose}><form className="competition-api-form competition-create-form" onSubmit={submit}>
     <div className="competition-create-form-scroll">
     <fieldset className="competition-api-form-section"><legend>기본 설정</legend><div className="competition-api-form-grid"><label>대회 이름<input name="name" aria-label="대회 이름" placeholder="참가자가 알아보기 쉬운 이름" required /></label><label>접근 방식<select name="accessType" aria-label="접근 방식"><option value="PUBLIC">공개 대회</option><option value="SECRET">초대 전용</option></select></label><label>초기 가상자금<input name="initialCashAmount" aria-label="초기 가상자금" type="number" min="1" step="0.01" defaultValue="10000" required /></label><label>전체 봇 한도<input name="botParticipationLimit" aria-label="전체 봇 한도" type="number" min="1" step="1" defaultValue="25" required /></label><label>계정당 봇 한도<input name="perAccountBotLimit" aria-label="계정당 봇 한도" type="number" min="1" step="1" defaultValue="2" required /></label></div></fieldset>
-    <fieldset className="competition-api-form-section"><legend>대회 일정</legend><label>표시 시간대<select aria-label="대회 시간대" value={timezone} onChange={(event) => setTimezone(event.target.value)}><option value="Asia/Seoul">Asia/Seoul (KST)</option><option value="UTC">UTC</option><option value="America/New_York">America/New_York (ET)</option></select></label><p>입력한 현지 시각은 선택한 시간대를 기준으로 서버 UTC 시각으로 변환됩니다. 참가 마감과 결과 확정 시한은 평가 일정에 맞춰 자동 설정됩니다.</p><div className="competition-api-form-grid"><label>모집 시작<input aria-label="모집 시작" name="recruitmentOpensAt" type="datetime-local" defaultValue={dateTime(0, timezone)} required /></label><label>평가 시작<input aria-label="평가 시작" name="evaluationStartsAt" type="datetime-local" defaultValue={dateTime(4, timezone)} required /></label><label>평가 종료<input aria-label="평가 종료" name="evaluationEndsAt" type="datetime-local" defaultValue={dateTime(10, timezone)} required /></label></div></fieldset>
+    <fieldset className="competition-api-form-section"><legend>대회 일정</legend><label>표시 시간대<select aria-label="대회 시간대" value={timezone} onChange={(event) => setTimezone(event.target.value)}><option value="Asia/Seoul">Asia/Seoul (KST)</option><option value="UTC">UTC</option><option value="America/New_York">America/New_York (ET)</option></select></label><p>달력에서 모집 시작, 평가 시작, 평가 종료를 차례로 고른 뒤 각 시간을 조정하세요. 참가 마감과 결과 확정 시한은 자동 설정됩니다.</p><CompetitionSchedulePicker value={scheduleInput} onChange={setScheduleInput} /></fieldset>
     <fieldset className="competition-api-form-section"><legend>운영 정책</legend>
       {catalog.state === 'loading' && <p role="status">대회 생성 입력을 불러오는 중입니다.</p>}
       {catalog.state === 'error' && <div role="alert"><p>{catalogError}</p><button type="button" onClick={() => setReloadKey((key) => key + 1)}>정책 다시 불러오기</button></div>}
@@ -405,6 +411,22 @@ function JoinRoomDialog({ client, room, onClose, onJoined }: { client: Competiti
     <p className="competition-api-privacy"><Check size={14} aria-hidden="true" />계정 이름과 전략 내부는 공개되지 않습니다.</p>{error && <p role="alert">{error}</p>}
     <footer><button type="button" className="button button-secondary" onClick={onClose}>취소</button><button type="submit" className="button button-primary" disabled={saving || !available}>{saving ? '참가 중…' : '참가 확정'}</button></footer>
   </form></DialogShell>;
+}
+
+function createRoomFailureMessage(cause: unknown) {
+  if (!(cause instanceof CompetitionApiError)) return '서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+  if (cause.unauthenticated) return '로그인이 만료되었습니다. 다시 로그인한 뒤 대회를 만들어 주세요.';
+  if (cause.forbidden) return '현재 계정에는 대회를 만들 권한이 없습니다.';
+  if (cause.status >= 500) return '대회 서버가 요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+  if (cause.status === 404) return '선택된 운영 정책이 더 이상 유효하지 않습니다. 창을 닫고 다시 열어 주세요.';
+  if (cause.status === 400 || cause.status === 422) {
+    const detail = cause.detail.toLowerCase();
+    if (detail.includes('time') || detail.includes('schedule') || detail.includes('recruit') || detail.includes('evaluation')) return '선택한 대회 일정이 허용 범위를 벗어났습니다. 세 날짜와 시간 순서를 확인해 주세요.';
+    if (detail.includes('limit') || detail.includes('cash') || detail.includes('amount')) return '가상자금 또는 참가 한도가 허용 범위를 벗어났습니다.';
+    return '입력값이 대회 생성 규칙에 맞지 않습니다. 표시된 항목을 다시 확인해 주세요.';
+  }
+  if (cause.conflict) return '현재 운영 정책이나 일정과 충돌해 대회를 만들 수 없습니다. 창을 다시 열어 최신 기준으로 시도해 주세요.';
+  return `대회를 만들지 못했습니다. (오류 ${cause.status})`;
 }
 
 function joinFailureMessage(cause: unknown) {

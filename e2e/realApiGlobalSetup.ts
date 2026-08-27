@@ -102,6 +102,7 @@ export default async function globalSetup(): Promise<() => void> {
       '-url=jdbc:postgresql://postgres:5432/a23', '-user=postgres', `-password=${databasePassword}`,
       'validate');
     seedStrategyInstruments(postgres);
+    seedScoringCatalog(postgres, rootDir);
 
     docker('run', '-d', '--name', backend, '--network', network,
       '--label', projectLabel, '--label', runLabel,
@@ -147,6 +148,25 @@ function seedStrategyInstruments(postgres: string): void {
   docker('exec', postgres, 'psql', '-U', 'postgres', '-d', 'a23', '-v', 'ON_ERROR_STOP=1', '-c',
     `insert into market_data.instruments (id,asset_type,primary_exchange_mic,currency_code,provider_reference,listed_at,created_at) values ${instruments}; `
     + `insert into market_data.instrument_symbols (id,instrument_id,exchange_mic,symbol,effective_from) values ${symbols};`);
+}
+
+function seedScoringCatalog(postgres: string, rootDir: string): void {
+  const seedPath = path.join(
+    rootDir,
+    'proposals',
+    'development-scoring-template',
+    'artifacts',
+    'scoring-template-seed.sql',
+  );
+  if (!existsSync(seedPath)) throw new Error(`Reviewed scoring catalog seed is missing: ${seedPath}`);
+  const result = spawnSync(
+    'docker',
+    ['exec', '-i', postgres, 'psql', '-U', 'postgres', '-d', 'a23', '-v', 'ON_ERROR_STOP=1'],
+    { input: readFileSync(seedPath, 'utf8'), encoding: 'utf8' },
+  );
+  if (result.status !== 0) {
+    throw new Error(`Could not seed the reviewed scoring catalog: ${result.stderr || result.stdout}`);
+  }
 }
 
 function gradleCacheSource(): string {
