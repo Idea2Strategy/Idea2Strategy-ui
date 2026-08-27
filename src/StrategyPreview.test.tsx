@@ -390,6 +390,57 @@ describe('Basic editor partition preview state', () => {
     expect(preview.flows.every((flow) => flow.evaluable)).toBe(true);
   });
 
+  test('applies a CLI-authored previous-volume multiplier instead of collapsing it to one', () => {
+    const preview = evaluateStrategyPreview({
+      symbol: 'AAPL',
+      candles: candlesFrom([100, 101, 102, 103], [100, 150, 400, 500]),
+      flows: [{
+        id: 'volume-multiplier', label: '거래량 배수 매수', side: 'buy', maxExecutions: 1,
+        blocks: [{ label: '거래량', op: '>', value: '이전 봉 거래량 2배', tone: 'data' }],
+      }],
+    });
+
+    expect(preview.markers).toHaveLength(1);
+    expect(preview.markers[0].price).toBe(103);
+  });
+
+  test('evaluates not-equal price and volume comparisons with runtime semantics', () => {
+    const preview = evaluateStrategyPreview({
+      symbol: 'AAPL',
+      candles: candlesFrom([100, 100, 101, 102], [100, 100, 200, 300]),
+      flows: [{
+        id: 'neq-entry', label: '변화 감지 매수', side: 'buy', maxExecutions: 1,
+        blocks: [
+          { label: '가격 비교', op: '≠', value: '전일 종가', tone: 'data' },
+          { label: '거래량', op: '≠', value: '이전 봉 거래량', tone: 'data' },
+        ],
+      }],
+    });
+
+    expect(preview.markers).toHaveLength(1);
+    expect(preview.markers[0].price).toBe(102);
+  });
+
+  test('evaluates a not-equal peak-return exit with runtime semantics', () => {
+    const preview = evaluateStrategyPreview({
+      symbol: 'AAPL',
+      candles: candlesFrom([100, 100, 101, 102, 103, 104]),
+      flows: [
+        {
+          id: 'neq-buy', label: '변화 감지 매수', side: 'buy', maxExecutions: 1,
+          blocks: [{ label: '가격 비교', op: '≠', value: '전일 종가', tone: 'data' }],
+        },
+        {
+          id: 'neq-sell', label: '고점 수익 변화 매도', side: 'sell', maxExecutions: 1,
+          blocks: [{ label: '최고 수익률', op: '≠', value: '0%', tone: 'risk' }],
+        },
+      ],
+    });
+
+    expect(preview.markers.map((marker) => marker.side)).toEqual(['buy', 'sell']);
+    expect(preview.markers[1].price).toBe(104);
+  });
+
   test('does not invent a current-close fill when a signal occurs on the last bar', () => {
     const preview = evaluateStrategyPreview({
       symbol: 'AAPL',

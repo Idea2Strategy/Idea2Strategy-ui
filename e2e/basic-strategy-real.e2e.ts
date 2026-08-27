@@ -4,6 +4,32 @@ import { expect, test } from '@playwright/test';
 
 test.skip(!process.env.A23_FULL_STACK_E2E, 'requires the deploy-like local stack');
 
+test('opens a CLI-authored Basic strategy from canonical semantics', async ({ page }) => {
+  const email = process.env.A23_TEST_EMAIL;
+  const password = process.env.A23_TEST_PASSWORD;
+  const strategyId = process.env.A23_CLI_STRATEGY_ID;
+  if (!email || !password || !strategyId) {
+    test.skip(true, 'requires the local CLI-authored strategy fixture');
+  }
+
+  await page.goto('/login');
+  await page.getByLabel('로그인 이메일').fill(email!);
+  await page.getByLabel('로그인 비밀번호', { exact: true }).fill(password!);
+  await Promise.all([
+    page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/login') && response.status() === 200),
+    page.getByRole('button', { name: '로그인', exact: true }).click(),
+  ]);
+
+  await page.goto(`/strategies/${strategyId}/basic`);
+
+  await expect(page.getByTestId('basic-editor-workspace')).toBeVisible();
+  await expect(page.getByText('이 전략은 현재 편집기에서 열 수 없습니다.')).toHaveCount(0);
+  await expect(page.getByRole('article', { name: 'PARTITION 01' })).toContainText('AAPL');
+  await expect(page.getByRole('article', { name: 'PARTITION 01' })).toContainText('1시간봉');
+  await expect(page.getByRole('article', { name: 'PARTITION 02' })).toContainText('MSFT');
+  await expect(page.getByRole('article', { name: 'PARTITION 02' })).toContainText('4시간봉');
+});
+
 test('releases missing Basic blocks and renders the real official backtest result', async ({ page }) => {
   const email = process.env.A23_TEST_EMAIL;
   const password = process.env.A23_TEST_PASSWORD;

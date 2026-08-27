@@ -3,6 +3,7 @@ import type { BasicStrategyCatalog } from '../api/strategies';
 import {
   BasicDocumentBuildError,
   buildBasicSemanticDocument,
+  rebuildBasicSnapshot,
   validateMaxPositionPercent,
 } from './basicStrategyDocument';
 import type { BasicDocumentSnapshot } from './basicStrategyDocument';
@@ -60,5 +61,252 @@ describe('buildBasicSemanticDocument', () => {
 
     expect(() => buildBasicSemanticDocument(unknown, catalog)).toThrow(BasicDocumentBuildError);
     expect(() => buildBasicSemanticDocument(unknown, catalog)).toThrow(/BASIC_UNKNOWN_BLOCK_LABEL/);
+  });
+});
+
+describe('rebuildBasicSnapshot', () => {
+  const officialCatalog = {
+    version: { id: 'catalog-v2' },
+    instruments: [
+      { id: 'instrument-aapl', symbol: 'AAPL' },
+      { id: 'instrument-msft', symbol: 'MSFT' },
+    ],
+  } as BasicStrategyCatalog;
+
+  test('rebuilds a CLI-authored strategy from the canonical semantic document', () => {
+    const semanticDocument = {
+      mode: 'BASIC', catalogId: 'catalog-v2', groups: [
+        {
+          id: 'aapl-buy', allocationGroupId: 'aapl-buy', container: 'BUY',
+          evaluationMode: 'INDEPENDENT', allocationMode: 'EQUAL', instrumentIds: ['instrument-aapl'],
+          blocks: [
+            { id: 'aapl-rsi', elementCode: 'BASIC_RSI_CROSS', parameters: { resolution: '1h', direction: 'UP', period: '14', threshold: '37' } },
+            { id: 'aapl-order', elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: { orderPercent: '20', maxPositionPercent: '35', executionMode: '대기 후 재진입', waitMode: 'N봉 이후', waitInterval: '3', maxExecutions: '4' } },
+          ],
+          connections: [{ fromBlockId: 'aapl-rsi', outputPort: 'passed', toBlockId: 'aapl-order', inputPort: 'passed' }],
+        },
+        {
+          id: 'msft-sell', allocationGroupId: 'msft-sell', container: 'SELL',
+          evaluationMode: 'INDEPENDENT', allocationMode: 'EQUAL', instrumentIds: ['instrument-msft'],
+          blocks: [
+            { id: 'msft-macd', elementCode: 'BASIC_MACD_CROSS', parameters: { resolution: '4h', direction: 'DOWN', fastPeriod: '12', slowPeriod: '26', signalPeriod: '9' } },
+            { id: 'msft-order', elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: { orderPercent: '75', maxPositionPercent: '40', executionMode: '대기 후 재실행', waitMode: 'N거래일 이후', waitInterval: '2', maxExecutions: '5' } },
+          ],
+          connections: [{ fromBlockId: 'msft-macd', outputPort: 'passed', toBlockId: 'msft-order', inputPort: 'passed' }],
+        },
+      ],
+    };
+    const legacyPresentation = {
+      schemaVersion: 1,
+      sections: [
+        { id: 'section-aapl', symbol: 'AAPL', instrumentIds: ['instrument-aapl'], timeframe: '1시간봉', cards: { buy: ['aapl-buy'], sell: [], risk: [] }, cardOrder: ['aapl-buy'], cardPositions: {} },
+        { id: 'section-msft', symbol: 'MSFT', instrumentIds: ['instrument-msft'], timeframe: '4시간봉', cards: { buy: [], sell: ['msft-sell'], risk: [] }, cardOrder: ['msft-sell'], cardPositions: {} },
+      ],
+    };
+
+    const rebuilt = rebuildBasicSnapshot(semanticDocument, legacyPresentation, officialCatalog);
+
+    expect(rebuilt).not.toBeNull();
+    expect(rebuilt?.sections).toEqual([
+      expect.objectContaining({ id: 'section-aapl', symbol: 'AAPL', timeframe: '1시간봉', cards: { buy: ['aapl-buy'], sell: [], risk: [] } }),
+      expect.objectContaining({ id: 'section-msft', symbol: 'MSFT', timeframe: '4시간봉', cards: { buy: [], sell: ['msft-sell'], risk: [] } }),
+    ]);
+    expect(rebuilt?.cardBlocks['aapl-buy']).toEqual([
+      expect.objectContaining({ id: 'aapl-rsi', label: 'RSI 반등', op: '↑', value: '37' }),
+    ]);
+    expect(rebuilt?.buySettings['aapl-buy']).toMatchObject({ maxOrderPercent: 20, entryMode: '대기 후 재진입', reentryWait: 'N봉 이후', reentryInterval: 3, maxEntries: 4 });
+    expect(rebuilt?.cardBlocks['msft-sell']).toEqual([
+      expect.objectContaining({ id: 'msft-macd', label: 'MACD 전환', op: '↓', value: '12 · 26 · 9' }),
+    ]);
+    expect(rebuilt?.sellSettings['msft-sell']).toMatchObject({ sellPercent: 75, executeMode: '대기 후 재실행', reexecWait: 'N거래일 이후', reexecInterval: 2, maxExecutions: 5 });
+    expect(rebuilt?.symbolLimits).toEqual({ 'section-aapl': { AAPL: 35 }, 'section-msft': { MSFT: 40 } });
+  });
+
+  test('rebuilds a semantic-only CLI strategy and preserves multi-instrument grouping', () => {
+    const semanticDocument = {
+      mode: 'BASIC', catalogId: 'catalog-v2', groups: [{
+        id: 'buy', allocationGroupId: 'buy', container: 'BUY', evaluationMode: 'INDEPENDENT', allocationMode: 'EQUAL',
+        instrumentIds: ['instrument-aapl', 'instrument-msft'],
+        blocks: [
+          { id: 'schedule', elementCode: 'BASIC_SCHEDULE', parameters: { resolution: '30m', cycle: 'EVERY_N_TRADING_DAYS', interval: '3' } },
+          { id: 'condition', elementCode: 'BASIC_PRICE_COMPARE', parameters: { resolution: '30m', operator: 'GT', reference: 'PREVIOUS_CLOSE' } },
+          { id: 'order', elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: { orderPercent: '15', maxPositionPercent: '25', executionMode: '주기마다', waitMode: '조건 재충족', waitInterval: '1', maxExecutions: '6' } },
+        ],
+        connections: [
+          { fromBlockId: 'schedule', outputPort: 'passed', toBlockId: 'condition', inputPort: 'passed' },
+          { fromBlockId: 'condition', outputPort: 'passed', toBlockId: 'order', inputPort: 'passed' },
+        ],
+      }],
+    };
+
+    const rebuilt = rebuildBasicSnapshot(semanticDocument, {}, officialCatalog);
+
+    expect(rebuilt?.sections).toHaveLength(1);
+    expect(rebuilt?.sections[0]).toMatchObject({ symbol: 'AAPL · MSFT', instrumentIds: ['instrument-aapl', 'instrument-msft'], timeframe: '30분봉' });
+    expect(rebuilt?.cardBlocks.buy).toEqual([expect.objectContaining({ label: '가격 비교', op: '>', value: '전일 종가' })]);
+    expect(rebuilt?.buySettings.buy).toMatchObject({ maxOrderPercent: 15, entryMode: '주기마다', cycle: 'N거래일마다', cycleInterval: 3, maxEntries: 6 });
+    expect(rebuilt?.symbolLimits).toEqual({ 'section-1': { AAPL: 25, MSFT: 25 } });
+
+    const saved = buildBasicSemanticDocument(rebuilt!, officialCatalog, semanticDocument);
+    expect(saved).toEqual(semanticDocument);
+
+    rebuilt!.cardBlocks.buy[0].op = '≤';
+    const edited = buildBasicSemanticDocument(rebuilt!, officialCatalog, semanticDocument);
+    expect(edited.groups).toHaveLength(1);
+    expect(edited.groups[0]).toMatchObject({
+      id: 'buy', allocationGroupId: 'buy', instrumentIds: ['instrument-aapl', 'instrument-msft'],
+      blocks: [
+        expect.objectContaining({ id: 'schedule' }),
+        expect.objectContaining({ id: 'condition', parameters: expect.objectContaining({ operator: 'LTE' }) }),
+        expect.objectContaining({ id: 'order' }),
+      ],
+    });
+
+    rebuilt!.cardBlocks.buy.push({ id: 'new-rsi', label: 'RSI 반등', op: '↑', value: '35', tone: 'condition' });
+    const structurallyEdited = buildBasicSemanticDocument(rebuilt!, officialCatalog, semanticDocument);
+    expect(structurallyEdited.groups).toHaveLength(1);
+    expect(structurallyEdited.groups[0]).toMatchObject({
+      id: 'buy', instrumentIds: ['instrument-aapl', 'instrument-msft'],
+    });
+    expect(structurallyEdited.groups[0].blocks.map((block) => block.id)).toEqual([
+      'schedule', 'condition', 'new-rsi', 'order',
+    ]);
+
+    rebuilt!.cardBlocks.buy = [{ id: 'replacement-condition', label: '가격 비교', op: '>', value: '전일 종가', tone: 'data' }];
+    const replaced = buildBasicSemanticDocument(rebuilt!, officialCatalog, semanticDocument);
+    expect(replaced.groups[0].blocks.map((block) => block.id)).toEqual([
+      'schedule', 'replacement-condition', 'order',
+    ]);
+  });
+
+  test.each(['2', '3'])('preserves the runtime multiplier for previous-volume comparisons: %sx', (multiplier) => {
+    const semanticDocument = {
+      mode: 'BASIC', catalogId: 'catalog-v2', groups: [{
+        id: 'volume-group', allocationGroupId: 'volume-card', container: 'BUY',
+        evaluationMode: 'INDEPENDENT', allocationMode: 'EQUAL', instrumentIds: ['instrument-aapl'],
+        blocks: [
+          { id: 'volume-condition', elementCode: 'BASIC_VOLUME_COMPARE', parameters: { resolution: '1h', operator: 'GTE', reference: 'PREVIOUS_VOLUME', period: '1', multiplier } },
+          { id: 'volume-order', elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: { orderPercent: '10', maxPositionPercent: '25', executionMode: '1회만', waitMode: '조건 재충족', waitInterval: '1', maxExecutions: '1' } },
+        ],
+        connections: [{ fromBlockId: 'volume-condition', outputPort: 'passed', toBlockId: 'volume-order', inputPort: 'passed' }],
+      }],
+    };
+
+    const rebuilt = rebuildBasicSnapshot(semanticDocument, {}, officialCatalog)!;
+    expect(rebuilt.cardBlocks['volume-card'][0]).toMatchObject({ value: `이전 봉 거래량 ${multiplier}배` });
+    expect(buildBasicSemanticDocument(rebuilt, officialCatalog, semanticDocument)).toEqual(semanticDocument);
+  });
+
+  test('preserves repeated condition execution without inventing a schedule trigger', () => {
+    const semanticDocument = {
+      mode: 'BASIC', catalogId: 'catalog-v2', groups: [{
+        id: 'buy', allocationGroupId: 'buy', container: 'BUY', evaluationMode: 'INDEPENDENT', allocationMode: 'EQUAL',
+        instrumentIds: ['instrument-aapl'],
+        blocks: [
+          { id: 'condition', elementCode: 'BASIC_PRICE_COMPARE', parameters: { resolution: '1h', operator: 'GT', reference: 'PREVIOUS_CLOSE' } },
+          { id: 'order', elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: { orderPercent: '10', maxPositionPercent: '25', executionMode: '주기마다', waitMode: 'N봉 이후', waitInterval: '5', maxExecutions: '20' } },
+        ],
+        connections: [{ fromBlockId: 'condition', outputPort: 'passed', toBlockId: 'order', inputPort: 'passed' }],
+      }],
+    };
+
+    const rebuilt = rebuildBasicSnapshot(semanticDocument, {}, officialCatalog)!;
+    const rebuiltSemantic = buildBasicSemanticDocument(rebuilt, officialCatalog);
+
+    expect(rebuilt.buySettings.buy.entryMode).toBe('조건 충족마다');
+    expect(rebuiltSemantic.groups[0].blocks.map((block) => block.elementCode)).toEqual([
+      'BASIC_PRICE_COMPARE', 'BASIC_EQUAL_ALLOCATION_ORDER',
+    ]);
+    expect(rebuiltSemantic.groups[0].blocks.at(-1)?.parameters.executionMode).toBe('주기마다');
+  });
+
+  test('refuses semantics the Basic editor cannot represent without loss', () => {
+    const semanticDocument = {
+      mode: 'BASIC', catalogId: 'catalog-v2', groups: [{
+        id: 'future', container: 'BUY', evaluationMode: 'INDEPENDENT', allocationMode: 'EQUAL', instrumentIds: ['instrument-aapl'],
+        blocks: [{ id: 'future-block', elementCode: 'BASIC_FUTURE_ELEMENT', parameters: {} }], connections: [],
+      }],
+    };
+
+    expect(rebuildBasicSnapshot(semanticDocument, {}, officialCatalog)).toBeNull();
+  });
+
+  test.each([
+    [{ id: 'condition', label: '가격 비교', op: '>', value: '이전 20봉 최고 가격', tone: 'data' }],
+    [{ id: 'condition', label: '가격 비교', op: '≤', value: '전일 종가', tone: 'data' }],
+    [{ id: 'condition', label: '가격 비교', op: '≠', value: '당일 장 시작가', tone: 'data' }],
+    [{ id: 'condition', label: '가격 변화율', op: '↑', value: '3%', base: '전일 종가', tone: 'data' }],
+    [{ id: 'condition', label: '거래량', op: '≥', value: '최근 20봉 평균 거래량 2배', tone: 'data' }],
+    [{ id: 'condition', label: '연속 상승·하락', op: '↓', value: '5봉', tone: 'indicator' }],
+    [{ id: 'condition', label: '평균선 교차', op: '↑', value: '20봉 · 60봉', tone: 'indicator' }],
+    [{ id: 'condition', label: 'RSI 반등', op: '↓', value: '70', tone: 'condition' }],
+    [{ id: 'condition', label: 'MACD 전환', op: '↑', value: '12 · 26 · 9', tone: 'condition' }],
+    [{ id: 'condition', label: '가격 띠 반전', op: '↓', value: '20봉 · 2σ', tone: 'condition' }],
+    [{ id: 'condition', label: '현재 수익률', op: '수익', value: '8%', tone: 'risk' }],
+    [{ id: 'condition', label: '보유 기간', value: '5거래일', tone: 'risk' }],
+    [{ id: 'condition', label: '최고 수익률', op: '≥', value: '12%', tone: 'risk' }],
+    [{ id: 'condition', label: '고점 대비 하락', op: '>', value: '4%', tone: 'risk' }],
+  ])('round-trips every CLI-editable condition through the semantic contract: %o', (block) => {
+    const source = snapshot({ AAPL: 25 });
+    source.sections[0].symbol = 'AAPL';
+    source.sections[0].instrumentIds = ['instrument-aapl'];
+    source.sections[0].cards = { buy: ['buy-1'], sell: [], risk: [] };
+    source.sections[0].cardOrder = ['buy-1'];
+    source.cardBlocks['buy-1'] = [block];
+    const semantic = buildBasicSemanticDocument(source, officialCatalog);
+
+    const rebuilt = rebuildBasicSnapshot(semantic, {}, officialCatalog);
+
+    expect(rebuilt?.cardBlocks['buy-1']).toEqual([block]);
+  });
+
+  test('refuses a semantic document pinned to a different catalog', () => {
+    const source = snapshot({ AAPL: 25 });
+    source.sections[0].symbol = 'AAPL';
+    source.sections[0].instrumentIds = ['instrument-aapl'];
+    const semantic = buildBasicSemanticDocument(source, officialCatalog);
+    semantic.catalogId = 'retired-catalog';
+
+    expect(rebuildBasicSnapshot(semantic, {}, officialCatalog)).toBeNull();
+  });
+
+  test.each([
+    ['BUY', '1회만', true],
+    ['BUY', '대기 후 재실행', false],
+    ['SELL', '주기마다', false],
+  ])('refuses an unrepresentable schedule/execution combination: %s %s schedule=%s', (container, executionMode, withSchedule) => {
+    const blocks = [
+      ...(withSchedule ? [{ id: 'schedule', elementCode: 'BASIC_SCHEDULE', parameters: { resolution: '30m', cycle: 'EVERY_TRADING_DAY', interval: '1' } }] : []),
+      { id: 'condition', elementCode: 'BASIC_PRICE_COMPARE', parameters: { resolution: '30m', operator: 'GT', reference: 'PREVIOUS_CLOSE' } },
+      { id: 'order', elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: { orderPercent: '10', maxPositionPercent: '25', executionMode, waitMode: '조건 재충족', waitInterval: '1', maxExecutions: '2' } },
+    ];
+    const semantic = {
+      mode: 'BASIC', catalogId: 'catalog-v2', groups: [{
+        id: 'group', container, evaluationMode: 'INDEPENDENT', allocationMode: 'EQUAL', instrumentIds: ['instrument-aapl'], blocks,
+        connections: blocks.slice(0, -1).map((block, index) => ({ fromBlockId: block.id, outputPort: 'passed', toBlockId: blocks[index + 1].id, inputPort: 'passed' })),
+      }],
+    };
+
+    expect(rebuildBasicSnapshot(semantic, {}, officialCatalog)).toBeNull();
+  });
+
+  test.each([
+    ['waitMode', '나중에'],
+    ['waitInterval', '0'],
+    ['maxExecutions', 'many'],
+  ])('refuses invalid execution control %s=%s instead of silently changing it', (key, value) => {
+    const semantic = {
+      mode: 'BASIC', catalogId: 'catalog-v2', groups: [{
+        id: 'group', allocationGroupId: 'group', container: 'BUY', evaluationMode: 'INDEPENDENT', allocationMode: 'EQUAL',
+        instrumentIds: ['instrument-aapl'],
+        blocks: [
+          { id: 'condition', elementCode: 'BASIC_PRICE_COMPARE', parameters: { resolution: '30m', operator: 'GT', reference: 'PREVIOUS_CLOSE' } },
+          { id: 'order', elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: { orderPercent: '10', maxPositionPercent: '25', executionMode: '1회만', waitMode: '조건 재충족', waitInterval: '1', maxExecutions: '2', [key]: value } },
+        ],
+        connections: [{ fromBlockId: 'condition', outputPort: 'passed', toBlockId: 'order', inputPort: 'passed' }],
+      }],
+    };
+
+    expect(rebuildBasicSnapshot(semantic, {}, officialCatalog)).toBeNull();
   });
 });

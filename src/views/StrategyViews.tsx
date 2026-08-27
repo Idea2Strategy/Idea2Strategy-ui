@@ -25,7 +25,7 @@ import { Localized } from '../lib/i18n';
 import { browserSessionStore } from '../lib/session';
 import { setSessionAccessToken } from '../api/sessionAccessToken';
 import { PRO_EDITOR_AVAILABLE } from '../lib/proEditorAccess';
-import { BASIC_EXECUTABLE_ELEMENT_CODES, buildBasicSemanticDocument, resolutionCode, validateMaxPositionPercent } from '../lib/basicStrategyDocument';
+import { BASIC_EXECUTABLE_ELEMENT_CODES, buildBasicSemanticDocument, rebuildBasicSnapshot, resolutionCode, validateMaxPositionPercent } from '../lib/basicStrategyDocument';
 export { buildBasicSemanticDocument } from '../lib/basicStrategyDocument';
 import {
   getBasicSectionLayout,
@@ -207,7 +207,7 @@ interface BuyContainerSettings {
   //   1회만        - 조건 충족 시 한 번만 진입
   //   주기마다      - 지정 주기에 조건 확인(조건 없으면 정기·적립식 매수)
   //   대기 후 재진입 - 진입 후 대기 기간을 두고 조건을 재확인
-  entryMode: '1회만' | '주기마다' | '대기 후 재진입';
+  entryMode: '1회만' | '조건 충족마다' | '주기마다' | '대기 후 재진입';
   cycle: BuyCycle;          // 주기마다 → 확인 주기
   cycleInterval: number;    // N거래일마다 → 간격(거래일)
   reentryWait: RerunWait;   // 대기 후 재진입 → 대기 방식
@@ -1024,8 +1024,10 @@ const createLibraryBlock = (label: string, tone: BlockTone, id: string): BasicBl
 
 const blockOperatorCopy: Record<string, string> = {
   '<': '미만',
+  '≤': '이하',
   '>': '초과',
   '=': '같은지',
+  '≠': '다른지',
   '≥': '이상',
   '↑': '상향 돌파하는지',
   '↓': '하향 돌파하는지',
@@ -1045,7 +1047,7 @@ const getBlockOperatorOptions = (block: BlockRuleInput): string[] => {
   if (block.label === '현재 수익률') return [NULL_BLOCK_VALUE, '수익', '손실'];
   if (DIRECTION_BLOCKS.has(block.label)) return [NULL_BLOCK_VALUE, '↑', '↓'];
   if (AT_LEAST_BLOCKS.has(block.label)) return ['≥'];
-  return [NULL_BLOCK_VALUE, '<', '>'];
+  return [NULL_BLOCK_VALUE, '<', '≤', '=', '≠', '≥', '>'];
 };
 
 const getBlockDisplayLabel = (label: string): string => ({
@@ -2006,6 +2008,16 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
 
   useEffect(() => {
     if (!strategyId || !authoringClient) return undefined;
+    /* A semantic-only or CLI-authored document needs the official instrument catalog to
+       reconstruct symbols and editable controls. Wait for that same catalog instead of racing
+       the document request and misclassifying a compatible strategy as unreadable. */
+    if (catalogClient && !basicCatalog) {
+      if (catalogError) {
+        setDocumentPending(false);
+        setEditorLoadFailure('transport');
+      }
+      return undefined;
+    }
     const controller = new AbortController();
     let disposed = false;
     let heartbeatTimer: number | undefined;
@@ -2040,7 +2052,18 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         grantedLeaseToken = null;
         return;
       }
-      const snapshot = readBasicEditorSnapshot(document.presentationDocument);
+      const savedBasicEditor = document.presentationDocument.basicEditor;
+      const rebuilt = savedBasicEditor === undefined && basicCatalog
+        ? rebuildBasicSnapshot(document.semanticDocument, document.presentationDocument, basicCatalog)
+        : null;
+      const snapshot = readBasicEditorSnapshot(document.presentationDocument)
+        ?? (rebuilt ? cloneBasicEditorSnapshot(rebuilt as BasicEditorSnapshot) : null);
+      if (snapshot && rebuilt) {
+        snapshot.cardBlocks = Object.fromEntries(Object.entries(snapshot.cardBlocks).map(([cardId, blocks]) => [
+          cardId,
+          blocks.map((block) => ({ ...block, icon: getBasicBlockIcon(block.label, block.tone) })),
+        ]));
+      }
       /* The canvas is reconstructed from the presentation snapshot alone. When that
          snapshot cannot be read but the semantic document does carry groups, opening
          a blank canvas would let the next save overwrite a real strategy with an
@@ -2066,6 +2089,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       setLastSavedAt(document.updatedAt);
       if (authoringClient.getCurrentValidations) {
         const validations = await authoringClient.getCurrentValidations(controller.signal).catch(() => []);
+        if (disposed) return;
         const current = validations.find((item) => (
           item.strategyId === strategyId
           && item.requestedEditSequence === document.editSequence
@@ -2079,6 +2103,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           });
         }
       }
+      if (disposed) return;
       setDocumentPending(false);
       heartbeatTimer = window.setInterval(() => {
         const token = leaseTokenRef.current;
@@ -2116,7 +2141,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       window.removeEventListener('pageshow', reacquireLeaseAfterPageRestore);
       releaseGrantedLease();
     };
-  }, [authoringClient, documentRevision, strategyId]);
+  }, [authoringClient, basicCatalog, catalogClient, catalogError, documentRevision, strategyId]);
 
   useEffect(() => {
     if (documentPending || !savedValidation
@@ -2132,7 +2157,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     const clientRevision = ++validationPreviewRevisionRef.current;
     setValidationPending(true);
     const timer = window.setTimeout(() => {
-      const semanticDocument = buildBasicSemanticDocument(captureEditorSnapshot(), basicCatalog);
+      const semanticDocument = buildBasicSemanticDocument(
+        captureEditorSnapshot(), basicCatalog, semanticDocumentRef.current,
+      );
       void authoringClient.previewValidation!(strategyId, {
         catalogId: basicCatalog.version.id,
         clientRevision,
@@ -2308,7 +2335,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         throw new Error('Published Basic catalog is unavailable');
       }
       const editorSnapshot = captureEditorSnapshot();
-      const semanticDocument = buildBasicSemanticDocument(editorSnapshot, basicCatalog);
+      const semanticDocument = signatureAtSave === savedSignature
+        ? semanticDocumentRef.current
+        : buildBasicSemanticDocument(editorSnapshot, basicCatalog, semanticDocumentRef.current);
       const presentationDocument = {
         ...presentationDocumentRef.current,
         basicEditor: {
@@ -3571,7 +3600,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         <div className="setting-field-group">
           <span className="setting-field-title"><strong>진입 방식</strong><small>조건을 언제 다시 확인해 진입할지 정합니다</small></span>
           <div className="setting-mode-tabs" role="radiogroup" aria-label="진입 방식">
-            {(['1회만', '주기마다', '대기 후 재진입'] as const).map((mode) => (
+            {(['1회만', '조건 충족마다', '주기마다', '대기 후 재진입'] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
@@ -3587,6 +3616,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           </div>
         </div>
         {settings.entryMode === '1회만' && <p className="setting-mode-hint">조건을 충족하면 한 번만 진입합니다.</p>}
+        {settings.entryMode === '조건 충족마다' && <div className="additional-buy-settings">
+          <label><span>최대 진입</span><input type="number" min="2" max="1000" aria-label="한 포지션 최대 진입 횟수" value={settings.maxEntries} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxEntries: Number(event.target.value) } }))} /></label>
+          <p className="setting-mode-hint">별도 일정 없이 봉이 완성될 때마다 조건을 확인하고, 충족할 때 다시 진입합니다.</p>
+        </div>}
         {settings.entryMode === '주기마다' && <div className="additional-buy-settings">
           <label><span>주기</span><select aria-label="진입 주기" value={settings.cycle} onChange={(event) => {
             rememberEditorChange();

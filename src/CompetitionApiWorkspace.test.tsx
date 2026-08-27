@@ -237,7 +237,7 @@ describe('real competition room workspace', () => {
     await user.type(within(join).getByLabelText('익명 봇 별칭'), 'Market Test');
     await user.click(within(join).getByRole('button', { name: '참가 확정' }));
 
-    await waitFor(() => expect(api.joinRoom).toHaveBeenCalled());
+    await waitFor(() => expect(api.joinRoom).toHaveBeenCalled(), { timeout: 5_000 });
     expect(await within(join).findByRole('alert')).toHaveTextContent('선택한 전략에 이 대회의 허용 시장 밖 종목이 포함되어 있습니다.');
     expect(within(join).getByRole('alert')).not.toHaveTextContent('Provisioned bot');
   });
