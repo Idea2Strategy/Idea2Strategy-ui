@@ -28,7 +28,16 @@ test('runs a high-risk sanction journey with an opaque session, CSRF, and correl
       return;
     }
     if (request.method() === 'GET' && url.pathname === `/api/v1/operations/cases/${CASE_ID}`) {
-      await route.fulfill({ json: { caseId: CASE_ID, type: 'REPORT', status: 'UNDER_REVIEW', version, assigneeOperatorId: null, updatedAt: '2026-08-04T00:00:00Z', evidence: [] } });
+      await route.fulfill({ json: {
+        caseId: CASE_ID, type: 'REPORT', status: 'UNDER_REVIEW', version,
+        assigneeOperatorId: null, updatedAt: '2026-08-04T00:00:00Z',
+        subject: '체결 결과 검토', description: '백테스트 체결 근거를 확인합니다.',
+        evidence: [{
+          evidenceId: 'evidence-browser-e2e', kind: 'application/json', status: 'AVAILABLE',
+          sourceDomain: 'BACKTEST_RUN', ownershipVerified: true,
+          linkedAt: '2026-08-04T00:00:00Z', attributes: { summaryCode: 'TRADE_MISMATCH' },
+        }],
+      } });
       return;
     }
     if (request.method() === 'POST' && url.pathname.endsWith('/commands/APPLY_SANCTION')) {

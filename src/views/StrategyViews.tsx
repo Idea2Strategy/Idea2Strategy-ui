@@ -25,7 +25,7 @@ import { Localized } from '../lib/i18n';
 import { browserSessionStore } from '../lib/session';
 import { setSessionAccessToken } from '../api/sessionAccessToken';
 import { PRO_EDITOR_AVAILABLE } from '../lib/proEditorAccess';
-import { BASIC_EXECUTABLE_ELEMENT_CODES, buildBasicSemanticDocument, resolutionCode, validateMaxPositionPercent } from '../lib/basicStrategyDocument';
+import { BASIC_EXECUTABLE_ELEMENT_CODES, buildBasicSemanticDocument, rebuildBasicSnapshot, resolutionCode, validateMaxPositionPercent } from '../lib/basicStrategyDocument';
 export { buildBasicSemanticDocument } from '../lib/basicStrategyDocument';
 import {
   getBasicSectionLayout,
@@ -207,7 +207,7 @@ interface BuyContainerSettings {
   //   1회만        - 조건 충족 시 한 번만 진입
   //   주기마다      - 지정 주기에 조건 확인(조건 없으면 정기·적립식 매수)
   //   대기 후 재진입 - 진입 후 대기 기간을 두고 조건을 재확인
-  entryMode: '1회만' | '주기마다' | '대기 후 재진입';
+  entryMode: '1회만' | '조건 충족마다' | '주기마다' | '대기 후 재진입';
   cycle: BuyCycle;          // 주기마다 → 확인 주기
   cycleInterval: number;    // N거래일마다 → 간격(거래일)
   reentryWait: RerunWait;   // 대기 후 재진입 → 대기 방식
@@ -227,8 +227,8 @@ const createDefaultBuySettings = (): BuyContainerSettings => ({
 
 interface SellContainerSettings {
   sellPercent: number | '';
-  // 매도에는 주기 개념이 없어 1회만 / 대기 후 재실행 두 모드만 둔다.
-  executeMode: '1회만' | '대기 후 재실행';
+  // 정기 매도 일정은 없지만, 조건이 충족될 때마다 반복 매도할 수 있다.
+  executeMode: '1회만' | '조건 충족마다' | '대기 후 재실행';
   reexecWait: RerunWait;
   reexecInterval: number;
   maxExecutions: number;
@@ -752,7 +752,7 @@ export const BASIC_COMPOSITION_LIMITS = {
   sections: 4,
   conditionsPerCard: 5,
   instrumentsPerSection: 5,
-  cardsPerSidePerSection: 1,
+  cardsPerSidePerSection: 4,
 } as const;
 
 const INITIAL_BASIC_BLOCKS: Record<Side, BasicBlock[]> = {
@@ -1024,8 +1024,10 @@ const createLibraryBlock = (label: string, tone: BlockTone, id: string): BasicBl
 
 const blockOperatorCopy: Record<string, string> = {
   '<': '미만',
+  '≤': '이하',
   '>': '초과',
   '=': '같은지',
+  '≠': '다른지',
   '≥': '이상',
   '↑': '상향 돌파하는지',
   '↓': '하향 돌파하는지',
@@ -1045,7 +1047,7 @@ const getBlockOperatorOptions = (block: BlockRuleInput): string[] => {
   if (block.label === '현재 수익률') return [NULL_BLOCK_VALUE, '수익', '손실'];
   if (DIRECTION_BLOCKS.has(block.label)) return [NULL_BLOCK_VALUE, '↑', '↓'];
   if (AT_LEAST_BLOCKS.has(block.label)) return ['≥'];
-  return [NULL_BLOCK_VALUE, '<', '>'];
+  return [NULL_BLOCK_VALUE, '<', '≤', '=', '≠', '≥', '>'];
 };
 
 const getBlockDisplayLabel = (label: string): string => ({
@@ -1762,7 +1764,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           id: `${section.id}-too-many-cards`,
           sectionId: section.id,
           cardId: null,
-          message: `${sectionLabel}에는 매수와 매도 전략 카드를 각각 하나만 둘 수 있습니다.`,
+          message: `${sectionLabel}에는 매수와 매도 전략 카드를 각각 최대 ${BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection}개까지 둘 수 있습니다.`,
         }];
       }
       if (catalogClient && section.cards.risk.length > 0) {
@@ -2006,6 +2008,16 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
 
   useEffect(() => {
     if (!strategyId || !authoringClient) return undefined;
+    /* A semantic-only or CLI-authored document needs the official instrument catalog to
+       reconstruct symbols and editable controls. Wait for that same catalog instead of racing
+       the document request and misclassifying a compatible strategy as unreadable. */
+    if (catalogClient && !basicCatalog) {
+      if (catalogError) {
+        setDocumentPending(false);
+        setEditorLoadFailure('transport');
+      }
+      return undefined;
+    }
     const controller = new AbortController();
     let disposed = false;
     let heartbeatTimer: number | undefined;
@@ -2040,12 +2052,29 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         grantedLeaseToken = null;
         return;
       }
-      const snapshot = readBasicEditorSnapshot(document.presentationDocument);
+      const savedSnapshot = readBasicEditorSnapshot(document.presentationDocument);
+      const hasSemanticGroups = semanticDocumentCarriesGroups(document.semanticDocument);
+      const rebuilt = hasSemanticGroups && basicCatalog
+        ? rebuildBasicSnapshot(document.semanticDocument, document.presentationDocument, basicCatalog)
+        : null;
+      /* Semantics are canonical. A CLI edit made by an older server may have left a perfectly
+         readable but stale v1 layout behind, so valid shape/version alone is not proof that the
+         snapshot still describes the strategy. Rebuild every non-empty strategy from semantics
+         and use the saved snapshot only as disposable layout metadata. */
+      const snapshot = hasSemanticGroups
+        ? (rebuilt ? cloneBasicEditorSnapshot(rebuilt as BasicEditorSnapshot) : null)
+        : savedSnapshot;
+      if (snapshot && rebuilt) {
+        snapshot.cardBlocks = Object.fromEntries(Object.entries(snapshot.cardBlocks).map(([cardId, blocks]) => [
+          cardId,
+          blocks.map((block) => ({ ...block, icon: getBasicBlockIcon(block.label, block.tone) })),
+        ]));
+      }
       /* The canvas is reconstructed from the presentation snapshot alone. When that
          snapshot cannot be read but the semantic document does carry groups, opening
          a blank canvas would let the next save overwrite a real strategy with an
          empty one, so refuse to open instead of silently discarding it. */
-      if (!snapshot && semanticDocumentCarriesGroups(document.semanticDocument)) {
+      if (!snapshot && hasSemanticGroups) {
         await authoringClient.releaseLease(strategyId, lease.leaseToken).catch(() => undefined);
         grantedLeaseToken = null;
         setDocumentPending(false);
@@ -2066,6 +2095,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       setLastSavedAt(document.updatedAt);
       if (authoringClient.getCurrentValidations) {
         const validations = await authoringClient.getCurrentValidations(controller.signal).catch(() => []);
+        if (disposed) return;
         const current = validations.find((item) => (
           item.strategyId === strategyId
           && item.requestedEditSequence === document.editSequence
@@ -2079,6 +2109,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           });
         }
       }
+      if (disposed) return;
       setDocumentPending(false);
       heartbeatTimer = window.setInterval(() => {
         const token = leaseTokenRef.current;
@@ -2116,7 +2147,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       window.removeEventListener('pageshow', reacquireLeaseAfterPageRestore);
       releaseGrantedLease();
     };
-  }, [authoringClient, documentRevision, strategyId]);
+  }, [authoringClient, basicCatalog, catalogClient, catalogError, documentRevision, strategyId]);
 
   useEffect(() => {
     if (documentPending || !savedValidation
@@ -2132,7 +2163,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     const clientRevision = ++validationPreviewRevisionRef.current;
     setValidationPending(true);
     const timer = window.setTimeout(() => {
-      const semanticDocument = buildBasicSemanticDocument(captureEditorSnapshot(), basicCatalog);
+      const semanticDocument = buildBasicSemanticDocument(
+        captureEditorSnapshot(), basicCatalog, semanticDocumentRef.current,
+      );
       void authoringClient.previewValidation!(strategyId, {
         catalogId: basicCatalog.version.id,
         clientRevision,
@@ -2183,18 +2216,44 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const duplicateSelectedCards = () => {
     const selected = selectedCardIds.filter((cardId) => sections.some((section) => section.cardOrder.includes(cardId)));
     if (selected.length === 0) return;
-    rememberEditorChange();
-    const copies = selected.map((cardId, index) => {
+    const availableSlots = new Map<string, number>();
+    sections.forEach((section) => (['buy', 'sell', 'risk'] as Side[]).forEach((side) => {
+      availableSlots.set(`${section.id}:${side}`, Math.max(
+        0,
+        BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection - section.cards[side].length,
+      ));
+    }));
+    const copies: Array<{
+      cardId: string;
+      copyId: string;
+      sectionId: string;
+      side: Side;
+      position: { x: number; y: number };
+    }> = [];
+    selected.forEach((cardId) => {
       const section = sections.find((item) => item.cardOrder.includes(cardId))!;
       const side: Side = section.cards.buy.includes(cardId)
         ? 'buy'
         : section.cards.sell.includes(cardId)
           ? 'sell'
           : 'risk';
-      const copyId = `${section.id}-${side}-copy-${cardCount + index + 1}`;
+      const slotKey = `${section.id}:${side}`;
+      const remaining = availableSlots.get(slotKey) ?? 0;
+      if (remaining === 0) return;
+      availableSlots.set(slotKey, remaining - 1);
+      const copyId = `${section.id}-${side}-copy-${cardCount + copies.length + 1}`;
       const origin = section.cardPositions[cardId] ?? getDefaultCardPosition(section.cardOrder.indexOf(cardId));
-      return { cardId, copyId, sectionId: section.id, side, position: { x: origin.x + 32, y: origin.y + 32 } };
+      copies.push({ cardId, copyId, sectionId: section.id, side, position: { x: origin.x + 32, y: origin.y + 32 } });
     });
+    if (copies.length === 0) {
+      const selectedSection = sections.find((section) => section.cardOrder.includes(selected[0]));
+      const selectedSide = selectedSection?.cards.buy.includes(selected[0])
+        ? '매수'
+        : selectedSection?.cards.sell.includes(selected[0]) ? '매도' : '위기관리';
+      setAnnouncement(`한 파티션에는 ${selectedSide} 전략 카드를 최대 ${BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection}개까지 둘 수 있어요.`);
+      return;
+    }
+    rememberEditorChange();
     setCardCount((current) => current + copies.length);
     setCardBlocks((current) => ({
       ...current,
@@ -2308,7 +2367,9 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         throw new Error('Published Basic catalog is unavailable');
       }
       const editorSnapshot = captureEditorSnapshot();
-      const semanticDocument = buildBasicSemanticDocument(editorSnapshot, basicCatalog);
+      const semanticDocument = signatureAtSave === savedSignature
+        ? semanticDocumentRef.current
+        : buildBasicSemanticDocument(editorSnapshot, basicCatalog, semanticDocumentRef.current);
       const presentationDocument = {
         ...presentationDocumentRef.current,
         basicEditor: {
@@ -3127,7 +3188,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const addStrategyCard = (sectionId: string, side: Side) => {
     const section = sections.find((item) => item.id === sectionId)!;
     if (section.cards[side].length >= BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection) {
-      setAnnouncement(`한 파티션에는 ${side === 'buy' ? '매수' : '매도'} 전략 카드를 하나만 둘 수 있어요.`);
+      setAnnouncement(`한 파티션에는 ${side === 'buy' ? '매수' : '매도'} 전략 카드를 최대 ${BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection}개까지 둘 수 있어요.`);
       return;
     }
     rememberEditorChange();
@@ -3571,7 +3632,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         <div className="setting-field-group">
           <span className="setting-field-title"><strong>진입 방식</strong><small>조건을 언제 다시 확인해 진입할지 정합니다</small></span>
           <div className="setting-mode-tabs" role="radiogroup" aria-label="진입 방식">
-            {(['1회만', '주기마다', '대기 후 재진입'] as const).map((mode) => (
+            {(['1회만', '조건 충족마다', '주기마다', '대기 후 재진입'] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
@@ -3587,6 +3648,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           </div>
         </div>
         {settings.entryMode === '1회만' && <p className="setting-mode-hint">조건을 충족하면 한 번만 진입합니다.</p>}
+        {settings.entryMode === '조건 충족마다' && <div className="additional-buy-settings">
+          <label><span>최대 진입</span><input type="number" min="2" max="1000" aria-label="한 포지션 최대 진입 횟수" value={settings.maxEntries} onChange={(event) => setBuySettings((current) => ({ ...current, [cardId]: { ...settings, maxEntries: Number(event.target.value) } }))} /></label>
+          <p className="setting-mode-hint">별도 일정 없이 봉이 완성될 때마다 조건을 확인하고, 충족할 때 다시 진입합니다.</p>
+        </div>}
         {settings.entryMode === '주기마다' && <div className="additional-buy-settings">
           <label><span>주기</span><select aria-label="진입 주기" value={settings.cycle} onChange={(event) => {
             rememberEditorChange();
@@ -3607,12 +3672,11 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           <span><Settings2 size={13} aria-hidden="true" /><strong>매도 설정</strong></span>
           <button type="button" aria-label="매도 실행 설정 닫기" onClick={() => setExpandedSettingsCardId(null)}><X size={13} /></button>
         </header>
-        {/* 매도 비율은 카드 하단 요청 블록에서 편집하므로, 설정창에는 '실행 방식'만 둔다.
-            매도엔 주기 개념이 없어 1회만 / 대기 후 재실행 두 모드만 제공한다. */}
+        {/* 매도 비율은 카드 하단 요청 블록에서 편집하므로 설정창에는 실행 방식만 둔다. */}
         <div className="setting-field-group">
           <span className="setting-field-title"><strong>실행 방식</strong><small>조건을 언제 다시 확인해 매도할지 정합니다</small></span>
           <div className="setting-mode-tabs" role="radiogroup" aria-label="실행 방식">
-            {(['1회만', '대기 후 재실행'] as const).map((mode) => (
+            {(['1회만', '조건 충족마다', '대기 후 재실행'] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
@@ -3628,6 +3692,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           </div>
         </div>
         {sellExecution.executeMode === '1회만' && <p className="setting-mode-hint">조건을 충족하면 한 번만 매도합니다.</p>}
+        {sellExecution.executeMode === '조건 충족마다' && <p className="setting-mode-hint">조건을 충족할 때마다 최대 실행 횟수 안에서 매도합니다.</p>}
         {sellExecution.executeMode === '대기 후 재실행' && <div className="additional-buy-settings">
           <label><span>대기</span><select aria-label="재매도 대기 방식" value={sellExecution.reexecWait} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), reexecWait: event.target.value as RerunWait } }))}><option>조건 재충족</option><option>N봉 이후</option><option>N거래일 이후</option></select></label>
           {sellExecution.reexecWait !== '조건 재충족' && <label><span>간격</span><input type="number" min="1" max="365" aria-label="재매도 간격" value={sellExecution.reexecInterval} onChange={(event) => setSellSettings((current) => ({ ...current, [cardId]: { ...(current[cardId] ?? createDefaultSellSettings()), reexecInterval: Number(event.target.value) } }))} /></label>}

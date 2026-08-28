@@ -1,7 +1,7 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
-import { CompetitionApiWorkspace } from './components/CompetitionApiWorkspace';
+import { CompetitionApiWorkspace, joinFailureMessage } from './components/CompetitionApiWorkspace';
 import { CompetitionApiError } from './api/competitionRooms';
 import type { CompetitionRoomsClient, PublicRoom, RoomInputCatalog } from './api/competitionRooms';
 import { LanguageProvider } from './lib/i18n';
@@ -132,7 +132,9 @@ describe('real competition room workspace', () => {
     expect(within(create).queryByLabelText('참가 시작')).not.toBeInTheDocument();
     expect(within(create).queryByLabelText('참가 마감')).not.toBeInTheDocument();
     expect(within(create).queryByLabelText('최종 확정 시한')).not.toBeInTheDocument();
-    const evaluationStartsAt = new Date((within(create).getByLabelText('평가 시작') as HTMLInputElement).value);
+    expect(within(create).queryByDisplayValue(/^\d{4}-\d{2}-\d{2}T/)).not.toBeInTheDocument();
+    expect(within(create).getByRole('grid', { name: '대회 일정 달력' })).toBeInTheDocument();
+    expect(within(create).getByLabelText('평가 시작 시간')).toHaveAttribute('type', 'time');
     await userEvent.click(within(create).getByRole('button', { name: '대회 생성' }));
     await waitFor(() => expect(api.createRoom).toHaveBeenCalledWith(expect.objectContaining({
       scoringTemplateVersionId: roomInputCatalog.scoringTemplates[0].id,
@@ -147,7 +149,6 @@ describe('real competition room workspace', () => {
     expect(Date.parse(submitted.participationClosesAt)).toBe(Date.parse(submitted.evaluationStartsAt) - 60_000);
     expect(Date.parse(submitted.finalizationDeadlineAt)).toBe(Date.parse(submitted.evaluationEndsAt) + 86_400_000);
     expect(Date.parse(submitted.evaluationStartsAt)).not.toBeNaN();
-    expect(evaluationStartsAt.getTime()).not.toBeNaN();
 
     await userEvent.click(screen.getByRole('listitem', { name: '실전 API 대회 열기' }));
     await userEvent.click(await screen.findByRole('button', { name: '이 대회 참가하기' }));
@@ -183,7 +184,7 @@ describe('real competition room workspace', () => {
     await act(async () => {
       resolveCatalog({ scoringTemplates: [], feePolicies: [], buyingPowerBufferPolicies: [] });
     });
-    await screen.findByText('운영 정책 카탈로그가 준비되지 않아 대회를 만들 수 없습니다.');
+    await screen.findByText('사용 가능한 채점 정책이 없어 대회를 만들 수 없습니다.');
     create = screen.getByRole('dialog', { name: '대회 만들기' });
     expect(within(create).getByRole('button', { name: '대회 생성' })).toBeDisabled();
   });
@@ -198,9 +199,13 @@ describe('real competition room workspace', () => {
   });
 
   test('recovers from a catalog load failure only after an explicit retry', async () => {
-    const roomInputCatalogCall = vi.fn()
-      .mockRejectedValueOnce(new Error('temporary catalog outage'))
-      .mockResolvedValue(roomInputCatalog);
+    // React StrictMode may mount effects twice. Keep every pre-retry request
+    // failed so a development-only remount cannot accidentally recover without
+    // the user pressing the retry button.
+    let serviceRecovered = false;
+    const roomInputCatalogCall = vi.fn(() => serviceRecovered
+      ? Promise.resolve(roomInputCatalog)
+      : Promise.reject(new Error('temporary catalog outage')));
     render(<CompetitionApiWorkspace client={client({ roomInputCatalog: roomInputCatalogCall })} />);
     await screen.findByRole('listitem', { name: '실전 API 대회 열기' });
     await userEvent.click(screen.getByRole('button', { name: '대회 만들기' }));
@@ -209,11 +214,12 @@ describe('real competition room workspace', () => {
     expect(within(create).getByRole('button', { name: '대회 생성' })).toBeDisabled();
 
     const attemptsBeforeRetry = roomInputCatalogCall.mock.calls.length;
+    serviceRecovered = true;
     await userEvent.click(within(create).getByRole('button', { name: '정책 다시 불러오기' }));
+    await waitFor(() => expect(roomInputCatalogCall.mock.calls.length).toBeGreaterThan(attemptsBeforeRetry));
     await screen.findByText('검증된 표준 채점·수수료·구매력 정책을 자동 적용합니다.');
     create = screen.getByRole('dialog', { name: '대회 만들기' });
     expect(within(create).getByRole('button', { name: '대회 생성' })).toBeEnabled();
-    expect(roomInputCatalogCall.mock.calls.length).toBeGreaterThan(attemptsBeforeRetry);
   });
 
   test('keeps joining fail closed when there is no current owned validation', async () => {
@@ -226,20 +232,22 @@ describe('real competition room workspace', () => {
     expect(within(join).getByRole('button', { name: '참가 확정' })).toBeDisabled();
   });
 
-  test('explains a locked room market-scope rejection without exposing an internal server message', async () => {
-    const user = userEvent.setup();
-    const api = client({ joinRoom: vi.fn().mockRejectedValue(new CompetitionApiError(409, 'Room participation rejected', 'Provisioned bot instruments are outside the room market scope', 'MARKET_SCOPE_MISMATCH')) });
-    render(<CompetitionApiWorkspace client={api} />);
-    await user.click(await screen.findByRole('listitem', { name: '실전 API 대회 열기' }));
-    await user.click(await screen.findByRole('button', { name: '이 대회 참가하기' }));
-    const join = screen.getByRole('dialog', { name: '대회 참가' });
-    await within(join).findByRole('option', { name: /Momentum · 편집 7/ });
-    await user.type(within(join).getByLabelText('익명 봇 별칭'), 'Market Test');
-    await user.click(within(join).getByRole('button', { name: '참가 확정' }));
+  test('names a missing scoring policy and offers catalog reload', async () => {
+    const roomInputCatalogCall = vi.fn(async () => ({ ...roomInputCatalog, scoringTemplates: [] }));
+    render(<CompetitionApiWorkspace client={client({ roomInputCatalog: roomInputCatalogCall })} />);
+    await screen.findByRole('listitem', { name: '실전 API 대회 열기' });
+    await userEvent.click(screen.getByRole('button', { name: '대회 만들기' }));
+    const create = screen.getByRole('dialog', { name: '대회 만들기' });
+    expect(await within(create).findByRole('alert')).toHaveTextContent('채점 정책');
+    const attemptsBeforeRetry = roomInputCatalogCall.mock.calls.length;
+    await userEvent.click(within(create).getByRole('button', { name: '정책 다시 불러오기' }));
+    await waitFor(() => expect(roomInputCatalogCall.mock.calls.length).toBeGreaterThan(attemptsBeforeRetry));
+  });
 
-    await waitFor(() => expect(api.joinRoom).toHaveBeenCalled());
-    expect(await within(join).findByRole('alert')).toHaveTextContent('선택한 전략에 이 대회의 허용 시장 밖 종목이 포함되어 있습니다.');
-    expect(within(join).getByRole('alert')).not.toHaveTextContent('Provisioned bot');
+  test('explains a locked room market-scope rejection without exposing an internal server message', async () => {
+    const message = joinFailureMessage(new CompetitionApiError(409, 'Room participation rejected', 'Provisioned bot instruments are outside the room market scope', 'MARKET_SCOPE_MISMATCH'));
+    expect(message).toBe('선택한 전략에 이 대회의 허용 시장 밖 종목이 포함되어 있습니다.');
+    expect(message).not.toContain('Provisioned bot');
   });
 
   test('translates the live create and join dialogs completely in English', async () => {

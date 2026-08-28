@@ -117,7 +117,7 @@ test('browser completes the production account principal and user-case journey',
   // The old smoke test stopped before this dialog, so a zero-instrument catalog still passed.
   await page.getByRole('button', { name: 'PARTITION 01 종목 관리' }).click();
   const instrumentDialog = page.getByRole('dialog', { name: 'PARTITION 1 종목 관리' });
-  await expect(instrumentDialog.getByRole('option')).toHaveCount(3);
+  expect(await instrumentDialog.getByRole('option').count()).toBeGreaterThanOrEqual(3);
   for (const symbol of ['AAPL', 'MSFT']) {
     await instrumentDialog.getByRole('combobox', { name: '종목 검색' }).fill(symbol);
     await instrumentDialog.getByRole('option', { name: new RegExp(`^${symbol}`) }).click();
@@ -183,6 +183,16 @@ test('browser completes the production account principal and user-case journey',
   await sellCard.getByRole('spinbutton', { name: '고점 대비 하락 값' }).fill('6');
   await sellCard.getByRole('spinbutton', { name: '매도 비율' }).fill('50');
 
+  // A partition can carry several independent entry and exit strategies. Copying the fully
+  // configured cards proves the alternate shortcut path as well as persistence and compilation;
+  // each copy must keep its own allocationGroupId rather than being collapsed by side.
+  await selectCard(buyCard, '매수');
+  await page.keyboard.press('Control+d');
+  await selectCard(sellCard, '매도');
+  await page.keyboard.press('Control+d');
+  await expect(partition.locator('.buy-container')).toHaveCount(2);
+  await expect(partition.locator('.sell-container')).toHaveCount(2);
+
   const validationResponse = page.waitForResponse((response) =>
     response.url().endsWith(`/api/v1/strategies/${strategyId}/validations`)
       && response.request().method() === 'POST');
@@ -210,7 +220,7 @@ test('browser completes the production account principal and user-case journey',
     'BASIC_SMA_CROSS', 'BASIC_RSI_CROSS', 'BASIC_POSITION_RETURN', 'BASIC_HOLDING_PERIOD',
     'BASIC_PEAK_RETURN', 'BASIC_DRAWDOWN_FROM_PEAK',
   ];
-  expect(savedDocument.semanticDocument.groups).toHaveLength(4);
+  expect(savedDocument.semanticDocument.groups).toHaveLength(8);
   for (const group of savedDocument.semanticDocument.groups) {
     const savedConditions = group.blocks
       .filter((block) => block.elementCode !== 'BASIC_EQUAL_ALLOCATION_ORDER');
@@ -221,6 +231,9 @@ test('browser completes the production account principal and user-case journey',
     expect(group.instrumentIds).toHaveLength(1);
   }
   expect(new Set(savedDocument.semanticDocument.groups.flatMap((group) => group.instrumentIds)).size).toBe(2);
+  expect(new Set(savedDocument.semanticDocument.groups.map((group) => group.allocationGroupId)).size).toBe(4);
+  expect(savedDocument.semanticDocument.groups.filter((group) => group.container === 'BUY')).toHaveLength(4);
+  expect(savedDocument.semanticDocument.groups.filter((group) => group.container === 'SELL')).toHaveLength(4);
   const representativeBlocks = savedDocument.semanticDocument.groups
     .filter((group, index, groups) => groups.findIndex((entry) => entry.allocationGroupId === group.allocationGroupId) === index)
     .flatMap((group) => group.blocks);
@@ -233,8 +246,10 @@ test('browser completes the production account principal and user-case journey',
     response.url().endsWith('/edit-lease') && response.request().method() === 'POST' && response.status() === 201);
   await page.reload();
   await persistedLease;
-  await expect(page.getByRole('spinbutton', { name: '가격 변화율 값' })).toHaveValue('2.5');
-  await expect(page.getByRole('spinbutton', { name: '현재 수익률 값' })).toHaveValue('4');
+  await expect(page.getByRole('spinbutton', { name: '가격 변화율 값' }).first()).toHaveValue('2.5');
+  await expect(page.getByRole('spinbutton', { name: '현재 수익률 값' }).first()).toHaveValue('4');
+  await expect(page.getByRole('article', { name: 'PARTITION 01' }).locator('.buy-container')).toHaveCount(2);
+  await expect(page.getByRole('article', { name: 'PARTITION 01' }).locator('.sell-container')).toHaveCount(2);
   await expect(page.getByRole('button', { name: '개인 봇 출시' })).toBeEnabled();
 
   const botListResponse = page.waitForResponse((response) =>

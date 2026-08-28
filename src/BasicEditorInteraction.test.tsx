@@ -112,6 +112,17 @@ describe('Basic editor interactions', () => {
     expect(workspace.querySelectorAll('[data-selected="true"]')).toHaveLength(0);
   });
 
+  test('does not let keyboard duplication bypass the per-side strategy limit', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+    const partition = screen.getByRole('article', { name: 'PARTITION 01' });
+
+    for (let index = 0; index < 4; index += 1) await user.keyboard('{Control>}d{/Control}');
+
+    expect(partition.querySelectorAll('.buy-container')).toHaveLength(4);
+    expect(screen.getByRole('status')).toHaveTextContent('매수 전략 카드를 최대 4개');
+  });
+
   test('shows grid snap and one-click strategy organization controls', async () => {
     const user = userEvent.setup();
     renderEditor();
@@ -371,7 +382,7 @@ describe('Basic editor interactions', () => {
     expect(screen.getByRole('status')).toHaveTextContent('매도 전략 카드에서만 사용할 수 있어요');
   });
 
-  test('enforces the published condition and per-side card limits before save', async () => {
+  test('allows multiple strategies per side and enforces the published limits before save', async () => {
     const user = userEvent.setup();
     renderEditor();
     const library = screen.getByTestId('basic-block-library');
@@ -384,9 +395,18 @@ describe('Basic editor interactions', () => {
     expect(screen.getByTestId('basic-buy-stack').querySelectorAll('.draggable-strategy-block')).toHaveLength(5);
     expect(screen.getByRole('status')).toHaveTextContent('조건 블록을 최대 5개');
 
-    await user.click(screen.getByRole('button', { name: 'PARTITION 01 매수 전략 추가' }));
-    expect(screen.getByRole('article', { name: 'PARTITION 01' }).querySelectorAll('.buy-container')).toHaveLength(1);
-    expect(screen.getByRole('status')).toHaveTextContent('매수 전략 카드를 하나만');
+    const partition = screen.getByRole('article', { name: 'PARTITION 01' });
+    const addBuy = screen.getByRole('button', { name: 'PARTITION 01 매수 전략 추가' });
+    const addSell = screen.getByRole('button', { name: 'PARTITION 01 매도 전략 추가' });
+
+    for (let index = 0; index < 3; index += 1) await user.click(addBuy);
+    for (let index = 0; index < 3; index += 1) await user.click(addSell);
+    expect(partition.querySelectorAll('.buy-container')).toHaveLength(4);
+    expect(partition.querySelectorAll('.sell-container')).toHaveLength(4);
+
+    await user.click(addBuy);
+    expect(partition.querySelectorAll('.buy-container')).toHaveLength(4);
+    expect(screen.getByRole('status')).toHaveTextContent('매수 전략 카드를 최대 4개');
   });
 
   test('explains an empty official instrument catalog instead of claiming every symbol was added', async () => {

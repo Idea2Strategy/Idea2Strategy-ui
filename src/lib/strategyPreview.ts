@@ -443,11 +443,12 @@ const signalRuleFrom = (block: PreviewBlock): SignalRule | null => {
   if (kind === 'PRICE') return { ...common, target: block.value };
   if (kind === 'PRICE_CHANGE') return { ...common, base: block.base, threshold };
   if (kind === 'VOLUME_COMPARE') {
+    const previousVolume = block.value?.startsWith('이전 봉 거래량') ?? false;
     return {
       ...common,
       target: block.value,
-      period: block.value === '이전 봉 거래량' ? 1 : numbers[0] ?? 20,
-      multiplier: block.value === '이전 봉 거래량' ? 1 : numbers[1] ?? 1,
+      period: previousVolume ? 1 : numbers[0] ?? 20,
+      multiplier: previousVolume ? numbers[0] ?? 1 : numbers[1] ?? 1,
     };
   }
   if (kind === 'STREAK') return { ...common, period: numbers[0] ?? 2 };
@@ -657,6 +658,7 @@ const compared = (left: number, right: number, op: string): boolean => {
   if (op === '>' || op === '↑') return left > right;
   if (op === '≥') return left >= right;
   if (op === '=') return left === right;
+  if (op === '≠') return left !== right;
   if (op === '≤') return left <= right;
   return left < right;
 };

@@ -4,6 +4,62 @@ import { expect, test } from '@playwright/test';
 
 test.skip(!process.env.A23_FULL_STACK_E2E, 'requires the deploy-like local stack');
 
+test.afterEach(async ({ page }) => {
+  const match = /\/strategies\/([^/]+)\/basic$/.exec(new URL(page.url()).pathname);
+  if (!match || await page.getByRole('heading', { name: '다른 곳에서 편집 중입니다.' }).count()) return;
+  const released = page.waitForResponse((response) => response.url().endsWith(`/api/v1/strategies/${match[1]}/edit-lease`)
+    && response.request().method() === 'DELETE' && response.status() === 204, { timeout: 5_000 }).catch(() => null);
+  await page.goto('/strategies');
+  await released;
+});
+
+test('opens the CLI-authored full Basic catalog across four resolutions', async ({ page }) => {
+  const email = process.env.A23_TEST_EMAIL;
+  const password = process.env.A23_TEST_PASSWORD;
+  const strategyId = process.env.A23_CLI_STRATEGY_ID;
+  if (!email || !password || !strategyId) {
+    test.skip(true, 'requires the local CLI-authored strategy fixture');
+  }
+
+  await page.goto('/login');
+  await page.getByLabel('로그인 이메일').fill(email!);
+  await page.getByLabel('로그인 비밀번호', { exact: true }).fill(password!);
+  await Promise.all([
+    page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/login') && response.status() === 200),
+    page.getByRole('button', { name: '로그인', exact: true }).click(),
+  ]);
+
+  await page.goto(`/strategies/${strategyId}/basic`);
+
+  await expect(page.getByTestId('basic-editor-workspace')).toBeVisible();
+  await expect(page.getByText('이 전략은 현재 편집기에서 열 수 없습니다.')).toHaveCount(0);
+  await expect(page.getByRole('article', { name: 'PARTITION 01' })).toContainText('AAPL');
+  await expect(page.getByRole('article', { name: 'PARTITION 01' })).toContainText('30분봉');
+  await expect(page.getByRole('article', { name: 'PARTITION 02' })).toContainText('MSFT');
+  await expect(page.getByRole('article', { name: 'PARTITION 02' })).toContainText('1시간봉');
+  await expect(page.getByRole('article', { name: 'PARTITION 03' })).toContainText('META');
+  await expect(page.getByRole('article', { name: 'PARTITION 03' })).toContainText('4시간봉');
+  await expect(page.getByRole('article', { name: 'PARTITION 04' })).toContainText('NVDA');
+  await expect(page.getByRole('article', { name: 'PARTITION 04' })).toContainText('일봉');
+  await expect(page.locator('[data-strategy-card]')).toHaveCount(14);
+
+  // Every user-visible Basic condition family is represented by the canonical
+  // fixture. Order emission is implicit in each card and verified by the
+  // compiler/result integration suites.
+  for (const blockLabel of [
+    '가격 비교', '가격 변화율', '현재 수익률', '보유 기간', '거래량',
+    '연속 상승·하락', '최고 수익률', '평균선 교차', 'RSI 반등',
+    '고점 대비 하락', 'MACD 전환', '가격 띠 반전',
+  ]) {
+    await expect(page.getByText(blockLabel, { exact: true }).first()).toBeVisible();
+  }
+
+  const released = page.waitForResponse((response) => response.url().endsWith(`/api/v1/strategies/${strategyId}/edit-lease`)
+    && response.request().method() === 'DELETE');
+  await page.getByRole('button', { name: '목록', exact: true }).click();
+  expect((await released).status()).toBe(204);
+});
+
 test('releases missing Basic blocks and renders the real official backtest result', async ({ page }) => {
   const email = process.env.A23_TEST_EMAIL;
   const password = process.env.A23_TEST_PASSWORD;
@@ -105,7 +161,10 @@ test('releases missing Basic blocks and renders the real official backtest resul
 
   await page.goto('/backtests');
   await expect(page.getByTestId('backtest-live-workspace')).toBeVisible();
-  await expect(page.getByText('검증된 공식 결과가 발행되었습니다.')).toBeVisible();
+  const selectedResult = page.getByRole('region', { name: '선택한 백테스트 결과' });
+  await expect(selectedResult.getByRole('heading', { name: `${strategyName} 성과 개요` })).toBeVisible();
+  await expect(selectedResult.getByText('완료', { exact: true }).first()).toBeVisible();
+  await expect(selectedResult.getByText('시장 대비 누적 수익률', { exact: true })).toBeVisible();
   await expect(page.getByTestId('backtest-live-metrics')).toBeVisible();
   expect(completedRun?.resultHash).toMatch(/^[0-9a-f]{64}$/);
 

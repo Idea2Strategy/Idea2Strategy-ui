@@ -19,11 +19,23 @@ import { APP_PORT, APP_URL, MOCK_API_URL } from './e2e/ports';
 export default defineConfig({
   testDir: './e2e',
   testMatch: /.*\.e2e\.ts/,
-  testIgnore: [/real-account-api\.e2e\.ts/, /operator-oidc\.e2e\.ts/],
+  // Real-backend and production-mode operator-session journeys have their own
+  // isolated configurations. Running them against this mock/dev-harness server
+  // produces false failures and can mutate a developer's shared local data.
+  testIgnore: [
+    /real-account-api\.e2e\.ts/,
+    /basic-strategy-real\.e2e\.ts/,
+    /competition-room-create-real\.e2e\.ts/,
+    /operator-oidc\.e2e\.ts/,
+    /operator-session\.e2e\.ts/,
+  ],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,
-  workers: process.env.CI ? 1 : undefined,
+  // Keep local runs parallel but bounded. Eleven simultaneous Vite/Chromium
+  // journeys starve event-loop navigation and produced non-deterministic auth
+  // failures on ordinary developer machines; CI remains strictly serial.
+  workers: process.env.CI ? 1 : 4,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   globalSetup: './e2e/globalSetup.ts',
   timeout: 30_000,

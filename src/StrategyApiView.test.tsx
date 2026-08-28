@@ -652,6 +652,138 @@ describe('Strategy API view', () => {
     expect(authoringClient.saveDocument).not.toHaveBeenCalled();
   });
 
+  test('opens and upgrades a CLI-authored semantic document without a basicEditor snapshot', async () => {
+    const user = userEvent.setup();
+    const strategyId = '22000000-0000-4000-8000-000000000001';
+    const catalogId = '0f5a0000-0000-4000-8000-000000000001';
+    const document: StrategyDocument = {
+      strategyId,
+      presentationDocument: {
+        schemaVersion: 1,
+        sections: [{
+          id: 'section-1', symbol: 'AAPL', instrumentIds: ['aapl-id'], timeframe: '1시간봉',
+          cards: { buy: ['cli-buy'], sell: [], risk: [] }, cardOrder: ['cli-buy'], cardPositions: {},
+        }],
+      },
+      semanticDocument: {
+        mode: 'BASIC', catalogId, groups: [{
+          id: 'cli-buy', allocationGroupId: 'cli-buy', container: 'BUY', evaluationMode: 'INDEPENDENT', allocationMode: 'EQUAL',
+          instrumentIds: ['aapl-id'],
+          blocks: [
+            { id: 'cli-rsi', elementCode: 'BASIC_RSI_CROSS', parameters: { resolution: '1h', direction: 'UP', period: '14', threshold: '37' } },
+            { id: 'cli-order', elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: { orderPercent: '20', maxPositionPercent: '35', executionMode: '1회만', waitMode: '조건 재충족', waitInterval: '1', maxExecutions: '1' } },
+          ],
+          connections: [{ fromBlockId: 'cli-rsi', outputPort: 'passed', toBlockId: 'cli-order', inputPort: 'passed' }],
+        }],
+      },
+      semanticSchemaVersion: 'basic-semantic/v1', presentationSchemaVersion: 'basic-presentation/v1',
+      semanticHash: 'a'.repeat(64), presentationHash: 'b'.repeat(64), editSequence: 3,
+      updatedAt: '2026-08-26T07:23:36.000Z',
+    };
+    const authoringClient = {
+      createBasic: vi.fn(), copyStrategy: vi.fn(), getDocument: vi.fn().mockResolvedValue(document),
+      acquireLease: vi.fn().mockResolvedValue({ leaseToken: 'cli-lease', expiresAt: '2026-08-26T07:25:36.000Z' }),
+      heartbeatLease: vi.fn(), releaseLease: vi.fn().mockResolvedValue(undefined),
+      saveDocument: vi.fn().mockImplementation(async (_id, input) => ({
+        ...document, semanticDocument: input.semanticDocument, presentationDocument: input.presentationDocument,
+        editSequence: 4, semanticHash: 'c'.repeat(64), presentationHash: 'd'.repeat(64),
+      })),
+      previewValidation: vi.fn().mockResolvedValue({
+        validationRunId: 'preview', strategyId, status: 'VALID', requestedEditSequence: 1,
+        semanticHash: 'preview-hash', elementCatalogVersionId: catalogId, findings: [], completedAt: '2026-08-26T07:24:00Z',
+      }),
+      validateStrategy: vi.fn().mockResolvedValue({
+        validationRunId: 'validation', strategyId, status: 'VALID', requestedEditSequence: 4,
+        semanticHash: 'c'.repeat(64), elementCatalogVersionId: catalogId, findings: [], completedAt: '2026-08-26T07:24:00Z',
+      }),
+      releaseStrategy: vi.fn(),
+    } as StrategyAuthoringClient;
+    const element = (elementCode: string) => ({
+      id: `${elementCode}-id`, catalogId, elementCode, elementKind: 'BLOCK', parameterSchema: {},
+      inputPortSchema: {}, outputPortSchema: {}, executionContract: {}, definitionHash: `${elementCode}-hash`,
+    });
+    const catalog: BasicStrategyCatalog = {
+      version: { id: catalogId, languageVersion: 'basic/v1', schemaVersion: 'basic-semantic/v1', catalogVersion: 'basic-elements:2026-08-25', dataRequirementVersion: 'alpaca-sip/v1', definitionHash: 'catalog-hash', publishedAt: '2026-08-25T00:00:00Z', retiredAt: null },
+      elements: BASIC_EDITOR_CODES.map(element), features: [],
+      instruments: [{ id: 'aapl-id', assetType: 'STOCK', primaryExchangeMic: 'XNAS', currencyCode: 'USD', symbol: 'AAPL' }],
+    };
+
+    render(<BasicEditor blank goBack={() => {}} strategyId={strategyId} authoringClient={authoringClient} catalogClient={{ getBasic: vi.fn().mockResolvedValue(catalog) }} />);
+
+    await waitFor(() => expect(authoringClient.acquireLease).toHaveBeenCalled());
+    expect(screen.queryByText('이 전략은 현재 편집기에서 열 수 없습니다.')).not.toBeInTheDocument();
+    expect(await screen.findByRole('spinbutton', { name: 'RSI 반등 값' })).toHaveValue(37);
+    await user.click(screen.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(authoringClient.saveDocument).toHaveBeenCalled());
+    expect(vi.mocked(authoringClient.saveDocument).mock.calls[0][1].semanticDocument).toEqual(document.semanticDocument);
+    expect(vi.mocked(authoringClient.saveDocument).mock.calls[0][1].presentationDocument).toMatchObject({
+      basicEditor: { version: 1, snapshot: { sections: [expect.objectContaining({ symbol: 'AAPL', timeframe: '1시간봉' })] } },
+    });
+  });
+
+  test('ignores a structurally valid but stale editor snapshot and rebuilds from CLI semantics', async () => {
+    const user = userEvent.setup();
+    const strategyId = '22000000-0000-4000-8000-000000000002';
+    const catalogId = '0f5a0000-0000-4000-8000-000000000001';
+    const document: StrategyDocument = {
+      strategyId,
+      presentationDocument: { basicEditor: { version: 1, snapshot: {
+        sections: [{
+          id: 'old-section', symbol: 'AAPL', instrumentIds: ['aapl-id'], allocation: 100,
+          timeframe: '1시간봉', x: 20, y: 30,
+          cards: { buy: [], sell: ['cli-sell'], risk: [] }, cardOrder: ['cli-sell'], cardPositions: {},
+        }],
+        cardBlocks: { 'cli-sell': [{ id: 'stale-rsi', label: 'RSI 반등', op: '↓', value: '99', tone: 'condition' }] },
+        cardMeta: { 'cli-sell': { title: '기존 배치 제목', detail: '기존 설명', explanation: '' } },
+        buySettings: {},
+        sellSettings: { 'cli-sell': { sellPercent: 50, executeMode: '1회만', reexecWait: '조건 재충족', reexecInterval: 1, maxExecutions: 1 } },
+        symbolLimits: { 'old-section': { AAPL: 50 } },
+      } } },
+      semanticDocument: {
+        mode: 'BASIC', catalogId, groups: [{
+          id: 'cli-sell', allocationGroupId: 'cli-sell', container: 'SELL', evaluationMode: 'INDEPENDENT', allocationMode: 'EQUAL',
+          instrumentIds: ['aapl-id'],
+          blocks: [
+            { id: 'cli-price', elementCode: 'BASIC_PRICE_COMPARE', parameters: { resolution: '30m', operator: 'LT', reference: 'PREVIOUS_CLOSE' } },
+            { id: 'cli-order', elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: { orderPercent: '100', maxPositionPercent: '25', executionMode: '주기마다', waitMode: '조건 재충족', waitInterval: '1', maxExecutions: '100' } },
+          ],
+          connections: [{ fromBlockId: 'cli-price', outputPort: 'passed', toBlockId: 'cli-order', inputPort: 'passed' }],
+        }],
+      },
+      semanticSchemaVersion: 'basic-semantic/v1', presentationSchemaVersion: 'basic-presentation/v1',
+      semanticHash: 'a'.repeat(64), presentationHash: 'b'.repeat(64), editSequence: 5,
+      updatedAt: '2026-08-27T08:00:00.000Z',
+    };
+    const authoringClient = {
+      createBasic: vi.fn(), copyStrategy: vi.fn(), getDocument: vi.fn().mockResolvedValue(document),
+      acquireLease: vi.fn().mockResolvedValue({ leaseToken: 'cli-lease', expiresAt: '2026-08-27T08:02:00.000Z' }),
+      heartbeatLease: vi.fn(), releaseLease: vi.fn().mockResolvedValue(undefined),
+      saveDocument: vi.fn().mockImplementation(async (_id, input) => ({ ...document, ...input, editSequence: 6 })),
+      validateStrategy: vi.fn(), releaseStrategy: vi.fn(),
+    } as StrategyAuthoringClient;
+    const element = (elementCode: string) => ({
+      id: `${elementCode}-id`, catalogId, elementCode, elementKind: 'BLOCK', parameterSchema: {},
+      inputPortSchema: {}, outputPortSchema: {}, executionContract: {}, definitionHash: `${elementCode}-hash`,
+    });
+    const catalog: BasicStrategyCatalog = {
+      version: { id: catalogId, languageVersion: 'basic/v1', schemaVersion: 'basic-semantic/v1', catalogVersion: 'basic-elements:2026-08-25', dataRequirementVersion: 'alpaca-sip/v1', definitionHash: 'catalog-hash', publishedAt: '2026-08-25T00:00:00Z', retiredAt: null },
+      elements: BASIC_EDITOR_CODES.map(element), features: [],
+      instruments: [{ id: 'aapl-id', assetType: 'STOCK', primaryExchangeMic: 'XNAS', currencyCode: 'USD', symbol: 'AAPL' }],
+    };
+
+    render(<BasicEditor blank goBack={() => {}} strategyId={strategyId} authoringClient={authoringClient} catalogClient={{ getBasic: vi.fn().mockResolvedValue(catalog) }} />);
+
+    await waitFor(() => expect(authoringClient.acquireLease).toHaveBeenCalled());
+    expect(screen.queryByText('이 전략은 현재 편집기에서 열 수 없습니다.')).not.toBeInTheDocument();
+    expect(await screen.findByText('가격 비교')).toBeInTheDocument();
+    expect(screen.queryByRole('spinbutton', { name: 'RSI 반등 값' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '저장' }));
+    await waitFor(() => expect(authoringClient.saveDocument).toHaveBeenCalled());
+    expect(vi.mocked(authoringClient.saveDocument).mock.calls[0][1].presentationDocument).toMatchObject({
+      basicEditor: { version: 1 },
+    });
+  });
+
   test('still opens a strategy that has no saved layout when nothing would be lost', async () => {
     const document: StrategyDocument = {
       strategyId: 'fresh',
