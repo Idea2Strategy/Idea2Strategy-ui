@@ -161,7 +161,10 @@ test('releases missing Basic blocks and renders the real official backtest resul
 
   await page.goto('/backtests');
   await expect(page.getByTestId('backtest-live-workspace')).toBeVisible();
-  await expect(page.getByText('검증된 공식 결과가 발행되었습니다.')).toBeVisible();
+  const selectedResult = page.getByRole('region', { name: '선택한 백테스트 결과' });
+  await expect(selectedResult.getByRole('heading', { name: `${strategyName} 성과 개요` })).toBeVisible();
+  await expect(selectedResult.getByText('완료', { exact: true }).first()).toBeVisible();
+  await expect(selectedResult.getByText('시장 대비 누적 수익률', { exact: true })).toBeVisible();
   await expect(page.getByTestId('backtest-live-metrics')).toBeVisible();
   expect(completedRun?.resultHash).toMatch(/^[0-9a-f]{64}$/);
 
