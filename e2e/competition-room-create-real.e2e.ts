@@ -1,9 +1,21 @@
 import { expect, test } from '@playwright/test';
 
 test('creates and cancels a real competition room through the three-milestone calendar', async ({ page }) => {
-  await page.goto('/login?returnTo=%2Fcompetition');
-  await page.getByLabel('로그인 이메일').fill('developer@idea2strategy.local');
-  await page.getByLabel('로그인 비밀번호', { exact: true }).fill('TestUser!2026');
+  const email = `competition-${Date.now()}@example.com`;
+  const password = 'CompetitionUser!2026';
+
+  await page.goto('/signup');
+  await page.getByLabel('가입 이메일').fill(email);
+  await page.getByLabel('가입 비밀번호', { exact: true }).fill(password);
+  await page.getByLabel('가입 비밀번호 확인', { exact: true }).fill(password);
+  const [signup] = await Promise.all([
+    page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/signup')),
+    page.getByRole('button', { name: '가입', exact: true }).click(),
+  ]);
+  expect(signup.status()).toBe(202);
+
+  await page.getByLabel('로그인 이메일').fill(email);
+  await page.getByLabel('로그인 비밀번호', { exact: true }).fill(password);
   await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/auth/login') && response.status() === 200),
     page.getByRole('button', { name: '로그인', exact: true }).click(),
