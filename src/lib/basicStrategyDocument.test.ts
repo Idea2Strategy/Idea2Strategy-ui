@@ -122,6 +122,50 @@ describe('rebuildBasicSnapshot', () => {
     expect(rebuilt?.symbolLimits).toEqual({ 'section-aapl': { AAPL: 35 }, 'section-msft': { MSFT: 40 } });
   });
 
+  test('round-trips multiple buy and sell cards as independent executable groups', () => {
+    const source = snapshot();
+    source.sections[0].cards = { buy: ['buy-1', 'buy-2'], sell: ['sell-1', 'sell-2'], risk: [] };
+    source.sections[0].cardOrder = ['buy-1', 'sell-1', 'buy-2', 'sell-2'];
+    source.cardBlocks = {
+      ...source.cardBlocks,
+      'buy-2': [{ id: 'buy-2-rsi', label: 'RSI 반등', op: '↑', value: '42', tone: 'condition' }],
+      'sell-1': [
+        { id: 'sell-1-rsi', label: 'RSI 반등', op: '↓', value: '68', tone: 'condition' },
+        { id: 'sell-1-return', label: '현재 수익률', op: '수익', value: '8', tone: 'risk' },
+      ],
+      'sell-2': [
+        { id: 'sell-2-rsi', label: 'RSI 반등', op: '↓', value: '72', tone: 'condition' },
+        { id: 'sell-2-drawdown', label: '고점 대비 하락', op: '>', value: '4', tone: 'risk' },
+      ],
+    };
+    source.buySettings['buy-2'] = { ...source.buySettings['buy-1'], maxOrderPercent: 35 };
+    source.sellSettings = {
+      'sell-1': { sellPercent: 50, executeMode: '1회만', reexecWait: '조건 재충족', reexecInterval: 1, maxExecutions: 1 },
+      'sell-2': { sellPercent: 100, executeMode: '대기 후 재실행', reexecWait: 'N봉 이후', reexecInterval: 3, maxExecutions: 2 },
+    };
+
+    const document = buildBasicSemanticDocument(source, catalog);
+
+    expect(document.groups).toHaveLength(8);
+    expect(document.groups.map((group) => group.allocationGroupId)).toEqual([
+      'buy-1', 'buy-1', 'sell-1', 'sell-1', 'buy-2', 'buy-2', 'sell-2', 'sell-2',
+    ]);
+    expect(document.groups.map((group) => group.container)).toEqual([
+      'BUY', 'BUY', 'SELL', 'SELL', 'BUY', 'BUY', 'SELL', 'SELL',
+    ]);
+    expect(document.groups.filter((group) => group.allocationGroupId === 'buy-2')[0].blocks[0].parameters.threshold).toBe('42');
+    expect(document.groups.filter((group) => group.allocationGroupId === 'sell-2')[0].blocks.at(-1)?.parameters.orderPercent).toBe('100');
+
+    const rebuilt = rebuildBasicSnapshot(document, {}, officialCatalog);
+    expect(rebuilt?.sections).toHaveLength(1);
+    expect(rebuilt?.sections[0].cards).toEqual({
+      buy: ['buy-1', 'buy-2'],
+      sell: ['sell-1', 'sell-2'],
+      risk: [],
+    });
+    expect(buildBasicSemanticDocument(rebuilt!, officialCatalog, document)).toEqual(document);
+  });
+
   test('rebuilds a semantic-only CLI strategy and preserves multi-instrument grouping', () => {
     const semanticDocument = {
       mode: 'BASIC', catalogId: 'catalog-v2', groups: [{

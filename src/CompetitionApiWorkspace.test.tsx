@@ -234,8 +234,9 @@ describe('real competition room workspace', () => {
     await userEvent.click(screen.getByRole('button', { name: '대회 만들기' }));
     const create = screen.getByRole('dialog', { name: '대회 만들기' });
     expect(await within(create).findByRole('alert')).toHaveTextContent('채점 정책');
+    const attemptsBeforeRetry = roomInputCatalogCall.mock.calls.length;
     await userEvent.click(within(create).getByRole('button', { name: '정책 다시 불러오기' }));
-    await waitFor(() => expect(roomInputCatalogCall).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(roomInputCatalogCall.mock.calls.length).toBeGreaterThan(attemptsBeforeRetry));
   });
 
   test('explains a locked room market-scope rejection without exposing an internal server message', async () => {

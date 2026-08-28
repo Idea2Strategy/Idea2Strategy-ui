@@ -752,7 +752,7 @@ export const BASIC_COMPOSITION_LIMITS = {
   sections: 4,
   conditionsPerCard: 5,
   instrumentsPerSection: 5,
-  cardsPerSidePerSection: 1,
+  cardsPerSidePerSection: 4,
 } as const;
 
 const INITIAL_BASIC_BLOCKS: Record<Side, BasicBlock[]> = {
@@ -1764,7 +1764,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           id: `${section.id}-too-many-cards`,
           sectionId: section.id,
           cardId: null,
-          message: `${sectionLabel}에는 매수와 매도 전략 카드를 각각 하나만 둘 수 있습니다.`,
+          message: `${sectionLabel}에는 매수와 매도 전략 카드를 각각 최대 ${BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection}개까지 둘 수 있습니다.`,
         }];
       }
       if (catalogClient && section.cards.risk.length > 0) {
@@ -2216,18 +2216,44 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const duplicateSelectedCards = () => {
     const selected = selectedCardIds.filter((cardId) => sections.some((section) => section.cardOrder.includes(cardId)));
     if (selected.length === 0) return;
-    rememberEditorChange();
-    const copies = selected.map((cardId, index) => {
+    const availableSlots = new Map<string, number>();
+    sections.forEach((section) => (['buy', 'sell', 'risk'] as Side[]).forEach((side) => {
+      availableSlots.set(`${section.id}:${side}`, Math.max(
+        0,
+        BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection - section.cards[side].length,
+      ));
+    }));
+    const copies: Array<{
+      cardId: string;
+      copyId: string;
+      sectionId: string;
+      side: Side;
+      position: { x: number; y: number };
+    }> = [];
+    selected.forEach((cardId) => {
       const section = sections.find((item) => item.cardOrder.includes(cardId))!;
       const side: Side = section.cards.buy.includes(cardId)
         ? 'buy'
         : section.cards.sell.includes(cardId)
           ? 'sell'
           : 'risk';
-      const copyId = `${section.id}-${side}-copy-${cardCount + index + 1}`;
+      const slotKey = `${section.id}:${side}`;
+      const remaining = availableSlots.get(slotKey) ?? 0;
+      if (remaining === 0) return;
+      availableSlots.set(slotKey, remaining - 1);
+      const copyId = `${section.id}-${side}-copy-${cardCount + copies.length + 1}`;
       const origin = section.cardPositions[cardId] ?? getDefaultCardPosition(section.cardOrder.indexOf(cardId));
-      return { cardId, copyId, sectionId: section.id, side, position: { x: origin.x + 32, y: origin.y + 32 } };
+      copies.push({ cardId, copyId, sectionId: section.id, side, position: { x: origin.x + 32, y: origin.y + 32 } });
     });
+    if (copies.length === 0) {
+      const selectedSection = sections.find((section) => section.cardOrder.includes(selected[0]));
+      const selectedSide = selectedSection?.cards.buy.includes(selected[0])
+        ? '매수'
+        : selectedSection?.cards.sell.includes(selected[0]) ? '매도' : '위기관리';
+      setAnnouncement(`한 파티션에는 ${selectedSide} 전략 카드를 최대 ${BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection}개까지 둘 수 있어요.`);
+      return;
+    }
+    rememberEditorChange();
     setCardCount((current) => current + copies.length);
     setCardBlocks((current) => ({
       ...current,
@@ -3162,7 +3188,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const addStrategyCard = (sectionId: string, side: Side) => {
     const section = sections.find((item) => item.id === sectionId)!;
     if (section.cards[side].length >= BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection) {
-      setAnnouncement(`한 파티션에는 ${side === 'buy' ? '매수' : '매도'} 전략 카드를 하나만 둘 수 있어요.`);
+      setAnnouncement(`한 파티션에는 ${side === 'buy' ? '매수' : '매도'} 전략 카드를 최대 ${BASIC_COMPOSITION_LIMITS.cardsPerSidePerSection}개까지 둘 수 있어요.`);
       return;
     }
     rememberEditorChange();
