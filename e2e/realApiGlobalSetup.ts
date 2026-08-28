@@ -102,6 +102,7 @@ export default async function globalSetup(): Promise<() => void> {
       '-url=jdbc:postgresql://postgres:5432/a23', '-user=postgres', `-password=${databasePassword}`,
       'validate');
     seedStrategyInstruments(postgres);
+    seedRuntimePolicies(postgres, rootDir);
     seedScoringCatalog(postgres, rootDir);
 
     docker('run', '-d', '--name', backend, '--network', network,
@@ -166,6 +167,25 @@ function seedScoringCatalog(postgres: string, rootDir: string): void {
   );
   if (result.status !== 0) {
     throw new Error(`Could not seed the reviewed scoring catalog: ${result.stderr || result.stdout}`);
+  }
+}
+
+function seedRuntimePolicies(postgres: string, rootDir: string): void {
+  const seedPath = path.join(
+    rootDir,
+    'proposals',
+    'development-runtime-policy',
+    'artifacts',
+    'policy-seed.sql',
+  );
+  if (!existsSync(seedPath)) throw new Error(`Reviewed runtime policy seed is missing: ${seedPath}`);
+  const result = spawnSync(
+    'docker',
+    ['exec', '-i', postgres, 'psql', '-U', 'postgres', '-d', 'a23', '-v', 'ON_ERROR_STOP=1'],
+    { input: readFileSync(seedPath, 'utf8'), encoding: 'utf8' },
+  );
+  if (result.status !== 0) {
+    throw new Error(`Could not seed the reviewed runtime policies: ${result.stderr || result.stdout}`);
   }
 }
 
