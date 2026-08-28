@@ -4,7 +4,16 @@ import { expect, test } from '@playwright/test';
 
 test.skip(!process.env.A23_FULL_STACK_E2E, 'requires the deploy-like local stack');
 
-test('opens a CLI-authored Basic strategy from canonical semantics', async ({ page }) => {
+test.afterEach(async ({ page }) => {
+  const match = /\/strategies\/([^/]+)\/basic$/.exec(new URL(page.url()).pathname);
+  if (!match || await page.getByRole('heading', { name: '다른 곳에서 편집 중입니다.' }).count()) return;
+  const released = page.waitForResponse((response) => response.url().endsWith(`/api/v1/strategies/${match[1]}/edit-lease`)
+    && response.request().method() === 'DELETE' && response.status() === 204, { timeout: 5_000 }).catch(() => null);
+  await page.goto('/strategies');
+  await released;
+});
+
+test('opens the CLI-authored full Basic catalog across four resolutions', async ({ page }) => {
   const email = process.env.A23_TEST_EMAIL;
   const password = process.env.A23_TEST_PASSWORD;
   const strategyId = process.env.A23_CLI_STRATEGY_ID;
@@ -27,10 +36,23 @@ test('opens a CLI-authored Basic strategy from canonical semantics', async ({ pa
   await expect(page.getByRole('article', { name: 'PARTITION 01' })).toContainText('AAPL');
   await expect(page.getByRole('article', { name: 'PARTITION 01' })).toContainText('30분봉');
   await expect(page.getByRole('article', { name: 'PARTITION 02' })).toContainText('MSFT');
-  await expect(page.getByRole('article', { name: 'PARTITION 02' })).toContainText('4시간봉');
-  await expect(page.getByRole('article', { name: 'PARTITION 03' })).toContainText('NVDA');
-  await expect(page.getByRole('article', { name: 'PARTITION 03' })).toContainText('일봉');
-  await expect(page.getByText('조건 충족마다')).toHaveCount(6);
+  await expect(page.getByRole('article', { name: 'PARTITION 02' })).toContainText('1시간봉');
+  await expect(page.getByRole('article', { name: 'PARTITION 03' })).toContainText('META');
+  await expect(page.getByRole('article', { name: 'PARTITION 03' })).toContainText('4시간봉');
+  await expect(page.getByRole('article', { name: 'PARTITION 04' })).toContainText('NVDA');
+  await expect(page.getByRole('article', { name: 'PARTITION 04' })).toContainText('일봉');
+  await expect(page.locator('[data-strategy-card]')).toHaveCount(14);
+
+  // Every user-visible Basic condition family is represented by the canonical
+  // fixture. Order emission is implicit in each card and verified by the
+  // compiler/result integration suites.
+  for (const blockLabel of [
+    '가격 비교', '가격 변화율', '현재 수익률', '보유 기간', '거래량',
+    '연속 상승·하락', '최고 수익률', '평균선 교차', 'RSI 반등',
+    '고점 대비 하락', 'MACD 전환', '가격 띠 반전',
+  ]) {
+    await expect(page.getByText(blockLabel, { exact: true }).first()).toBeVisible();
+  }
 
   const released = page.waitForResponse((response) => response.url().endsWith(`/api/v1/strategies/${strategyId}/edit-lease`)
     && response.request().method() === 'DELETE');

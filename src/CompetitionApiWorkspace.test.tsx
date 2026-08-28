@@ -199,9 +199,13 @@ describe('real competition room workspace', () => {
   });
 
   test('recovers from a catalog load failure only after an explicit retry', async () => {
-    const roomInputCatalogCall = vi.fn()
-      .mockRejectedValueOnce(new Error('temporary catalog outage'))
-      .mockResolvedValue(roomInputCatalog);
+    // React StrictMode may mount effects twice. Keep every pre-retry request
+    // failed so a development-only remount cannot accidentally recover without
+    // the user pressing the retry button.
+    let serviceRecovered = false;
+    const roomInputCatalogCall = vi.fn(() => serviceRecovered
+      ? Promise.resolve(roomInputCatalog)
+      : Promise.reject(new Error('temporary catalog outage')));
     render(<CompetitionApiWorkspace client={client({ roomInputCatalog: roomInputCatalogCall })} />);
     await screen.findByRole('listitem', { name: '실전 API 대회 열기' });
     await userEvent.click(screen.getByRole('button', { name: '대회 만들기' }));
@@ -210,11 +214,12 @@ describe('real competition room workspace', () => {
     expect(within(create).getByRole('button', { name: '대회 생성' })).toBeDisabled();
 
     const attemptsBeforeRetry = roomInputCatalogCall.mock.calls.length;
+    serviceRecovered = true;
     await userEvent.click(within(create).getByRole('button', { name: '정책 다시 불러오기' }));
+    await waitFor(() => expect(roomInputCatalogCall.mock.calls.length).toBeGreaterThan(attemptsBeforeRetry));
     await screen.findByText('검증된 표준 채점·수수료·구매력 정책을 자동 적용합니다.');
     create = screen.getByRole('dialog', { name: '대회 만들기' });
     expect(within(create).getByRole('button', { name: '대회 생성' })).toBeEnabled();
-    expect(roomInputCatalogCall.mock.calls.length).toBeGreaterThan(attemptsBeforeRetry);
   });
 
   test('keeps joining fail closed when there is no current owned validation', async () => {

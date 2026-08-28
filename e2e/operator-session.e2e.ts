@@ -36,11 +36,11 @@ test('uses the opaque cookie session and keeps CSRF only in memory', async ({ pa
   });
 
   await page.goto('/operations/rbac');
-  await expect(page.getByRole('heading', { name: 'Operator sign-in' })).toBeVisible();
-  await page.getByLabel('Login name').fill('admin');
-  await page.getByLabel('Password').fill('correct-horse-battery-staple');
-  await page.getByLabel('Authenticator code').fill('123456');
-  await page.getByRole('button', { name: 'Sign in as operator' }).click();
+  await expect(page.getByRole('heading', { name: '운영자 로그인' })).toBeVisible();
+  await page.getByLabel('운영자 아이디').fill('admin');
+  await page.getByLabel('비밀번호').fill('correct-horse-battery-staple');
+  await page.getByLabel('인증 앱 6자리 코드').fill('123456');
+  await page.getByRole('button', { name: '운영자 로그인', exact: true }).click();
 
   await expect(page).toHaveURL(/\/operations\/rbac$/);
   await expect(page.getByText('operator-browser-e2e')).toBeVisible();
