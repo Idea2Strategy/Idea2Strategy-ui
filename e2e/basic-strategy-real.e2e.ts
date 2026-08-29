@@ -17,7 +17,8 @@ test('opens THE ULTIMATE STRATEGY across its three real-data resolutions', async
   const email = process.env.A23_TEST_EMAIL;
   const password = process.env.A23_TEST_PASSWORD;
   const strategyId = process.env.A23_CLI_STRATEGY_ID;
-  if (!email || !password || !strategyId) {
+  const backtestRunId = process.env.A23_CLI_BACKTEST_RUN_ID;
+  if (!email || !password || !strategyId || !backtestRunId) {
     test.skip(true, 'requires the local CLI-authored strategy fixture');
   }
 
@@ -40,6 +41,20 @@ test('opens THE ULTIMATE STRATEGY across its three real-data resolutions', async
   await expect(page.getByRole('article', { name: 'PARTITION 03' })).toContainText('AAPL');
   await expect(page.getByRole('article', { name: 'PARTITION 03' })).toContainText('일봉');
   await expect(page.locator('[data-strategy-card]')).toHaveCount(8);
+
+  const pinnedInputs = await page.evaluate(async (runId) => {
+    const session = JSON.parse(sessionStorage.getItem('i2s.session') ?? '{}') as { accessToken?: string };
+    const response = await fetch(`/api/v1/backtests/${runId}/inputs`, {
+      headers: session.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {},
+    });
+    if (!response.ok) throw new Error(`ULTIMATE input evidence failed: ${response.status}`);
+    return response.json();
+  }, backtestRunId) as {
+    datasets: Array<{ datasetManifestId: string }>;
+    featureMaterializations: Array<Record<string, unknown>>;
+  };
+  expect(pinnedInputs.datasets.length).toBeGreaterThan(1);
+  expect(pinnedInputs.featureMaterializations.length).toBeGreaterThan(0);
 
   // The demo fixture exercises its actual composite conditions. The complete
   // catalog remains covered by the compiler and component contract suites.
@@ -203,9 +218,29 @@ test('releases missing Basic blocks and renders the real official backtest resul
   const selectedResult = page.getByRole('region', { name: '선택한 백테스트 결과' });
   await expect(selectedResult.getByRole('heading', { name: `${strategyName} 성과 개요` })).toBeVisible();
   await expect(selectedResult.getByText('완료', { exact: true }).first()).toBeVisible();
-  await expect(selectedResult.getByText('시장 대비 누적 수익률', { exact: true })).toBeVisible();
+  await expect(selectedResult.getByText('시장 지수 대비 누적 수익률', { exact: true })).toBeVisible();
   await expect(page.getByTestId('backtest-live-metrics')).toBeVisible();
   expect(completedRun?.resultHash).toMatch(/^[0-9a-f]{64}$/);
+
+  const pinnedInputs = await page.evaluate(async (runId) => {
+    const session = JSON.parse(sessionStorage.getItem('i2s.session') ?? '{}') as { accessToken?: string };
+    const response = await fetch(`/api/v1/backtests/${runId}/inputs`, {
+      headers: session.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {},
+    });
+    if (!response.ok) throw new Error(`backtest input evidence failed: ${response.status}`);
+    return response.json();
+  }, completedRun!.backtestRunId) as {
+    inputBundleFingerprint: string;
+    datasets: Array<{ datasetManifestId: string; lockedDatasetHash: string }>;
+    featureMaterializations: Array<Record<string, unknown>>;
+  };
+  expect(pinnedInputs.inputBundleFingerprint).toMatch(/^sha256:[0-9a-f]{64}$/);
+  expect(pinnedInputs.datasets.length).toBeGreaterThan(0);
+  for (const dataset of pinnedInputs.datasets) {
+    expect(dataset.datasetManifestId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(dataset.lockedDatasetHash).toMatch(/^sha256:[0-9a-f]{64}$/);
+  }
+  expect(pinnedInputs.featureMaterializations).toEqual([]);
 
   mkdirSync(path.dirname(receiptPath), { recursive: true });
   writeFileSync(receiptPath, `${JSON.stringify({
