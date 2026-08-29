@@ -29,7 +29,7 @@ import { ErrorPage, SignInRequiredPage } from '../components/StatePages';
 import type { StatusTone } from '../components/common';
 import { Localized } from '../lib/i18n';
 import { buildBacktestComparison } from '../lib/backtestComparison';
-import { buildMonthlyPerformance } from '../lib/backtestMonthlyPerformance';
+import { annualizedReturnPct, buildMonthlyPerformance } from '../lib/backtestMonthlyPerformance';
 import type { BacktestMonthlyPerformance } from '../lib/backtestMonthlyPerformance';
 import { browserSessionStore, useSessionState } from '../lib/session';
 import type { AnonymousReason, SessionStore } from '../lib/session';
@@ -117,9 +117,6 @@ export function BacktestLiveView({
   const [hasNextRunPage, setHasNextRunPage] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestOptions, setRequestOptions] = useState<BacktestRequestOptions | null>(null);
-  const [benchmarkInstruments, setBenchmarkInstruments] = useState<BacktestRequestOptions['benchmarkInstruments'] | null>(null);
-  const [benchmarkCatalogFailed, setBenchmarkCatalogFailed] = useState(false);
-  const [benchmarkCatalogRevision, setBenchmarkCatalogRevision] = useState(0);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [requestPending, setRequestPending] = useState(false);
   const [requestMessage, setRequestMessage] = useState<string | null>(null);
@@ -183,21 +180,6 @@ export function BacktestLiveView({
     });
     return () => controller.abort();
   }, [client, requestOpen, signedIn]);
-
-  useEffect(() => {
-    if (!signedIn) {
-      setBenchmarkInstruments(null);
-      setBenchmarkCatalogFailed(false);
-      return undefined;
-    }
-    const controller = new AbortController();
-    setBenchmarkInstruments(null);
-    setBenchmarkCatalogFailed(false);
-    client.getBenchmarkInstruments(controller.signal).then(setBenchmarkInstruments).catch((error: unknown) => {
-      if (!aborted(error)) setBenchmarkCatalogFailed(true);
-    });
-    return () => controller.abort();
-  }, [benchmarkCatalogRevision, client, signedIn]);
 
   useEffect(() => {
     if (!selectedRunId || !signedIn) {
@@ -314,8 +296,8 @@ export function BacktestLiveView({
             onChange={setRequestBotId}
           />
         </BacktestRequestField>
-        <label className="backtest-request-field"><span><strong>시작일</strong><small>ET 기준</small></span><input aria-label="백테스트 시작일" type="date" value={requestPeriodStart} onChange={(event) => setRequestPeriodStart(event.target.value)} /></label>
-        <label className="backtest-request-field"><span><strong>종료일</strong><small>ET 기준</small></span><input aria-label="백테스트 종료일" type="date" value={requestPeriodEnd} onChange={(event) => setRequestPeriodEnd(event.target.value)} /></label>
+        <label className="backtest-request-field"><span><strong>시작일</strong><small>ET 기준</small></span><input aria-label="백테스트 시작일" type="date" value={requestPeriodStart} onInput={(event) => setRequestPeriodStart(event.currentTarget.value)} onChange={(event) => setRequestPeriodStart(event.target.value)} /></label>
+        <label className="backtest-request-field"><span><strong>종료일</strong><small>ET 기준</small></span><input aria-label="백테스트 종료일" type="date" value={requestPeriodEnd} onInput={(event) => setRequestPeriodEnd(event.currentTarget.value)} onChange={(event) => setRequestPeriodEnd(event.target.value)} /></label>
         {!officialInputsAvailable && <p className="backtest-request-unavailable" role="alert">
           현재 전략을 실행할 공식 데이터 또는 실행 기준이 준비되지 않았습니다. 준비된 뒤 다시 시도해 주세요.
         </p>}
@@ -351,9 +333,6 @@ export function BacktestLiveView({
           {detail && <RunDetailPanels
             client={client}
             marketDataClient={resolvedMarketDataClient}
-            benchmarkInstruments={benchmarkInstruments}
-            benchmarkCatalogFailed={benchmarkCatalogFailed}
-            onRetryBenchmarkCatalog={() => setBenchmarkCatalogRevision((value) => value + 1)}
             detail={detail}
             botName={requestOptions?.bots.find((bot) => bot.botId === detail.run.botId)?.name ?? `봇 ${shortId(detail.run.botId)}`}
             selectedMonth={selectedMonth}
@@ -619,7 +598,7 @@ function RunList({
         onClick={() => onSelect(run.backtestRunId)}
       >
         <span className="backtest-bot-icon"><Bot size={17} aria-hidden="true" /></span>
-        <span><strong>{botName}</strong><small>{formatTime(run.queuedAt)}</small></span>
+        <span><strong>{botName}</strong><small>{formatUserTime(run.queuedAt)}</small></span>
         <Status tone={STATUS_TONES[run.status]}>{STATUS_LABELS[run.status]}</Status>
       </button></div>;
       })}
@@ -635,9 +614,6 @@ function RunList({
 function RunDetailPanels({
   client,
   marketDataClient,
-  benchmarkInstruments,
-  benchmarkCatalogFailed,
-  onRetryBenchmarkCatalog,
   detail,
   botName,
   selectedMonth,
@@ -647,9 +623,6 @@ function RunDetailPanels({
 }: {
   client: BacktestClient;
   marketDataClient: MarketDataClient;
-  benchmarkInstruments: BacktestRequestOptions['benchmarkInstruments'] | null;
-  benchmarkCatalogFailed: boolean;
-  onRetryBenchmarkCatalog: () => void;
   detail: RunDetail;
   botName: string;
   selectedMonth: string | null;
@@ -677,7 +650,7 @@ function RunDetailPanels({
     <Panel
       className="backtest-performance-panel backtest-live-status-panel backtest-live-overview-panel"
       title={`${botName} 성과 개요`}
-      subtitle={`요청 ${formatTime(run.queuedAt)} · 평가 ${run.evaluationStart} ~ ${run.evaluationEnd}`}
+      subtitle={`요청 ${formatUserTime(run.queuedAt)} · 평가 ${run.evaluationStart} ~ ${run.evaluationEnd}`}
       action={<div className="backtest-live-heading-actions">
         <Status tone={STATUS_TONES[run.status]}>{STATUS_LABELS[run.status]}</Status>
         {cancellable && <Button
@@ -688,12 +661,9 @@ function RunDetailPanels({
     >
       <section className="backtest-live-overview-chart" aria-label="선택한 백테스트 성과 개요">
         {run.status === 'COMPLETED'
-          ? <BacktestPerformanceComparison
+          ? <BacktestPerformanceOverview
             run={run}
             performanceSeries={detail.performanceSeries}
-            benchmarkInstruments={benchmarkInstruments}
-            benchmarkCatalogFailed={benchmarkCatalogFailed}
-            onRetryBenchmarkCatalog={onRetryBenchmarkCatalog}
             marketDataClient={marketDataClient}
           />
           : <div className="backtest-live-overview-state"><RunState run={run} /></div>}
@@ -756,7 +726,10 @@ function BacktestResultTabs({
       id={`${tabPrefix}-${activeTab}-panel`}
       aria-labelledby={`${tabPrefix}-${activeTab}-tab`}
     >
-      {activeTab === 'performance' && <PerformancePanel performance={detail.performance} />}
+      {activeTab === 'performance' && <PerformancePanel
+        performance={detail.performance}
+        performanceSeries={detail.performanceSeries}
+      />}
       {activeTab === 'monthly' && <MonthlyPanel
         mode="judgment"
         client={client}
@@ -831,19 +804,25 @@ function AttemptTable({ attempts }: { attempts: BacktestAttempt[] }) {
   }
   return <div className="table-wrap backtest-live-attempts"><table aria-label="자동 실행 시도 기록">
     <thead><tr>
-      <th>시도</th><th>상태</th><th>실패 사유</th><th>시작 (ET)</th><th>종료 (ET)</th>
+      <th>시도</th><th>상태</th><th>실패 사유</th><th>시작 (내 시간)</th><th>종료 (내 시간)</th>
     </tr></thead>
     <tbody>{attempts.map((attempt) => <tr key={attempt.attemptId}>
       <td>{attempt.attemptNumber}</td>
       <td>{attempt.status}</td>
       <td>{attempt.failureCode ?? '—'}</td>
-      <td>{formatTime(attempt.startedAt)}</td>
-      <td>{attempt.completedAt ? formatTime(attempt.completedAt) : '—'}</td>
+      <td>{formatUserTime(attempt.startedAt)}</td>
+      <td>{attempt.completedAt ? formatUserTime(attempt.completedAt) : '—'}</td>
     </tr>)}</tbody>
   </table></div>;
 }
 
-function PerformancePanel({ performance }: { performance: BacktestPerformanceSummary | null }) {
+function PerformancePanel({
+  performance,
+  performanceSeries,
+}: {
+  performance: BacktestPerformanceSummary | null;
+  performanceSeries: BacktestPerformanceSeries | null;
+}) {
   if (performance === null) {
     return <section className="panel backtest-live-metrics backtest-metric-panel" data-testid="backtest-live-metrics"><EmptyState
       icon={BarChart3}
@@ -852,12 +831,30 @@ function PerformancePanel({ performance }: { performance: BacktestPerformanceSum
     /></section>;
   }
   const { metrics } = performance;
+  const annualizedReturn = annualizedReturnPct(performanceSeries);
+  const closingTradeCount = metrics.closingTradeCount ?? 0;
+  const insufficientWinRateSample = closingTradeCount < 3;
+  const winRateFigure = closingTradeCount === 0
+    ? '청산 거래 없음'
+    : insufficientWinRateSample
+      ? `${count(metrics.winningTradeCount)}승 / ${count(metrics.closingTradeCount)}건`
+      : percent(metrics.winRatePct);
+  const winRateDetail = closingTradeCount === 0
+    ? `승률 계산 불가 · 체결 ${count(metrics.fillCount)}건`
+    : insufficientWinRateSample
+      ? `표본 부족 · 체결 ${count(metrics.fillCount)}건`
+      : `청산 ${count(metrics.closingTradeCount)}건 · 체결 ${count(metrics.fillCount)}건`;
   return <section className="panel backtest-live-metrics backtest-metric-panel" data-testid="backtest-live-metrics">
     <PerformanceMetricGrid items={[
       {
         label: '총 수익률',
         figure: percent(metrics.totalReturnPct),
         help: '시작 자산과 비교해 종료 자산이 얼마나 늘거나 줄었는지 보여줍니다.',
+      },
+      {
+        label: '연환산 수익률',
+        figure: annualizedReturn === null ? '—' : percent(annualizedReturn),
+        help: '실제 평가 기간의 시작·종료 자산을 1년 기준 복리 수익률로 환산한 값입니다.',
       },
       {
         label: '최대 낙폭',
@@ -872,8 +869,8 @@ function PerformancePanel({ performance }: { performance: BacktestPerformanceSum
       },
       {
         label: '승률',
-        figure: percent(metrics.winRatePct),
-        detail: `청산 ${count(metrics.closingTradeCount)}건 · 체결 ${count(metrics.fillCount)}건`,
+        figure: winRateFigure,
+        detail: winRateDetail,
         help: '청산까지 끝난 거래 중 수익으로 마감한 거래의 비율입니다.',
       },
       {
@@ -932,104 +929,76 @@ function MetricHelp({ label, description }: { label: string; description: string
   </button>;
 }
 
-const BENCHMARK_LABELS: Record<string, string> = {
-  SPY: 'S&P 500 (SPY)',
-  QQQ: 'NASDAQ-100 (QQQ)',
-  IWM: 'Russell 2000 (IWM)',
-};
-
-function BacktestPerformanceComparison({
+function BacktestPerformanceOverview({
   run,
   performanceSeries,
-  benchmarkInstruments,
-  benchmarkCatalogFailed,
-  onRetryBenchmarkCatalog,
   marketDataClient,
 }: {
   run: BacktestRun;
   performanceSeries: BacktestPerformanceSeries | null;
-  benchmarkInstruments: BacktestRequestOptions['benchmarkInstruments'] | null;
-  benchmarkCatalogFailed: boolean;
-  onRetryBenchmarkCatalog: () => void;
   marketDataClient: MarketDataClient;
 }) {
-  const [includeIwm, setIncludeIwm] = useState(false);
   const [benchmarks, setBenchmarks] = useState<MarketBarSnapshot[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [loadRevision, setLoadRevision] = useState(0);
-  const selected = (benchmarkInstruments ?? []).filter(({ symbol }) => symbol === 'SPY' || symbol === 'QQQ' || (includeIwm && symbol === 'IWM'));
 
   useEffect(() => {
-    if (selected.length < 2) {
-      setBenchmarks(null);
-      return undefined;
-    }
     const controller = new AbortController();
     setBenchmarks(null);
     setLoadError(false);
-    Promise.all(selected.map(({ instrumentId }) => marketDataClient.getRecentBars(instrumentId, '1d', 5000, controller.signal)))
+    const catalogRequest = marketDataClient.getBenchmarks
+      ? marketDataClient.getBenchmarks(controller.signal)
+      : Promise.reject(new Error('Market benchmark catalog is unavailable'));
+    catalogRequest
+      .then((instruments) => Promise.all(instruments.map(({ instrumentId }) =>
+        marketDataClient.getRecentBars(instrumentId, '1d', 5000, controller.signal))))
       .then(setBenchmarks)
       .catch((error: unknown) => {
         if (!aborted(error)) setLoadError(true);
       });
     return () => controller.abort();
-  }, [loadRevision, marketDataClient, includeIwm, (benchmarkInstruments ?? []).map((item) => `${item.instrumentId}:${item.symbol}`).join('|')]);
+  }, [loadRevision, marketDataClient]);
 
   if (performanceSeries === null) {
-    return <EmptyState title="전략 자산곡선이 아직 발행되지 않았습니다." detail="공식 결과 파일이 준비되면 시장 대비 성과를 표시합니다." />;
+    return <EmptyState title="전략 자산곡선이 아직 발행되지 않았습니다." detail="공식 결과 파일이 준비되면 평가 기간 전체의 수익률 흐름을 표시합니다." />;
   }
-  if (benchmarkCatalogFailed) {
-    return <ErrorState
-      title="비교할 시장 지수를 불러오지 못했습니다."
-      detail="전략 결과는 그대로 확인할 수 있습니다. 시장 비교만 다시 불러와 주세요."
-      onRetry={onRetryBenchmarkCatalog}
-    />;
-  }
-  if (benchmarkInstruments === null) return <LoadingState label="비교할 시장 지수를 확인하는 중…" />;
   if (loadError) {
     return <ErrorState
-      title="시장 비교 데이터를 불러오지 못했습니다."
-      detail="전략 결과는 그대로 확인할 수 있습니다. 잠시 후 시장 비교를 다시 시도해 주세요."
+      title="시장 지수 비교 데이터를 불러오지 못했습니다."
+      detail="S&P 500과 NASDAQ-100 실제 지수 기록을 확인한 뒤 다시 시도해 주세요. 전략 성과 수치는 성과 요약에서 계속 확인할 수 있습니다."
       onRetry={() => setLoadRevision((value) => value + 1)}
     />;
   }
-  if (selected.length < 2) {
-    return <EmptyState title="비교 지수 종목을 찾지 못했습니다." detail="종목 카탈로그에 SPY와 QQQ가 모두 있어야 시장 대비 성과를 계산할 수 있습니다." />;
-  }
-  if (benchmarks === null) return <LoadingState label="실제 시장 데이터로 성과를 비교하는 중…" />;
+  if (benchmarks === null) return <LoadingState label="S&P 500과 NASDAQ-100 지수 데이터를 불러오는 중…" />;
 
   const comparison = buildBacktestComparison(
     performanceSeries.points.map((point) => ({ occurredAt: point.occurredAt, equity: Number(point.equity) })),
     benchmarks.map((snapshot) => ({
       id: snapshot.symbol.toLowerCase(),
-      label: BENCHMARK_LABELS[snapshot.symbol] ?? snapshot.symbol,
+      label: snapshot.symbol === 'SPX' ? 'S&P 500' : snapshot.symbol === 'NDX' ? 'NASDAQ-100' : snapshot.symbol,
       symbol: snapshot.symbol,
       points: snapshot.bars.map((bar) => ({ occurredAt: bar.occurredAt, close: bar.close })),
     })),
   );
   if (comparison.kind === 'unavailable') {
     const reason = comparison.reason === 'NO_COMMON_RANGE'
-      ? '전략과 시장 ETF의 실제 보유 기간이 겹치지 않습니다.'
+      ? '전략과 두 지수가 함께 관측된 기간이 없습니다.'
       : comparison.reason === 'MISSING_SERIES'
-        ? '전략 또는 시장 ETF에 비교할 실제 가격 기록이 없습니다.'
-        : '비교 시작 시점의 자산 또는 가격 값이 올바르지 않습니다.';
+        ? '전략 또는 지수의 실제 가격 기록이 없습니다.'
+        : '비교 시작 시점의 자산 또는 지수 값이 올바르지 않습니다.';
     return <EmptyState
-      title="서로 비교할 수 있는 실제 데이터 기간이 없습니다."
+      title="시장 지수와 비교할 수 없습니다."
       detail={`${reason} 전략 평가 기간은 ${run.evaluationStart} ~ ${run.evaluationEnd}입니다.`}
     />;
   }
   return <>
     <div className="backtest-comparison-header">
       <div>
-        <strong>시장 대비 누적 수익률</strong>
-        <span>ETF를 같은 시점에 매수해 보유한 결과와 비교합니다.</span>
+        <strong>시장 지수 대비 누적 수익률</strong>
+        <span>전략과 S&P 500·NASDAQ-100 실제 지수 값을 같은 시작점의 0%로 맞춰 비교합니다.</span>
       </div>
-      {benchmarkInstruments.some(({ symbol }) => symbol === 'IWM') && <label className="backtest-benchmark-toggle">
-        <input type="checkbox" checked={includeIwm} onChange={(event) => setIncludeIwm(event.target.checked)} />
-        Russell 2000 추가
-      </label>}
     </div>
-    <div className="backtest-comparison-legend" aria-label="성과 비교 범례">
+    <div className="backtest-comparison-legend" aria-label="전략과 시장 지수 성과 범례">
       {comparison.series.map((series) => <span key={series.id} className={series.id}>
         <i />{series.label}<strong>{signedPercent(series.finalReturnPct)}</strong>
       </span>)}
@@ -1037,7 +1006,7 @@ function BacktestPerformanceComparison({
     <BacktestPerformanceChart comparison={comparison} />
     <p className="backtest-comparison-coverage">
       <strong>실제 비교 기간</strong> {dateLabel(comparison.from)} ~ {dateLabel(comparison.to)}
-      <span>전략 공식 평가 기간 {run.evaluationStart} ~ {run.evaluationEnd}</span>
+      <span>전략 평가 기간 {run.evaluationStart} ~ {run.evaluationEnd}</span>
     </p>
   </>;
 }
@@ -1057,7 +1026,7 @@ function BacktestPerformanceChart({ comparison }: { comparison: Extract<ReturnTy
   const duration = Math.max(1, Date.parse(comparison.to) - from);
   const x = (instant: string) => left + ((Date.parse(instant) - from) / duration) * (width - left - right);
   const y = (value: number) => top + ((max - value) / range) * (height - top - bottom);
-  return <svg className="backtest-performance-chart" role="img" aria-label="전략과 시장 ETF 누적 수익률 선 그래프" viewBox={`0 0 ${width} ${height}`}>
+  return <svg className="backtest-performance-chart" role="img" aria-label="전략과 S&P 500 및 NASDAQ-100 누적 수익률 선 그래프" viewBox={`0 0 ${width} ${height}`}>
     {[0, .25, .5, .75, 1].map((step) => {
       const value = max - range * step;
       return <g key={step}>
@@ -1067,7 +1036,7 @@ function BacktestPerformanceChart({ comparison }: { comparison: Extract<ReturnTy
     })}
     {comparison.series.map((series) => <polyline
       key={series.id}
-      data-testid={`backtest-comparison-series-${series.id}`}
+      data-testid={`backtest-performance-series-${series.id}`}
       className={`backtest-performance-line ${series.id}`}
       points={series.points.map((point) => `${x(point.occurredAt)},${y(point.returnPct)}`).join(' ')}
     />)}
@@ -1109,7 +1078,7 @@ function MonthlyPanel({
     className="backtest-live-monthly"
     title={mode === 'judgment' ? '월별 성과' : 'ET 월별 거래'}
     subtitle={mode === 'judgment'
-      ? '공식 자산곡선을 월말 기준으로 나눠 수익과 손실의 흐름을 확인합니다.'
+      ? '공식 자산곡선을 월말 기준으로 나눠 보유 자산의 평가손익을 포함한 수익과 손실의 흐름을 확인합니다.'
       : '선택한 달에 기록된 개별 주문과 체결을 확인합니다.'}
   >
     {summaries.length === 0 && monthlyPerformance.length === 0
@@ -1426,7 +1395,7 @@ function TradeTable({ etYearMonth, trades }: { etYearMonth: string; trades: Back
         <th>사유</th>
       </tr></thead>
       <tbody>{trades.map((trade) => <tr key={trade.recordId} data-record-id={trade.recordId}>
-        <td>{formatTime(trade.occurredAt)}</td>
+        <td>{formatMarketTime(trade.occurredAt)}</td>
         <td><span className={`backtest-live-trade-kind kind-${trade.kind.toLowerCase()}`}>
           {TRADE_KIND_LABELS[trade.kind]}
         </span></td>
@@ -1622,7 +1591,22 @@ function hashLabel(value: string): string {
   return value.replace(/^sha256:/, '').slice(0, 12);
 }
 
-function formatTime(value: string): string {
+function formatUserTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZoneName: 'short',
+    }).format(date);
+}
+
+function formatMarketTime(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? value

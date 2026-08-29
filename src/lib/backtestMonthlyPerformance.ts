@@ -22,6 +22,21 @@ const etMonthFormatter = new Intl.DateTimeFormat('en-US', {
   month: '2-digit',
 });
 
+const MILLISECONDS_PER_YEAR = 365.2425 * 24 * 60 * 60 * 1_000;
+
+export function annualizedReturnPct(series: BacktestPerformanceSeries | null): number | null {
+  const points = (series?.points ?? [])
+    .map((point) => ({ instant: Date.parse(point.occurredAt), equity: Number(point.equity) }))
+    .filter((point) => Number.isFinite(point.instant) && Number.isFinite(point.equity) && point.equity > 0)
+    .sort((left, right) => left.instant - right.instant);
+  if (points.length < 2) return null;
+  const first = points[0];
+  const last = points.at(-1)!;
+  const elapsed = last.instant - first.instant;
+  if (elapsed <= 0) return null;
+  return (Math.pow(last.equity / first.equity, MILLISECONDS_PER_YEAR / elapsed) - 1) * 100;
+}
+
 export function buildMonthlyPerformance(
   series: BacktestPerformanceSeries | null,
   summaryMonths: string[],

@@ -1,5 +1,10 @@
 import type { BasicStrategyCatalog } from '../api/strategies';
 import type { MarketTimeframe } from '../api/marketData';
+import {
+  BASIC_SECTION_MIN_WIDTH,
+  getBasicSectionLayout,
+  getDefaultBasicCardPosition,
+} from './strategyCanvasLayout';
 
 export const BASIC_EXECUTABLE_ELEMENT_CODES = [
   'BASIC_PRICE_COMPARE',
@@ -545,6 +550,53 @@ export const rebuildBasicSnapshot = (
     || !Array.isArray(rawGroups) || rawGroups.length === 0) return null;
   const instruments = new Map(catalog.instruments.map((instrument) => [instrument.id, instrument.symbol]));
   const cards = new Map<string, RebuiltCard>();
+  const presentation = record(presentationDocument);
+  const savedEditor = record(presentation?.basicEditor);
+  const savedSnapshot = record(savedEditor?.snapshot);
+  const savedSections = Array.isArray(savedSnapshot?.sections) ? savedSnapshot.sections : null;
+  const legacySections = savedSections ?? (Array.isArray(presentation?.sections) ? presentation.sections : []);
+  const savedCardMeta = record(savedSnapshot?.cardMeta);
+  const savedCardTimeframes = new Map<string, string>();
+  for (const rawSection of legacySections) {
+    const section = record(rawSection);
+    const sectionCards = record(section?.cards);
+    const timeframe = typeof section?.timeframe === 'string' && timeframeLabel(resolutionCode(section.timeframe)) === section.timeframe
+      ? section.timeframe
+      : null;
+    if (!section || !sectionCards || !timeframe) continue;
+    const ids = [
+      ...(Array.isArray(section.cardOrder) ? section.cardOrder : []),
+      ...(['buy', 'sell', 'risk'].flatMap((side) => Array.isArray(sectionCards[side]) ? sectionCards[side] : [])),
+    ].filter((id): id is string => typeof id === 'string');
+    for (const id of ids) {
+      const existing = savedCardTimeframes.get(id);
+      if (existing && existing !== timeframe) return null;
+      savedCardTimeframes.set(id, timeframe);
+    }
+  }
+
+  /* Position-only rules (return, holding period, drawdown) deliberately carry no
+     market-data resolution. When a CLI changes the explicit clock of the buy or
+     scheduled flow for the same instrument set, the disposable saved partition
+     clock becomes stale. Infer the position-only clock from the current semantic
+     peers when that answer is unique; only fall back to presentation otherwise. */
+  const semanticResolutionsByInstrumentSet = new Map<string, Set<string>>();
+  for (const rawGroup of rawGroups) {
+    const group = record(rawGroup);
+    if (!group || !Array.isArray(group.instrumentIds) || !Array.isArray(group.blocks)) continue;
+    const instrumentIds = group.instrumentIds.filter((id): id is string => typeof id === 'string').sort();
+    if (instrumentIds.length !== group.instrumentIds.length || instrumentIds.length === 0) continue;
+    const key = JSON.stringify(instrumentIds);
+    const resolutions = semanticResolutionsByInstrumentSet.get(key) ?? new Set<string>();
+    for (const rawBlock of group.blocks) {
+      const block = record(rawBlock);
+      const parameters = stringRecord(block?.parameters);
+      if (parameters?.resolution && timeframeLabel(parameters.resolution)) {
+        resolutions.add(parameters.resolution);
+      }
+    }
+    semanticResolutionsByInstrumentSet.set(key, resolutions);
+  }
 
   for (const rawGroup of rawGroups) {
     const group = record(rawGroup);
@@ -571,17 +623,27 @@ export const rebuildBasicSnapshot = (
     if (!order || order.elementCode !== 'BASIC_EQUAL_ALLOCATION_ORDER') return null;
     const schedules = blocks.filter((block) => block.elementCode === 'BASIC_SCHEDULE');
     if (schedules.length > 1 || (schedules.length === 1 && blocks[0].elementCode !== 'BASIC_SCHEDULE')) return null;
-    const resolution = blocks.map((block) => block.parameters.resolution).find(Boolean) ?? '30m';
-    const timeframe = timeframeLabel(resolution);
-    if (!timeframe || blocks.some((block) => block.parameters.resolution && block.parameters.resolution !== resolution)) return null;
-    const decoded = blocks.slice(schedules.length, -1).map((block) => decodeBlock(block.id, block.elementCode, block.parameters));
-    if (decoded.some((block) => block === null)) return null;
     const cardId = typeof group.allocationGroupId === 'string' && group.allocationGroupId
       ? group.allocationGroupId
       : typeof group.id === 'string' && group.id ? group.id : null;
+    if (!cardId) return null;
+    const explicitResolutions = blocks.map((block) => block.parameters.resolution).filter(Boolean);
+    const resolution = explicitResolutions[0];
+    if (resolution && explicitResolutions.some((value) => value !== resolution)) return null;
+    const instrumentSetKey = JSON.stringify([...(group.instrumentIds as string[])].sort());
+    const peerResolutions = semanticResolutionsByInstrumentSet.get(instrumentSetKey);
+    const inferredResolution = peerResolutions?.size === 1 ? [...peerResolutions][0] : null;
+    const timeframe = resolution
+      ? timeframeLabel(resolution)
+      : inferredResolution
+        ? timeframeLabel(inferredResolution)
+        : savedCardTimeframes.get(cardId) ?? '30분봉';
+    if (!timeframe) return null;
+    const decoded = blocks.slice(schedules.length, -1).map((block) => decodeBlock(block.id, block.elementCode, block.parameters));
+    if (decoded.some((block) => block === null)) return null;
     const cap = percentage(order.parameters.maxPositionPercent);
     const orderPercent = percentage(order.parameters.orderPercent);
-    if (!cardId || cap === null || orderPercent === null) return null;
+    if (cap === null || orderPercent === null) return null;
     const side = group.container === 'BUY' ? 'buy' : 'sell';
     const schedule = schedules[0];
     const executionMode = order.parameters.executionMode;
@@ -643,12 +705,6 @@ export const rebuildBasicSnapshot = (
     }
   }
 
-  const presentation = record(presentationDocument);
-  const savedEditor = record(presentation?.basicEditor);
-  const savedSnapshot = record(savedEditor?.snapshot);
-  const savedSections = Array.isArray(savedSnapshot?.sections) ? savedSnapshot.sections : null;
-  const legacySections = savedSections ?? (Array.isArray(presentation?.sections) ? presentation.sections : []);
-  const savedCardMeta = record(savedSnapshot?.cardMeta);
   const sections: BasicDocumentSectionInput[] = [];
   const placedCards = new Set<string>();
   for (const [index, rawSection] of legacySections.entries()) {
@@ -710,6 +766,41 @@ export const rebuildBasicSnapshot = (
       cardPositions: {},
     });
     placedCards.add(card.id);
+  }
+
+  /* Old presentation snapshots used the original compact partition width. As cards and
+     controls grew, two still-valid saved partitions could overlap and the active one's
+     stacking context made the covered partition's buttons physically unreachable. Keep
+     every saved position that remains usable, but move a colliding partition to the first
+     free horizontal slot. This changes disposable presentation only, never semantics. */
+  const placedSectionBounds: Array<{ left: number; top: number; right: number; bottom: number }> = [];
+  for (const section of sections) {
+    const fallback = getBasicSectionLayout(
+      section.cardOrder,
+      (cardId, index) => {
+        const saved = record(section.cardPositions?.[cardId]);
+        return saved && typeof saved.x === 'number' && typeof saved.y === 'number'
+          ? { x: saved.x, y: saved.y }
+          : getDefaultBasicCardPosition(index);
+      },
+      {},
+    );
+    const width = Math.max(BASIC_SECTION_MIN_WIDTH, fallback.width, section.width ?? 0);
+    const height = Math.max(fallback.height, section.height ?? 0);
+    let left = section.x ?? 0;
+    const top = section.y ?? 0;
+    for (;;) {
+      const collisions = placedSectionBounds.filter((bounds) => (
+        left < bounds.right + 48
+        && left + width + 48 > bounds.left
+        && top < bounds.bottom + 48
+        && top + height + 48 > bounds.top
+      ));
+      if (collisions.length === 0) break;
+      left = Math.max(...collisions.map((bounds) => bounds.right + 48));
+    }
+    section.x = left;
+    placedSectionBounds.push({ left, top, right: left + width, bottom: top + height });
   }
 
   const symbolLimits: Record<string, Record<string, number>> = {};

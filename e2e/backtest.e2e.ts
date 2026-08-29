@@ -120,17 +120,23 @@ test.describe('backtest screens against the /api/v1 contract', () => {
   });
 
   test('loads the selected run detail and separates performance from execution information', async ({ page }) => {
+    const requestedPaths: string[] = [];
+    page.on('request', (request) => requestedPaths.push(new URL(request.url()).pathname));
     await signIn(page);
 
     await page.goto(BACKTESTS);
 
     const detail = page.getByRole('region', { name: '선택한 백테스트 결과' });
     await expect(detail).toBeVisible();
-    await expect(detail).toContainText('시장 대비 누적 수익률');
-    await expect(detail.getByRole('img', { name: '전략과 시장 ETF 누적 수익률 선 그래프' })).toBeVisible();
-    await expect(detail.getByTestId('backtest-comparison-series-strategy')).toBeVisible();
-    await expect(detail.getByTestId('backtest-comparison-series-spy')).toBeVisible();
-    await expect(detail.getByTestId('backtest-comparison-series-qqq')).toBeVisible();
+    await expect(detail).toContainText('시장 지수 대비 누적 수익률');
+    await expect(detail.getByRole('img', { name: '전략과 S&P 500 및 NASDAQ-100 누적 수익률 선 그래프' })).toBeVisible();
+    await expect(detail.getByTestId('backtest-performance-series-strategy')).toBeVisible();
+    await expect(detail.getByTestId('backtest-performance-series-spx')).toBeVisible();
+    await expect(detail.getByTestId('backtest-performance-series-ndx')).toBeVisible();
+    await expect(detail).toContainText('전략 평가 기간 2026-07-01 ~ 2026-10-01');
+    await expect(detail).toContainText('실제 비교 기간');
+    await expect(detail).not.toContainText(/SPY|QQQ|ETF/);
+    expect(requestedPaths).toContain('/api/v1/market-data/benchmarks');
 
     // The metrics document, rendered from `metricsDocument` rather than from zeroes.
     await expect(detail).toContainText('$10,299.96');
@@ -145,6 +151,7 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     await expect(totalReturnTooltip).toBeVisible();
 
     await detail.getByRole('tab', { name: '월별 분석' }).click();
+    await expect(detail).toContainText('보유 자산의 평가손익을 포함');
     const monthlyReturns = detail.getByRole('grid', { name: '월간 수익률' });
     await expect(monthlyReturns).toBeVisible();
     await monthlyReturns.getByRole('gridcell', { name: /2026년 7월/ }).click();

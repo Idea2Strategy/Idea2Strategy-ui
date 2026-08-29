@@ -13934,9 +13934,8 @@ small.dashboard-bot-scope {
   border-radius: 2px;
   background: var(--accent);
 }
-.variant-balanced[data-design="signal-studio"] .backtest-comparison-legend .spy i { background: var(--tone-indicator); }
-.variant-balanced[data-design="signal-studio"] .backtest-comparison-legend .qqq i { background: var(--info); }
-.variant-balanced[data-design="signal-studio"] .backtest-comparison-legend .iwm i { background: var(--tone-condition); }
+.variant-balanced[data-design="signal-studio"] .backtest-comparison-legend .spx i { background: var(--tone-indicator); }
+.variant-balanced[data-design="signal-studio"] .backtest-comparison-legend .ndx i { background: var(--info); }
 .variant-balanced[data-design="signal-studio"] .backtest-comparison-legend strong {
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -13954,9 +13953,8 @@ small.dashboard-bot-scope {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.variant-balanced[data-design="signal-studio"] .backtest-performance-line.spy { stroke: var(--tone-indicator); stroke-width: 2; }
-.variant-balanced[data-design="signal-studio"] .backtest-performance-line.qqq { stroke: var(--info); stroke-width: 2; }
-.variant-balanced[data-design="signal-studio"] .backtest-performance-line.iwm { stroke: var(--tone-condition); stroke-width: 2; }
+.variant-balanced[data-design="signal-studio"] .backtest-performance-line.spx { stroke: var(--tone-indicator); stroke-width: 2; }
+.variant-balanced[data-design="signal-studio"] .backtest-performance-line.ndx { stroke: var(--info); stroke-width: 2; }
 .variant-balanced[data-design="signal-studio"] .backtest-performance-axis {
   fill: var(--text-faint);
   font: 11px var(--font-sans);

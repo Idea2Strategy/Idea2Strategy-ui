@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { render as renderBare, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render as renderBare, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactElement } from 'react';
 
@@ -19,6 +19,7 @@ import {
   JULY_TRADES,
   OWNER_ACCOUNT_ID,
   OWNER_TOKEN,
+  PERFORMANCE,
   BOT_ID,
   QUEUED_RUN,
   RUNNING_RUN,
@@ -174,6 +175,28 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(await screen.findByText(/백테스트 요청을 접수했습니다/)).toBeInTheDocument();
   });
 
+  it('accepts browser-native input events from date controls', async () => {
+    server.use(
+      http.get(`${BACKTEST_API_BASE}/api/v1/bots/operations`, () => HttpResponse.json([
+        { botId: 'bot-1', name: 'THE ULTIMATE STRATEGY' },
+      ])),
+      http.get(`${BACKTEST_API_BASE}/api/v1/strategy-release-inputs`, () => HttpResponse.json({
+        executionPolicies: [{ version: 'policy-v1' }],
+        datasets: [{ id: 'dataset-1', feedCode: 'SIP', resolution: '1d', periodStart: '2016-01-01', periodEnd: '2026-07-29' }],
+      })),
+    );
+    const user = userEvent.setup();
+    view();
+    await user.click(screen.getByRole('button', { name: '새 백테스트' }));
+    const dialog = await screen.findByRole('dialog', { name: '새 백테스트' });
+
+    fireEvent.input(within(dialog).getByLabelText('백테스트 시작일'), { target: { value: '2016-01-01' } });
+    fireEvent.input(within(dialog).getByLabelText('백테스트 종료일'), { target: { value: '2026-07-29' } });
+
+    expect(within(dialog).getByLabelText('백테스트 시작일')).toHaveValue('2016-01-01');
+    expect(within(dialog).getByLabelText('백테스트 종료일')).toHaveValue('2026-07-29');
+  });
+
   it('explains when the strategy and period have no coherent official dataset set', async () => {
     server.use(
       http.get(`${BACKTEST_API_BASE}/api/v1/bots/operations`, () => HttpResponse.json([
@@ -270,77 +293,76 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(screen.getByText('37.50%')).toBeInTheDocument();
     expect(screen.queryByText('계산 기준 보기')).not.toBeInTheDocument();
     expect(screen.getByLabelText('총 수익률 설명')).toBeInTheDocument();
+    expect(screen.getByText('연환산 수익률')).toBeInTheDocument();
+    expect(screen.getByLabelText('연환산 수익률 설명')).toBeInTheDocument();
     expect(screen.getByRole('tooltip', { name: '시작 자산과 비교해 종료 자산이 얼마나 늘거나 줄었는지 보여줍니다.' }))
       .toBeInTheDocument();
   });
 
-  it('compares the official strategy curve with actual ETF buy-and-hold lines', async () => {
+  it('compares the strategy with actual S&P 500 and NASDAQ-100 index series', async () => {
+    const paths = recordRequests();
     view();
 
     const workspace = await screen.findByTestId('backtest-live-workspace');
     expect(workspace).toHaveClass('backtest-comparison-workspace');
 
     const overview = await screen.findByRole('region', { name: '선택한 백테스트 성과 개요' });
-    expect(await within(overview).findByText('시장 대비 누적 수익률')).toBeInTheDocument();
-    expect(within(overview).getByText('S&P 500 (SPY)')).toBeInTheDocument();
-    expect(within(overview).getByText('NASDAQ-100 (QQQ)')).toBeInTheDocument();
-    expect(within(overview).getByRole('img', { name: '전략과 시장 ETF 누적 수익률 선 그래프' })).toBeInTheDocument();
-    expect(within(overview).getByTestId('backtest-comparison-series-strategy')).toBeInTheDocument();
-    expect(within(overview).getByTestId('backtest-comparison-series-spy')).toBeInTheDocument();
-    expect(within(overview).getByTestId('backtest-comparison-series-qqq')).toBeInTheDocument();
+    expect(await within(overview).findByText('시장 지수 대비 누적 수익률')).toBeInTheDocument();
+    expect(within(overview).getByRole('img', { name: '전략과 S&P 500 및 NASDAQ-100 누적 수익률 선 그래프' })).toBeInTheDocument();
+    expect(within(overview).getByTestId('backtest-performance-series-strategy')).toBeInTheDocument();
+    expect(within(overview).getByTestId('backtest-performance-series-spx')).toBeInTheDocument();
+    expect(within(overview).getByTestId('backtest-performance-series-ndx')).toBeInTheDocument();
+    expect(within(overview).getByText('+3.00%')).toBeInTheDocument();
+    expect(within(overview).getByText('S&P 500')).toBeInTheDocument();
+    expect(within(overview).getByText('NASDAQ-100')).toBeInTheDocument();
+    const coverage = within(overview).getByText(/실제 비교 기간/).closest('p');
+    expect(coverage).toHaveTextContent('2026-07-01 ~ 2026-10-01');
+    expect(coverage).toHaveTextContent(/실제 비교 기간.*2026.*7.*1.*2026.*7.*29/);
+    expect(within(overview).queryByText(/SPY|QQQ|ETF/)).not.toBeInTheDocument();
     expect(within(overview).queryByText('월별 활동')).not.toBeInTheDocument();
-    expect(within(overview).getByText(/실제 비교 기간/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(paths).toContain('/api/v1/market-data/benchmarks');
+      expect(paths).toContain('/api/v1/market-data/instruments/benchmark-spx/bars');
+      expect(paths).toContain('/api/v1/market-data/instruments/benchmark-ndx/bars');
+    });
 
     expect(screen.getByTestId('backtest-live-metrics')).toHaveClass('backtest-metric-panel');
     expect(balancedStyles).toMatch(/\.backtest-live-overview-chart\s*\{[^}]*height:\s*330px/s);
   });
 
-  it('keeps the market comparison available when the backtest request form options fail', async () => {
-    server.use(
-      http.get(`${BACKTEST_API_BASE}/api/v1/bots/operations`, () => new HttpResponse('unavailable', { status: 503 })),
-    );
+  it('labels a one-trade 100 percent win rate as an insufficient sample', async () => {
+    const performance = structuredClone(PERFORMANCE) as Record<string, any>;
+    Object.assign(performance.metricsDocument, {
+      winRatePct: 100,
+      closingTradeCount: 1,
+      winningTradeCount: 1,
+      losingTradeCount: 0,
+      fillCount: 2,
+    });
+    server.use(...backtestHandlers({ performance }));
 
     view();
 
-    const overview = await screen.findByRole('region', { name: '선택한 백테스트 성과 개요' });
-    expect(await within(overview).findByText('시장 대비 누적 수익률')).toBeInTheDocument();
-    expect(within(overview).getByTestId('backtest-comparison-series-spy')).toBeInTheDocument();
-    expect(within(overview).getByTestId('backtest-comparison-series-qqq')).toBeInTheDocument();
+    const metrics = await screen.findByTestId('backtest-live-metrics');
+    expect(within(metrics).getByText('1승 / 1건')).toBeInTheDocument();
+    expect(within(metrics).getByText('표본 부족 · 체결 2건')).toBeInTheDocument();
+    expect(within(metrics).queryByText('100.00%')).not.toBeInTheDocument();
   });
 
-  it('explains a benchmark data failure without exposing a raw client error', async () => {
-    server.use(
-      http.get(`${BACKTEST_API_BASE}/api/v1/market-data/instruments/:instrumentId/bars`, () => (
-        new HttpResponse('upstream exploded', { status: 503 })
-      )),
-    );
+  it('shows request and worker timestamps in the user time zone while keeping trades in ET', async () => {
+    const expected = new Intl.DateTimeFormat('ko-KR', {
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+      hour12: false, timeZoneName: 'short',
+    }).format(new Date('2026-07-31T12:00:00Z'));
 
     view();
 
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent('시장 비교 데이터를 불러오지 못했습니다.');
-    expect(alert).toHaveTextContent('전략 결과는 그대로 확인할 수 있습니다.');
-    expect(alert).not.toHaveTextContent(/Market data|failed \(503\)|upstream/i);
-  });
-
-  it('explains non-overlapping market history without exposing an internal reason code', async () => {
-    server.use(...backtestHandlers({
-      performanceSeries: {
-        backtestRunId: RUN_ID,
-        resultHash: 'result-hash-1',
-        sourceSetHash: 'source-set-hash-1',
-        points: [
-          { occurredAt: '2020-01-02T20:00:00Z', equity: '10000.00' },
-          { occurredAt: '2020-01-03T20:00:00Z', equity: '10100.00' },
-        ],
-      },
-    }));
-
-    view();
-
-    expect(await screen.findByText('서로 비교할 수 있는 실제 데이터 기간이 없습니다.')).toBeInTheDocument();
-    expect(screen.getByText(/시장 ETF의 실제 보유 기간이 겹치지 않습니다/)).toBeInTheDocument();
-    expect(screen.queryByText(/NO_COMMON_RANGE|INVALID_BASELINE|MISSING_SERIES/)).not.toBeInTheDocument();
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+    const user = userEvent.setup();
+    await openResultTab(user, '실행 정보');
+    const attempts = await screen.findByRole('table', { name: '자동 실행 시도 기록' });
+    expect(within(attempts).getByText('시작 (내 시간)')).toBeInTheDocument();
+    expect(within(attempts).getByText('종료 (내 시간)')).toBeInTheDocument();
   });
 
   it('separates dense result categories into one-at-a-time tabs', async () => {
@@ -477,6 +499,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(within(detail).getByText('기말 자산')).toBeInTheDocument();
     expect(within(detail).getByText('$10,300.00')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '전략 실행 진단' })).toBeVisible();
+    expect(screen.getByText(/보유 자산의 평가손익을 포함/)).toBeInTheDocument();
     expect(screen.queryByText('MONTHLY DECISION')).not.toBeInTheDocument();
   });
 

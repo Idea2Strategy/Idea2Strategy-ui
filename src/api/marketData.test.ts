@@ -37,14 +37,31 @@ describe('market data client', () => {
 
   it('requests enough actual daily bars for a long-range benchmark comparison', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      instrumentId: 'spy-id', symbol: 'SPY', timeframe: '1d', bars: [bar],
+      instrumentId: 'spx-id', symbol: 'SPX', timeframe: '1d', bars: [bar],
     }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     const client = createMarketDataClient({ baseUrl: 'https://api.example.com', fetchImpl });
 
-    await client.getRecentBars('spy-id', '1d', 5000);
+    await client.getRecentBars('spx-id', '1d', 5000);
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://api.example.com/api/v1/market-data/instruments/spy-id/bars?timeframe=1d&limit=5000',
+      'https://api.example.com/api/v1/market-data/instruments/spx-id/bars?timeframe=1d&limit=5000',
+      expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+
+  it('loads only the fixed SPX and NDX index catalog', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ instruments: [
+      { instrumentId: 'spx-id', symbol: 'SPX', name: 'S&P 500' },
+      { instrumentId: 'ndx-id', symbol: 'NDX', name: 'NASDAQ-100' },
+    ] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const client = createMarketDataClient({ baseUrl: 'https://api.example.com', fetchImpl });
+
+    await expect(client.getBenchmarks!()).resolves.toEqual([
+      { instrumentId: 'spx-id', symbol: 'SPX', name: 'S&P 500' },
+      { instrumentId: 'ndx-id', symbol: 'NDX', name: 'NASDAQ-100' },
+    ]);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://api.example.com/api/v1/market-data/benchmarks',
       expect.objectContaining({ credentials: 'include' }),
     );
   });

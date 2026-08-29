@@ -13,7 +13,7 @@ test.afterEach(async ({ page }) => {
   await released;
 });
 
-test('opens the CLI-authored full Basic catalog across four resolutions', async ({ page }) => {
+test('opens THE ULTIMATE STRATEGY across its three real-data resolutions', async ({ page }) => {
   const email = process.env.A23_TEST_EMAIL;
   const password = process.env.A23_TEST_PASSWORD;
   const strategyId = process.env.A23_CLI_STRATEGY_ID;
@@ -34,25 +34,64 @@ test('opens the CLI-authored full Basic catalog across four resolutions', async 
   await expect(page.getByTestId('basic-editor-workspace')).toBeVisible();
   await expect(page.getByText('이 전략은 현재 편집기에서 열 수 없습니다.')).toHaveCount(0);
   await expect(page.getByRole('article', { name: 'PARTITION 01' })).toContainText('AAPL');
-  await expect(page.getByRole('article', { name: 'PARTITION 01' })).toContainText('30분봉');
-  await expect(page.getByRole('article', { name: 'PARTITION 02' })).toContainText('MSFT');
-  await expect(page.getByRole('article', { name: 'PARTITION 02' })).toContainText('1시간봉');
-  await expect(page.getByRole('article', { name: 'PARTITION 03' })).toContainText('META');
-  await expect(page.getByRole('article', { name: 'PARTITION 03' })).toContainText('4시간봉');
-  await expect(page.getByRole('article', { name: 'PARTITION 04' })).toContainText('NVDA');
-  await expect(page.getByRole('article', { name: 'PARTITION 04' })).toContainText('일봉');
-  await expect(page.locator('[data-strategy-card]')).toHaveCount(14);
+  await expect(page.getByRole('article', { name: 'PARTITION 01' })).toContainText('4시간봉');
+  await expect(page.getByRole('article', { name: 'PARTITION 02' })).toContainText('NVDA');
+  await expect(page.getByRole('article', { name: 'PARTITION 02' })).toContainText('30분봉');
+  await expect(page.getByRole('article', { name: 'PARTITION 03' })).toContainText('AAPL');
+  await expect(page.getByRole('article', { name: 'PARTITION 03' })).toContainText('일봉');
+  await expect(page.locator('[data-strategy-card]')).toHaveCount(8);
 
-  // Every user-visible Basic condition family is represented by the canonical
-  // fixture. Order emission is implicit in each card and verified by the
-  // compiler/result integration suites.
+  // The demo fixture exercises its actual composite conditions. The complete
+  // catalog remains covered by the compiler and component contract suites.
   for (const blockLabel of [
-    '가격 비교', '가격 변화율', '현재 수익률', '보유 기간', '거래량',
-    '연속 상승·하락', '최고 수익률', '평균선 교차', 'RSI 반등',
-    '고점 대비 하락', 'MACD 전환', '가격 띠 반전',
+    '가격 비교', '현재 수익률', '평균선 교차', 'RSI 반등', '고점 대비 하락',
   ]) {
     await expect(page.getByText(blockLabel, { exact: true }).first()).toBeVisible();
   }
+
+  const initialResponse = page.waitForResponse((response) => response.url().includes('/api/v1/market-data/instruments/')
+    && response.url().includes('timeframe=4h') && response.url().includes('window=3m'));
+  await page.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }).click();
+  const initial = await (await initialResponse).json() as {
+    symbol: string; timeframe: string; window: string; availableTo: string;
+    coverageStatus: string; bars: Array<{ occurredAt: string }>;
+  };
+  expect(initial).toMatchObject({
+    symbol: 'AAPL', timeframe: '4h', window: '3m', coverageStatus: 'COMPLETE',
+  });
+  expect(initial.bars.at(-1)?.occurredAt).toBe(initial.availableTo);
+  await expect(page.getByRole('img', { name: 'AAPL 최근 3개월 종가와 신호' })).toBeVisible();
+
+  const oneMonthResponse = page.waitForResponse((response) => response.url().includes('/api/v1/market-data/instruments/')
+    && response.url().includes('timeframe=4h') && response.url().includes('window=1m'));
+  await page.getByRole('button', { name: '1개월 미리보기' }).click();
+  const oneMonth = await (await oneMonthResponse).json() as typeof initial;
+  expect(oneMonth).toMatchObject({
+    symbol: 'AAPL', timeframe: '4h', window: '1m', coverageStatus: 'COMPLETE',
+    availableTo: initial.availableTo,
+  });
+  expect(initial.bars.length).toBeGreaterThan(oneMonth.bars.length);
+  expect(oneMonth.bars.at(-1)?.occurredAt).toBe(oneMonth.availableTo);
+  await expect(page.getByRole('img', { name: 'AAPL 최근 1개월 종가와 신호' })).toBeVisible();
+
+  for (const symbol of ['MSFT', 'META']) {
+    const symbolResponse = page.waitForResponse((response) => response.url().includes('/api/v1/market-data/instruments/')
+      && response.url().includes('timeframe=4h') && response.url().includes('window=1m'));
+    await page.getByRole('button', { name: `${symbol} 미리보기` }).click();
+    const snapshot = await (await symbolResponse).json() as typeof initial;
+    expect(snapshot).toMatchObject({ symbol, timeframe: '4h', window: '1m', coverageStatus: 'COMPLETE' });
+    expect(snapshot.bars.at(-1)?.occurredAt).toBe(snapshot.availableTo);
+    await expect(page.getByRole('img', { name: `${symbol} 최근 1개월 종가와 신호` })).toBeVisible();
+  }
+
+  await page.getByRole('button', { name: '미리보기 닫기' }).click();
+  const nvdaResponse = page.waitForResponse((response) => response.url().includes('/api/v1/market-data/instruments/')
+    && response.url().includes('timeframe=30m') && response.url().includes('window=1m'));
+  await page.getByRole('button', { name: 'PARTITION 02 전략 미리보기' }).click();
+  const nvda = await (await nvdaResponse).json() as typeof initial;
+  expect(nvda).toMatchObject({ symbol: 'NVDA', timeframe: '30m', window: '1m', coverageStatus: 'COMPLETE' });
+  expect(nvda.bars.at(-1)?.occurredAt).toBe(nvda.availableTo);
+  await expect(page.getByRole('img', { name: 'NVDA 최근 1개월 종가와 신호' })).toBeVisible();
 
   const released = page.waitForResponse((response) => response.url().endsWith(`/api/v1/strategies/${strategyId}/edit-lease`)
     && response.request().method() === 'DELETE');

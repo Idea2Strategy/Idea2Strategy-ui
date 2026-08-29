@@ -159,11 +159,10 @@ function route(request: IncomingMessage, state: BacktestApiState): Answer {
     }])).values()));
   }
   if (url.pathname === '/api/v1/strategy-release-inputs') return json({ executionPolicies: [], datasets: [] });
-  if (url.pathname === '/api/v1/strategy-catalogs/basic') return json({
+  if (url.pathname === '/api/v1/market-data/benchmarks') return json({
     instruments: [
-      { id: 'benchmark-spy', symbol: 'SPY' },
-      { id: 'benchmark-qqq', symbol: 'QQQ' },
-      { id: 'benchmark-iwm', symbol: 'IWM' },
+      { instrumentId: 'benchmark-spx', symbol: 'SPX', name: 'S&P 500' },
+      { instrumentId: 'benchmark-ndx', symbol: 'NDX', name: 'NASDAQ-100' },
     ],
   });
   const marketMatch = url.pathname.match(/^\/api\/v1\/market-data\/instruments\/([^/]+)\/bars$/);
@@ -236,11 +235,11 @@ function route(request: IncomingMessage, state: BacktestApiState): Answer {
 
 function benchmarkBars(instrumentId: string): Answer {
   const symbols: Record<string, string> = {
-    'benchmark-spy': 'SPY', 'benchmark-qqq': 'QQQ', 'benchmark-iwm': 'IWM',
+    'benchmark-spx': 'SPX', 'benchmark-ndx': 'NDX',
   };
   const symbol = symbols[instrumentId];
   if (!symbol) return json({ detail: 'instrument not found' }, 404);
-  const closes = symbol === 'SPY' ? [550, 561, 572] : symbol === 'QQQ' ? [480, 494, 504] : [210, 208, 215];
+  const closes = symbol === 'SPX' ? [6300, 6363, 6426] : [22000, 22440, 22880];
   return json({
     instrumentId,
     symbol,
@@ -248,7 +247,8 @@ function benchmarkBars(instrumentId: string): Answer {
     bars: ['2026-07-01T20:00:00Z', '2026-07-15T20:00:00Z', '2026-07-29T20:00:00Z'].map((occurredAt, index) => ({
       eventId: `${symbol}-${index}`, occurredAt, sequence: index + 1, revision: 1,
       open: closes[index], high: closes[index] + 1, low: closes[index] - 1,
-      close: closes[index], volume: 1000000 + index, provider: 'LOCAL_PARQUET', feed: 'SIP',
+      close: closes[index], volume: 0,
+      provider: symbol === 'NDX' ? 'NASDAQ_INDEX' : 'YAHOO_INDEX', feed: 'INDEX_DAILY',
     })),
   });
 }

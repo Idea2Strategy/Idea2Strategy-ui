@@ -21,6 +21,12 @@ export interface MarketBarSnapshot {
   bars: MarketBar[];
 }
 
+export interface MarketBenchmarkInstrument {
+  instrumentId: string;
+  symbol: 'SPX' | 'NDX';
+  name: 'S&P 500' | 'NASDAQ-100';
+}
+
 export type PreviewWindow = '1m' | '3m';
 export type MarketBarCoverageStatus = 'COMPLETE' | 'PARTIAL' | 'EMPTY';
 
@@ -67,6 +73,7 @@ export interface DisplayPriceUpdate {
 }
 
 export interface MarketDataClient {
+  getBenchmarks?(signal?: AbortSignal): Promise<MarketBenchmarkInstrument[]>;
   getRecentBars(
     instrumentId: string,
     timeframe?: ChartTimeframe,
@@ -107,6 +114,32 @@ export function createMarketDataClient({
     `/api/v1/market-data/instruments/${encodeURIComponent(instrumentId)}/bars`;
 
   return {
+    async getBenchmarks(signal) {
+      const response = await fetchImpl(`${root}/api/v1/market-data/benchmarks`, {
+        credentials: 'include', headers: headers('application/json'), signal,
+      });
+      if (!response.ok) throw new Error(`Market benchmark catalog failed (${response.status})`);
+      const payload = object(await response.json(), 'Invalid market benchmark catalog');
+      if (!Array.isArray(payload.instruments)) throw new Error('Invalid market benchmark instruments');
+      const instruments = payload.instruments.map((value) => {
+        const item = object(value, 'Invalid market benchmark instrument');
+        const symbol = string(item.symbol, 'symbol');
+        const name = string(item.name, 'name');
+        if (symbol !== 'SPX' && symbol !== 'NDX') throw new Error(`Unsupported market benchmark: ${symbol}`);
+        if (name !== 'S&P 500' && name !== 'NASDAQ-100') throw new Error(`Unsupported market benchmark name: ${name}`);
+        return {
+          instrumentId: string(item.instrumentId, 'instrumentId'),
+          symbol: symbol as MarketBenchmarkInstrument['symbol'],
+          name: name as MarketBenchmarkInstrument['name'],
+        };
+      });
+      if (instruments.length !== 2 || !instruments.some(({ symbol }) => symbol === 'SPX')
+        || !instruments.some(({ symbol }) => symbol === 'NDX')) {
+        throw new Error('Both SPX and NDX market benchmarks are required');
+      }
+      return instruments;
+    },
+
     async getRecentBars(instrumentId, timeframe = '30m', limit = 1000, signal) {
       const response = await fetchImpl(
         `${root}${path(instrumentId)}?timeframe=${encodeURIComponent(timeframe)}&limit=${encodeURIComponent(String(limit))}`,

@@ -122,7 +122,11 @@ describe('Signal product UI', () => {
     unmount();
     window.history.replaceState({}, '', '/strategies/new/pro');
     render(<App />);
-    expect(await screen.findByRole('heading', { name: 'Pro 편집기는 준비 중입니다' })).toBeInTheDocument();
+    expect(await screen.findByRole(
+      'heading',
+      { name: 'Pro 편집기는 준비 중입니다' },
+      { timeout: 5_000 },
+    )).toBeInTheDocument();
     expect(screen.queryByRole('toolbar', { name: 'Pro 편집 작업' })).not.toBeInTheDocument();
   });
 

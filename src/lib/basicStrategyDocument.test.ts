@@ -122,6 +122,74 @@ describe('rebuildBasicSnapshot', () => {
     expect(rebuilt?.symbolLimits).toEqual({ 'section-aapl': { AAPL: 35 }, 'section-msft': { MSFT: 40 } });
   });
 
+  test('inherits the saved partition timeframe for position-only sell conditions', () => {
+    const order = (id: string, executionMode: string) => ({
+      id, elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER',
+      parameters: {
+        orderPercent: '100', maxPositionPercent: '100', executionMode,
+        waitMode: '조건 재충족', waitInterval: '1', maxExecutions: '1000',
+      },
+    });
+    const group = (
+      id: string,
+      container: 'BUY' | 'SELL',
+      condition: { id: string; elementCode: string; parameters: Record<string, string> },
+    ) => ({
+      id, allocationGroupId: id, container,
+      evaluationMode: 'INDEPENDENT', allocationMode: 'EQUAL', instrumentIds: ['instrument-aapl'],
+      blocks: [condition, order(`${id}-order`, container === 'BUY' ? '대기 후 재진입' : '대기 후 재실행')],
+      connections: [{ fromBlockId: condition.id, outputPort: 'passed', toBlockId: `${id}-order`, inputPort: 'passed' }],
+    });
+    const semanticDocument = {
+      mode: 'BASIC', catalogId: 'catalog-v2', groups: [
+        group('daily-buy', 'BUY', {
+          id: 'daily-buy-condition', elementCode: 'BASIC_PRICE_COMPARE',
+          parameters: { resolution: '1d', operator: 'GT', reference: 'SMA_60' },
+        }),
+        group('drawdown-sell', 'SELL', {
+          id: 'drawdown-condition', elementCode: 'BASIC_DRAWDOWN_FROM_PEAK',
+          parameters: { operator: 'GTE', thresholdPercent: '25' },
+        }),
+        group('loss-sell', 'SELL', {
+          id: 'loss-condition', elementCode: 'BASIC_POSITION_RETURN',
+          parameters: { direction: 'LOSS', thresholdPercent: '20' },
+        }),
+      ],
+    };
+    const presentationDocument = { basicEditor: { version: 1, snapshot: {
+      sections: [{
+        id: 'daily-section', instrumentIds: ['instrument-aapl'], timeframe: '일봉',
+        cards: { buy: ['daily-buy'], sell: ['drawdown-sell', 'loss-sell'], risk: [] },
+        cardOrder: ['daily-buy', 'drawdown-sell', 'loss-sell'], cardPositions: {},
+      }],
+      cardMeta: {},
+    } } };
+
+    const rebuilt = rebuildBasicSnapshot(semanticDocument, presentationDocument, officialCatalog);
+
+    expect(rebuilt).not.toBeNull();
+    expect(rebuilt?.sections).toHaveLength(1);
+    expect(rebuilt?.sections[0]).toMatchObject({
+      id: 'daily-section', timeframe: '일봉',
+      cards: { buy: ['daily-buy'], sell: ['drawdown-sell', 'loss-sell'], risk: [] },
+    });
+
+    const cliChangedParameters = semanticDocument.groups[0].blocks[0].parameters as Record<string, string>;
+    cliChangedParameters.resolution = '30m';
+    const rebuiltAfterCliResolutionChange = rebuildBasicSnapshot(
+      semanticDocument,
+      presentationDocument,
+      officialCatalog,
+    );
+
+    expect(rebuiltAfterCliResolutionChange).not.toBeNull();
+    expect(rebuiltAfterCliResolutionChange?.sections).toHaveLength(1);
+    expect(rebuiltAfterCliResolutionChange?.sections[0]).toMatchObject({
+      id: 'daily-section', timeframe: '30분봉',
+      cards: { buy: ['daily-buy'], sell: ['drawdown-sell', 'loss-sell'], risk: [] },
+    });
+  });
+
   test('round-trips multiple buy and sell cards as independent executable groups', () => {
     const source = snapshot();
     source.sections[0].cards = { buy: ['buy-1', 'buy-2'], sell: ['sell-1', 'sell-2'], risk: [] };
@@ -292,6 +360,35 @@ describe('rebuildBasicSnapshot', () => {
     expect(rebuilt?.sellSettings['aapl-sell'].executeMode).toBe('조건 충족마다');
     expect(rebuilt?.sellSettings['msft-sell'].executeMode).toBe('조건 충족마다');
     expect(buildBasicSemanticDocument(rebuilt!, officialCatalog, semanticDocument)).toEqual(semanticDocument);
+  });
+
+  test('moves restored partitions apart when a wider current layout would make their controls unreachable', () => {
+    const semanticDocument = {
+      mode: 'BASIC', catalogId: 'catalog-v2', groups: [
+        ['aapl-buy', 'BUY', 'instrument-aapl'],
+        ['aapl-sell', 'SELL', 'instrument-aapl'],
+        ['msft-buy', 'BUY', 'instrument-msft'],
+        ['msft-sell', 'SELL', 'instrument-msft'],
+      ].map(([id, container, instrumentId]) => ({
+        id, allocationGroupId: id, container, evaluationMode: 'INDEPENDENT', allocationMode: 'EQUAL',
+        instrumentIds: [instrumentId],
+        blocks: [
+          { id: `${id}-condition`, elementCode: 'BASIC_PRICE_COMPARE', parameters: { resolution: '1d', operator: container === 'BUY' ? 'GT' : 'LT', reference: 'PREVIOUS_CLOSE' } },
+          { id: `${id}-order`, elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: { orderPercent: '100', maxPositionPercent: '25', executionMode: '1회만', waitMode: '조건 재충족', waitInterval: '1', maxExecutions: '1' } },
+        ],
+        connections: [{ fromBlockId: `${id}-condition`, outputPort: 'passed', toBlockId: `${id}-order`, inputPort: 'passed' }],
+      })),
+    };
+    const presentationDocument = { basicEditor: { snapshot: { sections: [
+      { id: 'section-1', symbol: 'AAPL', allocation: 50, timeframe: '일봉', x: 80, y: 80, width: 1120, height: 620, cards: { buy: ['aapl-buy'], sell: ['aapl-sell'], risk: [] }, cardOrder: ['aapl-buy', 'aapl-sell'], cardPositions: {} },
+      { id: 'section-2', symbol: 'MSFT', allocation: 50, timeframe: '일봉', x: 900, y: 80, width: 1120, height: 620, cards: { buy: ['msft-buy'], sell: ['msft-sell'], risk: [] }, cardOrder: ['msft-buy', 'msft-sell'], cardPositions: {} },
+    ] } } };
+
+    const rebuilt = rebuildBasicSnapshot(semanticDocument, presentationDocument, officialCatalog)!;
+
+    expect(rebuilt.sections[0].x).toBe(80);
+    expect(rebuilt.sections[1].x).toBeGreaterThanOrEqual(80 + 1120 + 48);
+    expect(buildBasicSemanticDocument(rebuilt, officialCatalog, semanticDocument)).toEqual(semanticDocument);
   });
 
   test('refuses semantics the Basic editor cannot represent without loss', () => {

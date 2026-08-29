@@ -96,13 +96,12 @@ export function backtestHandlers(overrides: Partial<BacktestApiState> = {}): Req
   const path = (suffix: string) => `${BACKTEST_API_BASE}/api/v1/backtests${suffix}`;
 
   return [
-    http.get(`${BACKTEST_API_BASE}/api/v1/strategy-catalogs/basic`, ({ request }) => {
+    http.get(`${BACKTEST_API_BASE}/api/v1/market-data/benchmarks`, ({ request }) => {
       if (principalOf(request.headers.get('Authorization')) === null) return UNAUTHENTICATED();
       return HttpResponse.json({
         instruments: [
-          { id: 'benchmark-spy', symbol: 'SPY' },
-          { id: 'benchmark-qqq', symbol: 'QQQ' },
-          { id: 'benchmark-iwm', symbol: 'IWM' },
+          { instrumentId: 'benchmark-spx', symbol: 'SPX', name: 'S&P 500' },
+          { instrumentId: 'benchmark-ndx', symbol: 'NDX', name: 'NASDAQ-100' },
         ],
       });
     }),
@@ -110,13 +109,12 @@ export function backtestHandlers(overrides: Partial<BacktestApiState> = {}): Req
       if (principalOf(request.headers.get('Authorization')) === null) return UNAUTHENTICATED();
       const instrumentId = String(params.instrumentId);
       const symbols: Record<string, string> = {
-        'benchmark-spy': 'SPY',
-        'benchmark-qqq': 'QQQ',
-        'benchmark-iwm': 'IWM',
+        'benchmark-spx': 'SPX',
+        'benchmark-ndx': 'NDX',
       };
       const symbol = symbols[instrumentId];
       if (!symbol) return HttpResponse.json({ detail: 'instrument not found' }, { status: 404 });
-      const closes = symbol === 'SPY' ? [550, 561, 572] : symbol === 'QQQ' ? [480, 494, 504] : [210, 208, 215];
+      const closes = symbol === 'SPX' ? [6300, 6363, 6426] : [22000, 22440, 22880];
       return HttpResponse.json({
         instrumentId,
         symbol,
@@ -131,8 +129,8 @@ export function backtestHandlers(overrides: Partial<BacktestApiState> = {}): Req
           low: closes[index] - 1,
           close: closes[index],
           volume: 1000000 + index,
-          provider: 'LOCAL_PARQUET',
-          feed: 'SIP',
+          provider: symbol === 'NDX' ? 'NASDAQ_INDEX' : 'YAHOO_INDEX',
+          feed: 'INDEX_DAILY',
         })),
       });
     }),

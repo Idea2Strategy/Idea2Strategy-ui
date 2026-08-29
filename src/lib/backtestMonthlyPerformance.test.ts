@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BacktestPerformanceSeries } from '../api/backtests';
-import { buildMonthlyPerformance } from './backtestMonthlyPerformance';
+import { annualizedReturnPct, buildMonthlyPerformance } from './backtestMonthlyPerformance';
 
 const series = (points: Array<{ occurredAt: string; equity: string }>): BacktestPerformanceSeries => ({
   backtestRunId: 'run-1',
@@ -55,5 +55,25 @@ describe('buildMonthlyPerformance', () => {
 
     expect(result[1].returnPct).toBeCloseTo(10, 8);
     expect(result[1].maxDrawdownPct).toBeCloseTo(-25, 8);
+  });
+});
+
+describe('annualizedReturnPct', () => {
+  it('annualizes the canonical first and last equity observations over their actual span', () => {
+    expect(annualizedReturnPct(series([
+      { occurredAt: '2020-01-01T00:00:00Z', equity: '100.00' },
+      { occurredAt: '2021-01-01T00:00:00Z', equity: '121.00' },
+    ]))).toBeCloseTo(20.9523, 3);
+  });
+
+  it('does not invent a rate without two positive observations and a positive duration', () => {
+    expect(annualizedReturnPct(null)).toBeNull();
+    expect(annualizedReturnPct(series([
+      { occurredAt: '2026-01-01T00:00:00Z', equity: '100.00' },
+    ]))).toBeNull();
+    expect(annualizedReturnPct(series([
+      { occurredAt: '2026-01-01T00:00:00Z', equity: '0' },
+      { occurredAt: '2027-01-01T00:00:00Z', equity: '100.00' },
+    ]))).toBeNull();
   });
 });
