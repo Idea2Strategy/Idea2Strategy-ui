@@ -204,7 +204,7 @@ describe('Strategy API view', () => {
     expect(within(row).getByRole('menuitem', { name: 'AAPL 반전 전략 삭제' })).toBeInTheDocument();
   });
 
-  test('loads an owned document, acquires a lease, and saves the Basic presentation safely', async () => {
+  test('loads and saves an owned document with optimistic concurrency and no window lease', async () => {
     const user = userEvent.setup();
     const loadOrder: string[] = [];
     const document: StrategyDocument = {
@@ -275,7 +275,7 @@ describe('Strategy API view', () => {
     await user.click(within(screen.getByRole('listbox', { name: '추가할 종목' })).getByRole('option', { name: /SPY/ }));
     await user.click(screen.getByRole('button', { name: '종목 추가' }));
     expect(screen.getByRole('dialog', { name: 'PARTITION 1 종목 관리' })).toHaveTextContent('SPY');
-    expect(loadOrder).toEqual(['document', 'lease']);
+    expect(loadOrder).toEqual(['document']);
     await user.click(screen.getByRole('button', { name: '완료' }));
     await user.selectOptions(screen.getByRole('combobox', { name: 'PARTITION 01 기본 봉 주기' }), '1시간봉');
     await user.click(screen.getByRole('button', { name: 'PARTITION 01 전략 미리보기' }));
@@ -289,7 +289,6 @@ describe('Strategy API view', () => {
 
     await waitFor(() => expect(authoringClient.saveDocument).toHaveBeenCalledWith('strategy-id', expect.objectContaining({
       expectedEditSequence: 0,
-      leaseToken: 'lease-token',
       semanticDocument: { mode: 'BASIC', catalogId: 'catalog-id', groups: [] },
       presentationDocument: expect.objectContaining({
         basicEditor: expect.objectContaining({
@@ -303,7 +302,9 @@ describe('Strategy API view', () => {
     await waitFor(() => expect(authoringClient.validateStrategy).toHaveBeenCalledWith('strategy-id', 'catalog-id'));
     expect(screen.getByRole('button', { name: '개인 봇 출시' })).toBeDisabled();
     unmount();
-    await waitFor(() => expect(authoringClient.releaseLease).toHaveBeenCalledWith('strategy-id', 'lease-token'));
+    expect(vi.mocked(authoringClient.saveDocument).mock.calls[0][1]).not.toHaveProperty('leaseToken');
+    expect(authoringClient.acquireLease).not.toHaveBeenCalled();
+    expect(authoringClient.releaseLease).not.toHaveBeenCalled();
   });
 
   /* Saving and validating are two calls behind one button. A validation failure
@@ -428,7 +429,7 @@ describe('Strategy API view', () => {
     ]);
   });
 
-  test('retries a transient lease conflict left by a page navigation', async () => {
+  test('opens even when the legacy lease endpoint would report a conflict', async () => {
     const document: StrategyDocument = {
       strategyId: 'reloaded',
       semanticDocument: { mode: 'BASIC', groups: [] },
@@ -451,12 +452,12 @@ describe('Strategy API view', () => {
 
     render(<BasicEditor goBack={() => {}} strategyId="reloaded" authoringClient={authoringClient} catalogClient={null} />);
 
-    await waitFor(() => expect(authoringClient.acquireLease).toHaveBeenCalledTimes(2));
+    expect(authoringClient.acquireLease).not.toHaveBeenCalled();
     expect(screen.getByTestId('basic-editor-workspace')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  test('releases the active lease when the browser page is hidden for navigation', async () => {
+  test('does not create or release a legacy lease when the browser page is hidden', async () => {
     const document: StrategyDocument = {
       strategyId: 'pagehide',
       semanticDocument: { mode: 'BASIC', groups: [] },
@@ -476,11 +477,13 @@ describe('Strategy API view', () => {
     } as StrategyAuthoringClient;
 
     render(<BasicEditor goBack={() => {}} strategyId="pagehide" authoringClient={authoringClient} catalogClient={null} />);
-    await waitFor(() => expect(authoringClient.acquireLease).toHaveBeenCalled());
+    await waitFor(() => expect(authoringClient.getDocument).toHaveBeenCalled());
+    expect(authoringClient.acquireLease).not.toHaveBeenCalled();
 
     window.dispatchEvent(new PageTransitionEvent('pagehide'));
 
-    await waitFor(() => expect(authoringClient.releaseLease).toHaveBeenCalledWith('pagehide', 'pagehide-token'));
+    expect(authoringClient.acquireLease).not.toHaveBeenCalled();
+    expect(authoringClient.releaseLease).not.toHaveBeenCalled();
   });
 
   test('keeps a saved READY revision launchable through preview differences, then saves and releases it', async () => {
@@ -647,8 +650,8 @@ describe('Strategy API view', () => {
     render(<BasicEditor blank goBack={() => {}} strategyId="legacy" authoringClient={authoringClient} catalogClient={null} />);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('이 전략은 현재 편집기에서 열 수 없습니다.');
-    // The exclusive lease must not be held by an editor that refused to open.
-    await waitFor(() => expect(authoringClient.releaseLease).toHaveBeenCalledWith('legacy', 'lease-token'));
+    expect(authoringClient.acquireLease).not.toHaveBeenCalled();
+    expect(authoringClient.releaseLease).not.toHaveBeenCalled();
     expect(authoringClient.saveDocument).not.toHaveBeenCalled();
   });
 
@@ -710,7 +713,7 @@ describe('Strategy API view', () => {
 
     render(<BasicEditor blank goBack={() => {}} strategyId={strategyId} authoringClient={authoringClient} catalogClient={{ getBasic: vi.fn().mockResolvedValue(catalog) }} />);
 
-    await waitFor(() => expect(authoringClient.acquireLease).toHaveBeenCalled());
+    await waitFor(() => expect(authoringClient.getDocument).toHaveBeenCalled());
     expect(screen.queryByText('이 전략은 현재 편집기에서 열 수 없습니다.')).not.toBeInTheDocument();
     expect(await screen.findByRole('spinbutton', { name: 'RSI 반등 값' })).toHaveValue(37);
     await user.click(screen.getByRole('button', { name: '저장' }));
@@ -773,7 +776,7 @@ describe('Strategy API view', () => {
 
     render(<BasicEditor blank goBack={() => {}} strategyId={strategyId} authoringClient={authoringClient} catalogClient={{ getBasic: vi.fn().mockResolvedValue(catalog) }} />);
 
-    await waitFor(() => expect(authoringClient.acquireLease).toHaveBeenCalled());
+    await waitFor(() => expect(authoringClient.getDocument).toHaveBeenCalled());
     expect(screen.queryByText('이 전략은 현재 편집기에서 열 수 없습니다.')).not.toBeInTheDocument();
     expect(await screen.findByText('가격 비교')).toBeInTheDocument();
     expect(screen.queryByRole('spinbutton', { name: 'RSI 반등 값' })).not.toBeInTheDocument();
@@ -810,7 +813,8 @@ describe('Strategy API view', () => {
 
     render(<BasicEditor blank goBack={() => {}} strategyId="fresh" authoringClient={authoringClient} catalogClient={null} />);
 
-    await waitFor(() => expect(authoringClient.acquireLease).toHaveBeenCalled());
+    await waitFor(() => expect(authoringClient.getDocument).toHaveBeenCalled());
+    expect(authoringClient.acquireLease).not.toHaveBeenCalled();
     expect(screen.queryByText('이 전략은 현재 편집기에서 열 수 없습니다.')).not.toBeInTheDocument();
   });
 

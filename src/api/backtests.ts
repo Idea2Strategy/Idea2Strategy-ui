@@ -124,9 +124,24 @@ export interface BacktestPerformanceSummary {
   calculatedAt: string;
 }
 
+export interface BacktestPerformancePosition {
+  instrumentId: string;
+  quantity: string;
+  markPrice: string;
+  marketValue: string;
+}
+
+export interface BacktestPerformancePoint {
+  occurredAt: string;
+  equity: string;
+  /** Null only for immutable legacy results written before position attribution. */
+  cash: string | null;
+  positions: BacktestPerformancePosition[];
+}
+
 export interface BacktestPerformanceSeries {
   backtestRunId: string;
-  points: Array<{ occurredAt: string; equity: string }>;
+  points: BacktestPerformancePoint[];
   resultHash: string;
   sourceSetHash: string;
 }
@@ -272,6 +287,22 @@ export interface CustomBacktestInput {
   idempotencyKey: string;
 }
 
+export interface BacktestStrategySnapshot {
+  backtestRunId: string;
+  botId: string;
+  snapshotSchemaVersion: string;
+  semanticSnapshot: Record<string, unknown> & {
+    mode: string;
+    compiledPlan: Record<string, unknown>;
+  };
+  presentationSnapshot: Record<string, unknown> & {
+    name: string;
+    strategyPresentation: Record<string, unknown>;
+  };
+  snapshotHash: string;
+  createdAt: string;
+}
+
 export interface CustomBacktestReceipt {
   messageId: string;
   eventType: string;
@@ -293,6 +324,7 @@ export interface BacktestClient {
   listMonthlySummaries(runId: string, signal?: AbortSignal): Promise<BacktestMonthlySummary[]>;
   listDetailManifests(runId: string, signal?: AbortSignal): Promise<BacktestDetailManifest[]>;
   getInputs(runId: string, signal?: AbortSignal): Promise<BacktestRunInputs>;
+  getStrategySnapshot(runId: string, signal?: AbortSignal): Promise<BacktestStrategySnapshot>;
   getRequestOptions(signal?: AbortSignal): Promise<BacktestRequestOptions>;
   requestBacktest(botId: string, input: CustomBacktestInput, signal?: AbortSignal): Promise<CustomBacktestReceipt>;
   cancelBacktest(runId: string, signal?: AbortSignal): Promise<BacktestRun>;
@@ -519,6 +551,12 @@ export function createBacktestClient({
       ));
     },
 
+    async getStrategySnapshot(runId, signal) {
+      return readStrategySnapshot(await request(
+        `${runPath(runId)}/strategy-snapshot`, 'Backtest strategy snapshot request', signal,
+      ));
+    },
+
     async getRequestOptions(signal) {
       const [botsPayload, inputsPayload] = await Promise.all([
         request('/api/v1/bots/operations', 'Backtest bot option request', signal),
@@ -699,7 +737,26 @@ function readPerformanceSeries(value: unknown): BacktestPerformanceSeries {
     const point = object(value, 'performance series point');
     const equity = decimal(point.equity, 'equity');
     if (Number(equity) < 0) throw new BacktestContractError('Invalid negative performance equity');
-    return { occurredAt: string(point.occurredAt, 'occurredAt'), equity };
+    const cash = point.cash === undefined ? null : nullableDecimal(point.cash, 'cash');
+    if (cash !== null && Number(cash) < 0) throw new BacktestContractError('Invalid negative performance cash');
+    const rawPositions = point.positions === undefined ? [] : point.positions;
+    if (!Array.isArray(rawPositions)) throw new BacktestContractError('Invalid performance positions');
+    const positions = rawPositions.map((value) => {
+      const position = object(value, 'performance position');
+      const quantity = decimal(position.quantity, 'position.quantity');
+      const markPrice = decimal(position.markPrice, 'position.markPrice');
+      const marketValue = decimal(position.marketValue, 'position.marketValue');
+      if ([quantity, markPrice, marketValue].some((amount) => Number(amount) < 0)) {
+        throw new BacktestContractError('Invalid negative performance position');
+      }
+      return {
+        instrumentId: string(position.instrumentId, 'position.instrumentId'),
+        quantity,
+        markPrice,
+        marketValue,
+      };
+    });
+    return { occurredAt: string(point.occurredAt, 'occurredAt'), equity, cash, positions };
   });
   const instants = points.map((point) => point.occurredAt);
   if (new Set(instants).size !== instants.length || instants.some((value, index) => index > 0 && value <= instants[index - 1])) {
@@ -852,6 +909,34 @@ function readRunInputs(value: unknown): BacktestRunInputs {
     executionModelVersion: nullableString(input.executionModelVersion, 'executionModelVersion'),
     reasonCode: nullableString(input.reasonCode, 'reasonCode'),
     missingRequirements: stringArray(input.missingRequirements, 'missingRequirements'),
+  };
+}
+
+function readStrategySnapshot(value: unknown): BacktestStrategySnapshot {
+  const input = object(value, 'backtest strategy snapshot');
+  const semanticSnapshot = object(input.semanticSnapshot, 'semanticSnapshot');
+  const compiledPlan = object(semanticSnapshot.compiledPlan, 'semanticSnapshot.compiledPlan');
+  const presentationSnapshot = object(input.presentationSnapshot, 'presentationSnapshot');
+  const strategyPresentation = object(
+    presentationSnapshot.strategyPresentation,
+    'presentationSnapshot.strategyPresentation',
+  );
+  return {
+    backtestRunId: string(input.backtestRunId, 'backtestRunId'),
+    botId: string(input.botId, 'botId'),
+    snapshotSchemaVersion: string(input.snapshotSchemaVersion, 'snapshotSchemaVersion'),
+    semanticSnapshot: {
+      ...semanticSnapshot,
+      mode: string(semanticSnapshot.mode, 'semanticSnapshot.mode'),
+      compiledPlan,
+    },
+    presentationSnapshot: {
+      ...presentationSnapshot,
+      name: string(presentationSnapshot.name, 'presentationSnapshot.name'),
+      strategyPresentation,
+    },
+    snapshotHash: string(input.snapshotHash, 'snapshotHash'),
+    createdAt: string(input.createdAt, 'createdAt'),
   };
 }
 

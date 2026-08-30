@@ -299,6 +299,57 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
       .toBeInTheDocument();
   });
 
+  it('opens the immutable strategy snapshot that the selected run actually used', async () => {
+    server.use(http.get(
+      `${BACKTEST_API_BASE}/api/v1/backtests/${RUN_ID}/strategy-snapshot`,
+      () => HttpResponse.json({
+        backtestRunId: RUN_ID,
+        botId: BOT_ID,
+        snapshotSchemaVersion: 'basic-launch-snapshot.v1',
+        semanticSnapshot: {
+          mode: 'BASIC',
+          compiledPlan: {
+            flows: [{
+              key: 'aapl-entry',
+              container: 'BUY',
+              instrumentIds: ['aa268aa6-9401-49d0-a2d4-a2a490df7d84'],
+              steps: [
+                { key: 'rsi', sequence: 1, elementCode: 'BASIC_RSI_CROSS', parameters: { period: '14', threshold: '45', direction: 'UP', resolution: '30m' } },
+                { key: 'price', sequence: 2, elementCode: 'BASIC_PRICE_COMPARE', parameters: { operator: 'GT', reference: 'PREVIOUS_CLOSE', resolution: '30m' } },
+                { key: 'order', sequence: 2, elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: { orderPercent: '20', maxPositionPercent: '25' } },
+              ],
+            }],
+          },
+        },
+        presentationSnapshot: {
+          name: 'AAPL RSI 복합 전략',
+          strategyPresentation: { basicEditor: { snapshot: { sections: [{
+            symbol: 'AAPL',
+            instrumentIds: ['aa268aa6-9401-49d0-a2d4-a2a490df7d84'],
+          }] } } },
+        },
+        snapshotHash: `sha256:${'a'.repeat(64)}`,
+        createdAt: '2026-07-31T12:00:00Z',
+      }),
+    ));
+    const user = userEvent.setup();
+    view();
+
+    await user.click(await screen.findByRole('button', { name: '실행 전략 보기' }));
+
+    const dialog = await screen.findByRole('dialog', { name: '백테스트 실행 전략' });
+    expect(within(dialog).getByRole('heading', { name: 'AAPL RSI 복합 전략' })).toBeInTheDocument();
+    expect(within(dialog).getByText('매수')).toBeInTheDocument();
+    expect(within(dialog).getByText('RSI 상향 돌파')).toBeInTheDocument();
+    expect(within(dialog).getByText('14봉 · 45 · 30분봉')).toBeInTheDocument();
+    expect(within(dialog).getByText('AAPL')).toBeInTheDocument();
+    expect(within(dialog).getByText('현재가 > 전일 종가 · 30분봉')).toBeInTheDocument();
+    expect(within(dialog).queryByText('aapl-entry')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('aa268aa6')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/PREVIOUS_CLOSE/)).not.toBeInTheDocument();
+    expect(within(dialog).getByText(/스냅샷 해시.*aaaaaaaaaaaa/)).toBeInTheDocument();
+  });
+
   it('compares the strategy with actual S&P 500 and NASDAQ-100 index series', async () => {
     const paths = recordRequests();
     view();
@@ -320,6 +371,13 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
     expect(coverage).toHaveTextContent(/실제 비교 기간.*2026.*7.*1.*2026.*7.*29/);
     expect(within(overview).queryByText(/SPY|QQQ|ETF/)).not.toBeInTheDocument();
     expect(within(overview).queryByText('월별 활동')).not.toBeInTheDocument();
+    const attribution = await screen.findByRole('region', { name: '성과 변동 당시 보유 포지션' });
+    expect(within(attribution).getByText('가장 큰 상승 구간')).toBeInTheDocument();
+    expect(await within(attribution).findByText('AAPL')).toBeInTheDocument();
+    expect(within(attribution).queryByText('종목 …2908')).not.toBeInTheDocument();
+    expect(within(attribution).getByText(/50.*주/)).toBeInTheDocument();
+    expect(within(attribution).getByText('$5,250.50')).toBeInTheDocument();
+    expect(within(attribution).getByText(/현금.*\$5,049\.50/)).toBeInTheDocument();
     await waitFor(() => {
       expect(paths).toContain('/api/v1/market-data/benchmarks');
       expect(paths).toContain('/api/v1/market-data/instruments/benchmark-spx/bars');

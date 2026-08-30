@@ -4,7 +4,7 @@ import { annualizedReturnPct, buildMonthlyPerformance } from './backtestMonthlyP
 
 const series = (points: Array<{ occurredAt: string; equity: string }>): BacktestPerformanceSeries => ({
   backtestRunId: 'run-1',
-  points,
+  points: points.map((point) => ({ ...point, cash: null, positions: [] })),
   resultHash: 'result-hash',
   sourceSetHash: 'source-hash',
 });

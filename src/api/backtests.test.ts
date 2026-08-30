@@ -108,6 +108,27 @@ describe('backtest results API client', () => {
     expect(inputs.calculationModelVersion).toBe('calculation-v9');
   });
 
+  it('reads the immutable strategy and presentation snapshot used by the run', async () => {
+    server.use(http.get(
+      `${BACKTEST_API_BASE}/api/v1/backtests/${RUN_ID}/strategy-snapshot`,
+      () => HttpResponse.json({
+        backtestRunId: RUN_ID,
+        botId: '00000000-0000-4000-8000-000000000201',
+        snapshotSchemaVersion: 'basic-launch-snapshot.v1',
+        semanticSnapshot: { mode: 'BASIC', compiledPlan: { flows: [] } },
+        presentationSnapshot: { name: '출시 당시 전략', strategyPresentation: { sections: [] } },
+        snapshotHash: `sha256:${'a'.repeat(64)}`,
+        createdAt: '2026-07-31T12:00:00Z',
+      }),
+    ));
+
+    const snapshot = await client().getStrategySnapshot(RUN_ID);
+
+    expect(snapshot.presentationSnapshot.name).toBe('출시 당시 전략');
+    expect(snapshot.semanticSnapshot.compiledPlan).toEqual({ flows: [] });
+    expect(snapshot.snapshotHash).toBe(`sha256:${'a'.repeat(64)}`);
+  });
+
   it('loads server-owned request options and submits a custom backtest idempotently', async () => {
     let receivedKey = '';
     let receivedBody: unknown;
@@ -159,8 +180,18 @@ describe('backtest results API client', () => {
     server.use(http.get(`${BACKTEST_API_BASE}/api/v1/backtests/${RUN_ID}/performance-series`, () => HttpResponse.json({
       backtestRunId: RUN_ID,
       points: [
-        { occurredAt: '2026-07-30T20:00:00Z', equity: '100000.00000000' },
-        { occurredAt: '2026-07-31T20:00:00Z', equity: '101250.50000000' },
+        { occurredAt: '2026-07-30T20:00:00Z', equity: '100000.00000000', cash: '100000.00000000', positions: [] },
+        {
+          occurredAt: '2026-07-31T20:00:00Z',
+          equity: '101250.50000000',
+          cash: '90000.00000000',
+          positions: [{
+            instrumentId: INSTRUMENT_ID,
+            quantity: '50.00000000',
+            markPrice: '225.01000000',
+            marketValue: '11250.50000000',
+          }],
+        },
       ],
       resultHash: RESULT_HASH,
       sourceSetHash: `sha256:${'b'.repeat(64)}`,
@@ -169,8 +200,18 @@ describe('backtest results API client', () => {
     const series = await client().getPerformanceSeries(RUN_ID);
 
     expect(series.points).toEqual([
-      { occurredAt: '2026-07-30T20:00:00Z', equity: '100000.00000000' },
-      { occurredAt: '2026-07-31T20:00:00Z', equity: '101250.50000000' },
+      { occurredAt: '2026-07-30T20:00:00Z', equity: '100000.00000000', cash: '100000.00000000', positions: [] },
+      {
+        occurredAt: '2026-07-31T20:00:00Z',
+        equity: '101250.50000000',
+        cash: '90000.00000000',
+        positions: [{
+          instrumentId: INSTRUMENT_ID,
+          quantity: '50.00000000',
+          markPrice: '225.01000000',
+          marketValue: '11250.50000000',
+        }],
+      },
     ]);
     expect(series.resultHash).toBe(RESULT_HASH);
   });

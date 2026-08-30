@@ -210,6 +210,8 @@ describe('Basic editor interactions', () => {
     await user.click(within(entryModes).getByRole('radio', { name: '주기마다' }));
     expect(within(buySettings).getByRole('combobox', { name: '진입 주기' })).toHaveValue('매 거래일');
     expect(within(buySettings).getByText('조건 블록이 없으면 지정 주기마다 정기 매수합니다.')).toBeInTheDocument();
+    expect(within(screen.getByTestId('basic-buy-group')).getByRole('note', { name: '정기 실행 조건' }))
+      .toHaveTextContent('매 거래일 일정과 아래 조건을 모두 만족할 때');
 
     expect(screen.getByRole('spinbutton', { name: '매도 비율' })).toHaveValue(null);
     expect(screen.getByTestId('sell-order-block')).toHaveTextContent('매도 요청');

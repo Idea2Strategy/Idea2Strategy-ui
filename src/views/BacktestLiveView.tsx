@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { AlertTriangle, BarChart3, Bot, Check, ChevronDown, CircleHelp, Clock3, Plus, X } from 'lucide-react';
+import { AlertTriangle, BarChart3, Bot, Check, ChevronDown, CircleHelp, Clock3, Layers3, LockKeyhole, Plus, X } from 'lucide-react';
 import { BacktestApiError } from '../api/backtests';
 import type {
   BacktestAttempt,
@@ -12,6 +12,7 @@ import type {
   BacktestRequestOptions,
   BacktestRun,
   BacktestRunStatus,
+  BacktestStrategySnapshot,
   BacktestTrade,
 } from '../api/backtests';
 import { createMarketDataClient } from '../api/marketData';
@@ -633,6 +634,9 @@ function RunDetailPanels({
   const { run } = detail;
   const [cancelPending, setCancelPending] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [strategySnapshot, setStrategySnapshot] = useState<BacktestStrategySnapshot | null>(null);
+  const [strategySnapshotPending, setStrategySnapshotPending] = useState(false);
+  const [strategySnapshotError, setStrategySnapshotError] = useState<string | null>(null);
   const cancellable = run.status === 'QUEUED' || run.status === 'RUNNING';
   const cancel = async () => {
     setCancelPending(true);
@@ -646,12 +650,28 @@ function RunDetailPanels({
       setCancelPending(false);
     }
   };
+  const openStrategySnapshot = async () => {
+    setStrategySnapshotPending(true);
+    setStrategySnapshotError(null);
+    try {
+      setStrategySnapshot(await client.getStrategySnapshot(run.backtestRunId));
+    } catch (error) {
+      if (error instanceof BacktestApiError && error.unauthenticated) onUnauthenticated();
+      setStrategySnapshotError('이 실행에 고정된 전략 스냅샷을 불러오지 못했습니다.');
+    } finally {
+      setStrategySnapshotPending(false);
+    }
+  };
   return <>
     <Panel
       className="backtest-performance-panel backtest-live-status-panel backtest-live-overview-panel"
       title={`${botName} 성과 개요`}
       subtitle={`요청 ${formatUserTime(run.queuedAt)} · 평가 ${run.evaluationStart} ~ ${run.evaluationEnd}`}
       action={<div className="backtest-live-heading-actions">
+        <Button disabled={strategySnapshotPending} onClick={() => { void openStrategySnapshot(); }}>
+          <Layers3 size={15} aria-hidden="true" />
+          {strategySnapshotPending ? '전략 확인 중…' : '실행 전략 보기'}
+        </Button>
         <Status tone={STATUS_TONES[run.status]}>{STATUS_LABELS[run.status]}</Status>
         {cancellable && <Button
           disabled={cancelPending || run.cancellationRequestedAt !== null}
@@ -670,6 +690,10 @@ function RunDetailPanels({
         {cancelError && <FailureNotice title={cancelError} code={null} />}
       </section>
     </Panel>
+    {run.status === 'COMPLETED' && detail.performanceSeries && <BacktestPositionAttribution
+      series={detail.performanceSeries}
+      marketDataClient={marketDataClient}
+    />}
     {run.status === 'COMPLETED'
       ? <BacktestResultTabs
         client={client}
@@ -679,7 +703,271 @@ function RunDetailPanels({
         onUnauthenticated={onUnauthenticated}
       />
       : <ExecutionPanel attempts={detail.attempts} />}
+    {strategySnapshotError && <div role="alert" className="backtest-snapshot-inline-error">{strategySnapshotError}</div>}
+    {strategySnapshot && <BacktestStrategySnapshotModal
+      snapshot={strategySnapshot}
+      onClose={() => setStrategySnapshot(null)}
+    />}
   </>;
+}
+
+type PerformanceMovement = {
+  point: BacktestPerformanceSeries['points'][number];
+  amount: number;
+  percent: number;
+};
+
+function performanceMovements(series: BacktestPerformanceSeries): PerformanceMovement[] {
+  return series.points.slice(1).flatMap((point, offset) => {
+    const previous = Number(series.points[offset].equity);
+    const current = Number(point.equity);
+    if (!Number.isFinite(previous) || !Number.isFinite(current) || previous <= 0) return [];
+    return [{ point, amount: current - previous, percent: ((current / previous) - 1) * 100 }];
+  });
+}
+
+function movementInstrumentLabel(instrumentId: string): string {
+  return `종목 …${instrumentId.slice(-4).toUpperCase()}`;
+}
+
+function BacktestPositionAttribution({
+  series,
+  marketDataClient,
+}: {
+  series: BacktestPerformanceSeries;
+  marketDataClient: MarketDataClient;
+}) {
+  const movements = performanceMovements(series);
+  const instrumentIds = useMemo(() => Array.from(new Set(
+    movements.flatMap(({ point }) => point.positions.map(({ instrumentId }) => instrumentId)),
+  )), [movements]);
+  const [instrumentSymbols, setInstrumentSymbols] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const controller = new AbortController();
+    void Promise.all(instrumentIds.map(async (instrumentId) => {
+      try {
+        const snapshot = await marketDataClient.getRecentBars(instrumentId, '1d', 1, controller.signal);
+        return [instrumentId, snapshot.symbol] as const;
+      } catch (error) {
+        if (aborted(error)) return null;
+        return null;
+      }
+    })).then((entries) => {
+      if (!controller.signal.aborted) {
+        setInstrumentSymbols(Object.fromEntries(entries.filter((entry): entry is readonly [string, string] => entry !== null)));
+      }
+    });
+    return () => controller.abort();
+  }, [instrumentIds.join('|'), marketDataClient]);
+  if (movements.length === 0) return null;
+  const gain = movements.reduce((best, item) => item.amount > best.amount ? item : best);
+  const loss = movements.reduce((best, item) => item.amount < best.amount ? item : best);
+  const cards = [
+    gain.amount > 0 ? { label: '가장 큰 상승 구간', tone: 'positive', movement: gain } : null,
+    loss.amount < 0 ? { label: '가장 큰 하락 구간', tone: 'negative', movement: loss } : null,
+  ].filter((item): item is { label: string; tone: string; movement: PerformanceMovement } => item !== null);
+
+  return <Panel
+    className="backtest-position-attribution-panel"
+    title="성과 변동 당시 보유 포지션"
+    subtitle="전일 평가 대비 변동이 가장 컸던 날의 종가 평가 포지션입니다."
+  >
+    <section className="backtest-position-attribution" role="region" aria-label="성과 변동 당시 보유 포지션">
+      <div className="backtest-position-movement-grid">
+        {cards.map(({ label, tone, movement }) => <article key={label} className={`is-${tone}`}>
+          <header>
+            <span>{label}</span>
+            <strong>{signedPercent(movement.percent)}</strong>
+            <small>{dateLabel(movement.point.occurredAt)} · {movement.amount > 0 ? '+' : ''}{money(movement.amount.toFixed(8))}</small>
+          </header>
+          {movement.point.positions.length > 0
+            ? <ul>{movement.point.positions.map((position) => <li key={position.instrumentId} title={position.instrumentId}>
+              <span><strong>{instrumentSymbols[position.instrumentId] ?? movementInstrumentLabel(position.instrumentId)}</strong><small>{amount(position.quantity)}주 · 평가가 {money(position.markPrice)}</small></span>
+              <b>{money(position.marketValue)}</b>
+            </li>)}</ul>
+            : <p>{movement.point.cash === null ? '이 과거 결과에는 포지션 상세가 기록되지 않았습니다.' : '이 시점에는 종목을 보유하지 않고 현금만 보유했습니다.'}</p>}
+          <footer>현금 {money(movement.point.cash)}</footer>
+        </article>)}
+        {cards.length === 1 && <div className="backtest-position-no-opposite">
+          <strong>{gain.amount > 0 ? '하락 구간 없음' : '상승 구간 없음'}</strong>
+          <span>평가 지점 사이에 반대 방향의 자산 변동이 없었습니다.</span>
+        </div>}
+      </div>
+      <p>포지션 값과 현금의 합계는 같은 시점의 전략 자산과 일치하도록 서버에서 검증됩니다.</p>
+    </section>
+  </Panel>;
+}
+
+interface DisplaySnapshotStep {
+  key: string;
+  label: string;
+  detail: string;
+  terminal: boolean;
+}
+
+interface DisplaySnapshotFlow {
+  key: string;
+  side: 'BUY' | 'SELL';
+  instruments: string[];
+  steps: DisplaySnapshotStep[];
+}
+
+const SNAPSHOT_ELEMENT_LABELS: Record<string, string> = {
+  BASIC_PRICE_COMPARE: '가격 비교',
+  BASIC_PRICE_CHANGE_PERCENT: '가격 변화율',
+  BASIC_VOLUME_COMPARE: '거래량 비교',
+  BASIC_STREAK: '연속 상승·하락',
+  BASIC_SMA_CROSS: '이동평균선 교차',
+  BASIC_RSI_CROSS: 'RSI 상향 돌파',
+  BASIC_MACD_CROSS: 'MACD 교차',
+  BASIC_BOLLINGER_REVERSAL: '볼린저 밴드 반전',
+  BASIC_POSITION_RETURN: '현재 수익률',
+  BASIC_HOLDING_PERIOD: '보유 기간',
+  BASIC_PEAK_RETURN: '최고 수익률',
+  BASIC_DRAWDOWN_FROM_PEAK: '고점 대비 하락',
+  BASIC_SCHEDULE: '실행 주기',
+  BASIC_EQUAL_ALLOCATION_ORDER: '주문',
+};
+
+function recordOf(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function snapshotStepDetail(code: string, parameters: Record<string, unknown>): string {
+  const resolution = typeof parameters.resolution === 'string'
+    ? ({ '30m': '30분봉', '1h': '1시간봉', '4h': '4시간봉', '1d': '일봉' }[parameters.resolution] ?? parameters.resolution)
+    : null;
+  const values: string[] = [];
+  const operator = ({ GT: '>', GTE: '≥', LT: '<', LTE: '≤', EQ: '=' } as Record<string, string>)[String(parameters.operator)]
+    ?? String(parameters.operator ?? '');
+  const reference = ({
+    PREVIOUS_CLOSE: '전일 종가',
+    OPEN: '시가',
+    HIGH: '고가',
+    LOW: '저가',
+    CLOSE: '종가',
+    AVERAGE_VOLUME: '최근 평균 거래량',
+  } as Record<string, string>)[String(parameters.reference)] ?? String(parameters.reference ?? '');
+  if (code === 'BASIC_RSI_CROSS') values.push(`${parameters.period ?? '—'}봉`, String(parameters.threshold ?? '—'));
+  else if (code === 'BASIC_SMA_CROSS') values.push(`${parameters.shortPeriod ?? '—'}봉`, `${parameters.longPeriod ?? '—'}봉`, parameters.direction === 'DOWN' ? '하향' : '상향');
+  else if (code === 'BASIC_MACD_CROSS') values.push(`${parameters.fastPeriod ?? '—'}·${parameters.slowPeriod ?? '—'}·${parameters.signalPeriod ?? '—'}`, parameters.direction === 'DOWN' ? '하향' : '상향');
+  else if (code === 'BASIC_PRICE_COMPARE') values.push(`현재가 ${operator} ${reference}`);
+  else if (code === 'BASIC_VOLUME_COMPARE') values.push(`현재 거래량 ${operator} ${reference}`);
+  else if (code === 'BASIC_EQUAL_ALLOCATION_ORDER') values.push(`자금 ${parameters.orderPercent ?? '—'}%`, `종목 최대 ${parameters.maxPositionPercent ?? '—'}%`);
+  else if (code === 'BASIC_SCHEDULE') values.push(({
+    EVERY_TRADING_DAY: '매 거래일',
+    EVERY_WEEK: '매주',
+    EVERY_MONTH: '매월',
+  } as Record<string, string>)[String(parameters.cycle)] ?? String(parameters.cycle ?? '—'), `${parameters.interval ?? '—'}회 간격`);
+  else if ('thresholdPercent' in parameters) values.push(`${operator} ${parameters.thresholdPercent}%`.trim());
+  else if ('amount' in parameters) values.push(`${parameters.amount}${parameters.unit === 'TRADING_DAY' ? '거래일' : '봉'}`);
+  else if ('reference' in parameters) values.push(String(parameters.reference));
+  else {
+    Object.entries(parameters)
+      .filter(([key]) => key !== 'resolution')
+      .slice(0, 3)
+      .forEach(([, value]) => values.push(String(value)));
+  }
+  if (resolution) values.push(resolution);
+  return values.join(' · ') || '설정값 없음';
+}
+
+function snapshotInstrumentLabels(snapshot: BacktestStrategySnapshot): Record<string, string> {
+  const presentation = recordOf(snapshot.presentationSnapshot.strategyPresentation);
+  const basicEditor = recordOf(presentation?.basicEditor);
+  const editorSnapshot = recordOf(basicEditor?.snapshot);
+  const sections = editorSnapshot?.sections;
+  if (!Array.isArray(sections)) return {};
+  const labels: Record<string, string> = {};
+  for (const value of sections) {
+    const section = recordOf(value);
+    if (!section || !Array.isArray(section.instrumentIds) || typeof section.symbol !== 'string') continue;
+    const ids = section.instrumentIds.filter((id): id is string => typeof id === 'string');
+    const symbols = section.symbol.split(/\s*[·,]\s*/).filter(Boolean);
+    ids.forEach((id, index) => { labels[id] = symbols[index] ?? section.symbol; });
+  }
+  return labels;
+}
+
+function snapshotFlows(snapshot: BacktestStrategySnapshot): DisplaySnapshotFlow[] {
+  const compiledPlan = recordOf(snapshot.semanticSnapshot.compiledPlan);
+  const source = compiledPlan?.flows;
+  if (!Array.isArray(source)) return [];
+  return source.flatMap((value, index) => {
+    const flow = recordOf(value);
+    if (!flow || (flow.container !== 'BUY' && flow.container !== 'SELL') || !Array.isArray(flow.steps)) return [];
+    const steps = flow.steps.flatMap((stepValue, stepIndex) => {
+      const step = recordOf(stepValue);
+      const code = typeof step?.elementCode === 'string' ? step.elementCode : null;
+      if (!step || !code) return [];
+      const parameters = recordOf(step.parameters) ?? {};
+      const direction = parameters.direction === 'DOWN' ? '하향' : parameters.direction === 'UP' ? '상향' : null;
+      return [{
+        key: typeof step.key === 'string' ? step.key : `${index}-${stepIndex}`,
+        label: code === 'BASIC_RSI_CROSS' && direction ? `RSI ${direction} 돌파` : SNAPSHOT_ELEMENT_LABELS[code] ?? code,
+        detail: snapshotStepDetail(code, parameters),
+        terminal: code === 'BASIC_EQUAL_ALLOCATION_ORDER',
+      }];
+    });
+    return [{
+      key: typeof flow.key === 'string' ? flow.key : `flow-${index}`,
+      side: flow.container,
+      instruments: Array.isArray(flow.instrumentIds) ? flow.instrumentIds.filter((item): item is string => typeof item === 'string') : [],
+      steps,
+    }];
+  });
+}
+
+function BacktestStrategySnapshotModal({
+  snapshot,
+  onClose,
+}: {
+  snapshot: BacktestStrategySnapshot;
+  onClose: () => void;
+}) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const flows = useMemo(() => snapshotFlows(snapshot), [snapshot]);
+  const instrumentLabels = useMemo(() => snapshotInstrumentLabels(snapshot), [snapshot]);
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeButtonRef.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('keydown', closeOnEscape);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+  return <div className="backtest-snapshot-backdrop" onMouseDown={(event) => {
+    if (event.target === event.currentTarget) onClose();
+  }}>
+    <section className="backtest-snapshot-dialog" role="dialog" aria-modal="true" aria-label="백테스트 실행 전략">
+      <header className="backtest-snapshot-header">
+        <span><LockKeyhole size={18} aria-hidden="true" /></span>
+        <div><small>IMMUTABLE RUN SNAPSHOT</small><h2>{snapshot.presentationSnapshot.name}</h2><p>이 백테스트가 실행되는 순간 고정된 전략입니다. 현재 편집 중인 전략과 독립적입니다.</p></div>
+        <button ref={closeButtonRef} type="button" aria-label="실행 전략 닫기" onClick={onClose}><X size={18} aria-hidden="true" /></button>
+      </header>
+      <div className="backtest-snapshot-meta">
+        <span>{`고정 시각 ${formatUserTime(snapshot.createdAt)}`}</span>
+        <span>{`스냅샷 해시 ${hashLabel(snapshot.snapshotHash)}`}</span>
+      </div>
+      <div className="backtest-snapshot-flow-grid">
+        {flows.map((flow) => <article key={flow.key} className={`backtest-snapshot-flow is-${flow.side.toLowerCase()}`}>
+          <header><span>{flow.side === 'BUY' ? '매수' : '매도'}</span></header>
+          <p>{flow.instruments.length > 0 ? flow.instruments.map((id) => instrumentLabels[id] ?? shortId(id)).join(' · ') : '대상 종목 없음'}</p>
+          <ol>{flow.steps.map((step, index) => <li key={step.key} className={step.terminal ? 'is-terminal' : ''}>
+            <span>{index + 1}</span><div><strong>{step.label}</strong><small>{step.detail}</small></div>
+          </li>)}</ol>
+        </article>)}
+        {flows.length === 0 && <EmptyState title="표시할 실행 흐름이 없습니다." detail="스냅샷은 보존되어 있지만 이 버전에서 해석할 수 있는 Basic 흐름이 없습니다." />}
+      </div>
+    </section>
+  </div>;
 }
 
 const RESULT_TABS: ReadonlyArray<{ id: BacktestResultTab; label: string }> = [

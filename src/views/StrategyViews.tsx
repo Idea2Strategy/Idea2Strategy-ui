@@ -46,6 +46,8 @@ const VALIDATION_FINDING_MESSAGES: Record<string, string> = {
   CONTRADICTORY_CONDITION: '동시에 충족할 수 없는 기준값이 함께 설정되어 있습니다.',
   CONDITION_ALWAYS_TRUE: '이 조건은 포지션을 보유한 동안 항상 참이 됩니다.',
   CONDITION_ALWAYS_FALSE: '이 조건은 실제 시장 데이터에서 충족될 수 없습니다.',
+  BACKTEST_FEATURE_REQUIRED: '백테스트 계산에 필요한 보조 지표가 자동으로 준비됩니다.',
+  BACKTEST_FEED_REQUIRED: '백테스트 계산에 필요한 시장 데이터가 자동으로 준비됩니다.',
 };
 
 const VALIDATION_PARAMETER_LABELS: Record<string, string> = {
@@ -64,6 +66,10 @@ const validationOrdinal = (zeroBased: number): string => {
   return `${zeroBased + 1}번째`;
 };
 
+export const formatStrategyCardBudgetPercent = (allocation: number, cardCount: number): string => (
+  Number((allocation / Math.max(1, cardCount)).toFixed(2)).toString()
+);
+
 const presentValidationLocation = (location: string): string => {
   const parts: string[] = [];
   const group = /groups\[(\d+)]/.exec(location);
@@ -80,40 +86,34 @@ export const presentServerValidationFinding = (
   finding: StrategyValidationFinding,
 ): { message: string; location: string } => ({
   message: VALIDATION_FINDING_MESSAGES[finding.code] ?? finding.message,
-  location: presentValidationLocation(finding.location),
+  location: finding.code.startsWith('BACKTEST_')
+    ? '백테스트 입력 데이터'
+    : presentValidationLocation(finding.location),
 });
+
+export const collapseServerValidationFindings = (
+  findings: StrategyValidationFinding[],
+  semanticDocument: Record<string, unknown>,
+): StrategyValidationFinding[] => {
+  const groups = Array.isArray(semanticDocument.groups) ? semanticDocument.groups : [];
+  const seen = new Set<string>();
+  return findings.filter((finding) => {
+    const match = /groups\[(\d+)](.*)/.exec(finding.location);
+    const source = match ? groups[Number(match[1])] : null;
+    const allocationGroupId = source && typeof source === 'object' && 'allocationGroupId' in source
+      ? String(source.allocationGroupId)
+      : match?.[1] ?? 'strategy';
+    const locationSuffix = match?.[2] ?? finding.location;
+    const requirements = Array.isArray(finding.requirements) ? finding.requirements : [];
+    const key = [finding.severity, finding.code, allocationGroupId, locationSuffix, ...requirements].join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 type EditorMode = 'basic' | 'pro';
 type EditorLoadFailure = 'sign-in' | 'missing' | 'conflict' | 'transport' | 'unreadable';
-
-const waitForLeaseRelease = (signal: AbortSignal) => new Promise<void>((resolve, reject) => {
-  const onAbort = () => {
-    window.clearTimeout(timer);
-    reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
-  };
-  const timer = window.setTimeout(() => {
-    signal.removeEventListener('abort', onAbort);
-    resolve();
-  }, 150);
-  signal.addEventListener('abort', onAbort, { once: true });
-});
-
-async function acquireLeaseAfterNavigation(
-  client: StrategyAuthoringClient,
-  strategyId: string,
-  signal: AbortSignal,
-) {
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    try {
-      return await client.acquireLease(strategyId, signal);
-    } catch (error) {
-      const releaseMayStillBeFinishing = error instanceof StrategyApiError && error.status === 409 && attempt < 3;
-      if (!releaseMayStillBeFinishing) throw error;
-      await waitForLeaseRelease(signal);
-    }
-  }
-  throw new Error('Strategy edit lease retry exhausted');
-}
 
 type Side = 'buy' | 'sell' | 'risk';
 type BlockTone =
@@ -1618,7 +1618,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const [documentRevision, setDocumentRevision] = useState(0);
   const [editorLoadFailure, setEditorLoadFailure] = useState<EditorLoadFailure | null>(null);
   const [savePending, setSavePending] = useState(false);
-  const leaseTokenRef = useRef<string | null>(null);
   const editSequenceRef = useRef(0);
   const semanticHashRef = useRef('');
   const semanticDocumentRef = useRef<Record<string, unknown>>({ mode: 'BASIC', groups: [] });
@@ -1867,10 +1866,13 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
   const isLaunchable = savedReadySignature === editorSignature
     && (!requiresServerValidation || savedValidation?.status === 'VALID');
   const isValidationDisplayReady = isLaunchable || isCurrentlyValid;
-  const serverErrorFindings = serverValidation?.findings.filter((finding) => (
+  const serverDisplayFindings = serverValidation
+    ? collapseServerValidationFindings(serverValidation.findings, semanticDocumentRef.current)
+    : [];
+  const serverErrorFindings = serverDisplayFindings.filter((finding) => (
     finding.severity === 'BLOCKING_ERROR' || finding.severity === 'ERROR'
-  )) ?? [];
-  const serverWarningFindings = serverValidation?.findings.filter((finding) => finding.severity === 'WARNING') ?? [];
+  ));
+  const serverWarningFindings = serverDisplayFindings.filter((finding) => finding.severity === 'WARNING');
   const validationTriggerLabel = validationPending
     ? isLaunchable ? '출시 가능 · 미리검증 중' : '검증 중…'
     : isLaunchable
@@ -2020,38 +2022,20 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     }
     const controller = new AbortController();
     let disposed = false;
-    let heartbeatTimer: number | undefined;
-    let grantedLeaseToken: string | null = null;
-    const releaseGrantedLease = () => {
-      const token = leaseTokenRef.current ?? grantedLeaseToken;
-      leaseTokenRef.current = null;
-      grantedLeaseToken = null;
-      if (token) void authoringClient.releaseLease(strategyId, token).catch(() => undefined);
-    };
     const reacquireLeaseAfterPageRestore = (event: PageTransitionEvent) => {
       if (event.persisted) setDocumentRevision((current) => current + 1);
     };
-    window.addEventListener('pagehide', releaseGrantedLease);
     window.addEventListener('pageshow', reacquireLeaseAfterPageRestore);
 
     setDocumentPending(true);
     setEditorLoadFailure(null);
     setSavedValidation(null);
     setSavedReadySignature(null);
-    /* Read before taking the exclusive lease. In React StrictMode the first
-       development-only mount is immediately discarded; acquiring first let
-       that discarded mount race its asynchronous release against the real
-       mount and produce a false 409. The abortable read makes the probe mount
-       harmless, then the surviving mount takes the lease. */
+    /* The immutable edit sequence is the concurrency boundary. A long-lived
+       window lease made reloads and multiple browser surfaces look like foreign
+       editors even though a stale save is already rejected atomically. */
     void authoringClient.getDocument(strategyId, controller.signal).then(async (document) => {
       if (disposed) return;
-      const lease = await acquireLeaseAfterNavigation(authoringClient, strategyId, controller.signal);
-      grantedLeaseToken = lease.leaseToken;
-      if (disposed) {
-        await authoringClient.releaseLease(strategyId, lease.leaseToken).catch(() => undefined);
-        grantedLeaseToken = null;
-        return;
-      }
       const savedSnapshot = readBasicEditorSnapshot(document.presentationDocument);
       const hasSemanticGroups = semanticDocumentCarriesGroups(document.semanticDocument);
       const rebuilt = hasSemanticGroups && basicCatalog
@@ -2075,13 +2059,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
          a blank canvas would let the next save overwrite a real strategy with an
          empty one, so refuse to open instead of silently discarding it. */
       if (!snapshot && hasSemanticGroups) {
-        await authoringClient.releaseLease(strategyId, lease.leaseToken).catch(() => undefined);
-        grantedLeaseToken = null;
         setDocumentPending(false);
         setEditorLoadFailure('unreadable');
         return;
       }
-      leaseTokenRef.current = lease.leaseToken;
       editSequenceRef.current = document.editSequence;
       semanticHashRef.current = document.semanticHash;
       semanticDocumentRef.current = document.semanticDocument;
@@ -2111,19 +2092,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       }
       if (disposed) return;
       setDocumentPending(false);
-      heartbeatTimer = window.setInterval(() => {
-        const token = leaseTokenRef.current;
-        if (!token) return;
-        void authoringClient.heartbeatLease(strategyId, token).catch(() => {
-          leaseTokenRef.current = null;
-          setSaveFeedback({ tone: 'warning', title: '편집 연결이 만료되었습니다.', detail: '목록으로 돌아가 전략을 다시 열어 주세요.' });
-        });
-      }, 60_000);
     }).catch((error) => {
-      if (grantedLeaseToken) {
-        void authoringClient.releaseLease(strategyId, grantedLeaseToken).catch(() => undefined);
-        grantedLeaseToken = null;
-      }
       if (disposed || (error instanceof DOMException && error.name === 'AbortError')) return;
       setDocumentPending(false);
       if (error instanceof StrategyApiError && error.status === 401) {
@@ -2142,10 +2111,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     return () => {
       disposed = true;
       controller.abort();
-      if (heartbeatTimer !== undefined) window.clearInterval(heartbeatTimer);
-      window.removeEventListener('pagehide', releaseGrantedLease);
       window.removeEventListener('pageshow', reacquireLeaseAfterPageRestore);
-      releaseGrantedLease();
     };
   }, [authoringClient, basicCatalog, catalogClient, catalogError, documentRevision, strategyId]);
 
@@ -2348,13 +2314,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       setAnnouncement(`${nextFeedback.title} ${nextFeedback.detail}`);
       return;
     }
-    const leaseToken = leaseTokenRef.current;
-    if (!leaseToken) {
-      const unavailable = { tone: 'warning' as const, title: '지금은 저장할 수 없습니다.', detail: '편집 연결을 다시 열어 주세요.' };
-      setSaveFeedback(unavailable);
-      setAnnouncement(`${unavailable.title} ${unavailable.detail}`);
-      return;
-    }
     setSavePending(true);
     setSavedReadySignature(null);
     setSavedValidation(null);
@@ -2380,7 +2339,6 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       };
       const saved = await authoringClient.saveDocument(strategyId, {
         expectedEditSequence: editSequenceRef.current,
-        leaseToken,
         semanticDocument,
         presentationDocument,
       });
@@ -3512,7 +3470,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
     const position = section.cardPositions?.[cardId] ?? getDefaultCardPosition(cardIndex);
     const ruleSide: 'left' | 'right' = position.x > Math.max(520, (section.width ?? 752) * .56) ? 'left' : 'right';
     const budgetRule = side === 'buy'
-      ? <>전략 예산의 <b>{Math.round(section.allocation / Math.max(1, section.cards.buy.length))}%</b>를 사용하고 한 번에 최대 <b>{settings.maxOrderPercent}%</b>까지 주문합니다.</>
+      ? <>전략 예산의 <b>{formatStrategyCardBudgetPercent(section.allocation, section.cards.buy.length)}%</b>를 사용하고 한 번에 최대 <b>{settings.maxOrderPercent}%</b>까지 주문합니다.</>
       : side === 'sell'
         ? <>매도 비율 <b>{sellExecution.sellPercent || '미설정'}%</b>만큼 주문합니다.</>
         : <>해당 포지션을 전량 정산합니다.</>;
@@ -3596,7 +3554,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
           </span>
           {(side === 'buy' || side === 'sell' || invalidCardIds.has(cardId)) && <span className="container-title-tags">
             {side === 'buy' && <>
-              <span>예산 {Math.round(section.allocation / Math.max(1, section.cards.buy.length))}%</span>
+              <span>예산 {formatStrategyCardBudgetPercent(section.allocation, section.cards.buy.length)}%</span>
               <span>주문 최대 {settings.maxOrderPercent}%</span>
               {settings.entryMode !== '1회만' && <span>{settings.entryMode}</span>}
             </>}
@@ -3700,7 +3658,7 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
         </div>}
       </section>}
       <div
-        className={`block-stack ${cardBlocks[cardId].length > 0 ? `has-condition-blocks has-center-marker ${cardBlocks[cardId].length === 1 ? 'is-single-condition' : 'is-multi-condition is-chain-linked-group'}` : ''}`}
+        className={`block-stack ${(cardBlocks[cardId].length > 0 || (side === 'buy' && settings.entryMode === '주기마다')) ? `has-condition-blocks has-center-marker ${(cardBlocks[cardId].length + (side === 'buy' && settings.entryMode === '주기마다' ? 1 : 0)) === 1 ? 'is-single-condition' : 'is-multi-condition is-chain-linked-group'}` : ''}`}
         data-testid={stackTestId}
         aria-label={`${sideLabel} 전략 조건 목록`}
         onDragOver={(event) => {
@@ -3709,6 +3667,10 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
       }} onDrop={(event) => {
         if (!dropLibraryBlock(event, cardId, cardBlocks[cardId].length)) dropBlock(event, cardId, cardBlocks[cardId].length);
       }}>
+        {side === 'buy' && settings.entryMode === '주기마다' && <div className="strategy-schedule-condition" role="note" aria-label="정기 실행 조건">
+          <CalendarDays size={14} aria-hidden="true" />
+          <span><strong>{settings.cycle}{settings.cycle === 'N거래일마다' ? ` ${settings.cycleInterval}일` : ''}</strong> 일정과 아래 조건을 모두 만족할 때</span>
+        </div>}
         {cardBlocks[cardId].length > 0
           ? <>{renderEditableBlocks(cardId, side, ruleSide)}</>
           : <div className="empty-container-drop"><Plus size={14} /><strong>조건 놓기</strong><small>블록 탭에서 드래그</small></div>}
@@ -4092,11 +4054,11 @@ export function BasicEditor({ goBack, openEditor, onLaunchBot, blank = false, st
             <ul>{group.issues.map((issue, index) => <li key={issue.id}><button type="button" onClick={() => focusValidationIssue(issue)}><span>{String(index + 1).padStart(2, '0')}</span><span>{renderBasicValidationMessage(issue.message.replace(`${group.label}의 `, ''))}</span><ChevronRight size={13} /></button></li>)}</ul>
           </section>)}
         </div>}
-        {serverValidation && serverValidation.findings.length > 0 && <section className="basic-validation-group" role="region" aria-label="서버 검증 결과">
-          <header><strong>서버 검증 결과</strong><span>{serverValidation.findings.length}</span></header>
-          <ul>{serverValidation.findings.map((finding, index) => <li key={`${finding.code}-${finding.location}-${index}`}>
+        {serverValidation && serverDisplayFindings.length > 0 && <section className="basic-validation-group" role="region" aria-label="서버 검증 결과">
+          <header><strong>서버 검증 결과</strong><span>{serverDisplayFindings.length}</span></header>
+          <ul>{serverDisplayFindings.map((finding, index) => <li key={`${finding.code}-${finding.location}-${index}`}>
             <div className="basic-validation-server-finding">
-              <span>{finding.severity === 'ERROR' ? '오류' : '경고'}</span>
+              <span>{finding.severity === 'BLOCKING_ERROR' || finding.severity === 'ERROR' ? '오류' : finding.severity === 'WARNING' ? '경고' : '정보'}</span>
               <span><strong>{presentServerValidationFinding(finding).message}</strong><small>{presentServerValidationFinding(finding).location}</small></span>
             </div>
           </li>)}</ul>

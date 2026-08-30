@@ -111,10 +111,13 @@ export function backtestHandlers(overrides: Partial<BacktestApiState> = {}): Req
       const symbols: Record<string, string> = {
         'benchmark-spx': 'SPX',
         'benchmark-ndx': 'NDX',
+        '00000000-0000-4000-8000-000000002908': 'AAPL',
       };
       const symbol = symbols[instrumentId];
       if (!symbol) return HttpResponse.json({ detail: 'instrument not found' }, { status: 404 });
-      const closes = symbol === 'SPX' ? [6300, 6363, 6426] : [22000, 22440, 22880];
+      const closes = symbol === 'SPX' ? [6300, 6363, 6426]
+        : symbol === 'NDX' ? [22000, 22440, 22880]
+          : [100, 102, 105];
       return HttpResponse.json({
         instrumentId,
         symbol,

@@ -54,7 +54,7 @@ export interface StrategyEditLease {
 
 export interface SaveStrategyDocumentInput {
   expectedEditSequence: number;
-  leaseToken: string;
+  leaseToken?: string;
   semanticDocument: Record<string, unknown>;
   presentationDocument: Record<string, unknown>;
 }

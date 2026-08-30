@@ -285,6 +285,23 @@ describe('Basic editor partition preview state', () => {
     expect(screen.getByTestId('preview-note')).toHaveTextContent('최근 3개월');
   });
 
+  test('labels per-flow zeroes as signal counts instead of an ambiguous percentage', () => {
+    render(<StrategyPreviewChart
+      partitionLabel="PARTITION 01"
+      symbols={['AAPL']}
+      flows={[
+        { id: 'never', label: '엄격한 진입', side: 'buy', blocks: [{ label: 'RSI', op: '<', value: '0', tone: 'indicator' }] },
+        { id: 'sell', label: '청산', side: 'sell', blocks: SELL_BLOCKS },
+      ]}
+      candles={generatePreviewCandles('AAPL', 1800, 120)}
+      onClose={() => {}}
+    />);
+
+    expect(screen.getByTestId('preview-flow-never')).toHaveTextContent('0회');
+    expect(screen.getByText('숫자는 수익률이 아니라 이 기간에 실제 주문을 만든 횟수입니다.'))
+      .toBeInTheDocument();
+  });
+
   test('always explains the buy and sell conditions and warns when bars are insufficient', () => {
     render(<StrategyPreviewChart
       partitionLabel="PARTITION 01"

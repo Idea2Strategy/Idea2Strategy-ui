@@ -170,12 +170,20 @@ export const PERFORMANCE: Json = {
   calculatedAt: '2026-07-31T12:29:00Z',
 };
 
+export const INSTRUMENT_ID = '00000000-0000-4000-8000-000000002908';
+
 export const PERFORMANCE_SERIES: Json = {
   backtestRunId: RUN_ID,
   points: [
-    { occurredAt: '2026-07-01T20:00:00Z', equity: '10000.00000000' },
-    { occurredAt: '2026-07-15T20:00:00Z', equity: '10150.00000000' },
-    { occurredAt: '2026-07-29T20:00:00Z', equity: '10300.00000000' },
+    { occurredAt: '2026-07-01T20:00:00Z', equity: '10000.00000000', cash: '10000.00000000', positions: [] },
+    {
+      occurredAt: '2026-07-15T20:00:00Z', equity: '10050.00000000', cash: '5049.50000000',
+      positions: [{ instrumentId: INSTRUMENT_ID, quantity: '50.00000000', markPrice: '100.01000000', marketValue: '5000.50000000' }],
+    },
+    {
+      occurredAt: '2026-07-29T20:00:00Z', equity: '10300.00000000', cash: '5049.50000000',
+      positions: [{ instrumentId: INSTRUMENT_ID, quantity: '50.00000000', markPrice: '105.01000000', marketValue: '5250.50000000' }],
+    },
   ],
   resultHash: RESULT_HASH,
   sourceSetHash: `sha256:${'b'.repeat(64)}`,
@@ -183,7 +191,6 @@ export const PERFORMANCE_SERIES: Json = {
 
 export const JULY_FILL_RECORD_ID = '50000000-0000-4000-8000-000000000001';
 export const JULY_REJECTION_RECORD_ID = '50000000-0000-4000-8000-000000000002';
-export const INSTRUMENT_ID = '00000000-0000-4000-8000-000000002908';
 
 const TRADE_RECORD_IDS = [JULY_FILL_RECORD_ID, JULY_REJECTION_RECORD_ID];
 

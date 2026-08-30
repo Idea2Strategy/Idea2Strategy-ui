@@ -288,9 +288,12 @@ export function StrategyPreviewChart({
       >
         <i aria-hidden="true" />
         {flow.label}
-        <b>{flow.evaluable ? flow.count : '—'}</b>
+        <b>{flow.evaluable ? `${flow.count}회` : t('계산 불가')}</b>
       </button>)}
     </div>
+    <small className="strategy-preview-flow-unit">
+      {t('숫자는 수익률이 아니라 이 기간에 실제 주문을 만든 횟수입니다.')}
+    </small>
 
     <ul className="strategy-preview-conditions" aria-label={t('매수·매도 조건')}>
       {preview.flows.map((flow) => <li key={flow.id} className={`is-${flow.side}`}>
