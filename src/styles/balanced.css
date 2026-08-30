@@ -313,7 +313,7 @@
   overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: 20px;
-  background: var(--surface-raised);
+  background: var(--surface);
   box-shadow: 0 28px 90px rgb(0 0 0 / 34%);
 }
 
@@ -323,7 +323,7 @@
   align-items: start;
   gap: 14px;
   padding: 22px 24px 18px;
-  border-bottom: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line);
 }
 
 .backtest-snapshot-header > span {
@@ -361,7 +361,7 @@
   width: 36px;
   height: 36px;
   place-items: center;
-  border: 1px solid var(--line-soft);
+  border: 1px solid var(--line);
   border-radius: 10px;
   background: transparent;
   color: var(--text-muted);
@@ -372,7 +372,7 @@
   flex-wrap: wrap;
   gap: 8px 20px;
   padding: 11px 24px;
-  border-bottom: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line);
   color: var(--text-muted);
   font-size: 11px;
 }
@@ -389,9 +389,9 @@
 .backtest-snapshot-flow {
   min-width: 0;
   padding: 16px;
-  border: 1px solid var(--line-soft);
+  border: 1px solid var(--line);
   border-radius: 14px;
-  background: var(--surface-subtle);
+  background: var(--surface-2);
 }
 
 .backtest-snapshot-flow.is-buy { border-top: 3px solid var(--positive); }
@@ -414,12 +414,12 @@
 
 .backtest-snapshot-flow > p { margin-top: 7px; }
 .backtest-snapshot-flow ol { display: grid; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
-.backtest-snapshot-flow li { display: grid; grid-template-columns: 24px 1fr; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--surface-raised); }
-.backtest-snapshot-flow li > span { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 7px; background: var(--surface-strong); color: var(--text-muted); font-size: 10px; font-weight: 800; }
+.backtest-snapshot-flow li { display: grid; grid-template-columns: 24px 1fr; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.backtest-snapshot-flow li > span { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 7px; background: var(--surface-3); color: var(--text-muted); font-size: 10px; font-weight: 800; }
 .backtest-snapshot-flow li div { display: grid; gap: 2px; min-width: 0; }
 .backtest-snapshot-flow li strong { font-size: 12px; }
 .backtest-snapshot-flow li small { overflow-wrap: anywhere; color: var(--text-muted); font-size: 11px; }
-.backtest-snapshot-flow li.is-terminal { border-color: color-mix(in srgb, var(--accent) 35%, var(--line-soft)); }
+.backtest-snapshot-flow li.is-terminal { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
 .backtest-snapshot-inline-error { margin: 10px 0; color: var(--negative); font-size: 12px; }
 
 @media (max-width: 760px) {

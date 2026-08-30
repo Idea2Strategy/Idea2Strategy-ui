@@ -808,6 +808,7 @@ interface DisplaySnapshotStep {
 interface DisplaySnapshotFlow {
   key: string;
   side: 'BUY' | 'SELL';
+  title: string | null;
   instruments: string[];
   steps: DisplaySnapshotStep[];
 }
@@ -895,9 +896,17 @@ function snapshotFlows(snapshot: BacktestStrategySnapshot): DisplaySnapshotFlow[
   const compiledPlan = recordOf(snapshot.semanticSnapshot.compiledPlan);
   const source = compiledPlan?.flows;
   if (!Array.isArray(source)) return [];
-  return source.flatMap((value, index) => {
+  const presentation = recordOf(snapshot.presentationSnapshot.strategyPresentation);
+  const basicEditor = recordOf(presentation?.basicEditor);
+  const editorSnapshot = recordOf(basicEditor?.snapshot);
+  const cardMeta = recordOf(editorSnapshot?.cardMeta);
+  const grouped = new Map<string, DisplaySnapshotFlow>();
+  source.forEach((value, index) => {
     const flow = recordOf(value);
-    if (!flow || (flow.container !== 'BUY' && flow.container !== 'SELL') || !Array.isArray(flow.steps)) return [];
+    if (!flow || (flow.container !== 'BUY' && flow.container !== 'SELL') || !Array.isArray(flow.steps)) return;
+    const rawKey = typeof flow.key === 'string' ? flow.key : `flow-${index}`;
+    const separator = rawKey.lastIndexOf(':');
+    const cardId = separator > 0 ? rawKey.slice(0, separator) : rawKey;
     const steps = flow.steps.flatMap((stepValue, stepIndex) => {
       const step = recordOf(stepValue);
       const code = typeof step?.elementCode === 'string' ? step.elementCode : null;
@@ -911,13 +920,25 @@ function snapshotFlows(snapshot: BacktestStrategySnapshot): DisplaySnapshotFlow[
         terminal: code === 'BASIC_EQUAL_ALLOCATION_ORDER',
       }];
     });
-    return [{
-      key: typeof flow.key === 'string' ? flow.key : `flow-${index}`,
+    const groupKey = `${flow.container}:${cardId}`;
+    const instruments = Array.isArray(flow.instrumentIds)
+      ? flow.instrumentIds.filter((item): item is string => typeof item === 'string')
+      : [];
+    const existing = grouped.get(groupKey);
+    if (existing) {
+      existing.instruments = [...new Set([...existing.instruments, ...instruments])];
+      return;
+    }
+    const meta = recordOf(cardMeta?.[cardId]);
+    grouped.set(groupKey, {
+      key: groupKey,
       side: flow.container,
-      instruments: Array.isArray(flow.instrumentIds) ? flow.instrumentIds.filter((item): item is string => typeof item === 'string') : [],
+      title: typeof meta?.title === 'string' ? meta.title : null,
+      instruments,
       steps,
-    }];
+    });
   });
+  return [...grouped.values()];
 }
 
 function BacktestStrategySnapshotModal({
@@ -958,7 +979,10 @@ function BacktestStrategySnapshotModal({
       </div>
       <div className="backtest-snapshot-flow-grid">
         {flows.map((flow) => <article key={flow.key} className={`backtest-snapshot-flow is-${flow.side.toLowerCase()}`}>
-          <header><span>{flow.side === 'BUY' ? '매수' : '매도'}</span></header>
+          <header>
+            <span>{flow.side === 'BUY' ? '매수' : '매도'}</span>
+            {flow.title && <strong>{flow.title}</strong>}
+          </header>
           <p>{flow.instruments.length > 0 ? flow.instruments.map((id) => instrumentLabels[id] ?? shortId(id)).join(' · ') : '대상 종목 없음'}</p>
           <ol>{flow.steps.map((step, index) => <li key={step.key} className={step.terminal ? 'is-terminal' : ''}>
             <span>{index + 1}</span><div><strong>{step.label}</strong><small>{step.detail}</small></div>
@@ -1283,7 +1307,7 @@ function BacktestPerformanceOverview({
     <div className="backtest-comparison-header">
       <div>
         <strong>시장 지수 대비 누적 수익률</strong>
-        <span>전략과 S&P 500·NASDAQ-100 실제 지수 값을 같은 시작점의 0%로 맞춰 비교합니다.</span>
+        <span>첫 0%는 수익이 없는 구간이 아니라 세 성과를 같은 날부터 비교하기 위한 기준점입니다.</span>
       </div>
     </div>
     <div className="backtest-comparison-legend" aria-label="전략과 시장 지수 성과 범례">

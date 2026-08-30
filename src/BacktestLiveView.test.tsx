@@ -310,9 +310,18 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
           mode: 'BASIC',
           compiledPlan: {
             flows: [{
-              key: 'aapl-entry',
+              key: 'quality-entry:aa268aa6-9401-49d0-a2d4-a2a490df7d84',
               container: 'BUY',
               instrumentIds: ['aa268aa6-9401-49d0-a2d4-a2a490df7d84'],
+              steps: [
+                { key: 'rsi', sequence: 1, elementCode: 'BASIC_RSI_CROSS', parameters: { period: '14', threshold: '45', direction: 'UP', resolution: '30m' } },
+                { key: 'price', sequence: 2, elementCode: 'BASIC_PRICE_COMPARE', parameters: { operator: 'GT', reference: 'PREVIOUS_CLOSE', resolution: '30m' } },
+                { key: 'order', sequence: 2, elementCode: 'BASIC_EQUAL_ALLOCATION_ORDER', parameters: { orderPercent: '20', maxPositionPercent: '25' } },
+              ],
+            }, {
+              key: 'quality-entry:e94b9f1b-a35e-4218-a6e7-b0345c7d40e2',
+              container: 'BUY',
+              instrumentIds: ['e94b9f1b-a35e-4218-a6e7-b0345c7d40e2'],
               steps: [
                 { key: 'rsi', sequence: 1, elementCode: 'BASIC_RSI_CROSS', parameters: { period: '14', threshold: '45', direction: 'UP', resolution: '30m' } },
                 { key: 'price', sequence: 2, elementCode: 'BASIC_PRICE_COMPARE', parameters: { operator: 'GT', reference: 'PREVIOUS_CLOSE', resolution: '30m' } },
@@ -323,10 +332,14 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
         },
         presentationSnapshot: {
           name: 'AAPL RSI 복합 전략',
-          strategyPresentation: { basicEditor: { snapshot: { sections: [{
-            symbol: 'AAPL',
-            instrumentIds: ['aa268aa6-9401-49d0-a2d4-a2a490df7d84'],
-          }] } } },
+          strategyPresentation: { basicEditor: { snapshot: {
+            sections: [{
+              symbol: 'AAPL · MSFT',
+              instrumentIds: ['aa268aa6-9401-49d0-a2d4-a2a490df7d84', 'e94b9f1b-a35e-4218-a6e7-b0345c7d40e2'],
+              cardOrder: ['quality-entry'],
+            }],
+            cardMeta: { 'quality-entry': { title: '품질 추세 진입', detail: 'AAPL · MSFT 30분봉' } },
+          } } },
         },
         snapshotHash: `sha256:${'a'.repeat(64)}`,
         createdAt: '2026-07-31T12:00:00Z',
@@ -339,15 +352,18 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
 
     const dialog = await screen.findByRole('dialog', { name: '백테스트 실행 전략' });
     expect(within(dialog).getByRole('heading', { name: 'AAPL RSI 복합 전략' })).toBeInTheDocument();
-    expect(within(dialog).getByText('매수')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('매수')).toHaveLength(1);
+    expect(within(dialog).getByText('품질 추세 진입')).toBeInTheDocument();
     expect(within(dialog).getByText('RSI 상향 돌파')).toBeInTheDocument();
     expect(within(dialog).getByText('14봉 · 45 · 30분봉')).toBeInTheDocument();
-    expect(within(dialog).getByText('AAPL')).toBeInTheDocument();
+    expect(within(dialog).getByText('AAPL · MSFT')).toBeInTheDocument();
     expect(within(dialog).getByText('현재가 > 전일 종가 · 30분봉')).toBeInTheDocument();
     expect(within(dialog).queryByText('aapl-entry')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('aa268aa6')).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/PREVIOUS_CLOSE/)).not.toBeInTheDocument();
     expect(within(dialog).getByText(/스냅샷 해시.*aaaaaaaaaaaa/)).toBeInTheDocument();
+    expect(balancedStyles).toMatch(/\.backtest-snapshot-dialog\s*\{[^}]*background:\s*var\(--surface\)/s);
+    expect(balancedStyles).toMatch(/\.backtest-snapshot-flow\s*\{[^}]*background:\s*var\(--surface-2\)/s);
   });
 
   it('compares the strategy with actual S&P 500 and NASDAQ-100 index series', async () => {
@@ -359,6 +375,7 @@ describe('BacktestLiveView against the /api/v1 backtest surface', () => {
 
     const overview = await screen.findByRole('region', { name: '선택한 백테스트 성과 개요' });
     expect(await within(overview).findByText('시장 지수 대비 누적 수익률')).toBeInTheDocument();
+    expect(within(overview).getByText('첫 0%는 수익이 없는 구간이 아니라 세 성과를 같은 날부터 비교하기 위한 기준점입니다.')).toBeInTheDocument();
     expect(within(overview).getByRole('img', { name: '전략과 S&P 500 및 NASDAQ-100 누적 수익률 선 그래프' })).toBeInTheDocument();
     expect(within(overview).getByTestId('backtest-performance-series-strategy')).toBeInTheDocument();
     expect(within(overview).getByTestId('backtest-performance-series-spx')).toBeInTheDocument();
