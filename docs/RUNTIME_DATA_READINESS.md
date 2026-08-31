@@ -25,10 +25,9 @@ These surfaces do not provide account-scoped historical equity, cash-flow
 events needed to calculate time-weighted return, bot ownership/type summaries,
 or a combined competition participation summary.
 
-## Protected prerequisite
+## Prerequisite
 
-Dashboard activation requires product-authority approval of a service/API
-contract that defines:
+Dashboard activation requires an implemented service/API contract that defines:
 
 - account-scoped bot identity and personal/competition classification;
 - valuation history and its freshness and provenance;
