@@ -74,6 +74,12 @@ describe('Signal product UI', () => {
     expect(indexHtml).not.toMatch(/UI Lab|comparison prototypes/);
   });
 
+  test('prevents public search engines from indexing the application', () => {
+    expect(indexHtml).toContain(
+      '<meta name="robots" content="noindex, nofollow, noarchive, nosnippet" />',
+    );
+  });
+
   test('sends a signed-out visit to an account-scoped route straight to the sign-in screen', async () => {
     signOut();
     window.history.replaceState({}, '', '/backtests');
