@@ -3,9 +3,13 @@ import type { Page, Request } from '@playwright/test';
 import { SESSION_STORAGE_KEY } from '../src/lib/session';
 import {
   BOT_ID,
+  FAILED_RUN,
   OWNER_ACCOUNT_ID,
   OWNER_TOKEN,
+  QUEUED_RUN,
+  RUNNING_RUN,
   RUN_ID,
+  UNAVAILABLE_RUN,
 } from '../src/test/backtestFixtures';
 import { MOCK_API_URL } from './ports';
 
@@ -30,14 +34,53 @@ const BACKTESTS = '/backtests';
  * reaches into the app's internals or stubs the client. A test that could not sign in
  * this way would mean the store is not actually reading real session state.
  */
-async function signIn(page: Page, token: string = OWNER_TOKEN): Promise<void> {
+async function signIn(page: Page, token: string = OWNER_TOKEN, expiresAt: string | null = null): Promise<void> {
   await page.addInitScript(
     ([key, value]) => window.sessionStorage.setItem(key, value),
     [
       SESSION_STORAGE_KEY,
-      JSON.stringify({ accessToken: token, accountId: OWNER_ACCOUNT_ID, expiresAt: null }),
+      JSON.stringify({ accessToken: token, accountId: OWNER_ACCOUNT_ID, expiresAt }),
     ] as const,
   );
+}
+
+type RunFixture = Record<string, unknown>;
+
+const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const listPattern = new RegExp(`^${escapePattern(MOCK_API_URL)}/api/v1/backtests(?:\\?.*)?$`);
+const runPattern = new RegExp(`^${escapePattern(MOCK_API_URL)}/api/v1/backtests/${RUN_ID}$`);
+const attemptsPattern = new RegExp(`^${escapePattern(MOCK_API_URL)}/api/v1/backtests/${RUN_ID}/attempts$`);
+const cancellationPattern = new RegExp(`^${escapePattern(MOCK_API_URL)}/api/v1/backtests/${RUN_ID}/cancellation$`);
+
+async function routeRun(page: Page, run: RunFixture, listDelayMs = 0): Promise<void> {
+  await page.route(listPattern, async (route) => {
+    if (listDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, listDelayMs));
+    await route.fulfill({ json: { items: [run], limit: 25, offset: 0 } });
+  });
+  await page.route(runPattern, (route) => route.fulfill({ json: run }));
+  await page.route(attemptsPattern, (route) => route.fulfill({ json: { items: [] } }));
+}
+
+function observeUnexpectedBrowserErrors(page: Page, allowedStatuses: readonly number[] = []) {
+  const expectedStatuses = new Set([401, 404, ...allowedStatuses]);
+  const errors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() !== 'error') return;
+    const expectedControlResponse = [...expectedStatuses]
+      .some((status) => message.text().includes(`status of ${status}`));
+    if (!expectedControlResponse) errors.push(`console:${message.text()}`);
+  });
+  page.on('requestfailed', (request) => {
+    if (!request.failure()?.errorText.includes('ERR_ABORTED')) {
+      errors.push(`request:${new URL(request.url()).pathname}:${request.failure()?.errorText ?? 'unknown'}`);
+    }
+  });
+  page.on('response', (response) => {
+    if (response.status() >= 400 && !expectedStatuses.has(response.status())) {
+      errors.push(`response:${response.status()}:${new URL(response.url()).pathname}`);
+    }
+  });
+  return errors;
 }
 
 /** Every request the page makes to the backtest API, in order. */
@@ -292,4 +335,137 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     );
     expect(stored).toBeNull();
   });
+
+  const stateScenarios: Array<{ name: string; run: RunFixture; copy: string }> = [
+    { name: 'queued', run: QUEUED_RUN as RunFixture, copy: '공식 백테스트 실행을 기다리고 있습니다.' },
+    { name: 'running', run: RUNNING_RUN as RunFixture, copy: '고정된 입력으로 공식 백테스트를 실행하고 있습니다.' },
+    {
+      name: 'cancelling',
+      run: { ...(RUNNING_RUN as RunFixture), cancellationRequestedAt: '2026-08-08T12:00:00Z', cancellationReasonCode: 'USER_CANCELLED' },
+      copy: '취소 요청을 전달했습니다. 워커가 다음 안전 지점에서 실행을 종료합니다.',
+    },
+    {
+      name: 'cancelled',
+      run: {
+        ...(QUEUED_RUN as RunFixture), status: 'CANCELLED', completedAt: '2026-08-08T12:01:00Z',
+        cancelledAt: '2026-08-08T12:01:00Z', cancellationReasonCode: 'USER_CANCELLED',
+      },
+      copy: '사용자가 백테스트 실행을 취소했습니다.',
+    },
+    { name: 'failed', run: FAILED_RUN as RunFixture, copy: '백테스트 실행이 실패했습니다.' },
+    { name: 'unavailable', run: UNAVAILABLE_RUN as RunFixture, copy: '필수 입력이 없어 백테스트를 실행할 수 없습니다.' },
+  ];
+
+  for (const scenario of stateScenarios) {
+    test(`renders the ${scenario.name} lifecycle state in a fresh browser context`, async ({ page }) => {
+      const errors = observeUnexpectedBrowserErrors(page);
+      await routeRun(page, scenario.run);
+      await signIn(page);
+
+      await page.goto(BACKTESTS);
+
+      await expect(page.getByText(scenario.copy, { exact: true })).toBeVisible();
+      expect(errors).toEqual([]);
+    });
+  }
+
+  test('renders loading and then the honest empty state', async ({ page }) => {
+    const errors = observeUnexpectedBrowserErrors(page);
+    await page.route(listPattern, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      await route.fulfill({ json: { items: [], limit: 25, offset: 0 } });
+    });
+    await signIn(page);
+
+    await page.goto(BACKTESTS);
+    await expect(page.getByRole('status')).toContainText('백테스트 결과를 불러오는 중입니다.');
+    await expect(page.getByText('백테스트할 봇이 없습니다.', { exact: true })).toBeVisible();
+    await expect(page.getByText('출시된 봇이 생기면 공식 백테스트가 자동으로 시작되고 이곳에 결과가 표시됩니다.')).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test('renders a forbidden list without discarding the valid customer session', async ({ page }) => {
+    const errors = observeUnexpectedBrowserErrors(page, [403]);
+    await page.route(listPattern, (route) => route.fulfill({ status: 403, json: { detail: 'forbidden' } }));
+    await signIn(page);
+
+    await page.goto(BACKTESTS);
+
+    await expect(page.getByRole('heading', { name: '백테스트 결과를 볼 권한이 없습니다.' })).toBeVisible();
+    expect(await page.evaluate((key) => window.sessionStorage.getItem(key), SESSION_STORAGE_KEY)).not.toBeNull();
+    expect(errors).toEqual([]);
+  });
+
+  test('expires a locally stale session before any backtest request leaves', async ({ page }) => {
+    const requests = recordApiRequests(page);
+    const errors = observeUnexpectedBrowserErrors(page);
+    await signIn(page, OWNER_TOKEN, '2020-01-01T00:00:00Z');
+
+    await page.goto(BACKTESTS);
+
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole('heading', { name: '로그인' })).toBeVisible();
+    expect(requests).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+
+  test('keeps a cancellation conflict visible and retryable', async ({ page }) => {
+    const errors = observeUnexpectedBrowserErrors(page, [409]);
+    await routeRun(page, RUNNING_RUN as RunFixture);
+    await page.route(cancellationPattern, (route) => route.fulfill({
+      status: 409,
+      json: { detail: { reasonCode: 'BACKTEST_TERMINAL_STATE', message: 'run already terminal' } },
+    }));
+    await signIn(page);
+
+    await page.goto(BACKTESTS);
+    await page.getByRole('button', { name: '실행 취소' }).click();
+
+    await expect(page.getByText('백테스트 취소 요청을 처리하지 못했습니다. 상태를 새로고침한 뒤 다시 시도해 주세요.')).toBeVisible();
+    await expect(page.getByRole('button', { name: '실행 취소' })).toBeEnabled();
+    expect(errors).toEqual([]);
+  });
+
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'tablet', width: 768, height: 1024 },
+    { name: 'laptop', width: 1440, height: 900 },
+    { name: 'desktop', width: 1920, height: 1080 },
+  ] as const) {
+    test(`keeps the completed analysis usable at ${viewport.name} width`, async ({ page }) => {
+      const errors = observeUnexpectedBrowserErrors(page);
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await signIn(page);
+      await page.goto(BACKTESTS);
+      await expect(page.getByTestId('backtest-live-workspace')).toBeVisible();
+
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+      const actions = await page.locator('.backtest-live-page button:not(:disabled), .backtest-live-page a[href], .backtest-live-page input:not(:disabled), .backtest-live-page select:not(:disabled)')
+        .evaluateAll((elements) => elements.filter((element) => {
+          const node = element as HTMLElement;
+          const style = getComputedStyle(node);
+          return style.display !== 'none' && style.visibility !== 'hidden' && node.getClientRects().length > 0;
+        }).map((element) => ({
+          name: element.getAttribute('aria-label')?.trim()
+            || (element as HTMLElement).innerText?.trim()
+            || ('labels' in element ? (element as HTMLInputElement).labels?.[0]?.innerText.trim() : '')
+            || element.getAttribute('title')?.trim()
+            || '',
+          html: element.outerHTML.slice(0, 240),
+        })));
+      expect(actions.length).toBeGreaterThan(0);
+      expect(actions.filter((action) => !action.name)).toEqual([]);
+
+      const launcher = page.getByRole('button', { name: '새 백테스트' });
+      await launcher.focus();
+      await page.keyboard.press('Enter');
+      const dialog = page.getByRole('dialog', { name: '새 백테스트' });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole('button', { name: '새 백테스트 창 닫기' })).toBeFocused();
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+      await expect(launcher).toBeFocused();
+      expect(errors).toEqual([]);
+    });
+  }
 });

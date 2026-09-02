@@ -52,9 +52,21 @@ test('runs a high-risk sanction journey with an opaque session, CSRF, and correl
   await page.goto('/operations/cases');
   await page.getByRole('button', { name: /REPORT/ }).click();
   await expect(page.getByText('REPORT · UNDER_REVIEW')).toBeVisible();
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'tablet', width: 768, height: 1024 },
+    { name: 'laptop', width: 1440, height: 900 },
+    { name: 'desktop', width: 1920, height: 1080 },
+  ] as const) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await expect(page.getByText('REPORT · UNDER_REVIEW'), viewport.name).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), viewport.name).toBe(true);
+  }
   await page.getByLabel('Operation reason code').fill('POLICY_VIOLATION');
   await page.getByLabel('Sanction ID', { exact: true }).fill(SANCTION_ID);
-  await page.getByRole('button', { name: 'Apply sanction' }).click();
+  const applySanction = page.getByRole('button', { name: 'Apply sanction' });
+  await applySanction.focus();
+  await page.keyboard.press('Enter');
   await expect(page.getByRole('button', { name: 'Execute high-risk operation' })).toBeDisabled();
   await page.getByLabel('Type APPLY_SANCTION to confirm').fill('APPLY_SANCTION');
   await page.getByRole('button', { name: 'Execute high-risk operation' }).click();

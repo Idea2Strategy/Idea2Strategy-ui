@@ -1,6 +1,22 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+const PROOF_VIEWPORTS = [
+  { name: 'phone', width: 390, height: 844 },
+  { name: 'tablet', width: 768, height: 1024 },
+  { name: 'laptop', width: 1440, height: 900 },
+  { name: 'desktop', width: 1920, height: 1080 },
+] as const;
+
+async function assertResponsiveWorkspace(page: Page, testId: string) {
+  for (const viewport of PROOF_VIEWPORTS) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await expect(page.getByTestId(testId), viewport.name).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), viewport.name).toBe(true);
+  }
+}
 
 test.skip(!process.env.A23_FULL_STACK_E2E, 'requires the deploy-like local stack');
 
@@ -42,6 +58,7 @@ test('opens the CLI-authored full Basic catalog across four resolutions', async 
   await expect(page.getByRole('article', { name: 'PARTITION 04' })).toContainText('NVDA');
   await expect(page.getByRole('article', { name: 'PARTITION 04' })).toContainText('일봉');
   await expect(page.locator('[data-strategy-card]')).toHaveCount(14);
+  await assertResponsiveWorkspace(page, 'basic-editor-workspace');
 
   // Every user-visible Basic condition family is represented by the canonical
   // fixture. Order emission is implicit in each card and verified by the
@@ -167,6 +184,7 @@ test('releases missing Basic blocks and renders the real official backtest resul
   await expect(selectedResult.getByText('시장 대비 누적 수익률', { exact: true })).toBeVisible();
   await expect(page.getByTestId('backtest-live-metrics')).toBeVisible();
   expect(completedRun?.resultHash).toMatch(/^[0-9a-f]{64}$/);
+  await assertResponsiveWorkspace(page, 'backtest-live-workspace');
 
   mkdirSync(path.dirname(receiptPath), { recursive: true });
   writeFileSync(receiptPath, `${JSON.stringify({

@@ -15,3 +15,21 @@ export function powershellPolicyArguments(platform: NodeJS.Platform, policyPath:
     ? ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', policyPath]
     : ['-NoProfile', '-File', policyPath];
 }
+
+export function unexpectedRepositoryChanges(
+  status: string,
+  allowedDirtyGitlinks: readonly string[],
+  isTrackedGitlink: (path: string) => boolean,
+): string[] {
+  const allowed = new Set(allowedDirtyGitlinks);
+  return status.replaceAll('\r', '').split('\n').filter(Boolean).filter((line) => {
+    const match = /^ M (.+)$/.exec(line);
+    return !match || !allowed.has(match[1]) || !isTrackedGitlink(match[1]);
+  });
+}
+
+export function developmentSeedRelativePath(kind: 'runtime-policy' | 'scoring'): string[] {
+  return kind === 'runtime-policy'
+    ? ['config', 'development', 'runtime-policy', 'policy-seed.sql']
+    : ['config', 'development', 'scoring', 'scoring-template-seed.sql'];
+}
