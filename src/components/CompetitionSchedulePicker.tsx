@@ -21,6 +21,20 @@ const timePart = (value: string) => value.slice(11, 16);
 const join = (date: string, time: string) => `${date}T${time}`;
 const two = (value: number) => String(value).padStart(2, '0');
 const isoDate = (year: number, monthIndex: number, day: number) => `${year}-${two(monthIndex + 1)}-${two(day)}`;
+const formatMilestone = (value: string, language: 'ko' | 'en') => {
+  const date = new Date(value);
+  const formatter = new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'ko-KR', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  if (language === 'en') return formatter.format(date);
+  return formatter.formatToParts(date).map((part) => part.type === 'dayPeriod'
+    ? (date.getHours() < 12 ? '오전' : '오후')
+    : part.value).join('');
+};
 
 export function CompetitionSchedulePicker({ value, onChange }: { value: CompetitionSchedule; onChange: (value: CompetitionSchedule) => void }) {
   const { language, t } = useLanguage();
@@ -36,8 +50,6 @@ export function CompetitionSchedulePicker({ value, onChange }: { value: Competit
     return day >= 1 && day <= dayCount ? day : null;
   }), [dayCount, firstWeekday]);
   const weekdays = language === 'en' ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['일', '월', '화', '수', '목', '금', '토'];
-  const locale = language === 'en' ? 'en-US' : 'ko-KR';
-
   const selectDate = (day: number) => {
     const selected = isoDate(year, month, day);
     onChange({ ...value, [active]: join(selected, timePart(value[active])) });
@@ -52,7 +64,7 @@ export function CompetitionSchedulePicker({ value, onChange }: { value: Competit
   return <Localized><div className="competition-schedule-picker">
     <div className="competition-schedule-milestones" aria-label="대회 일정 단계">
       {milestones.map((item, index) => <button key={item.key} type="button" className={`competition-schedule-milestone is-${item.tone}`} aria-pressed={active === item.key} onClick={() => { setActive(item.key); const selected = new Date(`${datePart(value[item.key])}T12:00:00`); setVisibleMonth(new Date(selected.getFullYear(), selected.getMonth(), 1)); }}>
-        <span>{index + 1}</span><strong>{t(`${item.label} 선택`)}</strong><small>{new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(value[item.key]))}</small>
+        <span>{index + 1}</span><strong>{t(`${item.label} 선택`)}</strong><small>{formatMilestone(value[item.key], language)}</small>
       </button>)}
     </div>
     <div className="competition-schedule-calendar">
