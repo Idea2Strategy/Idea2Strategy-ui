@@ -181,7 +181,13 @@ test('releases missing Basic blocks and renders the real official backtest resul
   const selectedResult = page.getByRole('region', { name: '선택한 백테스트 결과' });
   await expect(selectedResult.getByRole('heading', { name: `${strategyName} 성과 개요` })).toBeVisible();
   await expect(selectedResult.getByText('완료', { exact: true }).first()).toBeVisible();
-  await expect(selectedResult.getByText('시장 대비 누적 수익률', { exact: true })).toBeVisible();
+  const comparisonReady = selectedResult.getByText('시장 대비 누적 수익률', { exact: true });
+  const comparisonUnavailable = selectedResult.getByText('서로 비교할 수 있는 실제 데이터 기간이 없습니다.', { exact: true });
+  await expect(comparisonReady.or(comparisonUnavailable)).toBeVisible();
+  const benchmarkComparison = await comparisonReady.isVisible() ? 'READY' : 'UNAVAILABLE';
+  if (benchmarkComparison === 'UNAVAILABLE') {
+    await expect(selectedResult.getByText(/전략 또는 시장 ETF에 비교할 실제 가격 기록이 없습니다/)).toBeVisible();
+  }
   await expect(page.getByTestId('backtest-live-metrics')).toBeVisible();
   expect(completedRun?.resultHash).toMatch(/^[0-9a-f]{64}$/);
   await assertResponsiveWorkspace(page, 'backtest-live-workspace');
@@ -189,6 +195,13 @@ test('releases missing Basic blocks and renders the real official backtest resul
   mkdirSync(path.dirname(receiptPath), { recursive: true });
   writeFileSync(receiptPath, `${JSON.stringify({
     schemaVersion: 1, strategyId, releaseId: released.releaseId, botId: released.botId,
-    runs: { BASIC: { runId: completedRun?.backtestRunId, terminalState: completedRun?.status, resultChecksum: completedRun?.resultHash } },
+    runs: {
+      BASIC: {
+        runId: completedRun?.backtestRunId,
+        terminalState: completedRun?.status,
+        resultChecksum: completedRun?.resultHash,
+        benchmarkComparison,
+      },
+    },
   }, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
 });
