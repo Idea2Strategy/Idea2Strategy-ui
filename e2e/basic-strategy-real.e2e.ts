@@ -182,12 +182,12 @@ test('releases missing Basic blocks and renders the real official backtest resul
   await expect(selectedResult.getByRole('heading', { name: `${strategyName} 성과 개요` })).toBeVisible();
   await expect(selectedResult.getByText('완료', { exact: true }).first()).toBeVisible();
   const comparisonReady = selectedResult.getByText('시장 대비 누적 수익률', { exact: true });
-  const comparisonUnavailable = selectedResult.getByText('서로 비교할 수 있는 실제 데이터 기간이 없습니다.', { exact: true });
-  await expect(comparisonReady.or(comparisonUnavailable)).toBeVisible();
-  const benchmarkComparison = await comparisonReady.isVisible() ? 'READY' : 'UNAVAILABLE';
-  if (benchmarkComparison === 'UNAVAILABLE') {
-    await expect(selectedResult.getByText(/전략 또는 시장 ETF에 비교할 실제 가격 기록이 없습니다/)).toBeVisible();
-  }
+  await expect(comparisonReady).toBeVisible();
+  const comparisonLegend = selectedResult.getByLabel('성과 비교 범례');
+  await expect(comparisonLegend.getByText('S&P 500 (SPY)', { exact: false })).toBeVisible();
+  await expect(comparisonLegend.getByText('NASDAQ-100 (QQQ)', { exact: false })).toBeVisible();
+  await expect(selectedResult.getByText('실제 비교 기간', { exact: true })).toBeVisible();
+  const benchmarkComparison = 'READY';
   await expect(page.getByTestId('backtest-live-metrics')).toBeVisible();
   expect(completedRun?.resultHash).toMatch(/^[0-9a-f]{64}$/);
   await assertResponsiveWorkspace(page, 'backtest-live-workspace');
