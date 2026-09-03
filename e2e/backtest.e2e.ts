@@ -129,6 +129,26 @@ test.describe('backtest screens against the /api/v1 contract', () => {
     expect(await listRequest!.headerValue('authorization')).toBe(`Bearer ${OWNER_TOKEN}`);
   });
 
+  test('hard navigation does not wait for the competition workspace module', async ({ page }) => {
+    let operationsModuleRequested = false;
+    let preferencesRequestPending = false;
+    await page.route('**/src/views/OperationsViews.tsx*', async () => {
+      operationsModuleRequested = true;
+      await new Promise(() => undefined);
+    });
+    await page.route('**/api/v1/account/preferences', async () => {
+      preferencesRequestPending = true;
+      await new Promise(() => undefined);
+    });
+    await signIn(page);
+
+    await page.goto(BACKTESTS);
+
+    await expect(page.getByTestId('backtest-live-workspace')).toBeVisible({ timeout: 3_000 });
+    await expect.poll(() => preferencesRequestPending).toBe(true);
+    expect(operationsModuleRequested).toBe(false);
+  });
+
   test('opens the new backtest form as a modal with product-styled dropdowns', async ({ page }) => {
     await page.route('**/api/v1/bots/operations', (route) => route.fulfill({
       json: [
