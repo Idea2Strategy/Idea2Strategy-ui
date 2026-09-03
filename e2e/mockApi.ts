@@ -109,7 +109,7 @@ function respond(response: ServerResponse, answer: Answer, origin?: string): voi
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': origin ?? 'null',
     'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Allow-Headers': 'Authorization, Accept, Content-Type',
+    'Access-Control-Allow-Headers': 'Authorization, Accept, Content-Type, Idempotency-Key, X-Correlation-Id, X-Operator-CSRF',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     Vary: 'Origin',
     ...answer.headers,

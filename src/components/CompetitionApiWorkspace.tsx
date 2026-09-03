@@ -238,7 +238,7 @@ function LeaderboardSection({ title, load, history, setHistory, cursor, setCurso
     return <Localized><section className="competition-api-leaderboard" aria-label={title}><div className="competition-api-mini-empty" role={denied ? 'status' : 'alert'}><strong>{denied && owned ? '로그인하면 내 봇 비교를 볼 수 있습니다.' : `${title}를 불러오지 못했습니다.`}</strong>{!denied && <button type="button" onClick={onRetry}>다시 시도</button>}</div></section></Localized>;
   }
   const page = load.value!;
-  return <Localized><section className="competition-api-leaderboard" aria-label={title}><Leaderboard title={title} items={page.items} owned />{(history.length > 0 || page.hasMore) && <footer className="competition-api-pagination"><button type="button" disabled={history.length === 0} onClick={() => { const next = history.slice(); setCursor(next.pop()); setHistory(next); }}><ArrowLeft size={13} />이전</button><span>{history.length + 1}페이지</span><button type="button" disabled={!page.hasMore || !page.nextCursor} onClick={() => { if (!page.nextCursor) return; setHistory((current) => [...current, cursor]); setCursor(page.nextCursor ?? undefined); }}>다음<ArrowRight size={13} /></button></footer>}</section></Localized>;
+  return <Localized><section className="competition-api-leaderboard" aria-label={title}><Leaderboard title={title} items={page.items} owned={owned} />{(history.length > 0 || page.hasMore) && <footer className="competition-api-pagination"><button type="button" disabled={history.length === 0} onClick={() => { const next = history.slice(); setCursor(next.pop()); setHistory(next); }}><ArrowLeft size={13} />이전</button><span>{history.length + 1}페이지</span><button type="button" disabled={!page.hasMore || !page.nextCursor} onClick={() => { if (!page.nextCursor) return; setHistory((current) => [...current, cursor]); setCursor(page.nextCursor ?? undefined); }}>다음<ArrowRight size={13} /></button></footer>}</section></Localized>;
 }
 
 function Leaderboard({ title, items, owned = false }: { title: string; items: LeaderboardItem[]; owned?: boolean }) {
@@ -269,12 +269,33 @@ function PostChoice({ client, roomId, item, initial }: { client: CompetitionRoom
 }
 
 function DialogShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>('*')]
+        .filter((element) => element.matches(
+          'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+        ));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     document.body.style.overflow = 'hidden';
     document.addEventListener('keydown', closeOnEscape);
@@ -282,12 +303,13 @@ function DialogShell({ title, onClose, children }: { title: string; onClose: () 
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', closeOnEscape);
+      previouslyFocused?.focus();
     };
   }, [onClose]);
 
   return <Localized>
     <div className="competition-create-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="competition-create-dialog competition-api-dialog" role="dialog" aria-modal="true" aria-label={title}>
+      <section ref={dialogRef} className="competition-create-dialog competition-api-dialog" role="dialog" aria-modal="true" aria-label={title}>
         <header>
           <div><small>COMPETITION</small><h2>{title}</h2></div>
           <button ref={closeButtonRef} type="button" aria-label={`${title} 닫기`} onClick={onClose}><X size={20} /></button>

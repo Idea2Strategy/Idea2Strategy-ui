@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { CompetitionApiWorkspace, joinFailureMessage } from './components/CompetitionApiWorkspace';
@@ -71,6 +71,25 @@ describe('real competition room workspace', () => {
     expect(search).toHaveValue('');
   });
 
+  test('traps keyboard focus in competition dialogs and restores the launcher', async () => {
+    const user = userEvent.setup();
+    render(<CompetitionApiWorkspace client={client()} />);
+    await screen.findByRole('listitem', { name: '실전 API 대회 열기' });
+
+    const launcher = screen.getByRole('button', { name: '대회 만들기' });
+    await user.click(launcher);
+    const dialog = screen.getByRole('dialog', { name: '대회 만들기' });
+    await within(dialog).findByText('검증된 표준 채점·수수료·구매력 정책을 자동 적용합니다.');
+
+    expect(within(dialog).getByRole('button', { name: '대회 만들기 닫기' })).toHaveFocus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(within(dialog).getByRole('button', { name: '대회 생성' })).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: '대회 만들기' })).not.toBeInTheDocument();
+    expect(launcher).toHaveFocus();
+  });
+
   test('shows loading, schedule, anonymous ranking, owned comparison and post-end choice', async () => {
     const api = client();
     render(<CompetitionApiWorkspace client={api} />);
@@ -84,6 +103,11 @@ describe('real competition room workspace', () => {
     expect(within(detail).getAllByText('Bot Mine').length).toBeGreaterThan(0);
     expect(within(detail).getAllByText('내 봇').length).toBeGreaterThan(0);
     expect(within(detail).getAllByText('모의 성과 · 실제 투자 결과를 보장하지 않습니다.')).toHaveLength(2);
+
+    const publicLeaderboard = within(detail).getAllByRole('region', { name: '익명 봇 리더보드' }).at(-1)!;
+    const ownedLeaderboard = within(detail).getAllByRole('region', { name: '내 봇 비교' }).at(-1)!;
+    expect(within(publicLeaderboard).queryByText('내 봇')).not.toBeInTheDocument();
+    expect(within(ownedLeaderboard).getByText('내 봇')).toBeInTheDocument();
 
     await userEvent.click(within(detail).getByRole('radio', { name: '비공개 봇으로 계속 운용' }));
     await userEvent.click(within(detail).getByRole('button', { name: '종료 후 선택 저장' }));

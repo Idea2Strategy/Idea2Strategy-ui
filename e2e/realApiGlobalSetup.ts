@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import os from 'node:os';
 import path from 'node:path';
 import { hasActiveProjectRun, interpretDockerInspect, isDockerContainerNameConflict, shouldReapContainer, shouldReapNetwork } from './dockerResourcePolicy';
-import { backendReadyTimeoutMs, powershellPolicyArguments } from './realApiRuntimePolicy';
+import { backendReadyTimeoutMs, developmentSeedRelativePath, powershellPolicyArguments, unexpectedRepositoryChanges } from './realApiRuntimePolicy';
 
 const projectLabel = 'com.idea2strategy.a23-real-api=true';
 const backendPort = Number(process.env.A23_BACKEND_PORT);
@@ -15,6 +15,9 @@ if (!Number.isInteger(backendPort) || backendPort < 1024 || backendPort > 65_535
 const run = (program: string, args: string[], cwd?: string) => execFileSync(program, args, {
   cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
 }).trim();
+const runPreservingLeadingStatus = (program: string, args: string[], cwd?: string) => execFileSync(program, args, {
+  cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+}).replace(/[\r\n]+$/, '');
 const docker = (...args: string[]) => run('docker', args);
 const dockerLogs = (container: string) => {
   const result = spawnSync('docker', ['logs', container], { encoding: 'utf8' });
@@ -26,6 +29,7 @@ export default async function globalSetup(): Promise<() => void> {
     process.env.A23_ROOT_DIR ?? path.join('..'),
     process.env.A23_ROOT_REVISION,
     'A23_ROOT_DIR',
+    process.env.A23_ROOT_ALLOWED_DIRTY_GITLINKS?.split(',').map((item) => item.trim()).filter(Boolean) ?? [],
   );
   const backendDir = exactCleanRepository(
     process.env.A23_BACKEND_DIR ?? path.join('..', 'backend'),
@@ -152,13 +156,7 @@ function seedStrategyInstruments(postgres: string): void {
 }
 
 function seedScoringCatalog(postgres: string, rootDir: string): void {
-  const seedPath = path.join(
-    rootDir,
-    'proposals',
-    'development-scoring-template',
-    'artifacts',
-    'scoring-template-seed.sql',
-  );
+  const seedPath = path.join(rootDir, ...developmentSeedRelativePath('scoring'));
   if (!existsSync(seedPath)) throw new Error(`Reviewed scoring catalog seed is missing: ${seedPath}`);
   const result = spawnSync(
     'docker',
@@ -171,13 +169,7 @@ function seedScoringCatalog(postgres: string, rootDir: string): void {
 }
 
 function seedRuntimePolicies(postgres: string, rootDir: string): void {
-  const seedPath = path.join(
-    rootDir,
-    'proposals',
-    'development-runtime-policy',
-    'artifacts',
-    'policy-seed.sql',
-  );
+  const seedPath = path.join(rootDir, ...developmentSeedRelativePath('runtime-policy'));
   if (!existsSync(seedPath)) throw new Error(`Reviewed runtime policy seed is missing: ${seedPath}`);
   const result = spawnSync(
     'docker',
@@ -204,15 +196,23 @@ function gradleCacheSource(): string {
   return volume;
 }
 
-function exactCleanRepository(value: string, revision: string | undefined, variable: string): string {
+function exactCleanRepository(
+  value: string,
+  revision: string | undefined,
+  variable: string,
+  allowedDirtyGitlinks: readonly string[] = [],
+): string {
   const repository = path.resolve(value);
   if (!existsSync(path.join(repository, '.git'))) {
     throw new Error(`${variable} must point to a Git worktree: ${repository}`);
   }
   const actual = run('git', ['rev-parse', 'HEAD'], repository);
   if (revision && actual !== revision) throw new Error(`${variable} must be exact ${revision}; found ${actual}`);
-  const status = run('git', ['status', '--porcelain=v1'], repository);
-  if (status !== '') throw new Error(`${variable} must be clean; found:\n${status}`);
+  const status = runPreservingLeadingStatus('git', ['status', '--porcelain=v1'], repository);
+  const unexpected = unexpectedRepositoryChanges(status, allowedDirtyGitlinks, (candidate) => (
+    /^160000 [0-9a-f]{40} 0\t/.test(run('git', ['ls-files', '--stage', '--', candidate], repository))
+  ));
+  if (unexpected.length > 0) throw new Error(`${variable} must be clean except for allowed working-tree gitlinks; found:\n${unexpected.join('\n')}`);
   return repository;
 }
 
