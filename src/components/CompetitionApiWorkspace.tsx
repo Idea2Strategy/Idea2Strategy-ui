@@ -271,6 +271,11 @@ function PostChoice({ client, roomId, item, initial }: { client: CompetitionRoom
 function DialogShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  // Callers pass inline handlers, so onClose changes on every parent render.
+  // Reading it through a ref keeps the open-time effect (initial focus,
+  // scroll lock, focus restore) from re-running and stealing focus.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -278,7 +283,7 @@ function DialogShell({ title, onClose, children }: { title: string; onClose: () 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab' || !dialogRef.current) return;
@@ -305,7 +310,7 @@ function DialogShell({ title, onClose, children }: { title: string; onClose: () 
       document.removeEventListener('keydown', closeOnEscape);
       previouslyFocused?.focus();
     };
-  }, [onClose]);
+  }, []);
 
   return <Localized>
     <div className="competition-create-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { CompetitionApiWorkspace, joinFailureMessage } from './components/CompetitionApiWorkspace';
 import { CompetitionApiError } from './api/competitionRooms';
-import type { CompetitionRoomsClient, PublicRoom, RoomInputCatalog } from './api/competitionRooms';
+import type { CompetitionRoomsClient, LeaderboardPage, PublicRoom, RoomInputCatalog } from './api/competitionRooms';
 import { LanguageProvider } from './lib/i18n';
 import { RoomsView } from './views/OperationsViews';
 
@@ -88,6 +88,35 @@ describe('real competition room workspace', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog', { name: '대회 만들기' })).not.toBeInTheDocument();
     expect(launcher).toHaveFocus();
+  });
+
+  test('keeps focus in the join dialog while the room detail re-renders', async () => {
+    const user = userEvent.setup();
+    let resolveMyBots!: (page: LeaderboardPage) => void;
+    const myBots = vi.fn(() => new Promise<LeaderboardPage>((resolve) => { resolveMyBots = resolve; }));
+    render(<CompetitionApiWorkspace client={client({ myBots })} />);
+    await user.click(await screen.findByRole('listitem', { name: '실전 API 대회 열기' }));
+    const detail = await screen.findByRole('region', { name: '실전 API 대회 상세' });
+    await within(detail).findByText('Bot 3F9A');
+    await user.click(within(detail).getByRole('button', { name: '이 대회 참가하기' }));
+    const join = screen.getByRole('dialog', { name: '대회 참가' });
+    await within(join).findByRole('option', { name: /Momentum · 편집 7/ });
+
+    const alias = within(join).getByLabelText('익명 봇 별칭');
+    await user.type(alias, 'Bot');
+    expect(alias).toHaveFocus();
+
+    // The owned leaderboard arrives while the dialog is open, so the room
+    // detail re-renders and hands the dialog a fresh inline onClose.
+    await act(async () => {
+      resolveMyBots({ snapshotId: 's1', snapshotStatus: 'FINAL', cutoffAt: room.participationClosesAt, nextCursor: null, hasMore: false, items: [] });
+    });
+    await within(detail).findByText('표시할 봇 성과가 없습니다.');
+
+    expect(alias).toHaveFocus();
+    await user.keyboard(' 7ABC');
+    expect(alias).toHaveValue('Bot 7ABC');
+    expect(within(join).getByRole('button', { name: '대회 참가 닫기' })).not.toHaveFocus();
   });
 
   test('shows loading, schedule, anonymous ranking, owned comparison and post-end choice', async () => {
