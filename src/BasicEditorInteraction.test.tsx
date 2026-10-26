@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { BasicEditor } from './views/StrategyViews';
@@ -523,8 +523,9 @@ describe('Basic editor interactions', () => {
     const drawer = screen.getByRole('complementary', { name: '전략 오류 안내' });
     await user.click(within(drawer).getByRole('button', { name: /AAPL 최대 보유 비율/ }));
 
-    const focusedCap = await screen.findByRole('spinbutton', { name: 'AAPL 종목별 최대 보유 비율' });
-    expect(focusedCap).toHaveFocus();
+    // The editor moves focus inside requestAnimationFrame, so the field can
+    // exist a frame before it is focused. Wait for focus, not for the node.
+    await waitFor(() => expect(screen.getByRole('spinbutton', { name: 'AAPL 종목별 최대 보유 비율' })).toHaveFocus());
   });
 
   test('allows a complete strategy to launch after block fields and sell percentage are set', async () => {
