@@ -38,6 +38,9 @@ export default defineConfig(({ mode }) => {
         } : {}),
         '/api': { target: env.VITE_REAL_API_TARGET, changeOrigin: true },
         '/actuator': { target: env.VITE_REAL_API_TARGET, changeOrigin: true },
+        // The market-data price stream opens /ws/v1/... on the page origin, so
+        // the upgrade has to reach backend-api through this server too.
+        '/ws': { target: env.VITE_REAL_API_TARGET, changeOrigin: true, ws: true },
       },
     } : undefined,
     test: {
