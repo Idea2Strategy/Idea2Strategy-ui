@@ -16,35 +16,61 @@ pnpm test -- --run
 pnpm build
 ```
 
-### 실제 계정 API 여정
+### 실제 backend API 여정
 
-선택 실행하는 Playwright 여정은 네트워크 fixture를 사용하지 않습니다. 임시 PostgreSQL에
-backend의 canonical Flyway migration을 적용하고 production `backend-api`를 기동한 뒤,
-Chromium에서 가입·인증·로그인·환경설정·사용자 케이스를 실행합니다. Docker와 Chromium이
-필요합니다. Backend는 정확히 `65e6426b`, root Flyway bundle은 정확히 `e259a83`인
-깨끗한 worktree만 허용합니다. 환경 변수를 생략하면 UI worktree와 나란히 있는
-`a23-real-backend-develop`, `a23-real-root-develop`을 검사합니다.
+선택 실행하는 Playwright 여정은 네트워크 fixture 없이 production `backend-api`를 대상으로
+합니다. 기본 실행 범위는 다음 두 파일입니다.
+
+- `e2e/real-account-api.e2e.ts`: 가입, 잘못된 비밀번호와 정상 로그인, 계정 환경설정 조회,
+  사용자 케이스 제출
+- `e2e/competition-room-create-real.e2e.ts`: 대회 방 생성·취소, 비공개 방 초대 제어
+
+Docker, Playwright Chromium, 그리고 Windows가 아니면 `pwsh`가 필요합니다. UI를 root
+저장소의 `ui` submodule로 checkout했다면 환경 변수 없이 실행할 수 있습니다.
 
 ```powershell
-$env:A23_BACKEND_DIR='C:\path\to\Idea2Strategy-backend'
-$env:A23_ROOT_DIR='C:\path\to\Idea2Strategy-root'
+pnpm e2e:install
 pnpm e2e:real-api
 ```
 
-Pinned root bundle은 root 검증 스크립트의 resource-free manifest/SHA-256/source-revision
-정책을 그대로 실행한 뒤, harness가 label을 붙인 PostgreSQL/Flyway에서 migrate와 validate를
-수행합니다.
-DB 비밀번호와 네 가지 용도별 HMAC/암호화 키는 실행마다 별도로 생성하고 파일에 쓰지
+`pnpm e2e:real-api`는 앱과 backend용 빈 포트를 하나씩 할당해 `A23_APP_PORT`,
+`A23_BACKEND_PORT`로 넘깁니다. `playwright.real-api.config.ts`를 직접 실행하면 포트가 없어
+즉시 실패합니다. Global setup(`e2e/realApiGlobalSetup.ts`)은 다음 순서로 동작합니다.
+
+1. UI checkout의 상위 디렉터리를 root 저장소로, `../backend`를 backend 저장소로 사용합니다.
+   다른 위치는 `A23_ROOT_DIR`, `A23_BACKEND_DIR`로 지정합니다. Backend `HEAD`는 root가
+   고정한 `backend` gitlink와 같아야 하며 `A23_BACKEND_REVISION`으로 바꿀 수 있습니다. Root
+   revision은 `A23_ROOT_REVISION`을 지정했을 때만 검사합니다. 두 저장소 모두 깨끗해야 하고,
+   root에서는 `A23_ROOT_ALLOWED_DIRTY_GITLINKS`(쉼표 구분)에 적은 submodule gitlink 변경만
+   허용합니다.
+2. Root `scripts/test-flyway-ci-bundle.ps1`의 resource-free 검증 부분으로
+   `db/flyway-ci-bundle`의 manifest, SHA-256, source revision을 확인합니다.
+3. 전용 Docker network에 PostgreSQL 16을 띄우고 Flyway 11로 migrate와 validate를 실행한 뒤
+   전략 instrument(AAPL, MSFT, SPY), `config/development/runtime-policy/policy-seed.sql`,
+   `config/development/scoring/scoring-template-seed.sql`을 넣습니다.
+4. Gradle 8.14.3/JDK 21 컨테이너에서 backend checkout을 mount해
+   `:apps:backend-api:bootRun`을 실행하고 `/actuator/health`가 응답할 때까지 기다립니다.
+   대기 시간은 기본 600초이며 `A23_BACKEND_READY_TIMEOUT_SECONDS`로 60-1200초 사이에서
+   바꿀 수 있습니다.
+5. Vite dev server는 `VITE_REAL_API_TARGET`으로 `/api`와 `/actuator` 요청을 이 backend에
+   proxy합니다.
+
+DB 비밀번호와 identity 암호화·HMAC·JWT 서명 키는 실행마다 새로 생성하고 파일에 쓰지
 않습니다. 실행 중에는 Docker inspect 권한이 있는 로컬 사용자가 컨테이너 환경을 볼 수
-있으므로 harness는 project/run label을 붙입니다. 다른 active run은 건드리지 않고 1시간 넘게
-중지된 resource만 회수합니다. 같은 backend checkout의 Gradle output을 공유하므로 project별
-active-run lock으로 실행을 직렬화하며, 두 번째 실행은 첫 실행을 삭제하지 않고 즉시 실패합니다. 정상 종료·process
-exit·SIGINT·SIGTERM에서는 자기 컨테이너와 network만 제거합니다. 정상 teardown의 inspect나
-삭제 실패는 테스트 실패로 보고합니다.
-Gradle cache는 host UID나 bind mount에 의존하지 않는 Docker named volume에만 저장합니다.
-이 cache volume은 실행 간 재사용하도록 의도적으로 유지하며, 비밀번호·암호화 키 등 실행 secret은 저장하지 않습니다.
-신뢰된 servlet principal과 MFA를 수립하는 gateway가 준비되기 전까지 operator 경로는
-의도적으로 제외합니다.
+있습니다. 모든 resource에는 project/run label이 붙습니다. 같은 backend checkout의 Gradle
+output을 공유하므로 lock 컨테이너로 실행을 직렬화하며, 두 번째 실행은 첫 실행을 건드리지
+않고 즉시 실패합니다. 1시간 넘게 중지된 resource만 회수하고, 정상 종료·process exit·SIGINT·
+SIGTERM에서는 자기 컨테이너와 network만 제거합니다. 정상 teardown의 inspect나 삭제 실패는
+테스트 실패로 보고합니다.
+
+Gradle cache는 기본적으로 Docker named volume `a23-real-api-gradle-cache`에 두고 실행 간
+재사용합니다. CI처럼 `A23_GRADLE_CACHE_DIR`를 지정하면 그 디렉터리를 bind mount합니다.
+Cache에는 비밀번호나 키 같은 실행 secret을 저장하지 않습니다.
+
+`A23_EXTERNAL_BASE_URL`을 지정하면 global setup과 dev server 없이 이미 떠 있는 stack을
+대상으로 실행하고, `A23_FULL_STACK_E2E=1`이면 `e2e/basic-strategy-real.e2e.ts`만 실행합니다.
+Root `scripts/test-basic-strategy-real-e2e.ps1`이 이 방식을 사용합니다. Operator cookie
+session 화면은 mock API를 쓰는 `pnpm e2e:operator-session`에서 검증합니다.
 
 ## 현재 제품 구성
 
