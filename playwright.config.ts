@@ -56,9 +56,6 @@ export default defineConfig({
     // single line of application code for the test.
     env: {
       VITE_API_BASE_URL: MOCK_API_URL,
-      // Enables only the explicit development bridge. The token itself is injected
-      // at browser runtime and is never compiled into the Vite bundle.
-      VITE_ENABLE_LOCAL_OPERATOR_HARNESS: 'true',
     },
   },
 });
