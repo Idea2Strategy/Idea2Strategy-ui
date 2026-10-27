@@ -26,7 +26,6 @@ export default defineConfig({
     /real-account-api\.e2e\.ts/,
     /basic-strategy-real\.e2e\.ts/,
     /competition-room-create-real\.e2e\.ts/,
-    /operator-oidc\.e2e\.ts/,
     /operator-session\.e2e\.ts/,
   ],
   fullyParallel: true,
