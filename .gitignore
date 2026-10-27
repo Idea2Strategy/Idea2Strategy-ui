@@ -6,8 +6,6 @@ dist/
 test-results/
 playwright-report/
 blob-report/
-.harness/gradle-cache/
-.harness/local/
 
 *.log
 .DS_Store
