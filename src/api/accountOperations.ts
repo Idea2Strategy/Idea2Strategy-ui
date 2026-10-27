@@ -251,38 +251,6 @@ export function createAccountOperationsClient({
   };
 }
 
-export interface AdminMcpClient {
-  invoke(toolName: string, input: { registryVersion: string; requestSchemaVersion: string; targetId: string; targetVersion?: number | null; input: Record<string, unknown> }, idempotencyKey: string, signal?: AbortSignal): Promise<{ status: string; code: string; result: Record<string, unknown>; correlationId: string }>;
-}
-
-export function createAdminMcpClient(options: ClientOptions = {}): AdminMcpClient {
-  const root = (options.baseUrl ?? '').replace(/\/$/, '');
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const correlation = options.createCorrelationId ?? (() => crypto.randomUUID());
-  return {
-    async invoke(toolName, input, idempotencyKey, signal) {
-      const correlationId = correlation();
-      const csrf = options.getOperatorCsrfToken?.();
-      let response: Response;
-      try {
-        response = await fetchImpl(`${root}/mcp/v1/tools/${encodeURIComponent(toolName)}:invoke`, {
-          method: 'POST', signal, credentials: 'include',
-          headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey, 'X-Correlation-Id': correlationId, ...(csrf ? { 'X-Operator-CSRF': csrf } : {}) },
-          body: JSON.stringify({ ...input, targetVersion: input.targetVersion ?? null }),
-        });
-      } catch {
-        throw new AccountOperationsApiError(0, 'NETWORK_ERROR', correlationId);
-      }
-      if (!response.ok) throw await readError(response, correlationId);
-      const value = object(await json(response));
-      return {
-        status: text(value.status, 'status'), code: text(value.code, 'code'),
-        result: object(value.result), correlationId: text(value.correlationId, 'correlationId'),
-      };
-    },
-  };
-}
-
 async function readError(response: Response, fallbackCorrelationId: string) {
   let body: Record<string, unknown> = {};
   try { body = object(await response.json()); } catch { /* keep protocol fallback */ }
@@ -410,4 +378,3 @@ async function sha256(value: string): Promise<string> {
 }
 
 export const defaultAccountOperationsClient = createAccountOperationsClient({ baseUrl: import.meta.env.VITE_API_BASE_URL ?? '', getAccessToken: getSessionAccessToken });
-export const defaultAdminMcpClient = createAdminMcpClient({ baseUrl: import.meta.env.VITE_ADMIN_MCP_BASE_URL ?? '' });

@@ -43,7 +43,7 @@ records the exact blocker so the UI does not invent a contract.
 ## External runtime prerequisite
 
 After that contract is approved and implemented, activation still requires a
-deployed provider, a real authenticated browser session, and the configured
-operator OIDC/AWS trust path. Browser mocks are not acceptable release
+deployed provider, a real authenticated browser session, and the internal
+operator cookie-session sign-in. Browser mocks are not acceptable release
 evidence. These external prerequisites are separate from the UI's loading,
 error, and empty-state implementation.

@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it, vi } from 'vitest';
-import { AccountOperationsApiError, createAccountOperationsClient, createAdminMcpClient } from './accountOperations';
+import { AccountOperationsApiError, createAccountOperationsClient } from './accountOperations';
 
 const caseView = {
   id: 'case-1', accountId: 'account-1', type: 'APPEAL', status: 'OPEN', version: 1,
@@ -130,26 +130,6 @@ describe('account operations API client', () => {
     await expect(client.operatorCaseQueue({ types: ['REPORT'] })).rejects.toEqual(expect.objectContaining({
       status: 401, code: 'OPERATOR_AUTHENTICATION_REQUIRED', correlationId: 'corr-operator-guard',
     }));
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('admin MCP client', () => {
-  it('invokes only an explicitly named versioned tool with idempotency and correlation', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: 'EXECUTED', code: 'OK', result: { accepted: true }, correlationId: 'corr-mcp' }), { status: 200 }));
-    const client = createAdminMcpClient({ baseUrl: 'https://admin.example/', fetchImpl, createCorrelationId: () => 'corr-mcp', getOperatorCsrfToken: () => 'operator-token' });
-    await expect(client.invoke('corporate_action_candidate.query', { registryVersion: 'mcp-v1', requestSchemaVersion: 'schema-v1', targetId: 'candidate-1', input: { candidateId: 'candidate-1' } }, 'idem-mcp'))
-      .resolves.toEqual({ status: 'EXECUTED', code: 'OK', result: { accepted: true }, correlationId: 'corr-mcp' });
-    expect(fetchImpl).toHaveBeenCalledWith('https://admin.example/mcp/v1/tools/corporate_action_candidate.query:invoke', expect.objectContaining({
-      headers: expect.objectContaining({ 'X-Operator-CSRF': 'operator-token', 'Idempotency-Key': 'idem-mcp', 'X-Correlation-Id': 'corr-mcp' }),
-    }));
-  });
-
-  it('fails closed without an independently established operator credential', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: 'OPERATOR_AUTHENTICATION_REQUIRED' }), { status: 401 }));
-    const client = createAdminMcpClient({ fetchImpl, createCorrelationId: () => 'corr-mcp-guard', getAccessToken: () => 'ordinary-session-token' });
-    await expect(client.invoke('tool', { registryVersion: 'v1', requestSchemaVersion: 'v1', targetId: 'target', input: {} }, 'idem'))
-      .rejects.toEqual(expect.objectContaining({ status: 401, code: 'OPERATOR_AUTHENTICATION_REQUIRED' }));
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });
